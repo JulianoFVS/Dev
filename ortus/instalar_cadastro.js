@@ -1,3 +1,8 @@
+const fs = require('fs');
+const path = require('path');
+
+// Aqui começa o código da página
+const conteudoDaPagina = `
 'use client';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -56,7 +61,7 @@ export default function Pacientes() {
       {/* Lista de Pacientes */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {pacientes.map((p) => (
-          <Link key={p.id} href={`/pacientes/${p.id}`}>
+          <Link key={p.id} href={\`/pacientes/\${p.id}\`}>
             <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-teal-200 transition-all cursor-pointer group relative overflow-hidden">
                 <div className="absolute top-0 right-0 p-4 opacity-0 group-hover:opacity-100 transition-opacity text-teal-600"><ChevronRight /></div>
                 <div className="flex gap-4 items-center">
@@ -99,3 +104,11 @@ export default function Pacientes() {
     </div>
   );
 }
+`; 
+// FIM DO CÓDIGO DA PÁGINA
+
+// Criação do arquivo
+const caminhoArquivo = path.join('app', 'pacientes', 'page.tsx');
+fs.writeFileSync(caminhoArquivo, conteudoDaPagina.trim());
+
+console.log('✅ Sistema de Cadastro Instalado com Sucesso!');
