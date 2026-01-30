@@ -5,7 +5,8 @@ import { User, Plus, ChevronRight, X, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 
 export default function Pacientes() {
-  const [pacientes, setPacientes] = useState([]);
+  // AQUI ESTAVA O ERRO: Adicionamos <any[]> para o TypeScript aceitar os dados
+  const [pacientes, setPacientes] = useState<any[]>([]);
   const [modalAberto, setModalAberto] = useState(false);
   const [loading, setLoading] = useState(false);
   
@@ -18,7 +19,7 @@ export default function Pacientes() {
     if (data) setPacientes(data);
   }
 
-  async function criarPaciente(e) {
+  async function criarPaciente(e: any) {
     e.preventDefault();
     setLoading(true);
 

@@ -1,7 +1,6 @@
 const fs = require('fs');
 const path = require('path');
 
-// Aqui começa o código da página
 const conteudoDaPagina = `
 'use client';
 import { useEffect, useState } from 'react';
@@ -10,7 +9,8 @@ import { User, Plus, ChevronRight, X, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 
 export default function Pacientes() {
-  const [pacientes, setPacientes] = useState([]);
+  // AQUI ESTAVA O ERRO: Adicionamos <any[]> para o TypeScript aceitar os dados
+  const [pacientes, setPacientes] = useState<any[]>([]);
   const [modalAberto, setModalAberto] = useState(false);
   const [loading, setLoading] = useState(false);
   
@@ -23,7 +23,7 @@ export default function Pacientes() {
     if (data) setPacientes(data);
   }
 
-  async function criarPaciente(e) {
+  async function criarPaciente(e: any) {
     e.preventDefault();
     setLoading(true);
 
@@ -105,10 +105,7 @@ export default function Pacientes() {
   );
 }
 `; 
-// FIM DO CÓDIGO DA PÁGINA
 
-// Criação do arquivo
 const caminhoArquivo = path.join('app', 'pacientes', 'page.tsx');
 fs.writeFileSync(caminhoArquivo, conteudoDaPagina.trim());
-
-console.log('✅ Sistema de Cadastro Instalado com Sucesso!');
+console.log('✅ Correção de Tipagem Aplicada!');
