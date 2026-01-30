@@ -1,3 +1,9 @@
+const fs = require('fs');
+const path = require('path');
+
+console.log('⚙️ Instalando Gestão de Profissionais e Serviços...');
+
+const configPage = `
 'use client';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -59,10 +65,10 @@ export default function Configuracoes() {
     <div className="max-w-4xl mx-auto space-y-6 animate-fade-in pb-10">
       
       <div className="flex gap-4 border-b border-slate-200">
-          <button onClick={() => setAba('servicos')} className={`pb-3 px-4 font-bold text-sm flex items-center gap-2 border-b-2 transition-colors ${aba === 'servicos' ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-400'}`}>
+          <button onClick={() => setAba('servicos')} className={\`pb-3 px-4 font-bold text-sm flex items-center gap-2 border-b-2 transition-colors \${aba === 'servicos' ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-400'}\`}>
               <Tag size={18}/> Procedimentos
           </button>
-          <button onClick={() => setAba('profissionais')} className={`pb-3 px-4 font-bold text-sm flex items-center gap-2 border-b-2 transition-colors ${aba === 'profissionais' ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-400'}`}>
+          <button onClick={() => setAba('profissionais')} className={\`pb-3 px-4 font-bold text-sm flex items-center gap-2 border-b-2 transition-colors \${aba === 'profissionais' ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-400'}\`}>
               <User size={18}/> Profissionais
           </button>
       </div>
@@ -96,7 +102,7 @@ export default function Configuracoes() {
                     <div>
                         <p className="font-bold text-slate-700">{item.nome}</p>
                         <p className="text-xs text-slate-400">
-                            {aba === 'servicos' ? `R$ ${item.valor}` : `${item.cargo} • ${item.clinicas?.nome}`}
+                            {aba === 'servicos' ? \`R$ \${item.valor}\` : \`\${item.cargo} • \${item.clinicas?.nome}\`}
                         </p>
                     </div>
                     <button onClick={() => excluir(item.id)} className="text-slate-300 hover:text-red-500"><Trash2 size={18}/></button>
@@ -108,3 +114,6 @@ export default function Configuracoes() {
     </div>
   );
 }
+`;
+
+fs.writeFileSync(path.join('app', 'configuracoes', 'page.tsx'), configPage.trim());
