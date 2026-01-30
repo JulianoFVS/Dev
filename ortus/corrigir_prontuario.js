@@ -1,3 +1,9 @@
+const fs = require('fs');
+const path = require('path');
+
+console.log('💊 Corrigindo lógica do Prontuário (Status e Valores)...');
+
+const prontuarioCode = `
 'use client';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -51,8 +57,8 @@ export default function Prontuario() {
     setUploading(true);
 
     const fileExt = file.name.split('.').pop();
-    const fileName = `${Date.now()}.${fileExt}`;
-    const filePath = `${params.id}/${fileName}`;
+    const fileName = \`\${Date.now()}.\${fileExt}\`;
+    const filePath = \`\${params.id}/\${fileName}\`;
 
     const { error: uploadError } = await supabase.storage.from('arquivos').upload(filePath, file);
     
@@ -110,7 +116,7 @@ export default function Prontuario() {
                 <div className="flex items-center gap-1"><Activity size={14}/> {historico.length} registros</div>
             </div>
             <a 
-                href={`https://wa.me/55${paciente.telefone.replace(/[^0-9]/g, '')}`} 
+                href={\`https://wa.me/55\${paciente.telefone.replace(/[^0-9]/g, '')}\`} 
                 target="_blank"
                 className="mt-4 inline-flex items-center gap-2 bg-green-50 text-green-700 px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-green-100 transition-colors border border-green-200"
             >
@@ -194,7 +200,7 @@ export default function Prontuario() {
                         const isCancelado = item.status === 'cancelado';
                         
                         return (
-                            <div key={item.id} className={`p-4 hover:bg-slate-50 transition-colors flex gap-4 ${isCancelado ? 'opacity-60' : ''}`}>
+                            <div key={item.id} className={\`p-4 hover:bg-slate-50 transition-colors flex gap-4 \${isCancelado ? 'opacity-60' : ''}\`}>
                                 <div className="flex flex-col items-center min-w-[50px]">
                                     <span className="text-[10px] font-bold text-slate-400 uppercase">{new Date(item.data_hora).toLocaleString('pt-BR', {month:'short'}).replace('.','')}</span>
                                     <span className="text-lg font-bold text-slate-700 leading-none">{new Date(item.data_hora).getDate()}</span>
@@ -204,7 +210,7 @@ export default function Prontuario() {
                                 <div className="flex-1">
                                     <div className="flex justify-between items-start">
                                         <div>
-                                            <h4 className={`font-bold text-sm ${isCancelado ? 'text-slate-500 line-through' : 'text-slate-800'}`}>
+                                            <h4 className={\`font-bold text-sm \${isCancelado ? 'text-slate-500 line-through' : 'text-slate-800'}\`}>
                                                 {item.procedimento}
                                             </h4>
                                             <p className="text-xs text-slate-400 mt-0.5">
@@ -258,3 +264,16 @@ export default function Prontuario() {
     </div>
   );
 }
+`;
+
+function ensureDirectoryExistence(filePath) {
+  const dirname = path.dirname(filePath);
+  if (fs.existsSync(dirname)) return true;
+  fs.mkdirSync(dirname, { recursive: true });
+}
+
+const targetPath = path.join('app', 'pacientes', '[id]', 'page.tsx');
+ensureDirectoryExistence(targetPath);
+fs.writeFileSync(targetPath, prontuarioCode.trim());
+
+console.log('✅ Prontuário corrigido com sucesso!');

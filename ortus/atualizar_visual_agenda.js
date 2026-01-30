@@ -1,3 +1,138 @@
+const fs = require('fs');
+const path = require('path');
+
+console.log('🎨 Atualizando Design da Agenda e Cores dos Serviços...');
+
+// FUNÇÃO AUXILIAR
+function salvarArquivo(caminhoRelativo, conteudo) {
+    const caminhoCompleto = path.join(__dirname, caminhoRelativo);
+    fs.writeFileSync(caminhoCompleto, conteudo.trim());
+    console.log(`✅ Atualizado: ${caminhoRelativo}`);
+}
+
+// 1. CONFIGURAÇÕES (Com Seletor de Cores)
+const configPage = `
+'use client';
+import { useState, useEffect } from 'react';
+import { supabase } from '@/lib/supabase';
+import { Plus, Trash2, Settings, Loader2 } from 'lucide-react';
+
+export default function Configuracoes() {
+  const [servicos, setServicos] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [novoServico, setNovoServico] = useState({ nome: '', valor: '', cor: 'blue' });
+
+  const cores = [
+    { id: 'blue', bg: 'bg-blue-500' },
+    { id: 'teal', bg: 'bg-teal-500' },
+    { id: 'purple', bg: 'bg-purple-500' },
+    { id: 'rose', bg: 'bg-rose-500' },
+    { id: 'orange', bg: 'bg-orange-500' },
+    { id: 'indigo', bg: 'bg-indigo-500' },
+  ];
+
+  useEffect(() => { fetchServicos(); }, []);
+
+  async function fetchServicos() {
+    const { data } = await supabase.from('servicos').select('*').order('nome');
+    if (data) setServicos(data);
+  }
+
+  async function adicionarServico(e: any) {
+    e.preventDefault();
+    if (!novoServico.nome || !novoServico.valor) return;
+    setLoading(true);
+    await supabase.from('servicos').insert([{ 
+        nome: novoServico.nome, 
+        valor: parseFloat(novoServico.valor),
+        cor: novoServico.cor 
+    }]);
+    setNovoServico({ nome: '', valor: '', cor: 'blue' });
+    fetchServicos();
+    setLoading(false);
+  }
+
+  async function excluirServico(id: number) {
+    if (!confirm('Excluir este serviço?')) return;
+    await supabase.from('servicos').delete().eq('id', id);
+    fetchServicos();
+  }
+
+  return (
+    <div className="max-w-4xl mx-auto space-y-6 animate-fade-in pb-10">
+      <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+        <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2 mb-4">
+            <Settings className="text-teal-600"/> Catálogo de Procedimentos
+        </h2>
+        <p className="text-slate-500 mb-6">Cadastre procedimentos e escolha a cor padrão para a agenda.</p>
+
+        <form onSubmit={adicionarServico} className="bg-slate-50 p-5 rounded-xl border border-slate-100 mb-6 space-y-4">
+            <div className="flex gap-4">
+                <div className="flex-1">
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Nome</label>
+                    <input value={novoServico.nome} onChange={e => setNovoServico({...novoServico, nome: e.target.value})} placeholder="Ex: Clareamento" className="w-full p-2.5 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-teal-500 bg-white" />
+                </div>
+                <div className="w-32">
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Valor (R$)</label>
+                    <input type="number" value={novoServico.valor} onChange={e => setNovoServico({...novoServico, valor: e.target.value})} placeholder="0.00" className="w-full p-2.5 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-teal-500 bg-white" />
+                </div>
+            </div>
+            
+            <div className="flex items-center gap-4">
+                <div className="flex-1">
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Cor na Agenda</label>
+                    <div className="flex gap-2">
+                        {cores.map(c => (
+                            <button 
+                                key={c.id} 
+                                type="button" 
+                                onClick={() => setNovoServico({...novoServico, cor: c.id})}
+                                className={\`w-8 h-8 rounded-full \${c.bg} transition-all \${novoServico.cor === c.id ? 'ring-2 ring-offset-2 ring-slate-400 scale-110' : 'opacity-60 hover:opacity-100'}\`}
+                            />
+                        ))}
+                    </div>
+                </div>
+                <button disabled={loading} className="bg-teal-600 text-white px-6 py-2.5 rounded-lg hover:bg-teal-700 font-bold flex items-center gap-2 h-fit self-end shadow-sm shadow-teal-200">
+                    {loading ? <Loader2 className="animate-spin"/> : <Plus size={20}/>} Cadastrar
+                </button>
+            </div>
+        </form>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {servicos.map(s => {
+                const colorMap: any = { 
+                    blue: 'bg-blue-100 text-blue-700 border-blue-200',
+                    teal: 'bg-teal-100 text-teal-700 border-teal-200',
+                    purple: 'bg-purple-100 text-purple-700 border-purple-200',
+                    rose: 'bg-rose-100 text-rose-700 border-rose-200',
+                    orange: 'bg-orange-100 text-orange-700 border-orange-200',
+                    indigo: 'bg-indigo-100 text-indigo-700 border-indigo-200',
+                };
+                const style = colorMap[s.cor] || colorMap.blue;
+
+                return (
+                    <div key={s.id} className={\`flex justify-between items-center p-3 rounded-lg border \${style}\`}>
+                        <div className="flex items-center gap-3">
+                            <div className={\`w-3 h-3 rounded-full \${style.replace('bg-', 'bg-slate-').split(' ')[0].replace('100','500')}\`}></div>
+                            <span className="font-bold">{s.nome}</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <span className="font-bold opacity-80">R$ {s.valor}</span>
+                            <button onClick={() => excluirServico(s.id)} className="hover:text-red-600 transition-colors"><Trash2 size={16}/></button>
+                        </div>
+                    </div>
+                )
+            })}
+            {servicos.length === 0 && <p className="col-span-2 text-center text-slate-400 py-4">Nenhum serviço cadastrado.</p>}
+        </div>
+      </div>
+    </div>
+  );
+}
+`;
+
+// 2. AGENDA (Visual Melhorado + Lógica de Cor Automática)
+const agendaPage = `
 'use client';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -37,7 +172,7 @@ export default function Agenda() {
   const handleNextMonth = () => setDate(new Date(date.getFullYear(), date.getMonth() + 1, 1));
 
   const openDateModal = (day: number) => {
-    const formattedDate = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    const formattedDate = \`\${date.getFullYear()}-\${String(date.getMonth() + 1).padStart(2, '0')}-\${String(day).padStart(2, '0')}\`;
     setFormData({ id: null, title: '', date: formattedDate, time: '09:00', theme: 'blue', paciente_id: '', valor: '0', observacoes: '', status: 'agendado' });
     setOpenModal(true);
   };
@@ -73,7 +208,7 @@ export default function Agenda() {
 
     const payload = {
         paciente_id: formData.paciente_id,
-        data_hora: `${formData.date}T${formData.time}:00`,
+        data_hora: \`\${formData.date}T\${formData.time}:00\`,
         procedimento: formData.title,
         cor: finalTheme,
         valor: parseFloat(formData.valor),
@@ -128,14 +263,14 @@ export default function Agenda() {
         <div className="bg-white shadow-sm rounded-b-xl border-x border-b border-slate-200 overflow-hidden">
             <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50">{DAYS.map(d => <div key={d} className="py-3 text-center text-xs md:text-sm font-bold text-slate-500 uppercase tracking-wide">{d}</div>)}</div>
             <div className="grid grid-cols-7">
-                {blankDays.map((_, i) => <div key={`blank-${i}`} className="h-24 md:h-40 border-b border-r border-slate-100 bg-slate-50/30"></div>)}
+                {blankDays.map((_, i) => <div key={\`blank-\${i}\`} className="h-24 md:h-40 border-b border-r border-slate-100 bg-slate-50/30"></div>)}
                 {dayArray.map(day => {
-                    const currentDayStr = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+                    const currentDayStr = \`\${date.getFullYear()}-\${String(date.getMonth()+1).padStart(2,'0')}-\${String(day).padStart(2,'0')}\`;
                     const dayEvents = events.filter(e => e.data_hora.startsWith(currentDayStr) && e.status !== 'cancelado');
                     const isToday = new Date().toISOString().split('T')[0] === currentDayStr;
                     return (
-                        <div key={day} onClick={() => openDateModal(day)} className={`h-24 md:h-40 border-b border-r border-slate-100 p-1 md:p-2 relative cursor-pointer hover:bg-slate-50 transition-colors group ${isToday ? 'bg-teal-50/30' : ''}`}>
-                            <span className={`w-6 h-6 md:w-7 md:h-7 flex items-center justify-center rounded-full text-xs md:text-sm font-bold mb-1 ${isToday ? 'bg-teal-600 text-white shadow-sm shadow-teal-200' : 'text-slate-700'}`}>{day}</span>
+                        <div key={day} onClick={() => openDateModal(day)} className={\`h-24 md:h-40 border-b border-r border-slate-100 p-1 md:p-2 relative cursor-pointer hover:bg-slate-50 transition-colors group \${isToday ? 'bg-teal-50/30' : ''}\`}>
+                            <span className={\`w-6 h-6 md:w-7 md:h-7 flex items-center justify-center rounded-full text-xs md:text-sm font-bold mb-1 \${isToday ? 'bg-teal-600 text-white shadow-sm shadow-teal-200' : 'text-slate-700'}\`}>{day}</span>
                             
                             {/* EVENTOS COM DESIGN NOVO */}
                             <div className="space-y-1 overflow-y-auto max-h-[calc(100%-1.5rem)] no-scrollbar pt-1">
@@ -148,7 +283,7 @@ export default function Agenda() {
                                     const hora = new Date(ev.data_hora).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
                                     
                                     return (
-                                        <div key={ev.id} onClick={(e) => openEditModal(e, ev)} className={`px-2 py-1 rounded text-[10px] md:text-xs truncate font-medium shadow-sm hover:brightness-95 transition-all ${styleClass}`}>
+                                        <div key={ev.id} onClick={(e) => openEditModal(e, ev)} className={\`px-2 py-1 rounded text-[10px] md:text-xs truncate font-medium shadow-sm hover:brightness-95 transition-all \${styleClass}\`}>
                                             <span className="font-bold mr-1 opacity-80">{hora}</span>
                                             {ev.pacientes?.nome.split(' ')[0]}
                                         </div>
@@ -178,10 +313,10 @@ export default function Agenda() {
                     {/* BOTOES DE STATUS - AGORA COM CINZA PARA CONCLUÍDO */}
                     {formData.id && ( 
                         <div className="flex gap-2 mb-2 p-2 bg-slate-50 rounded-lg border border-slate-100 justify-center">
-                            <button type="button" onClick={() => saveOrUpdate('concluido')} className={`flex-1 py-2 rounded-md text-sm font-bold flex items-center justify-center gap-2 transition-all ${formData.status === 'concluido' ? 'bg-slate-700 text-white ring-2 ring-slate-500' : 'bg-white text-slate-500 hover:bg-slate-200 border'}`}>
+                            <button type="button" onClick={() => saveOrUpdate('concluido')} className={\`flex-1 py-2 rounded-md text-sm font-bold flex items-center justify-center gap-2 transition-all \${formData.status === 'concluido' ? 'bg-slate-700 text-white ring-2 ring-slate-500' : 'bg-white text-slate-500 hover:bg-slate-200 border'}\`}>
                                 <CheckCircle size={16}/> Concluir
                             </button>
-                            <button type="button" onClick={() => saveOrUpdate('cancelado')} className={`flex-1 py-2 rounded-md text-sm font-bold flex items-center justify-center gap-2 transition-all ${formData.status === 'cancelado' ? 'bg-red-100 text-red-700 ring-2 ring-red-500' : 'bg-white text-slate-500 hover:bg-red-50 hover:text-red-600 border'}`}>
+                            <button type="button" onClick={() => saveOrUpdate('cancelado')} className={\`flex-1 py-2 rounded-md text-sm font-bold flex items-center justify-center gap-2 transition-all \${formData.status === 'cancelado' ? 'bg-red-100 text-red-700 ring-2 ring-red-500' : 'bg-white text-slate-500 hover:bg-red-50 hover:text-red-600 border'}\`}>
                                 <XCircle size={16}/> Cancelar
                             </button>
                         </div> 
@@ -210,7 +345,7 @@ export default function Agenda() {
                                     <button 
                                         key={c} type="button" 
                                         onClick={() => setFormData({...formData, theme: c})} 
-                                        className={`w-6 h-6 rounded-full transition-all bg-${c === 'teal' ? 'teal' : c === 'purple' ? 'purple' : c === 'rose' ? 'rose' : c === 'orange' ? 'orange' : c === 'indigo' ? 'indigo' : 'blue'}-400 ${formData.theme === c ? 'ring-2 ring-offset-1 ring-slate-400 scale-125' : 'opacity-40 hover:opacity-100'}`} 
+                                        className={\`w-6 h-6 rounded-full transition-all bg-\${c === 'teal' ? 'teal' : c === 'purple' ? 'purple' : c === 'rose' ? 'rose' : c === 'orange' ? 'orange' : c === 'indigo' ? 'indigo' : 'blue'}-400 \${formData.theme === c ? 'ring-2 ring-offset-1 ring-slate-400 scale-125' : 'opacity-40 hover:opacity-100'}\`} 
                                     />
                                 ))}
                              </div>
@@ -226,3 +361,9 @@ export default function Agenda() {
     </div>
   );
 }
+`;
+
+salvarArquivo('app/configuracoes/page.tsx', configPage);
+salvarArquivo('app/agenda/page.tsx', agendaPage);
+
+console.log('🎉 TUDO PRONTO! Cores e Status Cinza Ativados.');
