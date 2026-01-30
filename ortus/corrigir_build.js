@@ -1,3 +1,9 @@
+const fs = require('fs');
+const path = require('path');
+
+console.log('🛠️ Corrigindo erro de TypeScript no Financeiro...');
+
+const financeiroCorrigido = `
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -57,7 +63,7 @@ export default function Financeiro() {
     const listaEntradas = entradas?.map((e: any) => ({ 
         id: e.id, 
         tipo: 'entrada', 
-        descricao: `${e.pacientes?.nome || 'Paciente'} - ${e.procedimento}`, 
+        descricao: \`\${e.pacientes?.nome || 'Paciente'} - \${e.procedimento}\`, 
         valor: Number(e.valor), 
         data: e.data_hora, 
         origem: 'agendamento' 
@@ -108,13 +114,13 @@ export default function Financeiro() {
     janela?.document.write('<div class="text-center mb-8"><h1 class="text-3xl font-bold text-slate-800">Relatório Financeiro</h1><p class="text-slate-500">Extrato de Entradas e Saídas</p></div>');
     
     // Injeta o resumo
-    janela?.document.write(`
+    janela?.document.write(\`
         <div class="grid grid-cols-3 gap-4 mb-8 border-b pb-8">
-            <div class="p-4 bg-green-50 rounded border border-green-100"><p class="text-sm text-green-700 font-bold">ENTRADAS</p><p class="text-2xl font-bold">R$ ${resumo.entradas.toFixed(2)}</p></div>
-            <div class="p-4 bg-red-50 rounded border border-red-100"><p class="text-sm text-red-700 font-bold">SAÍDAS</p><p class="text-2xl font-bold">R$ ${resumo.saidas.toFixed(2)}</p></div>
-            <div class="p-4 bg-slate-50 rounded border border-slate-200"><p class="text-sm text-slate-700 font-bold">SALDO</p><p class="text-2xl font-bold">R$ ${resumo.saldo.toFixed(2)}</p></div>
+            <div class="p-4 bg-green-50 rounded border border-green-100"><p class="text-sm text-green-700 font-bold">ENTRADAS</p><p class="text-2xl font-bold">R$ \${resumo.entradas.toFixed(2)}</p></div>
+            <div class="p-4 bg-red-50 rounded border border-red-100"><p class="text-sm text-red-700 font-bold">SAÍDAS</p><p class="text-2xl font-bold">R$ \${resumo.saidas.toFixed(2)}</p></div>
+            <div class="p-4 bg-slate-50 rounded border border-slate-200"><p class="text-sm text-slate-700 font-bold">SALDO</p><p class="text-2xl font-bold">R$ \${resumo.saldo.toFixed(2)}</p></div>
         </div>
-    `);
+    \`);
 
     janela?.document.write(conteudo);
     
@@ -135,10 +141,10 @@ export default function Financeiro() {
         <div className="flex items-center gap-4">
             <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2"><DollarSign className="text-teal-600"/> Financeiro</h2>
             <div className="flex bg-slate-100 p-1 rounded-lg">
-                <button onClick={() => setModo('mes')} className={`px-3 py-1 text-xs font-bold rounded transition-all ${modo === 'mes' ? 'bg-white shadow text-teal-700' : 'text-slate-500'}`}>Mês</button>
-                <button onClick={() => setModo('ano')} className={`px-3 py-1 text-xs font-bold rounded transition-all ${modo === 'ano' ? 'bg-white shadow text-teal-700' : 'text-slate-500'}`}>Ano</button>
-                <button onClick={() => setModo('todos')} className={`px-3 py-1 text-xs font-bold rounded transition-all ${modo === 'todos' ? 'bg-white shadow text-teal-700' : 'text-slate-500'}`}>Todos</button>
-                <button onClick={() => setModo('periodo')} className={`px-3 py-1 text-xs font-bold rounded transition-all ${modo === 'periodo' ? 'bg-white shadow text-teal-700' : 'text-slate-500'}`}>Período</button>
+                <button onClick={() => setModo('mes')} className={\`px-3 py-1 text-xs font-bold rounded transition-all \${modo === 'mes' ? 'bg-white shadow text-teal-700' : 'text-slate-500'}\`}>Mês</button>
+                <button onClick={() => setModo('ano')} className={\`px-3 py-1 text-xs font-bold rounded transition-all \${modo === 'ano' ? 'bg-white shadow text-teal-700' : 'text-slate-500'}\`}>Ano</button>
+                <button onClick={() => setModo('todos')} className={\`px-3 py-1 text-xs font-bold rounded transition-all \${modo === 'todos' ? 'bg-white shadow text-teal-700' : 'text-slate-500'}\`}>Todos</button>
+                <button onClick={() => setModo('periodo')} className={\`px-3 py-1 text-xs font-bold rounded transition-all \${modo === 'periodo' ? 'bg-white shadow text-teal-700' : 'text-slate-500'}\`}>Período</button>
             </div>
         </div>
 
@@ -161,7 +167,7 @@ export default function Financeiro() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-green-50 p-6 rounded-2xl border border-green-100"><p className="text-green-700 font-bold text-sm flex items-center gap-2 uppercase"><TrendingUp size={18}/> Receitas</p><p className="text-3xl font-bold text-green-800 mt-2">R$ {resumo.entradas.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</p></div>
         <div className="bg-red-50 p-6 rounded-2xl border border-red-100"><p className="text-red-700 font-bold text-sm flex items-center gap-2 uppercase"><TrendingDown size={18}/> Despesas</p><p className="text-3xl font-bold text-red-800 mt-2">R$ {resumo.saidas.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</p></div>
-        <div className="bg-white p-6 rounded-2xl border border-slate-200"><p className="text-slate-500 font-bold text-sm uppercase">Saldo</p><p className={`text-3xl font-bold mt-2 ${resumo.saldo >= 0 ? 'text-teal-600' : 'text-red-600'}`}>R$ {resumo.saldo.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</p></div>
+        <div className="bg-white p-6 rounded-2xl border border-slate-200"><p className="text-slate-500 font-bold text-sm uppercase">Saldo</p><p className={\`text-3xl font-bold mt-2 \${resumo.saldo >= 0 ? 'text-teal-600' : 'text-red-600'}\`}>R$ {resumo.saldo.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</p></div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -208,7 +214,7 @@ export default function Financeiro() {
                                         {t.descricao}
                                         {t.tipo === 'entrada' && <span className="ml-2 text-[10px] bg-teal-50 text-teal-600 px-1.5 py-0.5 rounded border border-teal-100">Consulta</span>}
                                     </td>
-                                    <td className={`px-4 py-3 text-right font-bold ${t.tipo === 'entrada' ? 'text-green-600' : 'text-red-500'}`}>
+                                    <td className={\`px-4 py-3 text-right font-bold \${t.tipo === 'entrada' ? 'text-green-600' : 'text-red-500'}\`}>
                                         {t.tipo === 'entrada' ? '+' : '-'} R$ {t.valor.toLocaleString('pt-BR', {minimumFractionDigits: 2})}
                                     </td>
                                     <td className="px-4 py-3 text-center btn-lixeira">
@@ -227,3 +233,7 @@ export default function Financeiro() {
     </div>
   );
 }
+`;
+
+fs.writeFileSync(path.join('app', 'financeiro', 'page.tsx'), financeiroCorrigido.trim());
+console.log('✅ Tipagem corrigida! Agora o build vai passar.');
