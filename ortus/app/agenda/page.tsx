@@ -1,75 +1,78 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
-import { ChevronLeft, ChevronRight, X, Loader2, Plus, CheckCircle, XCircle, DollarSign, FileText, Clock } from 'lucide-react';
+// @ts-ignore
+import { Calendar, dateFnsLocalizer, Views } from 'react-big-calendar';
+import format from 'date-fns/format';
+import parse from 'date-fns/parse';
+import startOfWeek from 'date-fns/startOfWeek';
+import getDay from 'date-fns/getDay';
+import ptBR from 'date-fns/locale/pt-BR';
+import 'react-big-calendar/lib/css/react-big-calendar.css';
+import { Plus, X, Loader2, Check, Trash2, ChevronLeft, ChevronRight, CheckCircle, XCircle, DollarSign, FileText } from 'lucide-react';
 
-const MONTH_NAMES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-const DAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+const locales = { 'pt-BR': ptBR };
+const localizer = dateFnsLocalizer({ format, parse, startOfWeek, getDay, locales });
+
+const messages = { allDay: 'Dia inteiro', previous: 'Anterior', next: 'Próximo', today: 'Hoje', month: 'Mês', week: 'Semana', day: 'Dia', agenda: 'Agenda', date: 'Data', time: 'Hora', event: 'Evento', noEventsInRange: 'Sem agendamentos.' };
 
 export default function Agenda() {
-  const [date, setDate] = useState(new Date());
   const [events, setEvents] = useState<any[]>([]);
-  const [openModal, setOpenModal] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [pacientes, setPacientes] = useState<any[]>([]);
   const [servicos, setServicos] = useState<any[]>([]);
+  const [openModal, setOpenModal] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [view, setView] = useState(Views.WEEK);
+  const [date, setDate] = useState(new Date());
 
-  const [formData, setFormData] = useState({
-    id: null, title: '', date: '', time: '08:00', theme: 'blue', paciente_id: '', valor: '0', observacoes: '', status: 'agendado'
-  });
+  const [formData, setFormData] = useState({ id: null, title: '', date: '', time: '08:00', theme: 'blue', paciente_id: '', valor: '0', observacoes: '', status: 'agendado' });
 
-  useEffect(() => { fetchEvents(); fetchPacientes(); fetchServicos(); }, [date]); 
+  useEffect(() => { fetchAll(); }, []);
 
-  async function fetchEvents() {
-    const start = new Date(date.getFullYear(), date.getMonth(), 1).toISOString();
-    const end = new Date(date.getFullYear(), date.getMonth() + 1, 0).toISOString();
-    const { data } = await supabase.from('agendamentos').select('*, pacientes(nome)').gte('data_hora', start).lte('data_hora', end);
-    if (data) setEvents(data);
+  async function fetchAll() {
+    const { data: ag } = await supabase.from('agendamentos').select('*, pacientes(nome)');
+    if (ag) {
+        const fmt = ag.map((e: any) => ({
+            id: e.id,
+            title: `${e.pacientes?.nome} - ${e.procedimento}`,
+            start: new Date(e.data_hora),
+            end: new Date(new Date(e.data_hora).getTime() + 60*60*1000),
+            resource: e
+        }));
+        setEvents(fmt);
+    }
+    const { data: pac } = await supabase.from('pacientes').select('id, nome').order('nome');
+    if (pac) setPacientes(pac);
+    const { data: serv } = await supabase.from('servicos').select('*').order('nome');
+    if (serv) setServicos(serv);
   }
-  async function fetchPacientes() { const { data } = await supabase.from('pacientes').select('id, nome').order('nome'); if (data) setPacientes(data); }
-  async function fetchServicos() { const { data } = await supabase.from('servicos').select('*').order('nome'); if (data) setServicos(data); }
 
-  const daysInMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
-  const firstDayOfMonth = new Date(date.getFullYear(), date.getMonth(), 1).getDay();
-  const blankDays = Array.from({ length: firstDayOfMonth });
-  const dayArray = Array.from({ length: daysInMonth }, (_, i) => i + 1);
-  const handlePrevMonth = () => setDate(new Date(date.getFullYear(), date.getMonth() - 1, 1));
-  const handleNextMonth = () => setDate(new Date(date.getFullYear(), date.getMonth() + 1, 1));
-
-  const openDateModal = (day: number) => {
-    const formattedDate = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    setFormData({ id: null, title: '', date: formattedDate, time: '09:00', theme: 'blue', paciente_id: '', valor: '0', observacoes: '', status: 'agendado' });
+  const handleSelectSlot = useCallback(({ start }: { start: Date }) => {
+    // Ajuste fuso
+    const d = new Date(start);
+    const dateStr = d.toISOString().split('T')[0];
+    const timeStr = d.toTimeString().slice(0, 5);
+    setFormData({ id: null, title: '', date: dateStr, time: timeStr, theme: 'blue', paciente_id: '', valor: '0', observacoes: '', status: 'agendado' });
     setOpenModal(true);
-  };
+  }, []);
 
-  const openEditModal = (e: any, event: any) => {
-    e.stopPropagation(); 
-    const d = new Date(event.data_hora);
+  const handleSelectEvent = useCallback((event: any) => {
+    const r = event.resource;
+    const d = new Date(r.data_hora);
     setFormData({
-        id: event.id, title: event.procedimento, date: d.toISOString().split('T')[0], time: d.toTimeString().slice(0, 5),
-        theme: event.cor || 'blue', paciente_id: event.paciente_id, valor: event.valor || '0', observacoes: event.observacoes || '', status: event.status || 'agendado'
+        id: r.id, title: r.procedimento, date: d.toISOString().split('T')[0], time: d.toTimeString().slice(0, 5),
+        theme: r.cor || 'blue', paciente_id: r.paciente_id, valor: r.valor || '0', observacoes: r.observacoes || '', status: r.status || 'agendado'
     });
     setOpenModal(true);
-  }
+  }, []);
 
-  // AÇÃO DE SALVAR E CONCLUIR
   async function saveOrUpdate(overrideStatus?: string) {
-    if (!formData.title || !formData.paciente_id) return alert('Preencha paciente e procedimento');
+    if (!formData.title || !formData.paciente_id) return alert('Preencha os campos obrigatórios');
     setLoading(true);
-
     const finalStatus = overrideStatus || formData.status;
     let finalTheme = formData.theme;
-
-    // Se marcar como concluído, vira cinza/grafite (slate)
     if (finalStatus === 'concluido') finalTheme = 'gray';
-    // Se cancelar, vira vermelho
     if (finalStatus === 'cancelado') finalTheme = 'red';
-    // Se voltar para agendado, recupera a cor original do serviço ou azul
-    if (finalStatus === 'agendado' && overrideStatus) {
-        // Tenta achar a cor original do serviço pelo nome
-        const servicoOriginal = servicos.find(s => s.nome === formData.title);
-        finalTheme = servicoOriginal ? servicoOriginal.cor : 'blue';
-    }
 
     const payload = {
         paciente_id: formData.paciente_id,
@@ -85,141 +88,68 @@ export default function Agenda() {
     else await supabase.from('agendamentos').insert([payload]);
     
     setOpenModal(false); 
-    fetchEvents(); 
+    fetchAll(); 
     setLoading(false);
   }
 
-  // SELEÇÃO DO SERVIÇO (Puxa cor automática)
   const handleServiceSelect = (e: any) => {
-    const servicoId = e.target.value;
-    if (!servicoId) return;
-    const servico = servicos.find(s => s.id == servicoId);
-    if (servico) {
-        setFormData(prev => ({ 
-            ...prev, 
-            title: servico.nome, 
-            valor: servico.valor,
-            theme: servico.cor || 'blue' // Puxa a cor do cadastro
-        }));
-    }
+    const s = servicos.find((x: any) => x.id == e.target.value);
+    if (s) setFormData(p => ({ ...p, title: s.nome, valor: s.valor, theme: s.cor || 'blue' }));
   }
 
-  // MAPA DE CORES (Estilo Novo)
-  const colorStyles: any = {
-    blue:   'bg-blue-50 border-l-4 border-l-blue-500 text-blue-700',
-    teal:   'bg-teal-50 border-l-4 border-l-teal-500 text-teal-700',
-    purple: 'bg-purple-50 border-l-4 border-l-purple-500 text-purple-700',
-    rose:   'bg-rose-50 border-l-4 border-l-rose-500 text-rose-700',
-    orange: 'bg-orange-50 border-l-4 border-l-orange-500 text-orange-700',
-    indigo: 'bg-indigo-50 border-l-4 border-l-indigo-500 text-indigo-700',
-    red:    'bg-red-50 border-l-4 border-l-red-500 text-red-700 opacity-60 line-through', // Cancelado
-    gray:   'bg-slate-100 border-l-4 border-l-slate-500 text-slate-500 opacity-75 grayscale', // Concluído (Cinza)
+  const eventStyleGetter = (event: any) => {
+    const status = event.resource.status;
+    let bg = '#3b82f6'; 
+    if (status === 'concluido') bg = '#64748b';
+    else if (status === 'cancelado') bg = '#ef4444';
+    else {
+        const map: any = { blue: '#3b82f6', teal: '#14b8a6', purple: '#a855f7', rose: '#f43f5e', orange: '#f97316', indigo: '#6366f1', green: '#22c55e' };
+        bg = map[event.resource.cor] || '#3b82f6';
+    }
+    return { style: { backgroundColor: bg, borderRadius: '6px', opacity: 0.9, border: '0px', display: 'block' } };
   };
 
   return (
-    <div className="antialiased sans-serif bg-slate-50 h-full flex flex-col animate-fade-in pb-20 md:pb-0">
-      <div className="container mx-auto px-2 py-4 md:px-4 md:py-10">
-        <div className="bg-white rounded-t-xl shadow-sm border border-slate-200 p-4 flex items-center justify-between">
-            <div className="flex items-center gap-2"><span className="text-lg md:text-xl font-bold text-slate-800">{MONTH_NAMES[date.getMonth()]}</span><span className="text-lg md:text-xl text-slate-500 font-normal">{date.getFullYear()}</span></div>
-            <div className="flex gap-2"><button onClick={handlePrevMonth} className="p-2 rounded-lg hover:bg-slate-100 text-slate-600 border border-slate-200"><ChevronLeft size={20} /></button><button onClick={() => setDate(new Date())} className="px-3 py-2 rounded-lg hover:bg-slate-100 text-slate-600 border border-slate-200 text-sm font-bold">Hoje</button><button onClick={handleNextMonth} className="p-2 rounded-lg hover:bg-slate-100 text-slate-600 border border-slate-200"><ChevronRight size={20} /></button></div>
-        </div>
-        
-        {/* GRADE */}
-        <div className="bg-white shadow-sm rounded-b-xl border-x border-b border-slate-200 overflow-hidden">
-            <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50">{DAYS.map(d => <div key={d} className="py-3 text-center text-xs md:text-sm font-bold text-slate-500 uppercase tracking-wide">{d}</div>)}</div>
-            <div className="grid grid-cols-7">
-                {blankDays.map((_, i) => <div key={`blank-${i}`} className="h-24 md:h-40 border-b border-r border-slate-100 bg-slate-50/30"></div>)}
-                {dayArray.map(day => {
-                    const currentDayStr = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-                    const dayEvents = events.filter(e => e.data_hora.startsWith(currentDayStr) && e.status !== 'cancelado');
-                    const isToday = new Date().toISOString().split('T')[0] === currentDayStr;
-                    return (
-                        <div key={day} onClick={() => openDateModal(day)} className={`h-24 md:h-40 border-b border-r border-slate-100 p-1 md:p-2 relative cursor-pointer hover:bg-slate-50 transition-colors group ${isToday ? 'bg-teal-50/30' : ''}`}>
-                            <span className={`w-6 h-6 md:w-7 md:h-7 flex items-center justify-center rounded-full text-xs md:text-sm font-bold mb-1 ${isToday ? 'bg-teal-600 text-white shadow-sm shadow-teal-200' : 'text-slate-700'}`}>{day}</span>
-                            
-                            {/* EVENTOS COM DESIGN NOVO */}
-                            <div className="space-y-1 overflow-y-auto max-h-[calc(100%-1.5rem)] no-scrollbar pt-1">
-                                {dayEvents.map(ev => {
-                                    // Define cor com base no status ou tema
-                                    let corKey = ev.cor || 'blue';
-                                    if(ev.status === 'concluido') corKey = 'gray'; // Força cinza se concluido
-                                    
-                                    const styleClass = colorStyles[corKey] || colorStyles.blue;
-                                    const hora = new Date(ev.data_hora).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
-                                    
-                                    return (
-                                        <div key={ev.id} onClick={(e) => openEditModal(e, ev)} className={`px-2 py-1 rounded text-[10px] md:text-xs truncate font-medium shadow-sm hover:brightness-95 transition-all ${styleClass}`}>
-                                            <span className="font-bold mr-1 opacity-80">{hora}</span>
-                                            {ev.pacientes?.nome.split(' ')[0]}
-                                        </div>
-                                    )
-                                })}
-                            </div>
-                            <div className="absolute top-1 right-1 md:opacity-0 md:group-hover:opacity-100 text-teal-600 md:bg-teal-50 rounded-full p-1 transition-opacity"><Plus size={14} className="md:w-4 md:h-4" /></div>
-                        </div>
-                    );
-                })}
-            </div>
-        </div>
+    <div className="h-[calc(100vh-6rem)] md:h-[calc(100vh-2rem)] p-4 bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col">
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-xl font-bold text-slate-800">Agenda</h2>
+        <button onClick={() => { setFormData({ id: null, title: '', date: new Date().toISOString().split('T')[0], time: '09:00', theme: 'blue', paciente_id: '', valor: '0', observacoes: '', status: 'agendado' }); setOpenModal(true); }} className="bg-teal-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-teal-700 flex items-center gap-2 text-sm"><Plus size={18}/> Novo</button>
+      </div>
+      
+      <div className="flex-1">
+        <Calendar
+          localizer={localizer}
+          events={events}
+          startAccessor="start"
+          endAccessor="end"
+          style={{ height: '100%' }}
+          selectable
+          onSelectSlot={handleSelectSlot}
+          onSelectEvent={handleSelectEvent}
+          eventPropGetter={eventStyleGetter}
+          messages={messages}
+          culture="pt-BR"
+          view={view}
+          onView={(v: any) => setView(v)}
+          date={date}
+          onNavigate={(d: any) => setDate(d)}
+          views={['month', 'week', 'day', 'agenda']}
+        />
       </div>
 
-      <button onClick={() => openDateModal(new Date().getDate())} className="md:hidden fixed bottom-6 right-6 bg-teal-600 text-white p-4 rounded-full shadow-xl z-30 hover:bg-teal-700 active:scale-90 transition-all"><Plus size={24} /></button>
-
-      {/* MODAL */}
       {openModal && (
-        <div className="fixed z-50 inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
-                <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                    <h3 className="font-bold text-slate-800 text-lg">{formData.id ? 'Detalhes' : 'Agendar'}</h3>
-                    <button onClick={() => setOpenModal(false)} className="text-slate-400 hover:text-red-500 transition-colors"><X size={24}/></button>
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+            <div className="bg-white w-full max-w-md rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                <div className="p-4 border-b flex justify-between items-center bg-slate-50"><h3 className="font-bold text-slate-700">{formData.id ? 'Editar' : 'Novo'}</h3><button onClick={() => setOpenModal(false)}><X size={20} className="text-slate-400"/></button></div>
+                <div className="p-5 space-y-4 overflow-y-auto">
+                    {formData.id && ( <div className="flex gap-2 justify-center"><button onClick={() => saveOrUpdate('concluido')} className="flex-1 bg-green-100 text-green-700 py-2 rounded font-bold text-sm flex items-center justify-center gap-2"><CheckCircle size={16}/> Concluir</button><button onClick={() => saveOrUpdate('cancelado')} className="flex-1 bg-red-100 text-red-700 py-2 rounded font-bold text-sm flex items-center justify-center gap-2"><XCircle size={16}/> Cancelar</button></div> )}
+                    <div><label className="text-xs font-bold text-slate-500">PACIENTE</label><select value={formData.paciente_id} onChange={e => setFormData({...formData, paciente_id: e.target.value})} className="w-full p-2 border rounded mt-1"><option value="">Selecione...</option>{pacientes.map((p: any) => <option key={p.id} value={p.id}>{p.nome}</option>)}</select></div>
+                    <div className="grid grid-cols-2 gap-3"><div><label className="text-xs font-bold text-slate-500">DATA</label><input type="date" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} className="w-full p-2 border rounded mt-1"/></div><div><label className="text-xs font-bold text-slate-500">HORA</label><input type="time" value={formData.time} onChange={e => setFormData({...formData, time: e.target.value})} className="w-full p-2 border rounded mt-1"/></div></div>
+                    <div><label className="text-xs font-bold text-slate-500">PROCEDIMENTO</label><select onChange={handleServiceSelect} className="w-full p-2 bg-slate-100 rounded mb-2 text-sm"><option value="">✨ Catálogo...</option>{servicos.map((s: any) => <option key={s.id} value={s.id}>{s.nome} - R$ {s.valor}</option>)}</select><input value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} className="w-full p-2 border rounded" placeholder="Nome do procedimento"/></div>
+                    <div className="grid grid-cols-2 gap-3"><div><label className="text-xs font-bold text-slate-500">VALOR (R$)</label><input type="number" value={formData.valor} onChange={e => setFormData({...formData, valor: e.target.value})} className="w-full p-2 border rounded mt-1 text-green-700 font-bold"/></div><div><label className="text-xs font-bold text-slate-500">COR</label><div className="flex gap-1 mt-2">{['blue', 'teal', 'purple', 'rose', 'orange'].map(c => <button key={c} onClick={() => setFormData({...formData, theme: c})} className={`w-6 h-6 rounded-full bg-${c}-500 ${formData.theme === c ? 'ring-2 ring-slate-400' : ''}`} />)}</div></div></div>
+                    <div><label className="text-xs font-bold text-slate-500">OBSERVAÇÕES</label><textarea value={formData.observacoes} onChange={e => setFormData({...formData, observacoes: e.target.value})} className="w-full p-2 border rounded mt-1" rows={2}></textarea></div>
                 </div>
-                <div className="p-6 space-y-4 overflow-y-auto">
-                    
-                    {/* BOTOES DE STATUS - AGORA COM CINZA PARA CONCLUÍDO */}
-                    {formData.id && ( 
-                        <div className="flex gap-2 mb-2 p-2 bg-slate-50 rounded-lg border border-slate-100 justify-center">
-                            <button type="button" onClick={() => saveOrUpdate('concluido')} className={`flex-1 py-2 rounded-md text-sm font-bold flex items-center justify-center gap-2 transition-all ${formData.status === 'concluido' ? 'bg-slate-700 text-white ring-2 ring-slate-500' : 'bg-white text-slate-500 hover:bg-slate-200 border'}`}>
-                                <CheckCircle size={16}/> Concluir
-                            </button>
-                            <button type="button" onClick={() => saveOrUpdate('cancelado')} className={`flex-1 py-2 rounded-md text-sm font-bold flex items-center justify-center gap-2 transition-all ${formData.status === 'cancelado' ? 'bg-red-100 text-red-700 ring-2 ring-red-500' : 'bg-white text-slate-500 hover:bg-red-50 hover:text-red-600 border'}`}>
-                                <XCircle size={16}/> Cancelar
-                            </button>
-                        </div> 
-                    )}
-
-                    <div><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Paciente</label><select value={formData.paciente_id} onChange={e => setFormData({...formData, paciente_id: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 outline-none focus:ring-2 focus:ring-teal-500"><option value="">Selecione...</option>{pacientes.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}</select></div>
-                    <div className="grid grid-cols-2 gap-4"><div><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Data</label><input type="date" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 outline-none" /></div><div><label className="block text-xs font-bold text-slate-500 uppercase mb-1">Hora</label><input type="time" value={formData.time} onChange={e => setFormData({...formData, time: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 outline-none" /></div></div>
-                    
-                    <div>
-                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Procedimento</label>
-                        <select onChange={handleServiceSelect} className="w-full mb-2 bg-teal-50 border border-teal-100 rounded-lg text-sm p-2 text-teal-800 font-medium cursor-pointer hover:bg-teal-100 transition-colors">
-                            <option value="">✨ Escolher Procedimento Salvo...</option>
-                            {servicos.map(s => <option key={s.id} value={s.id}>{s.nome} - R$ {s.valor}</option>)}
-                        </select>
-                        <input type="text" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} placeholder="Ou digite manualmente..." className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 outline-none focus:ring-2 focus:ring-teal-500" />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="col-span-1"><label className="block text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-1"><DollarSign size={14}/> Valor (R$)</label><input type="number" value={formData.valor} onChange={e => setFormData({...formData, valor: e.target.value})} className="w-full bg-green-50 border border-green-200 text-green-800 font-bold rounded-lg px-4 py-2.5 outline-none focus:ring-2 focus:ring-green-500" placeholder="0.00" /></div>
-                        
-                        {/* Seletor de Cor Manual (Caso queira mudar) */}
-                        <div className="col-span-1">
-                             <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Cor</label>
-                             <div className="flex gap-1 h-[42px] items-center bg-slate-50 px-2 rounded-lg border border-slate-200">
-                                {['blue', 'teal', 'purple', 'rose', 'orange', 'indigo'].map(c => (
-                                    <button 
-                                        key={c} type="button" 
-                                        onClick={() => setFormData({...formData, theme: c})} 
-                                        className={`w-6 h-6 rounded-full transition-all bg-${c === 'teal' ? 'teal' : c === 'purple' ? 'purple' : c === 'rose' ? 'rose' : c === 'orange' ? 'orange' : c === 'indigo' ? 'indigo' : 'blue'}-400 ${formData.theme === c ? 'ring-2 ring-offset-1 ring-slate-400 scale-125' : 'opacity-40 hover:opacity-100'}`} 
-                                    />
-                                ))}
-                             </div>
-                        </div>
-                    </div>
-
-                    <div><label className="block text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-1"><FileText size={14}/> Observações</label><textarea rows={2} value={formData.observacoes} onChange={e => setFormData({...formData, observacoes: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-teal-500 text-sm" placeholder="Detalhes..." /></div>
-                </div>
-                <div className="bg-slate-50 px-6 py-4 flex justify-between items-center border-t border-slate-100"><button onClick={() => setOpenModal(false)} className="px-4 py-2 text-slate-600 font-bold hover:bg-slate-200 rounded-lg">Cancelar</button><button onClick={() => saveOrUpdate()} disabled={loading} className="px-6 py-2 bg-slate-800 text-white font-bold rounded-lg hover:bg-slate-900 transition-transform active:scale-95 flex items-center gap-2">{loading && <Loader2 size={16} className="animate-spin"/>} Salvar</button></div>
+                <div className="p-4 border-t bg-slate-50 flex justify-end gap-2"><button onClick={() => setOpenModal(false)} className="px-4 py-2 text-slate-500 font-bold">Cancelar</button><button onClick={() => saveOrUpdate()} disabled={loading} className="px-6 py-2 bg-teal-600 text-white rounded font-bold flex items-center gap-2">{loading && <Loader2 className="animate-spin"/>} Salvar</button></div>
             </div>
         </div>
       )}

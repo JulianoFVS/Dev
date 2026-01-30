@@ -3,7 +3,6 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Plus, ChevronRight, X, Loader2, Trash2, Search, Edit } from 'lucide-react';
 import Link from 'next/link';
-import { toast } from 'sonner';
 
 export default function Pacientes() {
   const [pacientes, setPacientes] = useState<any[]>([]);
@@ -62,17 +61,15 @@ export default function Pacientes() {
   }
 
   async function excluirPaciente(e: any, id: number) {
-    e.preventDefault(); // Evita abrir o link
+    e.preventDefault(); 
     if (!confirm('Tem certeza? Isso apagará também os agendamentos deste paciente.')) return;
 
-    // Primeiro apaga os agendamentos (constraints)
     const { error: errorAgendamentos } = await supabase.from('agendamentos').delete().eq('paciente_id', id);
     if (errorAgendamentos) {
-      alert('Erro ao excluir agendamentos do paciente: ' + errorAgendamentos.message);
+      alert('Erro ao excluir agendamentos: ' + errorAgendamentos.message);
       return;
     }
 
-    // Depois o paciente
     const { error } = await supabase.from('pacientes').delete().eq('id', id);
 
     if (error) {
@@ -92,7 +89,7 @@ export default function Pacientes() {
 
   useEffect(() => { fetchPacientes(); }, []);
 
-  const filtrados = pacientes.filter(p => p.nome.toLowerCase().includes(busca.toLowerCase()));
+  const filtrados = pacientes.filter((p: any) => p.nome.toLowerCase().includes(busca.toLowerCase()));
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto animate-fade-in relative p-4 md:p-0">
@@ -113,7 +110,7 @@ export default function Pacientes() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filtrados.map((p) => (
+        {filtrados.map((p: any) => (
           <div key={p.id} className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-teal-200 transition-all group relative overflow-hidden flex justify-between items-center">
               <Link href={`/pacientes/${p.id}`} className="flex gap-4 items-center overflow-hidden flex-1">
                   <div className="w-12 h-12 shrink-0 bg-slate-50 group-hover:bg-teal-50 rounded-full flex items-center justify-center text-slate-400 group-hover:text-teal-600 transition-colors font-bold text-lg">
@@ -136,7 +133,6 @@ export default function Pacientes() {
         ))}
       </div>
 
-      {/* Modal de Cadastro */}
       {modalAberto && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 backdrop-blur-sm p-4">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in duration-200">
@@ -161,7 +157,6 @@ export default function Pacientes() {
         </div>
       )}
 
-      {/* Modal de Edição */}
       {modalEditarAberto && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 backdrop-blur-sm p-4">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in duration-200">
