@@ -1,3 +1,9 @@
+const fs = require('fs');
+const path = require('path');
+
+console.log('🩺 Instalando Ficha de Anamnese Médica...');
+
+const prontuarioComAnamnese = `
 'use client';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -55,10 +61,10 @@ export default function Prontuario() {
     const file = e.target.files[0];
     if (!file) return;
     setUploading(true);
-    const fileName = `${Date.now()}.${file.name.split('.').pop()}`;
-    const { error } = await supabase.storage.from('arquivos').upload(`${params.id}/${fileName}`, file);
+    const fileName = \`\${Date.now()}.\${file.name.split('.').pop()}\`;
+    const { error } = await supabase.storage.from('arquivos').upload(\`\${params.id}/\${fileName}\`, file);
     if (!error) {
-        const { data } = supabase.storage.from('arquivos').getPublicUrl(`${params.id}/${fileName}`);
+        const { data } = supabase.storage.from('arquivos').getPublicUrl(\`\${params.id}/\${fileName}\`);
         await supabase.from('anexos').insert([{ paciente_id: params.id, nome_arquivo: file.name, url: data.publicUrl, tipo: file.type }]);
         carregarDados();
     } else { alert('Erro upload'); }
@@ -115,7 +121,7 @@ export default function Prontuario() {
                 <div className="flex items-center gap-1"><Phone size={14}/> {paciente.telefone}</div>
                 <div className="flex items-center gap-1"><Activity size={14}/> {historico.length} consultas</div>
             </div>
-            <a href={`https://wa.me/55${paciente.telefone.replace(/[^0-9]/g, '')}`} target="_blank" className="mt-4 inline-flex items-center gap-2 bg-green-50 text-green-700 px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-green-100 transition-colors border border-green-200"><Phone size={14} /> WhatsApp</a>
+            <a href={\`https://wa.me/55\${paciente.telefone.replace(/[^0-9]/g, '')}\`} target="_blank" className="mt-4 inline-flex items-center gap-2 bg-green-50 text-green-700 px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-green-100 transition-colors border border-green-200"><Phone size={14} /> WhatsApp</a>
         </div>
       </div>
 
@@ -123,13 +129,13 @@ export default function Prontuario() {
       <div className="flex gap-2 border-b border-slate-200">
         <button 
             onClick={() => setAbaAtiva('historico')}
-            className={`px-6 py-3 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 ${abaAtiva === 'historico' ? 'border-teal-600 text-teal-700' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+            className={\`px-6 py-3 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 \${abaAtiva === 'historico' ? 'border-teal-600 text-teal-700' : 'border-transparent text-slate-400 hover:text-slate-600'}\`}
         >
             <FileText size={18}/> Histórico e Arquivos
         </button>
         <button 
             onClick={() => setAbaAtiva('anamnese')}
-            className={`px-6 py-3 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 ${abaAtiva === 'anamnese' ? 'border-teal-600 text-teal-700' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+            className={\`px-6 py-3 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 \${abaAtiva === 'anamnese' ? 'border-teal-600 text-teal-700' : 'border-transparent text-slate-400 hover:text-slate-600'}\`}
         >
             <HeartPulse size={18}/> Anamnese (Saúde)
         </button>
@@ -235,3 +241,16 @@ export default function Prontuario() {
     </div>
   );
 }
+`;
+
+function ensureDirectoryExistence(filePath) {
+  const dirname = path.dirname(filePath);
+  if (fs.existsSync(dirname)) return true;
+  fs.mkdirSync(dirname, { recursive: true });
+}
+
+const targetPath = path.join('app', 'pacientes', '[id]', 'page.tsx');
+ensureDirectoryExistence(targetPath);
+fs.writeFileSync(targetPath, prontuarioComAnamnese.trim());
+
+console.log('✅ Anamnese Instalada com Sucesso!');
