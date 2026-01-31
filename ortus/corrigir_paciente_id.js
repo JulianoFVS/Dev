@@ -1,3 +1,15 @@
+const fs = require('fs');
+const path = require('path');
+
+console.log('🚑 Instalando V45: Correção do Ícone X na Página do Paciente...');
+
+function salvarArquivo(caminhoRelativo, conteudo) {
+    const caminhoCompleto = path.join(__dirname, caminhoRelativo);
+    fs.writeFileSync(caminhoCompleto, conteudo.trim());
+    console.log(`✅ Corrigido: ${caminhoRelativo}`);
+}
+
+const pacienteDetailPage = `
 'use client';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -84,9 +96,9 @@ export default function PacienteDetalhe() {
             
             {/* MENU LATERAL (ABAS) */}
             <div className="lg:col-span-1 space-y-2">
-                <button onClick={() => setAbaAtiva('dados')} className={`w-full text-left px-5 py-4 rounded-xl font-bold flex items-center gap-3 transition-all ${abaAtiva === 'dados' ? 'bg-white shadow-sm border border-blue-100 text-blue-700' : 'text-slate-500 hover:bg-white/50'}`}><User size={20}/> Dados Pessoais</button>
-                <button onClick={() => setAbaAtiva('anamnese')} className={`w-full text-left px-5 py-4 rounded-xl font-bold flex items-center gap-3 transition-all ${abaAtiva === 'anamnese' ? 'bg-white shadow-sm border border-blue-100 text-blue-700' : 'text-slate-500 hover:bg-white/50'}`}><FileText size={20}/> Anamnese</button>
-                <button onClick={() => setAbaAtiva('historico')} className={`w-full text-left px-5 py-4 rounded-xl font-bold flex items-center gap-3 transition-all ${abaAtiva === 'historico' ? 'bg-white shadow-sm border border-blue-100 text-blue-700' : 'text-slate-500 hover:bg-white/50'}`}><Clock size={20}/> Histórico</button>
+                <button onClick={() => setAbaAtiva('dados')} className={\`w-full text-left px-5 py-4 rounded-xl font-bold flex items-center gap-3 transition-all \${abaAtiva === 'dados' ? 'bg-white shadow-sm border border-blue-100 text-blue-700' : 'text-slate-500 hover:bg-white/50'}\`}><User size={20}/> Dados Pessoais</button>
+                <button onClick={() => setAbaAtiva('anamnese')} className={\`w-full text-left px-5 py-4 rounded-xl font-bold flex items-center gap-3 transition-all \${abaAtiva === 'anamnese' ? 'bg-white shadow-sm border border-blue-100 text-blue-700' : 'text-slate-500 hover:bg-white/50'}\`}><FileText size={20}/> Anamnese</button>
+                <button onClick={() => setAbaAtiva('historico')} className={\`w-full text-left px-5 py-4 rounded-xl font-bold flex items-center gap-3 transition-all \${abaAtiva === 'historico' ? 'bg-white shadow-sm border border-blue-100 text-blue-700' : 'text-slate-500 hover:bg-white/50'}\`}><Clock size={20}/> Histórico</button>
             </div>
 
             {/* CONTEÚDO PRINCIPAL */}
@@ -97,12 +109,12 @@ export default function PacienteDetalhe() {
                     <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm animate-in fade-in">
                         <h3 className="text-lg font-black text-slate-800 mb-6 flex items-center gap-2"><User size={20} className="text-blue-500"/> Informações do Paciente</h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div><label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Nome Completo</label><input disabled={!modoEdicao} className={`w-full p-3 rounded-xl border outline-none font-bold text-slate-700 ${modoEdicao ? 'bg-white border-blue-300 ring-2 ring-blue-100' : 'bg-slate-50 border-slate-200'}`} value={form.nome || ''} onChange={e => setForm({...form, nome: e.target.value})} /></div>
-                            <div><label className="text-xs font-bold text-slate-400 uppercase mb-1 block">CPF</label><input disabled={!modoEdicao} className={`w-full p-3 rounded-xl border outline-none ${modoEdicao ? 'bg-white border-blue-300' : 'bg-slate-50 border-slate-200'}`} value={form.cpf || ''} onChange={e => setForm({...form, cpf: e.target.value})} /></div>
-                            <div><label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Telefone</label><input disabled={!modoEdicao} className={`w-full p-3 rounded-xl border outline-none ${modoEdicao ? 'bg-white border-blue-300' : 'bg-slate-50 border-slate-200'}`} value={form.telefone || ''} onChange={e => setForm({...form, telefone: e.target.value})} /></div>
-                            <div><label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Data Nascimento</label><input type="date" disabled={!modoEdicao} className={`w-full p-3 rounded-xl border outline-none ${modoEdicao ? 'bg-white border-blue-300' : 'bg-slate-50 border-slate-200'}`} value={form.data_nascimento || ''} onChange={e => setForm({...form, data_nascimento: e.target.value})} /></div>
-                            <div className="md:col-span-2"><label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Email</label><input disabled={!modoEdicao} className={`w-full p-3 rounded-xl border outline-none ${modoEdicao ? 'bg-white border-blue-300' : 'bg-slate-50 border-slate-200'}`} value={form.email || ''} onChange={e => setForm({...form, email: e.target.value})} /></div>
-                            <div className="md:col-span-2"><label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Endereço</label><input disabled={!modoEdicao} className={`w-full p-3 rounded-xl border outline-none ${modoEdicao ? 'bg-white border-blue-300' : 'bg-slate-50 border-slate-200'}`} value={form.endereco || ''} onChange={e => setForm({...form, endereco: e.target.value})} /></div>
+                            <div><label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Nome Completo</label><input disabled={!modoEdicao} className={\`w-full p-3 rounded-xl border outline-none font-bold text-slate-700 \${modoEdicao ? 'bg-white border-blue-300 ring-2 ring-blue-100' : 'bg-slate-50 border-slate-200'}\`} value={form.nome || ''} onChange={e => setForm({...form, nome: e.target.value})} /></div>
+                            <div><label className="text-xs font-bold text-slate-400 uppercase mb-1 block">CPF</label><input disabled={!modoEdicao} className={\`w-full p-3 rounded-xl border outline-none \${modoEdicao ? 'bg-white border-blue-300' : 'bg-slate-50 border-slate-200'}\`} value={form.cpf || ''} onChange={e => setForm({...form, cpf: e.target.value})} /></div>
+                            <div><label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Telefone</label><input disabled={!modoEdicao} className={\`w-full p-3 rounded-xl border outline-none \${modoEdicao ? 'bg-white border-blue-300' : 'bg-slate-50 border-slate-200'}\`} value={form.telefone || ''} onChange={e => setForm({...form, telefone: e.target.value})} /></div>
+                            <div><label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Data Nascimento</label><input type="date" disabled={!modoEdicao} className={\`w-full p-3 rounded-xl border outline-none \${modoEdicao ? 'bg-white border-blue-300' : 'bg-slate-50 border-slate-200'}\`} value={form.data_nascimento || ''} onChange={e => setForm({...form, data_nascimento: e.target.value})} /></div>
+                            <div className="md:col-span-2"><label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Email</label><input disabled={!modoEdicao} className={\`w-full p-3 rounded-xl border outline-none \${modoEdicao ? 'bg-white border-blue-300' : 'bg-slate-50 border-slate-200'}\`} value={form.email || ''} onChange={e => setForm({...form, email: e.target.value})} /></div>
+                            <div className="md:col-span-2"><label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Endereço</label><input disabled={!modoEdicao} className={\`w-full p-3 rounded-xl border outline-none \${modoEdicao ? 'bg-white border-blue-300' : 'bg-slate-50 border-slate-200'}\`} value={form.endereco || ''} onChange={e => setForm({...form, endereco: e.target.value})} /></div>
                         </div>
                     </div>
                 )}
@@ -115,12 +127,12 @@ export default function PacienteDetalhe() {
                             <h3 className="text-lg font-black text-slate-800 mb-6 flex items-center gap-2"><Stethoscope size={20} className="text-pink-500"/> Ficha Médica</h3>
                             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                                 {['Diabetes', 'Hipertensão', 'Cardiopatia', 'Asma/Bronquite', 'Alergia Antibiótico', 'Alergia Anestésico', 'Gestante', 'Fumante', 'Uso de Anticoagulante'].map(item => (
-                                    <label key={item} className={`flex items-center gap-3 p-3 rounded-xl border transition-all cursor-pointer ${ficha[item] ? 'bg-red-50 border-red-200' : 'bg-slate-50 border-slate-100 hover:border-slate-300'} ${!modoEdicao && 'pointer-events-none opacity-80'}`}>
-                                        <div className={`w-5 h-5 rounded-md border flex items-center justify-center transition-colors ${ficha[item] ? 'bg-red-500 border-red-500 text-white' : 'bg-white border-slate-300'}`}>
+                                    <label key={item} className={\`flex items-center gap-3 p-3 rounded-xl border transition-all cursor-pointer \${ficha[item] ? 'bg-red-50 border-red-200' : 'bg-slate-50 border-slate-100 hover:border-slate-300'} \${!modoEdicao && 'pointer-events-none opacity-80'}\`}>
+                                        <div className={\`w-5 h-5 rounded-md border flex items-center justify-center transition-colors \${ficha[item] ? 'bg-red-500 border-red-500 text-white' : 'bg-white border-slate-300'}\`}>
                                             {ficha[item] && <Check size={14}/>}
                                         </div>
                                         <input type="checkbox" className="hidden" checked={ficha[item] || false} onChange={() => toggleCheck(item)} disabled={!modoEdicao}/>
-                                        <span className={`text-sm font-bold ${ficha[item] ? 'text-red-700' : 'text-slate-600'}`}>{item}</span>
+                                        <span className={\`text-sm font-bold \${ficha[item] ? 'text-red-700' : 'text-slate-600'}\`}>{item}</span>
                                     </label>
                                 ))}
                             </div>
@@ -174,3 +186,6 @@ export default function PacienteDetalhe() {
     </div>
   );
 }
+`;
+
+salvarArquivo('app/pacientes/[id]/page.tsx', pacienteDetailPage);
