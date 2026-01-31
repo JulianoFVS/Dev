@@ -1,3 +1,15 @@
+const fs = require('fs');
+const path = require('path');
+
+console.log('🔐 Instalando V35: Tela de Login Azul Royal (Identidade Visual)...');
+
+function salvarArquivo(caminhoRelativo, conteudo) {
+    const caminhoCompleto = path.join(__dirname, caminhoRelativo);
+    fs.writeFileSync(caminhoCompleto, conteudo.trim());
+    console.log(`✅ Atualizado: ${caminhoRelativo}`);
+}
+
+const loginPage = `
 'use client';
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -95,3 +107,6 @@ export default function Login() {
     </div>
   );
 }
+`;
+
+salvarArquivo('app/login/page.tsx', loginPage);
