@@ -2,8 +2,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useParams, useRouter } from 'next/navigation';
-// CORREÇÃO: Adicionado o 'X' e 'Check' nas importações
-import { User, Phone, Edit, ArrowLeft, Save, Loader2, FileText, Clock, Trash2, Calendar, Pill, AlertTriangle, Stethoscope, X, Check } from 'lucide-react';
+import { User, Phone, Edit, ArrowLeft, Save, Loader2, FileText, Clock, Trash2, Calendar, Pill, AlertTriangle, Stethoscope, X, Check, Building2 } from 'lucide-react';
 import Link from 'next/link';
 
 export default function PacienteDetalhe() {
@@ -12,17 +11,23 @@ export default function PacienteDetalhe() {
   const [loading, setLoading] = useState(true);
   
   // MODOS DE TELA
-  const [abaAtiva, setAbaAtiva] = useState('dados'); // dados, anamnese, historico
-  const [modoEdicao, setModoEdicao] = useState(false); // true = editando
+  const [abaAtiva, setAbaAtiva] = useState('dados'); 
+  const [modoEdicao, setModoEdicao] = useState(false); 
   
   const [form, setForm] = useState<any>({});
-  const [ficha, setFicha] = useState<any>({}); // Anamnese Estruturada
+  const [ficha, setFicha] = useState<any>({}); 
   const [historico, setHistorico] = useState<any[]>([]);
+  const [clinicas, setClinicas] = useState<any[]>([]);
 
   useEffect(() => { if(id) carregar(); }, [id]);
 
   async function carregar() {
       setLoading(true);
+      
+      // Carregar Clínicas para o Select
+      const { data: listaClinicas } = await supabase.from('clinicas').select('*');
+      if (listaClinicas) setClinicas(listaClinicas);
+
       const { data } = await supabase.from('pacientes').select('*').eq('id', id).single();
       if (data) {
           setForm(data);
@@ -56,7 +61,7 @@ export default function PacienteDetalhe() {
   return (
     <div className="max-w-7xl mx-auto pb-20 space-y-6 animate-in slide-in-from-right-4 duration-500">
         
-        {/* HEADER COM NAVEGAÇÃO E AÇÕES */}
+        {/* HEADER */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
             <div className="flex items-center gap-4">
                 <Link href="/pacientes" className="p-2.5 bg-slate-50 border border-slate-100 rounded-xl hover:bg-slate-100 text-slate-500 transition-colors"><ArrowLeft size={20}/></Link>
@@ -82,7 +87,7 @@ export default function PacienteDetalhe() {
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
             
-            {/* MENU LATERAL (ABAS) */}
+            {/* MENU LATERAL */}
             <div className="lg:col-span-1 space-y-2">
                 <button onClick={() => setAbaAtiva('dados')} className={`w-full text-left px-5 py-4 rounded-xl font-bold flex items-center gap-3 transition-all ${abaAtiva === 'dados' ? 'bg-white shadow-sm border border-blue-100 text-blue-700' : 'text-slate-500 hover:bg-white/50'}`}><User size={20}/> Dados Pessoais</button>
                 <button onClick={() => setAbaAtiva('anamnese')} className={`w-full text-left px-5 py-4 rounded-xl font-bold flex items-center gap-3 transition-all ${abaAtiva === 'anamnese' ? 'bg-white shadow-sm border border-blue-100 text-blue-700' : 'text-slate-500 hover:bg-white/50'}`}><FileText size={20}/> Anamnese</button>
@@ -97,6 +102,24 @@ export default function PacienteDetalhe() {
                     <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm animate-in fade-in">
                         <h3 className="text-lg font-black text-slate-800 mb-6 flex items-center gap-2"><User size={20} className="text-blue-500"/> Informações do Paciente</h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            
+                            {/* CAMPO NOVO: CLÍNICA */}
+                            <div className="col-span-2 md:col-span-1">
+                                <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Clínica de Atendimento</label>
+                                <div className="relative">
+                                    <Building2 className="absolute left-3 top-3 text-slate-400" size={18}/>
+                                    <select 
+                                        disabled={!modoEdicao} 
+                                        className={`w-full pl-10 pr-4 py-3 rounded-xl border outline-none font-bold text-slate-700 appearance-none ${modoEdicao ? 'bg-white border-blue-300 ring-2 ring-blue-100 cursor-pointer' : 'bg-slate-50 border-slate-200'}`}
+                                        value={form.clinica_id || ''} 
+                                        onChange={e => setForm({...form, clinica_id: e.target.value})}
+                                    >
+                                        <option value="">Sem Clínica Definida</option>
+                                        {clinicas.map((c:any) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                                    </select>
+                                </div>
+                            </div>
+
                             <div><label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Nome Completo</label><input disabled={!modoEdicao} className={`w-full p-3 rounded-xl border outline-none font-bold text-slate-700 ${modoEdicao ? 'bg-white border-blue-300 ring-2 ring-blue-100' : 'bg-slate-50 border-slate-200'}`} value={form.nome || ''} onChange={e => setForm({...form, nome: e.target.value})} /></div>
                             <div><label className="text-xs font-bold text-slate-400 uppercase mb-1 block">CPF</label><input disabled={!modoEdicao} className={`w-full p-3 rounded-xl border outline-none ${modoEdicao ? 'bg-white border-blue-300' : 'bg-slate-50 border-slate-200'}`} value={form.cpf || ''} onChange={e => setForm({...form, cpf: e.target.value})} /></div>
                             <div><label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Telefone</label><input disabled={!modoEdicao} className={`w-full p-3 rounded-xl border outline-none ${modoEdicao ? 'bg-white border-blue-300' : 'bg-slate-50 border-slate-200'}`} value={form.telefone || ''} onChange={e => setForm({...form, telefone: e.target.value})} /></div>
@@ -110,29 +133,22 @@ export default function PacienteDetalhe() {
                 {/* ABA ANAMNESE ESTRUTURADA */}
                 {abaAtiva === 'anamnese' && (
                     <div className="space-y-6 animate-in fade-in">
-                        {/* QUADRO DE CHECAGEM */}
                         <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm">
                             <h3 className="text-lg font-black text-slate-800 mb-6 flex items-center gap-2"><Stethoscope size={20} className="text-pink-500"/> Ficha Médica</h3>
                             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                                 {['Diabetes', 'Hipertensão', 'Cardiopatia', 'Asma/Bronquite', 'Alergia Antibiótico', 'Alergia Anestésico', 'Gestante', 'Fumante', 'Uso de Anticoagulante'].map(item => (
                                     <label key={item} className={`flex items-center gap-3 p-3 rounded-xl border transition-all cursor-pointer ${ficha[item] ? 'bg-red-50 border-red-200' : 'bg-slate-50 border-slate-100 hover:border-slate-300'} ${!modoEdicao && 'pointer-events-none opacity-80'}`}>
-                                        <div className={`w-5 h-5 rounded-md border flex items-center justify-center transition-colors ${ficha[item] ? 'bg-red-500 border-red-500 text-white' : 'bg-white border-slate-300'}`}>
-                                            {ficha[item] && <Check size={14}/>}
-                                        </div>
+                                        <div className={`w-5 h-5 rounded-md border flex items-center justify-center transition-colors ${ficha[item] ? 'bg-red-500 border-red-500 text-white' : 'bg-white border-slate-300'}`}>{ficha[item] && <Check size={14}/>}</div>
                                         <input type="checkbox" className="hidden" checked={ficha[item] || false} onChange={() => toggleCheck(item)} disabled={!modoEdicao}/>
                                         <span className={`text-sm font-bold ${ficha[item] ? 'text-red-700' : 'text-slate-600'}`}>{item}</span>
                                     </label>
                                 ))}
                             </div>
                         </div>
-
-                        {/* MEDICAMENTOS */}
                         <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm">
                             <h3 className="text-lg font-black text-slate-800 mb-4 flex items-center gap-2"><Pill size={20} className="text-purple-500"/> Medicamentos em Uso</h3>
                             <textarea disabled={!modoEdicao} value={ficha.medicamentos || ''} onChange={e => setFicha({...ficha, medicamentos: e.target.value})} className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-purple-200 h-24 resize-none" placeholder="Liste os medicamentos contínuos..." />
                         </div>
-
-                        {/* OBSERVAÇÕES LIVRES */}
                         <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm">
                             <h3 className="text-lg font-black text-slate-800 mb-4 flex items-center gap-2"><AlertTriangle size={20} className="text-amber-500"/> Observações Clínicas</h3>
                             <textarea disabled={!modoEdicao} value={form.anamnese || ''} onChange={e => setForm({...form, anamnese: e.target.value})} className="w-full p-4 bg-yellow-50 border border-yellow-200 rounded-xl outline-none focus:ring-2 focus:ring-yellow-300 h-40 resize-none text-slate-700" placeholder="Histórico detalhado, queixas principais e evolução..." />
