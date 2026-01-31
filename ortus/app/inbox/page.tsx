@@ -5,7 +5,7 @@ import { Bell, Mail, Calendar, AlertTriangle, Info, CheckSquare, Trash2 } from '
 import { useSearchParams } from 'next/navigation';
 
 export default function Inbox() {
-  const [todos, setTodos] = useState<any[]>([]);
+  const [todos, setTodos] = useState<any[]>([]); // FIX: any[]
   const [abaAtiva, setAbaAtiva] = useState('alertas');
   const [loading, setLoading] = useState(true);
   const searchParams = useSearchParams();

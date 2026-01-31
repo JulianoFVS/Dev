@@ -6,9 +6,9 @@ import { Users, Calendar, DollarSign, ArrowRight, TrendingUp, Activity, Clock, C
 
 export default function Dashboard() {
   const [stats, setStats] = useState({ pacientes: 0, agendamentos: 0, faturamento: 0 });
-  const [proximos, setProximos] = useState<any[]>([]); // Tipagem Any
+  const [proximos, setProximos] = useState<any[]>([]); // FIX: Tipagem any[]
   const [loading, setLoading] = useState(true);
-  const [usuario, setUsuario] = useState<any>(null); // Tipagem Any para aceitar User ou Null
+  const [usuario, setUsuario] = useState<any>(null); // FIX: Tipagem any para aceitar User
 
   useEffect(() => { carregarDados(); }, []);
 

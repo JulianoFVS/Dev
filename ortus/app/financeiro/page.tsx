@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase';
 import { DollarSign, TrendingUp, TrendingDown, Calendar, ArrowRight, Wallet, Activity } from 'lucide-react';
 
 export default function Financeiro() {
-  const [transacoes, setTransacoes] = useState<any[]>([]);
+  const [transacoes, setTransacoes] = useState<any[]>([]); // FIX: any[]
   const [resumo, setResumo] = useState({ entrada: 0, saida: 0, saldo: 0 });
   const [loading, setLoading] = useState(true);
 
@@ -15,6 +15,7 @@ export default function Financeiro() {
     const { data: entradas } = await supabase.from('agendamentos').select('id, valor_final, data_hora, procedimento, pacientes(nome)').eq('status', 'concluido').order('data_hora', { ascending: false });
     const listaEntradas = (entradas || []).map((e: any) => ({
         id: e.id, tipo: 'entrada',
+        // FIX: e.pacientes.nome (acesso seguro com any)
         descricao: `${Array.isArray(e.pacientes) ? e.pacientes[0]?.nome : e.pacientes?.nome} - ${e.procedimento}`,
         valor: Number(e.valor_final || 0), data: e.data_hora, origem: 'agendamento'
     }));
