@@ -1,3 +1,15 @@
+const fs = require('fs');
+const path = require('path');
+
+console.log('📱 Instalando V47: Ajuste de Menu Mobile (Perfil Visível)...');
+
+function salvarArquivo(caminhoRelativo, conteudo) {
+    const caminhoCompleto = path.join(__dirname, caminhoRelativo);
+    fs.writeFileSync(caminhoCompleto, conteudo.trim());
+    console.log(`✅ Atualizado: ${caminhoRelativo}`);
+}
+
+const authGuard = `
 'use client';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -62,14 +74,14 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
             <Building2 size={14}/> Trocar Clínica
          </Link>
       </div>
-      <Link href="/" onClick={() => setMenuMobileAberto(false)} className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all mb-1 ${pathname === '/' ? 'bg-blue-50 text-blue-700 font-bold shadow-sm' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'}`}><LayoutDashboard size={20} /> Dashboard</Link>
-      <Link href="/agenda" onClick={() => setMenuMobileAberto(false)} className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all mb-1 ${pathname.includes('/agenda') ? 'bg-blue-50 text-blue-700 font-bold shadow-sm' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'}`}><Calendar size={20} /> Agenda</Link>
-      <Link href="/pacientes" onClick={() => setMenuMobileAberto(false)} className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all mb-1 ${pathname.includes('/pacientes') ? 'bg-blue-50 text-blue-700 font-bold shadow-sm' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'}`}><Users size={20} /> Pacientes</Link>
+      <Link href="/" onClick={() => setMenuMobileAberto(false)} className={\`flex items-center gap-3 px-4 py-3 rounded-xl transition-all mb-1 \${pathname === '/' ? 'bg-blue-50 text-blue-700 font-bold shadow-sm' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'}\`}><LayoutDashboard size={20} /> Dashboard</Link>
+      <Link href="/agenda" onClick={() => setMenuMobileAberto(false)} className={\`flex items-center gap-3 px-4 py-3 rounded-xl transition-all mb-1 \${pathname.includes('/agenda') ? 'bg-blue-50 text-blue-700 font-bold shadow-sm' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'}\`}><Calendar size={20} /> Agenda</Link>
+      <Link href="/pacientes" onClick={() => setMenuMobileAberto(false)} className={\`flex items-center gap-3 px-4 py-3 rounded-xl transition-all mb-1 \${pathname.includes('/pacientes') ? 'bg-blue-50 text-blue-700 font-bold shadow-sm' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'}\`}><Users size={20} /> Pacientes</Link>
       
       {isAdmin ? (
         <>
-            <Link href="/financeiro" onClick={() => setMenuMobileAberto(false)} className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all mb-1 ${pathname.includes('/financeiro') ? 'bg-blue-50 text-blue-700 font-bold shadow-sm' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'}`}><DollarSign size={20} /> Financeiro</Link>
-            <Link href="/configuracoes" onClick={() => setMenuMobileAberto(false)} className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all mb-1 ${pathname.includes('/configuracoes') ? 'bg-blue-50 text-blue-700 font-bold shadow-sm' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'}`}><Settings size={20} /> Ajustes</Link>
+            <Link href="/financeiro" onClick={() => setMenuMobileAberto(false)} className={\`flex items-center gap-3 px-4 py-3 rounded-xl transition-all mb-1 \${pathname.includes('/financeiro') ? 'bg-blue-50 text-blue-700 font-bold shadow-sm' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'}\`}><DollarSign size={20} /> Financeiro</Link>
+            <Link href="/configuracoes" onClick={() => setMenuMobileAberto(false)} className={\`flex items-center gap-3 px-4 py-3 rounded-xl transition-all mb-1 \${pathname.includes('/configuracoes') ? 'bg-blue-50 text-blue-700 font-bold shadow-sm' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'}\`}><Settings size={20} /> Ajustes</Link>
         </>
       ) : (
         <div className="mt-4 px-4 py-2 bg-slate-50 rounded-lg border border-slate-100 opacity-60"><p className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1"><Lock size={10}/> Área Admin</p></div>
@@ -167,3 +179,6 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     </div>
   );
 }
+`;
+
+salvarArquivo('components/AuthGuard.tsx', authGuard);
