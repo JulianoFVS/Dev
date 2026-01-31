@@ -27,7 +27,6 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
         const { data: prof } = await supabase.from('profissionais').select('*').eq('user_id', session.user.id).single();
         setPerfil(prof);
 
-        // Conta apenas notificações do tipo 'alerta' ou 'agenda' não lidas para o sino
         const { count } = await supabase.from('notificacoes')
             .select('*', { count: 'exact', head: true })
             .eq('user_id', session.user.id)
@@ -81,24 +80,31 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen bg-slate-50 font-sans">
       <aside className="w-64 bg-white border-r border-slate-200 fixed h-full hidden md:flex flex-col z-30 shadow-sm">
-        <div className="p-6 pb-2"><h1 className="text-2xl font-black text-blue-600 tracking-tight">ORTUS</h1><p className="text-xs text-slate-400 font-bold mt-1">Gestão Inteligente</p></div>
+        <div className="p-6 pb-2 flex justify-center">
+            {/* LOGO NO MENU (Tamanho ajustado) */}
+            <img 
+                src="/logo.png" 
+                alt="Logo Sidebar" 
+                className="h-16 w-auto object-contain hover:scale-105 transition-transform"
+                onError={(e) => { e.currentTarget.style.display = 'none'; document.getElementById('sidebar-logo-fallback')!.style.display = 'block'; }}
+            />
+            <h1 id="sidebar-logo-fallback" className="hidden text-2xl font-black text-blue-600 tracking-tight">ORTUS</h1>
+        </div>
         <nav className="flex-1 px-4 space-y-1 mt-6"><LinksDoMenu /></nav>
-        <div className="p-6 text-center border-t border-slate-50"><p className="text-[10px] text-slate-300 font-medium">ORTUS v19.0 &copy; 2025</p></div>
+        <div className="p-6 text-center border-t border-slate-50"><p className="text-[10px] text-slate-300 font-medium">v1.0 &copy; 2025</p></div>
       </aside>
 
       <div className="md:hidden fixed top-0 w-full bg-white border-b border-slate-200 z-40 px-4 py-3 flex justify-between items-center shadow-sm">
-        <h1 className="text-xl font-black text-blue-600">ORTUS</h1>
+        <img src="/logo.png" alt="Logo" className="h-8 w-auto" />
         <button onClick={() => setMenuMobileAberto(!menuMobileAberto)} className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg">{menuMobileAberto ? <X size={24} /> : <Menu size={24} />}</button>
       </div>
 
       <main className="flex-1 md:ml-64 flex flex-col min-h-screen transition-all">
         <header className="bg-white border-b border-slate-200 h-16 flex items-center justify-end px-6 gap-3 sticky top-0 z-20 shadow-sm/50 backdrop-blur-sm bg-white/90">
             <div className="flex items-center gap-1 border-r border-slate-100 pr-3 mr-1">
-                {/* ÍCONE DE MENSAGENS -> ABA MENSAGENS */}
                 <Link href="/inbox?tab=mensagens" className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all relative" title="Mensagens">
                     <Mail size={20}/>
                 </Link>
-                {/* ÍCONE DE SINO -> ABA ALERTAS */}
                 <Link href="/inbox?tab=alertas" className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all relative" title="Alertas">
                     <Bell size={20}/>
                     {notificacoesCount > 0 && <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>}
