@@ -1,181 +1,127 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { User, Phone, Calendar, FileText, ChevronLeft, Activity, Upload, Paperclip, Trash2, HeartPulse, Save, Loader2, AlertTriangle, CheckCircle, XCircle, Clock } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
+import { User, Phone, MapPin, FileText, Clock, Save, Loader2, Trash2, ArrowLeft, Calendar, Mail } from 'lucide-react';
 import Link from 'next/link';
 
-export default function Prontuario() {
-  const params = useParams();
+export default function PacienteDetalhe() {
+  const { id } = useParams();
   const router = useRouter();
-  
-  const [paciente, setPaciente] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [abaAtiva, setAbaAtiva] = useState<'historico' | 'anamnese'>('historico');
-
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState<any>({});
   const [historico, setHistorico] = useState<any[]>([]);
-  const [arquivos, setArquivos] = useState<any[]>([]);
-  const [uploading, setUploading] = useState(false);
 
-  const [anamnese, setAnamnese] = useState({
-    id: null,
-    fuma: false, bebe: false, diabetico: false, hipertenso: false, cardiaco: false,
-    alergias: '', medicamentos: '', cirurgias: '', observacoes_medicas: ''
-  });
-  const [salvandoAnamnese, setSalvandoAnamnese] = useState(false);
+  useEffect(() => { if(id) carregar(); }, [id]);
 
-  useEffect(() => { carregarDados(); }, [params.id]);
-
-  async function carregarDados() {
-    const { data: pac } = await supabase.from('pacientes').select('*').eq('id', params.id).single();
-    if (!pac) return router.push('/pacientes');
-    setPaciente(pac);
-
-    const { data: agenda } = await supabase.from('agendamentos').select('*').eq('paciente_id', params.id).order('data_hora', { ascending: false });
-    if (agenda) setHistorico(agenda);
-
-    const { data: arq } = await supabase.from('anexos').select('*').eq('paciente_id', params.id).order('created_at', { ascending: false });
-    if (arq) setArquivos(arq);
-
-    const { data: ana } = await supabase.from('anamneses').select('*').eq('paciente_id', params.id).single();
-    if (ana) setAnamnese(ana);
-    
-    setLoading(false);
+  async function carregar() {
+      setLoading(true);
+      const { data } = await supabase.from('pacientes').select('*').eq('id', id).single();
+      if (data) setForm(data);
+      const { data: hist } = await supabase.from('agendamentos').select('*, profissionais(nome)').eq('paciente_id', id).order('data_hora', { ascending: false });
+      setHistorico(hist || []);
+      setLoading(false);
   }
 
-  async function handleFileUpload(e: any) {
-    const file = e.target.files[0];
-    if (!file) return;
-    setUploading(true);
-    const fileName = `${Date.now()}.${file.name.split('.').pop()}`;
-    const { error } = await supabase.storage.from('arquivos').upload(`${params.id}/${fileName}`, file);
-    if (!error) {
-        const { data } = supabase.storage.from('arquivos').getPublicUrl(`${params.id}/${fileName}`);
-        await supabase.from('anexos').insert([{ paciente_id: params.id, nome_arquivo: file.name, url: data.publicUrl, tipo: file.type }]);
-        carregarDados();
-    } else { alert('Erro upload'); }
-    setUploading(false);
-  }
-  async function deletarArquivo(id: number) { if(confirm('Apagar?')) { await supabase.from('anexos').delete().eq('id', id); carregarDados(); } }
-
-  async function salvarAnamnese() {
-    setSalvandoAnamnese(true);
-    const { id, ...dadosSemId } = { ...anamnese, paciente_id: params.id };
-    const payload = id ? { id, ...dadosSemId } : dadosSemId;
-
-    const { data, error } = await supabase.from('anamneses').upsert(payload).select().single();
-    
-    if (error) alert('Erro ao salvar: ' + error.message);
-    else {
-        setAnamnese(data);
-        alert('Ficha médica atualizada com sucesso!');
-    }
-    setSalvandoAnamnese(false);
+  async function salvar(e: any) {
+      e.preventDefault();
+      setSaving(true);
+      await supabase.from('pacientes').update(form).eq('id', id);
+      setSaving(false);
+      alert('Dados salvos!');
   }
 
-  if (loading) return <div className="p-8 text-center text-slate-400">Carregando prontuário...</div>;
+  async function excluir() {
+      if(!confirm('Cuidado: Isso apagará o paciente e todo o histórico. Continuar?')) return;
+      await supabase.from('agendamentos').delete().eq('paciente_id', id);
+      await supabase.from('pacientes').delete().eq('id', id);
+      router.push('/pacientes');
+  }
 
-  const alertas = [
-    anamnese.diabetico && 'Diabético',
-    anamnese.hipertenso && 'Hipertenso',
-    anamnese.cardiaco && 'Cardíaco',
-    anamnese.alergias && 'Alergias'
-  ].filter(Boolean);
-
-  const agora = new Date();
-  const agendamentosFuturos = historico.filter(h => new Date(h.data_hora) > agora && h.status === 'agendado').reverse();
-  const agendamentosPassados = historico.filter(h => new Date(h.data_hora) <= agora || h.status === 'concluido' || h.status === 'cancelado');
+  if (loading) return <div className="h-screen flex items-center justify-center text-slate-400"><Loader2 className="animate-spin mr-2"/> Carregando Prontuário...</div>;
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6 animate-fade-in pb-20">
-      
-      <Link href="/pacientes" className="inline-flex items-center text-slate-500 hover:text-teal-600 transition-colors font-medium text-sm"><ChevronLeft size={16} className="mr-1"/> Voltar</Link>
-
-      <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col md:flex-row gap-6 items-start relative overflow-hidden">
-        {alertas.length > 0 && (
-            <div className="absolute top-0 left-0 w-full bg-red-50 text-red-700 text-xs font-bold px-6 py-1 flex gap-4 justify-center md:justify-start">
-                <span className="flex items-center gap-1"><AlertTriangle size={12}/> ATENÇÃO CLÍNICA:</span>{alertas.join(' • ')}
+    <div className="max-w-7xl mx-auto pb-20 space-y-6 animate-in slide-in-from-right-4 duration-500">
+        {/* HEADER */}
+        <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+                <Link href="/pacientes" className="p-2 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 text-slate-500"><ArrowLeft size={20}/></Link>
+                <div>
+                    <h1 className="text-2xl font-black text-slate-800">{form.nome}</h1>
+                    <p className="text-slate-400 text-xs font-bold uppercase tracking-wide">Prontuário Digital</p>
+                </div>
             </div>
-        )}
-        <div className="w-24 h-24 bg-teal-100 rounded-full flex items-center justify-center text-teal-600 font-bold text-3xl shrink-0 mt-4 md:mt-0">{paciente.nome.charAt(0).toUpperCase()}</div>
-        <div className="flex-1 mt-4 md:mt-0">
-            <h1 className="text-2xl font-bold text-slate-800">{paciente.nome}</h1>
-            <div className="flex flex-wrap gap-4 mt-2 text-slate-500 text-sm">
-                <div className="flex items-center gap-1"><Phone size={14}/> {paciente.telefone}</div>
-                <div className="flex items-center gap-1"><Activity size={14}/> {historico.length} consultas</div>
+            <div className="flex gap-2">
+                <button onClick={excluir} className="px-4 py-2 text-red-500 hover:bg-red-50 rounded-xl font-bold text-sm transition-colors">Excluir</button>
+                <button onClick={salvar} disabled={saving} className="px-6 py-2 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 shadow-lg shadow-blue-200 flex items-center gap-2 transition-all active:scale-95">
+                    {saving ? <Loader2 className="animate-spin" size={18}/> : <Save size={18}/>} Salvar Alterações
+                </button>
             </div>
-            <a href={`https://wa.me/55${paciente.telefone.replace(/[^0-9]/g, '')}`} target="_blank" className="mt-4 inline-flex items-center gap-2 bg-green-50 text-green-700 px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-green-100 transition-colors border border-green-200"><Phone size={14} /> WhatsApp</a>
         </div>
-      </div>
 
-      <div className="flex gap-2 border-b border-slate-200">
-        <button onClick={() => setAbaAtiva('historico')} className={`px-6 py-3 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 ${abaAtiva === 'historico' ? 'border-teal-600 text-teal-700' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><FileText size={18}/> Histórico e Arquivos</button>
-        <button onClick={() => setAbaAtiva('anamnese')} className={`px-6 py-3 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 ${abaAtiva === 'anamnese' ? 'border-teal-600 text-teal-700' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><HeartPulse size={18}/> Anamnese (Saúde)</button>
-      </div>
-
-      {abaAtiva === 'historico' && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-2">
-            <div className="md:col-span-1 space-y-4">
-                <div className="space-y-2">
-                    <h3 className="font-bold text-slate-700 text-sm uppercase tracking-wide flex items-center gap-2"><Clock size={16}/> Em Aberto</h3>
-                    {agendamentosFuturos.length === 0 ? (<div className="bg-slate-50 border border-dashed border-slate-200 rounded-xl p-4 text-center text-xs text-slate-400">Nada pendente.</div>) : (agendamentosFuturos.map(item => (<div key={item.id} className="bg-white p-3 rounded-xl border-l-4 border-l-blue-500 shadow-sm border border-slate-100"><p className="font-bold text-slate-800 text-sm">{new Date(item.data_hora).toLocaleDateString('pt-BR')}</p><p className="text-xs text-blue-600 font-bold mb-1">{new Date(item.data_hora).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'})}</p><p className="text-sm text-slate-600">{item.procedimento}</p></div>)))}
-                    <Link href="/agenda" className="block w-full text-center bg-teal-50 text-teal-700 py-2 rounded-lg font-bold text-xs hover:bg-teal-100 transition-colors">+ Agendar</Link>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            {/* COLUNA ESQUERDA: DADOS E ANAMNESE */}
+            <div className="lg:col-span-2 space-y-6">
+                
+                {/* DADOS PESSOAIS */}
+                <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+                    <h3 className="text-sm font-bold text-slate-400 uppercase mb-4 flex items-center gap-2"><User size={16}/> Dados Pessoais</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div><label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Nome Completo</label><input className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-700" value={form.nome || ''} onChange={e => setForm({...form, nome: e.target.value})} /></div>
+                        <div><label className="text-xs font-bold text-slate-400 uppercase mb-1 block">CPF</label><input className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500" value={form.cpf || ''} onChange={e => setForm({...form, cpf: e.target.value})} /></div>
+                        <div><label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Telefone</label><input className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500" value={form.telefone || ''} onChange={e => setForm({...form, telefone: e.target.value})} /></div>
+                        <div><label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Data Nascimento</label><input type="date" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500" value={form.data_nascimento || ''} onChange={e => setForm({...form, data_nascimento: e.target.value})} /></div>
+                        <div className="md:col-span-2"><label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Email</label><input className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500" value={form.email || ''} onChange={e => setForm({...form, email: e.target.value})} /></div>
+                        <div className="md:col-span-2"><label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Endereço</label><input className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500" value={form.endereco || ''} onChange={e => setForm({...form, endereco: e.target.value})} /></div>
+                    </div>
                 </div>
-                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                    <div className="flex justify-between items-center mb-3"><h3 className="font-bold text-slate-700 text-sm flex items-center gap-2"><Paperclip size={16}/> Anexos</h3><label className="cursor-pointer text-teal-600 hover:bg-teal-50 p-1.5 rounded transition-colors"><Upload size={16} /><input type="file" className="hidden" onChange={handleFileUpload} disabled={uploading} /></label></div>
-                    {uploading && <p className="text-xs text-teal-600 animate-pulse">Enviando...</p>}
-                    <div className="space-y-2">{arquivos.length === 0 && <p className="text-xs text-slate-400 text-center py-2">Vazio.</p>}{arquivos.map(arq => (<div key={arq.id} className="flex justify-between p-2 bg-slate-50 rounded text-xs group"><a href={arq.url} target="_blank" className="truncate flex-1 hover:text-teal-600">{arq.nome_arquivo}</a><button onClick={() => deletarArquivo(arq.id)} className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100"><Trash2 size={14}/></button></div>))}</div>
+
+                {/* ANAMNESE GRANDE */}
+                <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col h-[500px]">
+                    <h3 className="text-sm font-bold text-slate-400 uppercase mb-4 flex items-center gap-2"><FileText size={16}/> Anamnese e Evolução</h3>
+                    <textarea 
+                        className="flex-1 w-full p-4 bg-yellow-50 border border-yellow-200 rounded-xl outline-none focus:ring-2 focus:ring-yellow-400 text-slate-700 leading-relaxed text-sm resize-none"
+                        placeholder="Descreva o histórico clínico, alergias, procedimentos realizados e evolução do tratamento..."
+                        value={form.anamnese || ''}
+                        onChange={e => setForm({...form, anamnese: e.target.value})}
+                    ></textarea>
                 </div>
             </div>
-            <div className="md:col-span-2 space-y-4">
-                <h3 className="font-bold text-slate-700 text-sm uppercase tracking-wide flex items-center gap-2"><FileText size={16}/> Histórico Completo</h3>
-                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden divide-y divide-slate-100">
-                    {agendamentosPassados.length === 0 ? <div className="p-8 text-center text-slate-400">Sem histórico.</div> : agendamentosPassados.map(item => {
-                        const isConcluido = item.status === 'concluido';
-                        const isCancelado = item.status === 'cancelado';
-                        return (
-                            <div key={item.id} className={`p-4 hover:bg-slate-50 transition-colors flex gap-4 ${isCancelado ? 'opacity-60' : ''}`}>
-                                <div className="flex flex-col items-center min-w-[50px]"><span className="text-[10px] font-bold text-slate-400 uppercase">{new Date(item.data_hora).toLocaleString('pt-BR', {month:'short'}).replace('.','')}</span><span className="text-lg font-bold text-slate-700 leading-none">{new Date(item.data_hora).getDate()}</span></div>
-                                <div className="flex-1">
-                                    <div className="flex justify-between items-start">
-                                        <div><h4 className={`font-bold text-sm ${isCancelado ? 'text-slate-500 line-through' : 'text-slate-800'}`}>{item.procedimento}</h4><p className="text-xs text-slate-400 mt-0.5">{new Date(item.data_hora).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'})}</p></div>
-                                        <div className="text-right">
-                                            {isConcluido && (<span className="flex items-center gap-1 text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-full border border-green-100"><CheckCircle size={12}/> Concluído</span>)}
-                                            {isCancelado && (<span className="flex items-center gap-1 text-xs font-bold text-red-600 bg-red-50 px-2 py-1 rounded-full border border-red-100"><XCircle size={12}/> Cancelado</span>)}
-                                            {!isConcluido && !isCancelado && (<span className="text-xs font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded-full">Pendente</span>)}
+
+            {/* COLUNA DIREITA: HISTÓRICO (MENU LATERAL) */}
+            <div className="lg:col-span-1">
+                <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm h-full max-h-[800px] overflow-y-auto sticky top-24">
+                    <h3 className="text-sm font-bold text-slate-400 uppercase mb-6 flex items-center gap-2"><Clock size={16}/> Histórico Clínico</h3>
+                    
+                    {historico.length === 0 ? (
+                        <div className="text-center text-slate-400 py-10">Nenhuma consulta.</div>
+                    ) : (
+                        <div className="relative border-l-2 border-slate-100 ml-3 space-y-8 pb-10">
+                            {historico.map((h: any) => (
+                                <div key={h.id} className="ml-6 relative group">
+                                    <div className={`absolute -left-[31px] top-2 w-4 h-4 rounded-full border-2 border-white shadow-sm transition-colors ${h.status === 'concluido' ? 'bg-green-500' : 'bg-slate-300'}`}></div>
+                                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 hover:border-blue-200 hover:bg-blue-50/50 transition-all">
+                                        <div className="flex justify-between items-start mb-2">
+                                            <span className="font-bold text-slate-700 text-sm">{h.procedimento}</span>
+                                            <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${h.status === 'concluido' ? 'bg-green-100 text-green-600' : 'bg-slate-200 text-slate-500'}`}>{h.status}</span>
                                         </div>
+                                        <div className="flex items-center gap-2 text-xs text-slate-400 mb-2">
+                                            <Calendar size={12}/> {new Date(h.data_hora).toLocaleDateString('pt-BR')}
+                                            <span className="w-1 h-1 bg-slate-300 rounded-full"></span>
+                                            <User size={12}/> {h.profissionais?.nome || 'Dr(a).'}
+                                        </div>
+                                        {h.observacoes && <p className="text-xs text-slate-600 italic bg-white/50 p-2 rounded-lg">"{h.observacoes}"</p>}
+                                        {h.valor_final > 0 && <p className="text-xs font-bold text-green-600 mt-2 text-right">R$ {h.valor_final}</p>}
                                     </div>
-                                    {item.observacoes && <div className="mt-2 bg-yellow-50 p-2 rounded-lg text-xs text-yellow-800 border border-yellow-100 italic">📝 {item.observacoes}</div>}
-                                    {isConcluido && (<div className="mt-2 flex justify-end"><span className="text-sm font-bold text-slate-700">Valor Pago: <span className="text-green-600">R$ {Number(item.valor || 0).toFixed(2)}</span></span></div>)}
                                 </div>
-                            </div>
-                        )
-                    })}
+                            ))}
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
-      )}
-
-      {abaAtiva === 'anamnese' && (
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 animate-in fade-in slide-in-from-bottom-2">
-            <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2 text-lg"><HeartPulse className="text-red-500"/> Ficha de Saúde</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
-                <div className="space-y-4">
-                    <p className="text-xs font-bold text-slate-400 uppercase border-b border-slate-100 pb-2">Condições Gerais</p>
-                    {/* AQUI ESTAVA O ERRO: Adicionei !! para forçar booleano */}
-                    <div className="grid grid-cols-2 gap-4">{[{ key: 'fuma', label: 'Fumante' }, { key: 'bebe', label: 'Consome Álcool' }, { key: 'diabetico', label: 'Diabético' }, { key: 'hipertenso', label: 'Hipertenso' }, { key: 'cardiaco', label: 'Cardíaco' }].map((item: any) => (<label key={item.key} className="flex items-center gap-3 cursor-pointer p-3 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors"><input type="checkbox" checked={!!anamnese[item.key as keyof typeof anamnese]} onChange={e => setAnamnese({...anamnese, [item.key]: e.target.checked})} className="w-5 h-5 text-teal-600 rounded focus:ring-teal-500"/><span className="text-sm font-medium text-slate-700">{item.label}</span></label>))}</div>
-                </div>
-                <div className="space-y-4">
-                    <p className="text-xs font-bold text-slate-400 uppercase border-b border-slate-100 pb-2">Detalhes Clínicos</p>
-                    <div><label className="block text-sm font-bold text-slate-700 mb-1">Alergias</label><input value={anamnese.alergias || ''} onChange={e => setAnamnese({...anamnese, alergias: e.target.value})} className="w-full p-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-teal-500" placeholder="Ex: Dipirona, Latex..." /></div>
-                    <div><label className="block text-sm font-bold text-slate-700 mb-1">Medicamentos em uso</label><input value={anamnese.medicamentos || ''} onChange={e => setAnamnese({...anamnese, medicamentos: e.target.value})} className="w-full p-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-teal-500" placeholder="Ex: Losartana..." /></div>
-                    <div><label className="block text-sm font-bold text-slate-700 mb-1">Cirurgias Prévias</label><input value={anamnese.cirurgias || ''} onChange={e => setAnamnese({...anamnese, cirurgias: e.target.value})} className="w-full p-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-teal-500" placeholder="Alguma internação?" /></div>
-                </div>
-            </div>
-            <div><label className="block text-sm font-bold text-slate-700 mb-1">Observações Médicas Adicionais</label><textarea rows={4} value={anamnese.observacoes_medicas || ''} onChange={e => setAnamnese({...anamnese, observacoes_medicas: e.target.value})} className="w-full p-3 border border-slate-200 rounded-lg text-sm outline-none focus:border-teal-500" placeholder="Outras informações relevantes..." /></div>
-            <div className="mt-6 flex justify-end"><button onClick={salvarAnamnese} disabled={salvandoAnamnese} className="bg-teal-600 text-white px-6 py-2.5 rounded-lg font-bold hover:bg-teal-700 transition-all flex items-center gap-2 shadow-lg shadow-teal-200">{salvandoAnamnese ? <Loader2 className="animate-spin"/> : <Save size={20}/>} Salvar Ficha</button></div>
-        </div>
-      )}
     </div>
   );
 }

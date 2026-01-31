@@ -1,10 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { 
-    TrendingUp, TrendingDown, Wallet, Activity, Plus, 
-    Printer, Filter, ArrowUpCircle, ArrowDownCircle, Loader2, X, Save
-} from 'lucide-react';
+import { TrendingUp, TrendingDown, Wallet, Activity, Plus, Printer, ArrowUpCircle, ArrowDownCircle, Loader2, X, Save, Calendar } from 'lucide-react';
 
 export default function Financeiro() {
   const [transacoes, setTransacoes] = useState<any[]>([]);
@@ -14,28 +11,28 @@ export default function Financeiro() {
   const [modalAberto, setModalAberto] = useState(false);
   const [salvando, setSalvando] = useState(false);
   
-  // Filtros
-  const [mesAno, setMesAno] = useState(new Date().toISOString().slice(0, 7));
-  const [tipoFiltro, setTipoFiltro] = useState('todos'); // todos, entrada, saida
+  // FILTROS DE PERÍODO
+  const hoje = new Date();
+  const primeiroDia = new Date(hoje.getFullYear(), hoje.getMonth(), 1).toISOString().split('T')[0];
+  const ultimoDia = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0).toISOString().split('T')[0];
+
+  const [dataInicio, setDataInicio] = useState(primeiroDia);
+  const [dataFim, setDataFim] = useState(ultimoDia);
+  const [tipoFiltro, setTipoFiltro] = useState('todos');
 
   const [novaDespesa, setNovaDespesa] = useState({ descricao: '', valor: '', data: new Date().toISOString().split('T')[0], categoria: 'geral' });
 
-  useEffect(() => { carregarDados(); }, [mesAno]);
+  useEffect(() => { carregarDados(); }, [dataInicio, dataFim]);
   useEffect(() => { 
-      if (tipoFiltro === 'todos') {
-          setTransacoesFiltradas(transacoes);
-      } else {
-          setTransacoesFiltradas(transacoes.filter(t => t.tipo === tipoFiltro));
-      }
+      if (tipoFiltro === 'todos') setTransacoesFiltradas(transacoes);
+      else setTransacoesFiltradas(transacoes.filter(t => t.tipo === tipoFiltro));
   }, [tipoFiltro, transacoes]);
 
   async function carregarDados() {
     setLoading(true);
-    const inicioMes = `${mesAno}-01 00:00:00`;
-    const fimMes = `${mesAno}-31 23:59:59`;
-
-    const { data: entradas } = await supabase.from('agendamentos').select('id, valor_final, data_hora, procedimento, pacientes(nome)').eq('status', 'concluido').gte('data_hora', inicioMes).lte('data_hora', fimMes);
-    const { data: saidas } = await supabase.from('despesas').select('*').gte('data', `${mesAno}-01`).lte('data', `${mesAno}-31`);
+    // Filtro por DATA INICIO e FIM
+    const { data: entradas } = await supabase.from('agendamentos').select('id, valor_final, data_hora, procedimento, pacientes(nome)').eq('status', 'concluido').gte('data_hora', `${dataInicio}T00:00:00`).lte('data_hora', `${dataFim}T23:59:59`);
+    const { data: saidas } = await supabase.from('despesas').select('*').gte('data', dataInicio).lte('data', dataFim);
 
     const listaEntradas = (entradas || []).map((e: any) => ({
         id: 'ent_' + e.id, tipo: 'entrada',
@@ -56,7 +53,6 @@ export default function Financeiro() {
     const totalEntrada = listaEntradas.reduce((acc: number, curr: any) => acc + curr.valor, 0);
     const totalSaida = listaSaidas.reduce((acc: number, curr: any) => acc + curr.valor, 0);
     setResumo({ entrada: totalEntrada, saida: totalSaida, saldo: totalEntrada - totalSaida });
-    
     setLoading(false);
   }
 
@@ -69,38 +65,33 @@ export default function Financeiro() {
       setSalvando(false);
   }
 
-  function imprimir() {
-      window.print();
-  }
-
   return (
     <div className="max-w-6xl mx-auto space-y-8 animate-fade-in pb-20 print:p-0 print:max-w-none">
-      <style jsx global>{`
-        @media print {
-            .no-print { display: none !important; }
-            body { background: white; }
-            .print-border { border: 1px solid #ddd; }
-        }
-      `}</style>
+      <style jsx global>{` @media print { .no-print { display: none !important; } body { background: white; } .print-border { border: 1px solid #ddd; } } `}</style>
 
-      {/* HEADER */}
+      {/* HEADER COM PERÍODO */}
       <div className="flex flex-col md:flex-row justify-between items-end gap-4 no-print">
-          <div><h1 className="text-3xl font-black text-slate-800 tracking-tight">Financeiro</h1><p className="text-slate-500 font-medium">Gestão de fluxo de caixa.</p></div>
-          <div className="flex gap-2 items-center flex-wrap">
-              <input type="month" value={mesAno} onChange={(e) => setMesAno(e.target.value)} className="bg-white border border-slate-200 text-slate-600 font-bold text-sm rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-blue-500"/>
-              <button onClick={imprimir} className="bg-white border border-slate-200 text-slate-600 px-4 py-2.5 rounded-xl font-bold hover:bg-slate-50 flex items-center gap-2 text-sm"><Printer size={18}/> Imprimir</button>
-              <button onClick={() => setModalAberto(true)} className="bg-slate-900 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-black flex items-center gap-2 text-sm shadow-lg shadow-slate-200 transition-all active:scale-95"><Plus size={18}/> Nova Despesa</button>
+          <div><h1 className="text-3xl font-black text-slate-800 tracking-tight">Financeiro</h1><p className="text-slate-500 font-medium">Fluxo de caixa por período.</p></div>
+          <div className="flex gap-2 items-center flex-wrap bg-white p-2 rounded-xl border border-slate-200 shadow-sm">
+              <div className="flex items-center gap-2 px-2">
+                  <span className="text-xs font-bold text-slate-400 uppercase">De:</span>
+                  <input type="date" value={dataInicio} onChange={(e) => setDataInicio(e.target.value)} className="bg-slate-50 border border-slate-200 text-slate-700 font-bold text-sm rounded-lg px-3 py-1.5 outline-none focus:ring-2 focus:ring-blue-500"/>
+              </div>
+              <div className="flex items-center gap-2 px-2 border-l border-slate-100">
+                  <span className="text-xs font-bold text-slate-400 uppercase">Até:</span>
+                  <input type="date" value={dataFim} onChange={(e) => setDataFim(e.target.value)} className="bg-slate-50 border border-slate-200 text-slate-700 font-bold text-sm rounded-lg px-3 py-1.5 outline-none focus:ring-2 focus:ring-blue-500"/>
+              </div>
+              <button onClick={() => window.print()} className="ml-2 bg-slate-100 text-slate-600 p-2 rounded-lg hover:bg-slate-200" title="Imprimir"><Printer size={18}/></button>
+              <button onClick={() => setModalAberto(true)} className="ml-2 bg-slate-900 text-white px-4 py-2 rounded-lg font-bold hover:bg-black flex items-center gap-2 text-sm shadow-lg"><Plus size={16}/> Despesa</button>
           </div>
       </div>
 
-      {/* CARDS */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm print-border"><div className="flex justify-between items-start mb-4"><div className="p-3 bg-green-50 text-green-600 rounded-2xl no-print"><TrendingUp size={24}/></div><span className="text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-lg">+ Receitas</span></div><div><p className="text-slate-400 text-sm font-bold uppercase tracking-wider">Entradas</p><p className="text-3xl font-black text-slate-800 mt-1">R$ {resumo.entrada.toFixed(2)}</p></div></div>
           <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm print-border"><div className="flex justify-between items-start mb-4"><div className="p-3 bg-red-50 text-red-600 rounded-2xl no-print"><TrendingDown size={24}/></div><span className="text-xs font-bold text-red-600 bg-red-50 px-2 py-1 rounded-lg">- Gastos</span></div><div><p className="text-slate-400 text-sm font-bold uppercase tracking-wider">Saídas</p><p className="text-3xl font-black text-slate-800 mt-1">R$ {resumo.saida.toFixed(2)}</p></div></div>
           <div className="bg-gradient-to-br from-slate-900 to-slate-800 p-6 rounded-3xl shadow-xl shadow-slate-200 relative overflow-hidden text-white print:bg-white print:text-black print-border"><div className="flex justify-between items-start mb-4"><div className="p-3 bg-white/10 text-white rounded-2xl no-print"><Wallet size={24}/></div><span className="text-xs font-bold text-white/80 bg-white/10 px-2 py-1 rounded-lg print:text-black print:border">Resultado</span></div><div><p className="text-slate-400 text-sm font-bold uppercase tracking-wider">Saldo Líquido</p><p className={`text-3xl font-black mt-1 ${resumo.saldo >= 0 ? 'text-white print:text-black' : 'text-red-400'}`}>R$ {resumo.saldo.toFixed(2)}</p></div></div>
       </div>
 
-      {/* TABELA */}
       <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden print-border">
           <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
               <div className="flex items-center gap-4">
@@ -112,9 +103,8 @@ export default function Financeiro() {
                   </div>
               </div>
           </div>
-          
           <div className="divide-y divide-slate-100">
-              {loading ? (<div className="p-10 text-center text-slate-400 flex flex-col items-center"><Loader2 className="animate-spin mb-2"/> Carregando...</div>) : transacoesFiltradas.length === 0 ? (<div className="p-12 text-center text-slate-400">Nenhuma movimentação encontrada.</div>) : (transacoesFiltradas.map((t: any) => (
+              {loading ? (<div className="p-10 text-center text-slate-400 flex flex-col items-center"><Loader2 className="animate-spin mb-2"/> Carregando...</div>) : transacoesFiltradas.length === 0 ? (<div className="p-12 text-center text-slate-400">Nenhuma movimentação no período.</div>) : (transacoesFiltradas.map((t: any) => (
                   <div key={t.id} className="p-5 flex items-center justify-between hover:bg-slate-50 transition-colors">
                       <div className="flex items-center gap-4">
                           <div className={`p-3 rounded-2xl flex items-center justify-center shadow-sm no-print ${t.tipo === 'entrada' ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'}`}>{t.tipo === 'entrada' ? <ArrowUpCircle size={24}/> : <ArrowDownCircle size={24}/>}</div>
