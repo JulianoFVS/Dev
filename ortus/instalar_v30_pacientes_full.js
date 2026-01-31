@@ -1,3 +1,15 @@
+const fs = require('fs');
+const path = require('path');
+
+console.log('👥 Instalando V30: Pacientes Completo (Correção + Cadastro/Edição)...');
+
+function salvarArquivo(caminhoRelativo, conteudo) {
+    const caminhoCompleto = path.join(__dirname, caminhoRelativo);
+    fs.writeFileSync(caminhoCompleto, conteudo.trim());
+    console.log(`✅ Atualizado: ${caminhoRelativo}`);
+}
+
+const pacientesPage = `
 'use client';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -155,8 +167,8 @@ export default function Pacientes() {
                   <option value="todos">Status: Todos</option><option value="ativo">Ativos</option><option value="novo">Novos</option><option value="agendado">Com Agendamento</option>
               </select>
               <div className="flex bg-slate-100 p-1 rounded-xl">
-                  <button onClick={() => setVisualizacao('lista')} className={`p-2 rounded-lg transition-all ${visualizacao === 'lista' ? 'bg-white shadow text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}><ListIcon size={20}/></button>
-                  <button onClick={() => setVisualizacao('cards')} className={`p-2 rounded-lg transition-all ${visualizacao === 'cards' ? 'bg-white shadow text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}><LayoutGrid size={20}/></button>
+                  <button onClick={() => setVisualizacao('lista')} className={\`p-2 rounded-lg transition-all \${visualizacao === 'lista' ? 'bg-white shadow text-blue-600' : 'text-slate-400 hover:text-slate-600'}\`}><ListIcon size={20}/></button>
+                  <button onClick={() => setVisualizacao('cards')} className={\`p-2 rounded-lg transition-all \${visualizacao === 'cards' ? 'bg-white shadow text-blue-600' : 'text-slate-400 hover:text-slate-600'}\`}><LayoutGrid size={20}/></button>
               </div>
           </div>
       </div>
@@ -218,5 +230,8 @@ export default function Pacientes() {
 function StatusBadge({ status }) {
     const styles = { ativo: 'bg-green-100 text-green-700 border-green-200', novo: 'bg-blue-100 text-blue-700 border-blue-200', agendado: 'bg-purple-100 text-purple-700 border-purple-200', inativo: 'bg-slate-100 text-slate-500 border-slate-200' };
     const labels = { ativo: 'Cliente Ativo', novo: 'Novo Cadastro', agendado: 'Agendado', inativo: 'Inativo' };
-    return <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border uppercase tracking-wide ${styles[status] || styles.inativo}`}>{labels[status] || 'Desconhecido'}</span>;
+    return <span className={\`text-[10px] font-bold px-2 py-0.5 rounded-md border uppercase tracking-wide \${styles[status] || styles.inativo}\`}>{labels[status] || 'Desconhecido'}</span>;
 }
+`;
+
+salvarArquivo('app/pacientes/page.tsx', pacientesPage);
