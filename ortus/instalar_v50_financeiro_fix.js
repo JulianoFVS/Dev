@@ -1,12 +1,12 @@
 const fs = require('fs');
 const path = require('path');
 
-console.log('💰 Instalando V50: Correção de Somas, Datas e Filtros no Financeiro...');
+console.log('💰 Instalando V50: Correção Definitiva do Financeiro (Somas e Datas)...');
 
 function salvarArquivo(caminhoRelativo, conteudo) {
     const caminhoCompleto = path.join(__dirname, caminhoRelativo);
     fs.writeFileSync(caminhoCompleto, conteudo.trim());
-    console.log(`✅ Corrigido: ${caminhoRelativo}`);
+    console.log(`✅ Atualizado: ${caminhoRelativo}`);
 }
 
 const financeiroPage = `
@@ -45,22 +45,19 @@ export default function Financeiro() {
       categoria: 'geral' 
   });
 
-  // Inicializa datas ao carregar
+  // Inicializa datas padrão
   useEffect(() => {
       const hoje = new Date();
-      const ano = hoje.getFullYear();
-      const mes = hoje.getMonth();
-      // Primeiro e último dia do mês atual
-      setDataInicio(new Date(ano, mes, 1).toISOString().split('T')[0]);
-      setDataFim(new Date(ano, mes + 1, 0).toISOString().split('T')[0]);
+      setDataInicio(new Date(hoje.getFullYear(), hoje.getMonth(), 1).toISOString().slice(0, 10));
+      setDataFim(new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0).toISOString().slice(0, 10));
   }, []);
 
-  // Recarrega dados quando os filtros mudam
+  // Recarrega quando muda o filtro de data
   useEffect(() => { 
       if (dataInicio && dataFim) carregarDados(); 
   }, [mesSelecionado, dataInicio, dataFim, modoData]);
 
-  // Filtra localmente por tipo (Entrada/Saída)
+  // Filtra localmente (Entrada/Saída)
   useEffect(() => { 
       if (tipoFiltro === 'todos') setTransacoesFiltradas(transacoes);
       else setTransacoesFiltradas(transacoes.filter(t => t.tipo === tipoFiltro));
@@ -72,10 +69,9 @@ export default function Financeiro() {
     let inicio = '';
     let fim = '';
 
-    // Lógica robusta de datas
     if (modoData === 'mes') {
         const [ano, mes] = mesSelecionado.split('-');
-        // Cria datas em UTC para evitar problemas de fuso
+        // Pega o último dia do mês corretamente
         const ultimoDia = new Date(parseInt(ano), parseInt(mes), 0).getDate();
         inicio = \`\${mesSelecionado}-01\`;
         fim = \`\${mesSelecionado}-\${ultimoDia}\`;
@@ -84,39 +80,32 @@ export default function Financeiro() {
         fim = dataFim;
     }
 
-    // Adiciona hora para pegar o dia inteiro
+    // Adiciona hora para pegar o dia inteiro (00:00 até 23:59)
     const inicioFull = \`\${inicio}T00:00:00\`;
     const fimFull = \`\${fim}T23:59:59\`;
 
-    console.log('Buscando dados de:', inicioFull, 'até', fimFull);
-
     try {
         // 1. BUSCAR AGENDAMENTOS (ENTRADAS)
-        // Nota: Filtramos por 'status' igual a 'concluido'
-        const { data: agendamentos, error: erroAg } = await supabase
+        // Atenção: Filtra por 'concluido'
+        const { data: agendamentos } = await supabase
             .from('agendamentos')
             .select('id, valor_final, data_hora, procedimento, pacientes(nome)')
             .eq('status', 'concluido') 
             .gte('data_hora', inicioFull)
             .lte('data_hora', fimFull);
 
-        if (erroAg) console.error('Erro Agendamentos:', erroAg);
-
-        // 2. BUSCAR LANÇAMENTOS MANUAIS (ENTRADAS E SAÍDAS)
-        const { data: manuais, error: erroMan } = await supabase
+        // 2. BUSCAR LANÇAMENTOS MANUAIS
+        const { data: manuais } = await supabase
             .from('despesas')
             .select('*')
             .gte('data', inicio)
             .lte('data', fim);
 
-        if (erroMan) console.error('Erro Manuais:', erroMan);
-
-        // 3. NORMALIZAR DADOS
+        // 3. PROCESSAR DADOS
         const listaAgendamentos = (agendamentos || []).map((e: any) => ({
             id: 'ag_' + e.id, 
             tipo: 'entrada',
             descricao: \`\${Array.isArray(e.pacientes) ? e.pacientes[0]?.nome : e.pacientes?.nome} - \${e.procedimento}\`,
-            // FORÇA CONVERSÃO PARA NÚMERO
             valor: parseFloat(e.valor_final || '0'), 
             data: e.data_hora, 
             categoria: 'Atendimento'
@@ -124,28 +113,21 @@ export default function Financeiro() {
 
         const listaManuais = (manuais || []).map((s: any) => ({
             id: 'man_' + s.id, 
-            tipo: s.tipo || 'saida', // Se não tiver tipo, assume saída
+            tipo: s.tipo || 'saida', 
             descricao: s.descricao,
-            // FORÇA CONVERSÃO PARA NÚMERO
             valor: parseFloat(s.valor || '0'), 
             data: s.data, 
             categoria: s.categoria || 'Geral'
         }));
 
-        // 4. UNIFICAR E ORDENAR
         const todas = [...listaAgendamentos, ...listaManuais].sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());
         
         setTransacoes(todas);
         setTransacoesFiltradas(todas);
         
-        // 5. CALCULAR TOTAIS (COM PRECISÃO DECIMAL)
-        const totalEntrada = todas
-            .filter(t => t.tipo === 'entrada')
-            .reduce((acc, curr) => acc + (curr.valor || 0), 0);
-            
-        const totalSaida = todas
-            .filter(t => t.tipo === 'saida')
-            .reduce((acc, curr) => acc + (curr.valor || 0), 0);
+        // 4. CALCULAR TOTAIS
+        const totalEntrada = todas.filter(t => t.tipo === 'entrada').reduce((acc, curr) => acc + (curr.valor || 0), 0);
+        const totalSaida = todas.filter(t => t.tipo === 'saida').reduce((acc, curr) => acc + (curr.valor || 0), 0);
         
         setResumo({ 
             entrada: totalEntrada, 
@@ -154,9 +136,8 @@ export default function Financeiro() {
         });
 
     } catch (err) {
-        console.error('Erro geral:', err);
+        console.error('Erro ao carregar:', err);
     }
-    
     setLoading(false);
   }
 
@@ -167,7 +148,7 @@ export default function Financeiro() {
       
       const payload = { 
           descricao: novoLancamento.descricao, 
-          valor: parseFloat(novoLancamento.valor), // Garante número
+          valor: parseFloat(novoLancamento.valor), 
           data: novoLancamento.data, 
           categoria: novoLancamento.categoria, 
           tipo: novoLancamento.tipo,
@@ -177,11 +158,11 @@ export default function Financeiro() {
       const { error } = await supabase.from('despesas').insert([payload]);
       
       if (error) {
-          alert('Erro ao salvar: ' + error.message);
+          alert('Erro no banco: ' + error.message);
       } else {
           setModalAberto(false); 
           setNovoLancamento({ ...novoLancamento, descricao: '', valor: '' }); 
-          carregarDados(); // Recarrega para atualizar saldo
+          carregarDados(); 
       }
       setSalvando(false);
   }
@@ -190,7 +171,7 @@ export default function Financeiro() {
     <div className="max-w-6xl mx-auto space-y-8 animate-fade-in pb-20 print:p-0 print:max-w-none">
       <style jsx global>{\` @media print { .no-print { display: none !important; } body { background: white; } .print-border { border: 1px solid #ddd; } } \`}</style>
 
-      {/* HEADER DE CONTROLE */}
+      {/* HEADER */}
       <div className="flex flex-col md:flex-row justify-between items-end gap-4 no-print bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
           <div>
             <h1 className="text-2xl font-black text-slate-800">Gestão Financeira</h1>
@@ -219,7 +200,7 @@ export default function Financeiro() {
           </div>
       </div>
 
-      {/* CARDS DE RESUMO */}
+      {/* CARDS */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm print-border">
               <div className="flex justify-between items-start mb-4">
@@ -249,7 +230,7 @@ export default function Financeiro() {
           </div>
       </div>
 
-      {/* TABELA DE EXTRATO */}
+      {/* EXTRATO */}
       <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden print-border">
           <div className="p-5 border-b border-slate-100 bg-slate-50/50 flex flex-col md:flex-row justify-between items-center gap-4">
               <div className="flex items-center gap-3">
@@ -291,18 +272,6 @@ export default function Financeiro() {
                   ))
               )}
           </div>
-          
-          {/* TOTALIZADOR DO EXTRATO */}
-          {!loading && transacoesFiltradas.length > 0 && (
-              <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-end">
-                  <div className="text-right">
-                      <p className="text-xs font-bold text-slate-400 uppercase">Total do Extrato</p>
-                      <p className="text-xl font-black text-slate-800">
-                          R$ {transacoesFiltradas.reduce((acc, t) => acc + (t.tipo === 'entrada' ? t.valor : -t.valor), 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}
-                      </p>
-                  </div>
-              </div>
-          )}
       </div>
 
       {/* MODAL DE LANÇAMENTO */}
@@ -316,7 +285,6 @@ export default function Financeiro() {
                 
                 <form onSubmit={salvarLancamento} className="p-6 space-y-5">
                     
-                    {/* SELETOR DE TIPO */}
                     <div className="grid grid-cols-2 gap-3 p-1 bg-slate-100 rounded-xl">
                         <button type="button" onClick={() => setNovoLancamento({...novoLancamento, tipo: 'entrada'})} className={\`py-3 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 \${novoLancamento.tipo === 'entrada' ? 'bg-white text-green-600 shadow-sm ring-1 ring-black/5' : 'text-slate-400 hover:text-slate-600'}\`}><ArrowUpCircle size={18}/> Receita</button>
                         <button type="button" onClick={() => setNovoLancamento({...novoLancamento, tipo: 'saida'})} className={\`py-3 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 \${novoLancamento.tipo === 'saida' ? 'bg-white text-red-600 shadow-sm ring-1 ring-black/5' : 'text-slate-400 hover:text-slate-600'}\`}><ArrowDownCircle size={18}/> Despesa</button>
