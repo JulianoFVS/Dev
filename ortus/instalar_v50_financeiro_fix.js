@@ -1,3 +1,15 @@
+const fs = require('fs');
+const path = require('path');
+
+console.log('💰 Instalando V50: Correção de Somas, Datas e Filtros no Financeiro...');
+
+function salvarArquivo(caminhoRelativo, conteudo) {
+    const caminhoCompleto = path.join(__dirname, caminhoRelativo);
+    fs.writeFileSync(caminhoCompleto, conteudo.trim());
+    console.log(`✅ Corrigido: ${caminhoRelativo}`);
+}
+
+const financeiroPage = `
 'use client';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -65,16 +77,16 @@ export default function Financeiro() {
         const [ano, mes] = mesSelecionado.split('-');
         // Cria datas em UTC para evitar problemas de fuso
         const ultimoDia = new Date(parseInt(ano), parseInt(mes), 0).getDate();
-        inicio = `${mesSelecionado}-01`;
-        fim = `${mesSelecionado}-${ultimoDia}`;
+        inicio = \`\${mesSelecionado}-01\`;
+        fim = \`\${mesSelecionado}-\${ultimoDia}\`;
     } else {
         inicio = dataInicio;
         fim = dataFim;
     }
 
     // Adiciona hora para pegar o dia inteiro
-    const inicioFull = `${inicio}T00:00:00`;
-    const fimFull = `${fim}T23:59:59`;
+    const inicioFull = \`\${inicio}T00:00:00\`;
+    const fimFull = \`\${fim}T23:59:59\`;
 
     console.log('Buscando dados de:', inicioFull, 'até', fimFull);
 
@@ -103,7 +115,7 @@ export default function Financeiro() {
         const listaAgendamentos = (agendamentos || []).map((e: any) => ({
             id: 'ag_' + e.id, 
             tipo: 'entrada',
-            descricao: `${Array.isArray(e.pacientes) ? e.pacientes[0]?.nome : e.pacientes?.nome} - ${e.procedimento}`,
+            descricao: \`\${Array.isArray(e.pacientes) ? e.pacientes[0]?.nome : e.pacientes?.nome} - \${e.procedimento}\`,
             // FORÇA CONVERSÃO PARA NÚMERO
             valor: parseFloat(e.valor_final || '0'), 
             data: e.data_hora, 
@@ -176,15 +188,15 @@ export default function Financeiro() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-8 animate-fade-in pb-20 print:p-0 print:max-w-none">
-      <style jsx global>{` @media print { .no-print { display: none !important; } body { background: white; } .print-border { border: 1px solid #ddd; } } `}</style>
+      <style jsx global>{\` @media print { .no-print { display: none !important; } body { background: white; } .print-border { border: 1px solid #ddd; } } \`}</style>
 
       {/* HEADER DE CONTROLE */}
       <div className="flex flex-col md:flex-row justify-between items-end gap-4 no-print bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
           <div>
             <h1 className="text-2xl font-black text-slate-800">Gestão Financeira</h1>
             <div className="flex gap-2 mt-2">
-                <button onClick={() => setModoData('mes')} className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${modoData === 'mes' ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>Por Mês</button>
-                <button onClick={() => setModoData('periodo')} className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${modoData === 'periodo' ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>Personalizado</button>
+                <button onClick={() => setModoData('mes')} className={\`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors \${modoData === 'mes' ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}\`}>Por Mês</button>
+                <button onClick={() => setModoData('periodo')} className={\`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors \${modoData === 'periodo' ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}\`}>Personalizado</button>
             </div>
           </div>
 
@@ -232,7 +244,7 @@ export default function Financeiro() {
               </div>
               <div>
                   <p className="text-slate-400 text-xs font-bold uppercase tracking-wider">Saldo Líquido</p>
-                  <p className={`text-3xl font-black mt-1 ${resumo.saldo >= 0 ? 'text-white print:text-black' : 'text-red-400'}`}>R$ {resumo.saldo.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</p>
+                  <p className={\`text-3xl font-black mt-1 \${resumo.saldo >= 0 ? 'text-white print:text-black' : 'text-red-400'}\`}>R$ {resumo.saldo.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</p>
               </div>
           </div>
       </div>
@@ -246,9 +258,9 @@ export default function Financeiro() {
               </div>
               
               <div className="flex bg-slate-200 p-1 rounded-xl no-print">
-                  <button onClick={() => setTipoFiltro('todos')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${tipoFiltro === 'todos' ? 'bg-white shadow text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}>Tudo</button>
-                  <button onClick={() => setTipoFiltro('entrada')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${tipoFiltro === 'entrada' ? 'bg-white shadow text-green-600' : 'text-slate-500 hover:text-slate-700'}`}>Entradas</button>
-                  <button onClick={() => setTipoFiltro('saida')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${tipoFiltro === 'saida' ? 'bg-white shadow text-red-600' : 'text-slate-500 hover:text-slate-700'}`}>Saídas</button>
+                  <button onClick={() => setTipoFiltro('todos')} className={\`px-4 py-1.5 rounded-lg text-xs font-bold transition-all \${tipoFiltro === 'todos' ? 'bg-white shadow text-slate-800' : 'text-slate-500 hover:text-slate-700'}\`}>Tudo</button>
+                  <button onClick={() => setTipoFiltro('entrada')} className={\`px-4 py-1.5 rounded-lg text-xs font-bold transition-all \${tipoFiltro === 'entrada' ? 'bg-white shadow text-green-600' : 'text-slate-500 hover:text-slate-700'}\`}>Entradas</button>
+                  <button onClick={() => setTipoFiltro('saida')} className={\`px-4 py-1.5 rounded-lg text-xs font-bold transition-all \${tipoFiltro === 'saida' ? 'bg-white shadow text-red-600' : 'text-slate-500 hover:text-slate-700'}\`}>Saídas</button>
               </div>
           </div>
           
@@ -261,7 +273,7 @@ export default function Financeiro() {
                   transacoesFiltradas.map((t: any) => (
                       <div key={t.id} className="p-5 flex items-center justify-between hover:bg-slate-50 transition-colors group">
                           <div className="flex items-center gap-4">
-                              <div className={`p-3 rounded-2xl flex items-center justify-center shadow-sm no-print transition-colors ${t.tipo === 'entrada' ? 'bg-green-50 text-green-600 group-hover:bg-green-100' : 'bg-red-50 text-red-600 group-hover:bg-red-100'}`}>
+                              <div className={\`p-3 rounded-2xl flex items-center justify-center shadow-sm no-print transition-colors \${t.tipo === 'entrada' ? 'bg-green-50 text-green-600 group-hover:bg-green-100' : 'bg-red-50 text-red-600 group-hover:bg-red-100'}\`}>
                                   {t.tipo === 'entrada' ? <ArrowUpCircle size={24}/> : <ArrowDownCircle size={24}/>}
                               </div>
                               <div>
@@ -272,7 +284,7 @@ export default function Financeiro() {
                                   </div>
                               </div>
                           </div>
-                          <span className={`font-black text-sm md:text-lg whitespace-nowrap ${t.tipo === 'entrada' ? 'text-green-600' : 'text-red-600'}`}>
+                          <span className={\`font-black text-sm md:text-lg whitespace-nowrap \${t.tipo === 'entrada' ? 'text-green-600' : 'text-red-600'}\`}>
                               {t.tipo === 'entrada' ? '+' : '-'} R$ {t.valor.toLocaleString('pt-BR', {minimumFractionDigits: 2})}
                           </span>
                       </div>
@@ -306,8 +318,8 @@ export default function Financeiro() {
                     
                     {/* SELETOR DE TIPO */}
                     <div className="grid grid-cols-2 gap-3 p-1 bg-slate-100 rounded-xl">
-                        <button type="button" onClick={() => setNovoLancamento({...novoLancamento, tipo: 'entrada'})} className={`py-3 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${novoLancamento.tipo === 'entrada' ? 'bg-white text-green-600 shadow-sm ring-1 ring-black/5' : 'text-slate-400 hover:text-slate-600'}`}><ArrowUpCircle size={18}/> Receita</button>
-                        <button type="button" onClick={() => setNovoLancamento({...novoLancamento, tipo: 'saida'})} className={`py-3 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${novoLancamento.tipo === 'saida' ? 'bg-white text-red-600 shadow-sm ring-1 ring-black/5' : 'text-slate-400 hover:text-slate-600'}`}><ArrowDownCircle size={18}/> Despesa</button>
+                        <button type="button" onClick={() => setNovoLancamento({...novoLancamento, tipo: 'entrada'})} className={\`py-3 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 \${novoLancamento.tipo === 'entrada' ? 'bg-white text-green-600 shadow-sm ring-1 ring-black/5' : 'text-slate-400 hover:text-slate-600'}\`}><ArrowUpCircle size={18}/> Receita</button>
+                        <button type="button" onClick={() => setNovoLancamento({...novoLancamento, tipo: 'saida'})} className={\`py-3 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 \${novoLancamento.tipo === 'saida' ? 'bg-white text-red-600 shadow-sm ring-1 ring-black/5' : 'text-slate-400 hover:text-slate-600'}\`}><ArrowDownCircle size={18}/> Despesa</button>
                     </div>
 
                     <div>
@@ -353,3 +365,6 @@ export default function Financeiro() {
     </div>
   );
 }
+`;
+
+salvarArquivo('app/financeiro/page.tsx', financeiroPage);
