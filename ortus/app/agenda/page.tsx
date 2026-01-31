@@ -12,7 +12,7 @@ import { Plus, X, Loader2, CheckCircle, XCircle, MapPin, User, Building2, Chevro
 export default function Agenda() {
   const calendarRef = useRef(null);
   
-  // CORREÇÃO: Adicionado <any[]> para o TypeScript entender que são listas de dados
+  // CORREÇÃO: <any[]> em tudo que é lista
   const [events, setEvents] = useState<any[]>([]);
   const [usuarioAtual, setUsuarioAtual] = useState<any>(null);
   const [clinicas, setClinicas] = useState<any[]>([]);
@@ -38,7 +38,7 @@ export default function Agenda() {
       if (!formData.clinica_id) {
           setProfissionaisFiltrados([]);
       } else {
-          // O erro acontecia aqui. Agora com <any[]> o TS aceita.
+          // CORREÇÃO: Tipagem para evitar erro no build
           const filtrados = profissionais.filter((p) => p.profissionais_clinicas?.some((vinculo: any) => vinculo.clinica_id == formData.clinica_id));
           setProfissionaisFiltrados(filtrados);
       }
@@ -143,7 +143,6 @@ export default function Agenda() {
       setOpenModal(false); carregarEventos(); setLoading(false);
   }
 
-  // --- RENDERIZADOR CLEAN (SUPORTE TOTAL A CORES) ---
   const renderEventContent = (eventInfo: any) => {
       const props = eventInfo.event.extendedProps;
       const status = props.status;

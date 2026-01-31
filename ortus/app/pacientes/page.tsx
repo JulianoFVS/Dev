@@ -10,7 +10,7 @@ import {
 import Link from 'next/link';
 
 export default function Pacientes() {
-  const [pacientes, setPacientes] = useState([]);
+  const [pacientes, setPacientes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [visualizacao, setVisualizacao] = useState('cards');
   const [busca, setBusca] = useState('');
@@ -19,7 +19,7 @@ export default function Pacientes() {
   // Estado do Modal e Formulário
   const [modalAberto, setModalAberto] = useState(false);
   const [salvando, setSalvando] = useState(false);
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<any>({
       id: null, nome: '', cpf: '', data_nascimento: '',
       telefone: '', email: '', endereco: '', observacoes: ''
   });
@@ -36,7 +36,7 @@ export default function Pacientes() {
     if (data) {
         const formatados = data.map(p => {
             const agendamentos = p.agendamentos || [];
-            agendamentos.sort((a, b) => new Date(b.data_hora) - new Date(a.data_hora));
+            agendamentos.sort((a:any, b:any) => new Date(b.data_hora).getTime() - new Date(a.data_hora).getTime());
             const ultimoAgendamento = agendamentos[0];
             const statusCalculado = ultimoAgendamento 
                 ? (new Date(ultimoAgendamento.data_hora) > new Date() ? 'agendado' : 'ativo')
@@ -48,8 +48,7 @@ export default function Pacientes() {
     setLoading(false);
   }
 
-  // --- AÇÕES DO FORMULÁRIO ---
-  function abrirModal(paciente = null) {
+  function abrirModal(paciente: any = null) {
       if (paciente) {
           setForm({
               id: paciente.id,
@@ -67,7 +66,7 @@ export default function Pacientes() {
       setModalAberto(true);
   }
 
-  async function salvarPaciente(e) {
+  async function salvarPaciente(e: any) {
       e.preventDefault();
       setSalvando(true);
 
@@ -91,15 +90,15 @@ export default function Pacientes() {
           }
           setModalAberto(false);
           carregarPacientes();
-      } catch (error) {
+      } catch (error: any) {
           alert('Erro ao salvar: ' + error.message);
       }
       setSalvando(false);
   }
 
-  async function excluirPaciente(id) {
+  async function excluirPaciente(id: any) {
       if (!confirm('Tem certeza? Isso apagará todo o histórico e agendamentos deste paciente.')) return;
-      setLoading(true); // Bloqueia tela
+      setLoading(true); 
       const { error } = await supabase.from('pacientes').delete().eq('id', id);
       if (error) alert('Erro ao excluir: ' + error.message);
       else await carregarPacientes();
@@ -126,7 +125,6 @@ export default function Pacientes() {
   return (
     <div className="max-w-7xl mx-auto space-y-6 pb-20 animate-in fade-in slide-in-from-bottom-2 duration-500">
       
-      {/* CABEÇALHO */}
       <div className="flex flex-col md:flex-row justify-between items-end gap-4">
         <div>
             <h1 className="text-3xl font-black text-slate-800 tracking-tight">Pacientes</h1>
@@ -137,14 +135,12 @@ export default function Pacientes() {
         </button>
       </div>
 
-      {/* STATS */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm"><span className="text-xs font-bold text-slate-400 uppercase">Total</span><p className="text-2xl font-black text-slate-800 mt-1">{stats.total}</p></div>
           <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm"><span className="text-xs font-bold text-slate-400 uppercase flex items-center gap-1"><Activity size={12} className="text-green-500"/> Ativos</span><p className="text-2xl font-black text-slate-800 mt-1">{stats.ativos}</p></div>
           <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm"><span className="text-xs font-bold text-slate-400 uppercase flex items-center gap-1"><User size={12} className="text-blue-500"/> Novos (Mês)</span><p className="text-2xl font-black text-slate-800 mt-1">{stats.novos}</p></div>
       </div>
 
-      {/* FERRAMENTAS */}
       <div className="bg-white p-2 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row gap-2">
           <div className="flex-1 relative">
               <Search className="absolute left-3 top-3 text-slate-400" size={20}/>
@@ -161,7 +157,6 @@ export default function Pacientes() {
           </div>
       </div>
 
-      {/* LISTA */}
       {loading ? (
           <div className="py-20 text-center text-slate-400 flex flex-col items-center"><Loader2 className="animate-spin mb-2" size={32}/> Carregando...</div>
       ) : pacientesFiltrados.length === 0 ? (
@@ -179,7 +174,6 @@ export default function Pacientes() {
           )
       )}
 
-      {/* MODAL DE CADASTRO COMPLETO */}
       {modalAberto && (
         <div className="fixed inset-0 bg-slate-900/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
             <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in duration-200">
@@ -192,17 +186,12 @@ export default function Pacientes() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="col-span-2 md:col-span-1 space-y-1"><label className="text-xs font-bold text-slate-400 uppercase">Nome Completo *</label><input required value={form.nome} onChange={e => setForm({...form, nome: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-700" placeholder="Ex: João da Silva" /></div>
                         <div className="space-y-1"><label className="text-xs font-bold text-slate-400 uppercase">CPF</label><input value={form.cpf} onChange={e => setForm({...form, cpf: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500" placeholder="000.000.000-00" /></div>
-                        
                         <div className="space-y-1"><label className="text-xs font-bold text-slate-400 uppercase">Data de Nascimento</label><input type="date" value={form.data_nascimento} onChange={e => setForm({...form, data_nascimento: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-slate-600" /></div>
                         <div className="space-y-1"><label className="text-xs font-bold text-slate-400 uppercase">Telefone / WhatsApp *</label><input required value={form.telefone} onChange={e => setForm({...form, telefone: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500" placeholder="(00) 90000-0000" /></div>
-                        
                         <div className="col-span-2 space-y-1"><label className="text-xs font-bold text-slate-400 uppercase">Email</label><input type="email" value={form.email} onChange={e => setForm({...form, email: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500" placeholder="cliente@email.com" /></div>
-                        
                         <div className="col-span-2 space-y-1"><label className="text-xs font-bold text-slate-400 uppercase">Endereço Completo</label><input value={form.endereco} onChange={e => setForm({...form, endereco: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500" placeholder="Rua, Número, Bairro..." /></div>
-                        
                         <div className="col-span-2 space-y-1"><label className="text-xs font-bold text-slate-400 uppercase">Observações Médicas / Gerais</label><textarea value={form.observacoes} onChange={e => setForm({...form, observacoes: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 h-24 resize-none" placeholder="Alergias, histórico, preferências..." /></div>
                     </div>
-
                     <div className="pt-4 flex gap-4">
                         <button type="button" onClick={() => setModalAberto(false)} className="flex-1 py-3.5 rounded-xl font-bold text-slate-500 hover:bg-slate-100 transition-colors">Cancelar</button>
                         <button type="submit" disabled={salvando} className="flex-1 bg-blue-600 text-white rounded-xl font-bold py-3.5 hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 flex justify-center items-center gap-2">{salvando ? <Loader2 className="animate-spin"/> : <><Save size={20}/> Salvar Paciente</>}</button>
@@ -215,8 +204,8 @@ export default function Pacientes() {
   );
 }
 
-function StatusBadge({ status }) {
-    const styles = { ativo: 'bg-green-100 text-green-700 border-green-200', novo: 'bg-blue-100 text-blue-700 border-blue-200', agendado: 'bg-purple-100 text-purple-700 border-purple-200', inativo: 'bg-slate-100 text-slate-500 border-slate-200' };
-    const labels = { ativo: 'Cliente Ativo', novo: 'Novo Cadastro', agendado: 'Agendado', inativo: 'Inativo' };
+function StatusBadge({ status }: {status: any}) {
+    const styles: any = { ativo: 'bg-green-100 text-green-700 border-green-200', novo: 'bg-blue-100 text-blue-700 border-blue-200', agendado: 'bg-purple-100 text-purple-700 border-purple-200', inativo: 'bg-slate-100 text-slate-500 border-slate-200' };
+    const labels: any = { ativo: 'Cliente Ativo', novo: 'Novo Cadastro', agendado: 'Agendado', inativo: 'Inativo' };
     return <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border uppercase tracking-wide ${styles[status] || styles.inativo}`}>{labels[status] || 'Desconhecido'}</span>;
 }

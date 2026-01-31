@@ -5,8 +5,9 @@ import { Plus, Trash2, User, Tag, CheckSquare, Square, Loader2, Edit, X, Save, S
 
 export default function Configuracoes() {
   const [aba, setAba] = useState('servicos');
-  const [dados, setDados] = useState([]);
-  const [clinicas, setClinicas] = useState([]);
+  // CORREÇÃO: Tipagem <any[]> adicionada
+  const [dados, setDados] = useState<any[]>([]);
+  const [clinicas, setClinicas] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   
   const [editandoId, setEditandoId] = useState(null); 
@@ -14,30 +15,19 @@ export default function Configuracoes() {
 
   const [novoServico, setNovoServico] = useState({ nome: '', valor: '', cor: 'blue' });
   const [novoProfissional, setNovoProfissional] = useState({ nome: '', cargo: '', nivel_acesso: 'padrao', email: '', password: '' });
-  const [clinicasSelecionadas, setClinicasSelecionadas] = useState([]); 
+  const [clinicasSelecionadas, setClinicasSelecionadas] = useState<any[]>([]); 
 
-  // MAPA DE CORES EXPLÍCITO (Para o Tailwind gerar o CSS)
   const coresDisponiveis = [
-    { nome: 'slate',   classe: 'bg-slate-500' },
-    { nome: 'gray',    classe: 'bg-gray-500' },
-    { nome: 'zinc',    classe: 'bg-zinc-500' },
-    { nome: 'red',     classe: 'bg-red-500' },
-    { nome: 'orange',  classe: 'bg-orange-500' },
-    { nome: 'amber',   classe: 'bg-amber-500' },
-    { nome: 'yellow',  classe: 'bg-yellow-500' },
-    { nome: 'lime',    classe: 'bg-lime-500' },
-    { nome: 'green',   classe: 'bg-green-500' },
-    { nome: 'emerald', classe: 'bg-emerald-500' },
-    { nome: 'teal',    classe: 'bg-teal-500' },
-    { nome: 'cyan',    classe: 'bg-cyan-500' },
-    { nome: 'sky',     classe: 'bg-sky-500' },
-    { nome: 'blue',    classe: 'bg-blue-500' },
-    { nome: 'indigo',  classe: 'bg-indigo-500' },
-    { nome: 'violet',  classe: 'bg-violet-500' },
-    { nome: 'purple',  classe: 'bg-purple-500' },
-    { nome: 'fuchsia', classe: 'bg-fuchsia-500' },
-    { nome: 'pink',    classe: 'bg-pink-500' },
-    { nome: 'rose',    classe: 'bg-rose-500' }
+    { nome: 'slate',   classe: 'bg-slate-500' }, { nome: 'gray',    classe: 'bg-gray-500' },
+    { nome: 'zinc',    classe: 'bg-zinc-500' }, { nome: 'red',     classe: 'bg-red-500' },
+    { nome: 'orange',  classe: 'bg-orange-500' }, { nome: 'amber',   classe: 'bg-amber-500' },
+    { nome: 'yellow',  classe: 'bg-yellow-500' }, { nome: 'lime',    classe: 'bg-lime-500' },
+    { nome: 'green',   classe: 'bg-green-500' }, { nome: 'emerald', classe: 'bg-emerald-500' },
+    { nome: 'teal',    classe: 'bg-teal-500' }, { nome: 'cyan',    classe: 'bg-cyan-500' },
+    { nome: 'sky',     classe: 'bg-sky-500' }, { nome: 'blue',    classe: 'bg-blue-500' },
+    { nome: 'indigo',  classe: 'bg-indigo-500' }, { nome: 'violet',  classe: 'bg-violet-500' },
+    { nome: 'purple',  classe: 'bg-purple-500' }, { nome: 'fuchsia', classe: 'bg-fuchsia-500' },
+    { nome: 'pink',    classe: 'bg-pink-500' }, { nome: 'rose',    classe: 'bg-rose-500' }
   ];
 
   useEffect(() => { fetchClinicas(); carregarLista(); }, [aba]);
@@ -59,7 +49,7 @@ export default function Configuracoes() {
     setLoading(false);
   }
 
-  function editarItem(item) {
+  function editarItem(item: any) {
       setEditandoId(item.id);
       window.scrollTo({ top: 0, behavior: 'smooth' });
 
@@ -71,7 +61,7 @@ export default function Configuracoes() {
               nome: item.nome, cargo: item.cargo, nivel_acesso: item.nivel_acesso, 
               email: item.email || '', password: '' 
           });
-          const idsClinicas = item.profissionais_clinicas?.map((pc) => pc.clinica_id) || [];
+          const idsClinicas = item.profissionais_clinicas?.map((pc: any) => pc.clinica_id) || [];
           setClinicasSelecionadas(idsClinicas);
       }
   }
@@ -84,7 +74,7 @@ export default function Configuracoes() {
       setClinicasSelecionadas([]);
   }
 
-  async function salvar(e) {
+  async function salvar(e: any) {
     e.preventDefault();
     setLoading(true);
     try {
@@ -106,13 +96,13 @@ export default function Configuracoes() {
         }
         cancelarEdicao();
         await carregarLista();
-    } catch (err) {
+    } catch (err: any) {
         alert('Erro: ' + err.message);
     }
     setLoading(false);
   }
 
-  async function excluir(id) {
+  async function excluir(id: any) {
     if(!confirm('ATENÇÃO: Excluir removerá o histórico. Confirmar?')) return;
     setLoading(true);
     const tabela = aba === 'servicos' ? 'servicos' : 'profissionais';
@@ -121,7 +111,7 @@ export default function Configuracoes() {
     setLoading(false);
   }
 
-  function toggleClinica(id) {
+  function toggleClinica(id: any) {
       if (clinicasSelecionadas.includes(id)) setClinicasSelecionadas(prev => prev.filter(c => c !== id));
       else setClinicasSelecionadas(prev => [...prev, id]);
   }
@@ -152,13 +142,7 @@ export default function Configuracoes() {
                             <label className="text-xs font-bold text-slate-400 mb-2 flex items-center gap-1"><Palette size={12}/> COR</label>
                             <div className="flex flex-wrap gap-2 max-w-[280px]">
                                 {coresDisponiveis.map(c => (
-                                    <button 
-                                        key={c.nome} 
-                                        type="button" 
-                                        onClick={() => setNovoServico({...novoServico, cor: c.nome})} 
-                                        className={`w-6 h-6 rounded-full ${c.classe} transition-all hover:scale-110 ${novoServico.cor === c.nome ? 'ring-2 ring-offset-2 ring-slate-400 scale-110 shadow-md' : 'opacity-70 hover:opacity-100'}`}
-                                        title={c.nome}
-                                    />
+                                    <button key={c.nome} type="button" onClick={() => setNovoServico({...novoServico, cor: c.nome})} className={`w-6 h-6 rounded-full ${c.classe} transition-all hover:scale-110 ${novoServico.cor === c.nome ? 'ring-2 ring-offset-2 ring-slate-400 scale-110 shadow-md' : 'opacity-70 hover:opacity-100'}`} title={c.nome} />
                                 ))}
                             </div>
                         </div>
@@ -191,11 +175,10 @@ export default function Configuracoes() {
         </form>
 
         <div className="space-y-2">
-            {dados.map((item) => (
+            {dados.map((item: any) => (
                 <div key={item.id} className={`flex justify-between items-center p-4 border rounded-xl transition-all group ${editandoId === item.id ? 'bg-amber-50 border-amber-300 shadow-md ring-1 ring-amber-300' : 'bg-white border-slate-100 hover:border-blue-200 hover:shadow-sm'}`}>
                     <div className="flex items-center gap-4">
                         {aba === 'servicos' && (
-                            // Aqui usamos a lógica para encontrar a classe correspondente
                             <div className={`w-6 h-6 rounded-full shadow-sm border border-white ring-1 ring-slate-100 ${coresDisponiveis.find(c => c.nome === item.cor)?.classe || 'bg-blue-500'}`}></div>
                         )}
                         <div>
