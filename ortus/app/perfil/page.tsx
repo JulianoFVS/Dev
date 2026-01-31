@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { User, LogOut, Save, Loader2, Lock, Mail } from 'lucide-react';
+import { User, LogOut, Save, Loader2, Lock, Mail, Upload } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 export default function Perfil() {
@@ -9,6 +9,7 @@ export default function Perfil() {
   const [salvando, setSalvando] = useState(false);
   const [form, setForm] = useState({ nome: '', email: '', cargo: '', novaSenha: '' });
   const [user, setUser] = useState<any>(null);
+  const [fotoUrl, setFotoUrl] = useState<string | null>(null);
   const router = useRouter();
 
   useEffect(() => { carregar(); }, []);
@@ -18,9 +19,39 @@ export default function Perfil() {
     if(user) {
         setUser(user);
         const { data: prof } = await supabase.from('profissionais').select('*').eq('user_id', user.id).single();
-        if(prof) setForm({ nome: prof.nome, cargo: prof.cargo, email: user.email || '', novaSenha: '' });
+        if(prof) {
+            setForm({ nome: prof.nome, cargo: prof.cargo, email: user.email || '', novaSenha: '' });
+            setFotoUrl(prof.foto_url);
+        }
     }
     setLoading(false);
+  }
+
+  async function handleFotoUpload(e: any) {
+      if (!e.target.files || e.target.files.length === 0) return;
+      setSalvando(true);
+      const file = e.target.files[0];
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${user.id}-${Date.now()}.${fileExt}`;
+      const filePath = `${fileName}`;
+
+      try {
+          // 1. Upload
+          const { error: uploadError } = await supabase.storage.from('avatars').upload(filePath, file);
+          if (uploadError) throw uploadError;
+
+          // 2. Get URL
+          const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(filePath);
+          const publicUrl = urlData.publicUrl;
+
+          // 3. Update Profile
+          await supabase.from('profissionais').update({ foto_url: publicUrl }).eq('user_id', user.id);
+          setFotoUrl(publicUrl);
+          alert('Foto atualizada!');
+      } catch (error: any) {
+          alert('Erro no upload: ' + error.message);
+      }
+      setSalvando(false);
   }
 
   async function salvar(e: any) {
@@ -35,13 +66,6 @@ export default function Perfil() {
           const { error } = await supabase.auth.updateUser({ password: form.novaSenha });
           if (error) alert('Erro ao mudar senha: ' + error.message);
           else alert('Senha atualizada com sucesso!');
-      }
-
-      // 3. Atualizar Email (se mudou) - Nota: Supabase envia confirmação
-      if (form.email !== user.email) {
-          const { error } = await supabase.auth.updateUser({ email: form.email });
-          if (error) alert('Erro ao mudar email: ' + error.message);
-          else alert('Verifique seu novo email para confirmar a troca.');
       }
 
       setSalvando(false);
@@ -63,8 +87,17 @@ export default function Perfil() {
       </div>
 
       <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm">
-        <div className="flex flex-col items-center mb-8">
-            <div className="w-24 h-24 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 mb-4 border-4 border-white shadow-lg"><User size={48} /></div>
+        <div className="flex flex-col items-center mb-8 relative">
+            <div className="w-32 h-32 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 mb-4 border-4 border-white shadow-lg overflow-hidden relative group">
+                {fotoUrl ? <img src={fotoUrl} className="w-full h-full object-cover"/> : <User size={64} />}
+                
+                {/* Overlay de Upload */}
+                <label className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
+                    <Upload size={24}/>
+                    <span className="text-[10px] font-bold mt-1">ALTERAR</span>
+                    <input type="file" accept="image/*" className="hidden" onChange={handleFotoUpload} />
+                </label>
+            </div>
             <p className="text-slate-400 text-sm font-bold uppercase">Editando Informações</p>
         </div>
 
@@ -74,7 +107,7 @@ export default function Perfil() {
                 <div><label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Cargo / Especialidade</label><input className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-slate-600" value={form.cargo} onChange={e => setForm({...form, cargo: e.target.value})} /></div>
             </div>
 
-            <div><label className="text-xs font-bold text-slate-400 uppercase mb-1 flex items-center gap-1"><Mail size={12}/> Email de Acesso</label><input type="email" required className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-600" value={form.email} onChange={e => setForm({...form, email: e.target.value})} /></div>
+            <div><label className="text-xs font-bold text-slate-400 uppercase mb-1 flex items-center gap-1"><Mail size={12}/> Email de Acesso</label><input type="email" disabled className="w-full p-3 bg-slate-100 border border-slate-200 rounded-xl outline-none text-slate-500 font-medium cursor-not-allowed" value={form.email} /></div>
 
             <div><label className="text-xs font-bold text-slate-400 uppercase mb-1 flex items-center gap-1"><Lock size={12}/> Nova Senha (Opcional)</label><input type="password" placeholder="Deixe em branco para não alterar" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-600" value={form.novaSenha} onChange={e => setForm({...form, novaSenha: e.target.value})} /></div>
 

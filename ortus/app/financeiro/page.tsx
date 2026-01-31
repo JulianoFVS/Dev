@@ -3,12 +3,11 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { 
     TrendingUp, TrendingDown, Wallet, Activity, Plus, 
-    Printer, ArrowUpCircle, ArrowDownCircle, Loader2, X, Save
+    Printer, Filter, ArrowUpCircle, ArrowDownCircle, Loader2, X, Save
 } from 'lucide-react';
 
 export default function Financeiro() {
   const [transacoes, setTransacoes] = useState<any[]>([]);
-  // AQUI ESTAVA O ERRO: O nome correto é transacoesFiltradas
   const [transacoesFiltradas, setTransacoesFiltradas] = useState<any[]>([]);
   const [resumo, setResumo] = useState({ entrada: 0, saida: 0, saldo: 0 });
   const [loading, setLoading] = useState(true);
@@ -22,8 +21,6 @@ export default function Financeiro() {
   const [novaDespesa, setNovaDespesa] = useState({ descricao: '', valor: '', data: new Date().toISOString().split('T')[0], categoria: 'geral' });
 
   useEffect(() => { carregarDados(); }, [mesAno]);
-  
-  // Atualiza a lista filtrada sempre que o filtro ou os dados mudam
   useEffect(() => { 
       if (tipoFiltro === 'todos') {
           setTransacoesFiltradas(transacoes);
@@ -54,7 +51,6 @@ export default function Financeiro() {
     const todas = [...listaEntradas, ...listaSaidas].sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());
     
     setTransacoes(todas);
-    // Inicializa o filtrado com tudo
     setTransacoesFiltradas(todas);
     
     const totalEntrada = listaEntradas.reduce((acc: number, curr: any) => acc + curr.valor, 0);
@@ -89,7 +85,7 @@ export default function Financeiro() {
 
       {/* HEADER */}
       <div className="flex flex-col md:flex-row justify-between items-end gap-4 no-print">
-          <div><h1 className="text-3xl font-black text-slate-800 tracking-tight">Financeiro</h1><p className="text-slate-500 font-medium">Controle de caixa e resultados.</p></div>
+          <div><h1 className="text-3xl font-black text-slate-800 tracking-tight">Financeiro</h1><p className="text-slate-500 font-medium">Gestão de fluxo de caixa.</p></div>
           <div className="flex gap-2 items-center flex-wrap">
               <input type="month" value={mesAno} onChange={(e) => setMesAno(e.target.value)} className="bg-white border border-slate-200 text-slate-600 font-bold text-sm rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-blue-500"/>
               <button onClick={imprimir} className="bg-white border border-slate-200 text-slate-600 px-4 py-2.5 rounded-xl font-bold hover:bg-slate-50 flex items-center gap-2 text-sm"><Printer size={18}/> Imprimir</button>
@@ -118,7 +114,6 @@ export default function Financeiro() {
           </div>
           
           <div className="divide-y divide-slate-100">
-              {/* AQUI ESTAVA O ERRO: AGORA CORRIGIDO PARA transacoesFiltradas */}
               {loading ? (<div className="p-10 text-center text-slate-400 flex flex-col items-center"><Loader2 className="animate-spin mb-2"/> Carregando...</div>) : transacoesFiltradas.length === 0 ? (<div className="p-12 text-center text-slate-400">Nenhuma movimentação encontrada.</div>) : (transacoesFiltradas.map((t: any) => (
                   <div key={t.id} className="p-5 flex items-center justify-between hover:bg-slate-50 transition-colors">
                       <div className="flex items-center gap-4">
