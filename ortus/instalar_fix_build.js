@@ -1,3 +1,15 @@
+const fs = require('fs');
+const path = require('path');
+
+console.log('🚑 Instalando V31: Correção de Tipagem para Build na Vercel...');
+
+function salvarArquivo(caminhoRelativo, conteudo) {
+    const caminhoCompleto = path.join(__dirname, caminhoRelativo);
+    fs.writeFileSync(caminhoCompleto, conteudo.trim());
+    console.log(`✅ Atualizado: ${caminhoRelativo}`);
+}
+
+const agendaPage = `
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -81,7 +93,7 @@ export default function Agenda() {
     if (ag) {
         const fmt = ag.map((e) => ({
             id: e.id,
-            title: `${Array.isArray(e.pacientes) ? e.pacientes[0]?.nome : e.pacientes?.nome} - ${e.procedimento}`,
+            title: \`\${Array.isArray(e.pacientes) ? e.pacientes[0]?.nome : e.pacientes?.nome} - \${e.procedimento}\`,
             start: e.data_hora,
             end: new Date(new Date(e.data_hora).getTime() + 60*60*1000).toISOString(),
             extendedProps: e,
@@ -101,7 +113,7 @@ export default function Agenda() {
 
       setFormData(prev => ({ 
         ...prev, id: null, title: '', 
-        date: d.toISOString().split('T')[0], time: `${h}:${min}`, 
+        date: d.toISOString().split('T')[0], time: \`\${h}:\${min}\`, 
         status: 'agendado', desconto: '0', valor: '0', 
         clinica_id: preClinica, profissional_id: preProfissional 
       }));
@@ -125,7 +137,7 @@ export default function Agenda() {
       if (!formData.title || !formData.paciente_id || !formData.clinica_id) return alert('Preencha campos obrigatórios.');
       setLoading(true);
       const finalStatus = overrideStatus || formData.status;
-      const dataLocal = new Date(`${formData.date}T${formData.time}:00`);
+      const dataLocal = new Date(\`\${formData.date}T\${formData.time}:00\`);
       const dataHoraISO = dataLocal.toISOString();
 
       const payload = {
@@ -165,8 +177,8 @@ export default function Agenda() {
       if (viewType === 'listWeek' || viewType === 'dayGridMonth') {
          return (
              <div className="flex items-center gap-1 overflow-hidden w-full">
-                <div className={`w-2 h-2 rounded-full ${status === 'cancelado' ? 'bg-red-500' : bgClass}`}></div>
-                <span className={`text-xs font-medium truncate ${status === 'cancelado' ? 'line-through text-slate-400' : 'text-slate-700'}`}>
+                <div className={\`w-2 h-2 rounded-full \${status === 'cancelado' ? 'bg-red-500' : bgClass}\`}></div>
+                <span className={\`text-xs font-medium truncate \${status === 'cancelado' ? 'line-through text-slate-400' : 'text-slate-700'}\`}>
                     {eventInfo.timeText && <span className="mr-1 opacity-70">{eventInfo.timeText}</span>}
                     {eventInfo.event.title}
                 </span>
@@ -174,7 +186,7 @@ export default function Agenda() {
          );
       }
 
-      let classes = `w-full h-full p-1 px-2 rounded-md shadow-sm transition-all hover:opacity-90 ${bgClass} ${textClass} border-l-[3px] border-white/30`;
+      let classes = \`w-full h-full p-1 px-2 rounded-md shadow-sm transition-all hover:opacity-90 \${bgClass} \${textClass} border-l-[3px] border-white/30\`;
       
       if (status === 'cancelado') {
           return (
@@ -204,7 +216,7 @@ export default function Agenda() {
   return (
     <div className="h-[calc(100vh-6rem)] md:h-[calc(100vh-2rem)] flex flex-col space-y-4">
       {/* CSS DO FULLCALENDAR */}
-      <style jsx global>{`
+      <style jsx global>{\`
         .fc { font-family: inherit; }
         .fc-header-toolbar { margin-bottom: 1.5rem !important; }
         .fc-toolbar-title { font-size: 1.25rem !important; font-weight: 800 !important; color: #1e293b; text-transform: capitalize; }
@@ -223,7 +235,7 @@ export default function Agenda() {
         .fc-list { border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; }
         .fc-list-day-cushion { background-color: #f8fafc !important; }
         .fc-list-event:hover td { background-color: #f1f5f9 !important; cursor: pointer; }
-      `}</style>
+      \`}</style>
 
       {/* HEADER SUPERIOR */}
       <div className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm border border-slate-200">
@@ -277,7 +289,7 @@ export default function Agenda() {
                 <div className="p-6 space-y-5 overflow-y-auto">
                     <div className="grid grid-cols-2 gap-4">
                         <div><label className="text-xs font-bold text-slate-500 uppercase mb-1">Clínica</label><select value={formData.clinica_id} onChange={e => setFormData({...formData, clinica_id: e.target.value})} className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none"><option value="">Selecione...</option>{clinicas.map((c:any) => <option key={c.id} value={c.id}>{c.nome}</option>)}</select></div>
-                        <div><label className="text-xs font-bold text-slate-500 uppercase mb-1">Profissional</label><select value={formData.profissional_id} onChange={e => setFormData({...formData, profissional_id: e.target.value})} className={`w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none ${usuarioAtual?.nivel !== 'admin' ? 'opacity-60' : ''}`} disabled={usuarioAtual?.nivel !== 'admin'}><option value="">Qualquer um...</option>{profissionaisFiltrados.map((p:any) => <option key={p.id} value={p.id}>{p.nome}</option>)}</select></div>
+                        <div><label className="text-xs font-bold text-slate-500 uppercase mb-1">Profissional</label><select value={formData.profissional_id} onChange={e => setFormData({...formData, profissional_id: e.target.value})} className={\`w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none \${usuarioAtual?.nivel !== 'admin' ? 'opacity-60' : ''}\`} disabled={usuarioAtual?.nivel !== 'admin'}><option value="">Qualquer um...</option>{profissionaisFiltrados.map((p:any) => <option key={p.id} value={p.id}>{p.nome}</option>)}</select></div>
                     </div>
 
                     <div><label className="text-xs font-bold text-slate-500 uppercase mb-1">Paciente</label><select value={formData.paciente_id} onChange={e => setFormData({...formData, paciente_id: e.target.value})} className="w-full p-2.5 border border-slate-200 rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none"><option value="">Selecione...</option>{pacientes.filter((p:any) => !formData.clinica_id || p.clinica_id == formData.clinica_id).map((p:any) => <option key={p.id} value={p.id}>{p.nome}</option>)}</select></div>
@@ -308,3 +320,6 @@ export default function Agenda() {
     </div>
   );
 }
+`;
+
+salvarArquivo('app/agenda/page.tsx', agendaPage);
