@@ -5,8 +5,8 @@ import { Plus, Trash2, User, Tag, CheckSquare, Square, Loader2, Edit, X, Save, S
 
 export default function Configuracoes() {
   const [aba, setAba] = useState('servicos');
-  const [dados, setDados] = useState<any[]>([]); // FIX: any[]
-  const [clinicas, setClinicas] = useState<any[]>([]); // FIX: any[]
+  const [dados, setDados] = useState<any[]>([]); 
+  const [clinicas, setClinicas] = useState<any[]>([]); 
   const [loading, setLoading] = useState(false);
   const [editandoId, setEditandoId] = useState(null); 
   const [userIdAuth, setUserIdAuth] = useState(null); 
