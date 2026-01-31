@@ -1,3 +1,15 @@
+const fs = require('fs');
+const path = require('path');
+
+console.log('🚑 Instalando V41: Correção do Erro de Digitação no Financeiro...');
+
+function salvarArquivo(caminhoRelativo, conteudo) {
+    const caminhoCompleto = path.join(__dirname, caminhoRelativo);
+    fs.writeFileSync(caminhoCompleto, conteudo.trim());
+    console.log(`✅ Corrigido: ${caminhoRelativo}`);
+}
+
+const financeiroPage = `
 'use client';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -34,15 +46,15 @@ export default function Financeiro() {
 
   async function carregarDados() {
     setLoading(true);
-    const inicioMes = `${mesAno}-01 00:00:00`;
-    const fimMes = `${mesAno}-31 23:59:59`;
+    const inicioMes = \`\${mesAno}-01 00:00:00\`;
+    const fimMes = \`\${mesAno}-31 23:59:59\`;
 
     const { data: entradas } = await supabase.from('agendamentos').select('id, valor_final, data_hora, procedimento, pacientes(nome)').eq('status', 'concluido').gte('data_hora', inicioMes).lte('data_hora', fimMes);
-    const { data: saidas } = await supabase.from('despesas').select('*').gte('data', `${mesAno}-01`).lte('data', `${mesAno}-31`);
+    const { data: saidas } = await supabase.from('despesas').select('*').gte('data', \`\${mesAno}-01\`).lte('data', \`\${mesAno}-31\`);
 
     const listaEntradas = (entradas || []).map((e: any) => ({
         id: 'ent_' + e.id, tipo: 'entrada',
-        descricao: `${Array.isArray(e.pacientes) ? e.pacientes[0]?.nome : e.pacientes?.nome} - ${e.procedimento}`,
+        descricao: \`\${Array.isArray(e.pacientes) ? e.pacientes[0]?.nome : e.pacientes?.nome} - \${e.procedimento}\`,
         valor: Number(e.valor_final || 0), data: e.data_hora, categoria: 'Serviço'
     }));
 
@@ -79,13 +91,13 @@ export default function Financeiro() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-8 animate-fade-in pb-20 print:p-0 print:max-w-none">
-      <style jsx global>{`
+      <style jsx global>{\`
         @media print {
             .no-print { display: none !important; }
             body { background: white; }
             .print-border { border: 1px solid #ddd; }
         }
-      `}</style>
+      \`}</style>
 
       {/* HEADER */}
       <div className="flex flex-col md:flex-row justify-between items-end gap-4 no-print">
@@ -101,7 +113,7 @@ export default function Financeiro() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm print-border"><div className="flex justify-between items-start mb-4"><div className="p-3 bg-green-50 text-green-600 rounded-2xl no-print"><TrendingUp size={24}/></div><span className="text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-lg">+ Receitas</span></div><div><p className="text-slate-400 text-sm font-bold uppercase tracking-wider">Entradas</p><p className="text-3xl font-black text-slate-800 mt-1">R$ {resumo.entrada.toFixed(2)}</p></div></div>
           <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm print-border"><div className="flex justify-between items-start mb-4"><div className="p-3 bg-red-50 text-red-600 rounded-2xl no-print"><TrendingDown size={24}/></div><span className="text-xs font-bold text-red-600 bg-red-50 px-2 py-1 rounded-lg">- Gastos</span></div><div><p className="text-slate-400 text-sm font-bold uppercase tracking-wider">Saídas</p><p className="text-3xl font-black text-slate-800 mt-1">R$ {resumo.saida.toFixed(2)}</p></div></div>
-          <div className="bg-gradient-to-br from-slate-900 to-slate-800 p-6 rounded-3xl shadow-xl shadow-slate-200 relative overflow-hidden text-white print:bg-white print:text-black print-border"><div className="flex justify-between items-start mb-4"><div className="p-3 bg-white/10 text-white rounded-2xl no-print"><Wallet size={24}/></div><span className="text-xs font-bold text-white/80 bg-white/10 px-2 py-1 rounded-lg print:text-black print:border">Resultado</span></div><div><p className="text-slate-400 text-sm font-bold uppercase tracking-wider">Saldo Líquido</p><p className={`text-3xl font-black mt-1 ${resumo.saldo >= 0 ? 'text-white print:text-black' : 'text-red-400'}`}>R$ {resumo.saldo.toFixed(2)}</p></div></div>
+          <div className="bg-gradient-to-br from-slate-900 to-slate-800 p-6 rounded-3xl shadow-xl shadow-slate-200 relative overflow-hidden text-white print:bg-white print:text-black print-border"><div className="flex justify-between items-start mb-4"><div className="p-3 bg-white/10 text-white rounded-2xl no-print"><Wallet size={24}/></div><span className="text-xs font-bold text-white/80 bg-white/10 px-2 py-1 rounded-lg print:text-black print:border">Resultado</span></div><div><p className="text-slate-400 text-sm font-bold uppercase tracking-wider">Saldo Líquido</p><p className={\`text-3xl font-black mt-1 \${resumo.saldo >= 0 ? 'text-white print:text-black' : 'text-red-400'}\`}>R$ {resumo.saldo.toFixed(2)}</p></div></div>
       </div>
 
       {/* TABELA */}
@@ -110,9 +122,9 @@ export default function Financeiro() {
               <div className="flex items-center gap-4">
                   <h3 className="font-bold text-slate-700 flex items-center gap-2"><Activity size={18} className="text-blue-600 no-print"/> Extrato</h3>
                   <div className="flex bg-slate-200 p-1 rounded-lg no-print">
-                      <button onClick={() => setTipoFiltro('todos')} className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${tipoFiltro === 'todos' ? 'bg-white shadow text-black' : 'text-slate-500'}`}>Todos</button>
-                      <button onClick={() => setTipoFiltro('entrada')} className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${tipoFiltro === 'entrada' ? 'bg-white shadow text-green-600' : 'text-slate-500'}`}>Entradas</button>
-                      <button onClick={() => setTipoFiltro('saida')} className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${tipoFiltro === 'saida' ? 'bg-white shadow text-red-600' : 'text-slate-500'}`}>Saídas</button>
+                      <button onClick={() => setTipoFiltro('todos')} className={\`px-3 py-1 rounded-md text-xs font-bold transition-all \${tipoFiltro === 'todos' ? 'bg-white shadow text-black' : 'text-slate-500'}\`}>Todos</button>
+                      <button onClick={() => setTipoFiltro('entrada')} className={\`px-3 py-1 rounded-md text-xs font-bold transition-all \${tipoFiltro === 'entrada' ? 'bg-white shadow text-green-600' : 'text-slate-500'}\`}>Entradas</button>
+                      <button onClick={() => setTipoFiltro('saida')} className={\`px-3 py-1 rounded-md text-xs font-bold transition-all \${tipoFiltro === 'saida' ? 'bg-white shadow text-red-600' : 'text-slate-500'}\`}>Saídas</button>
                   </div>
               </div>
           </div>
@@ -122,10 +134,10 @@ export default function Financeiro() {
               {loading ? (<div className="p-10 text-center text-slate-400 flex flex-col items-center"><Loader2 className="animate-spin mb-2"/> Carregando...</div>) : transacoesFiltradas.length === 0 ? (<div className="p-12 text-center text-slate-400">Nenhuma movimentação encontrada.</div>) : (transacoesFiltradas.map((t: any) => (
                   <div key={t.id} className="p-5 flex items-center justify-between hover:bg-slate-50 transition-colors">
                       <div className="flex items-center gap-4">
-                          <div className={`p-3 rounded-2xl flex items-center justify-center shadow-sm no-print ${t.tipo === 'entrada' ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'}`}>{t.tipo === 'entrada' ? <ArrowUpCircle size={24}/> : <ArrowDownCircle size={24}/>}</div>
+                          <div className={\`p-3 rounded-2xl flex items-center justify-center shadow-sm no-print \${t.tipo === 'entrada' ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'}\`}>{t.tipo === 'entrada' ? <ArrowUpCircle size={24}/> : <ArrowDownCircle size={24}/>}</div>
                           <div><p className="font-bold text-slate-700 text-sm md:text-base">{t.descricao}</p><div className="flex items-center gap-2 mt-0.5"><span className="text-xs font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded uppercase">{t.categoria}</span><span className="text-xs text-slate-400 font-medium">{new Date(t.data).toLocaleDateString('pt-BR')}</span></div></div>
                       </div>
-                      <span className={`font-black text-sm md:text-lg whitespace-nowrap ${t.tipo === 'entrada' ? 'text-green-600' : 'text-red-600'}`}>{t.tipo === 'entrada' ? '+' : '-'} R$ {t.valor.toFixed(2)}</span>
+                      <span className={\`font-black text-sm md:text-lg whitespace-nowrap \${t.tipo === 'entrada' ? 'text-green-600' : 'text-red-600'}\`}>{t.tipo === 'entrada' ? '+' : '-'} R$ {t.valor.toFixed(2)}</span>
                   </div>
               )))}
           </div>
@@ -147,3 +159,6 @@ export default function Financeiro() {
     </div>
   );
 }
+`;
+
+salvarArquivo('app/financeiro/page.tsx', financeiroPage);
