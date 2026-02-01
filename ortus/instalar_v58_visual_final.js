@@ -1,3 +1,18 @@
+const fs = require('fs');
+const path = require('path');
+
+console.log('🎨 Instalando V58: Dashboard Preview Rico e Correção de Scroll...');
+
+function salvarArquivo(caminhoRelativo, conteudo) {
+    const caminhoCompleto = path.join(__dirname, caminhoRelativo);
+    fs.writeFileSync(caminhoCompleto, conteudo.trim());
+    console.log(`✅ Atualizado: ${caminhoRelativo}`);
+}
+
+// ======================================================
+// 1. LANDING PAGE ATUALIZADA (Visual Pro + Dados Fake)
+// ======================================================
+const landingPage = `
 'use client';
 import Link from 'next/link';
 import { CheckCircle, Calendar, DollarSign, Users, ArrowRight, Star, Menu, X, LayoutDashboard, TrendingUp, Clock, User } from 'lucide-react';
@@ -195,9 +210,12 @@ export default function LandingPage() {
 
 function CardRecurso({ icon, titulo, desc, cor }: any) {
     const cores: any = { blue: 'bg-blue-50 text-blue-600', green: 'bg-emerald-50 text-emerald-600', purple: 'bg-purple-50 text-purple-600' };
-    return (<div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm hover:shadow-xl transition-all hover:-translate-y-1"><div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-6 ${cores[cor]}`}>{icon}</div><h3 className="text-xl font-bold text-slate-800 mb-3">{titulo}</h3><p className="text-slate-500 leading-relaxed font-medium">{desc}</p></div>);
+    return (<div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm hover:shadow-xl transition-all hover:-translate-y-1"><div className={\`w-16 h-16 rounded-2xl flex items-center justify-center mb-6 \${cores[cor]}\`}>{icon}</div><h3 className="text-xl font-bold text-slate-800 mb-3">{titulo}</h3><p className="text-slate-500 leading-relaxed font-medium">{desc}</p></div>);
 }
 
 function CardPreco({ titulo, valor, recursos, destaque }: any) {
-    return (<div className={`p-8 rounded-3xl border flex flex-col ${destaque ? 'bg-slate-900 text-white border-slate-800 shadow-2xl scale-105 z-10' : 'bg-white text-slate-800 border-slate-200 shadow-sm'}`}><h3 className={`font-bold text-sm uppercase tracking-wider mb-2 ${destaque ? 'text-blue-400' : 'text-slate-400'}`}>{titulo}</h3><div className="flex items-end gap-1 mb-6"><span className="text-4xl font-black">R$ {valor}</span><span className="font-bold mb-1">/mês</span></div><ul className="space-y-4 mb-8 flex-1">{recursos.map((r: string) => (<li key={r} className="flex items-center gap-3 font-medium text-sm"><CheckCircle size={18} className={destaque ? 'text-blue-400' : 'text-blue-600'}/> {r}</li>))}</ul><Link href={`/checkout?plano=${titulo}&valor=${valor}`} className={`w-full py-4 rounded-xl font-bold text-center transition-all ${destaque ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-900/50' : 'bg-slate-100 hover:bg-slate-200 text-slate-800'}`}>Assinar Agora</Link></div>);
+    return (<div className={\`p-8 rounded-3xl border flex flex-col \${destaque ? 'bg-slate-900 text-white border-slate-800 shadow-2xl scale-105 z-10' : 'bg-white text-slate-800 border-slate-200 shadow-sm'}\`}><h3 className={\`font-bold text-sm uppercase tracking-wider mb-2 \${destaque ? 'text-blue-400' : 'text-slate-400'}\`}>{titulo}</h3><div className="flex items-end gap-1 mb-6"><span className="text-4xl font-black">R$ {valor}</span><span className="font-bold mb-1">/mês</span></div><ul className="space-y-4 mb-8 flex-1">{recursos.map((r: string) => (<li key={r} className="flex items-center gap-3 font-medium text-sm"><CheckCircle size={18} className={destaque ? 'text-blue-400' : 'text-blue-600'}/> {r}</li>))}</ul><Link href={\`/checkout?plano=\${titulo}&valor=\${valor}\`} className={\`w-full py-4 rounded-xl font-bold text-center transition-all \${destaque ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-900/50' : 'bg-slate-100 hover:bg-slate-200 text-slate-800'}\`}>Assinar Agora</Link></div>);
 }
+`;
+
+salvarArquivo('app/page.tsx', landingPage);
