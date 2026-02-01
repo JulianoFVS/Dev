@@ -1,45 +1,202 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Plus, Trash2, User, Tag, CheckSquare, Square, Loader2, Edit, X, Save, Shield, Mail, Lock, AlertCircle, Palette } from 'lucide-react';
+import { Building2, Users, Plus, Trash2, Save, MapPin, Shield, Check, X, Loader2 } from 'lucide-react';
 
 export default function Configuracoes() {
-  const [aba, setAba] = useState('servicos');
-  const [dados, setDados] = useState<any[]>([]); 
-  const [clinicas, setClinicas] = useState<any[]>([]); 
-  const [loading, setLoading] = useState(false);
-  const [editandoId, setEditandoId] = useState(null); 
-  const [userIdAuth, setUserIdAuth] = useState(null); 
-  const [novoServico, setNovoServico] = useState({ nome: '', valor: '', cor: 'blue' });
-  const [novoProfissional, setNovoProfissional] = useState({ nome: '', cargo: '', nivel_acesso: 'padrao', email: '', password: '' });
-  const [clinicasSelecionadas, setClinicasSelecionadas] = useState<any[]>([]); 
+  const [abaAtiva, setAbaAtiva] = useState('clinicas'); // clinicas | equipe
+  const [loading, setLoading] = useState(true);
+  
+  // DADOS
+  const [clinicas, setClinicas] = useState<any[]>([]);
+  const [profissionais, setProfissionais] = useState<any[]>([]);
+  
+  // MODAIS
+  const [modalClinica, setModalClinica] = useState(false);
+  const [novaClinica, setNovaClinica] = useState('');
+  
+  const [modalVinculo, setModalVinculo] = useState(false);
+  const [profSelecionado, setProfSelecionado] = useState<any>(null);
+  const [vinculosDoProf, setVinculosDoProf] = useState<number[]>([]); // IDs das clínicas
 
-  const coresDisponiveis = [ { nome: 'slate', classe: 'bg-slate-500' }, { nome: 'gray', classe: 'bg-gray-500' }, { nome: 'zinc', classe: 'bg-zinc-500' }, { nome: 'red', classe: 'bg-red-500' }, { nome: 'orange', classe: 'bg-orange-500' }, { nome: 'amber', classe: 'bg-amber-500' }, { nome: 'yellow', classe: 'bg-yellow-500' }, { nome: 'lime', classe: 'bg-lime-500' }, { nome: 'green', classe: 'bg-green-500' }, { nome: 'emerald', classe: 'bg-emerald-500' }, { nome: 'teal', classe: 'bg-teal-500' }, { nome: 'cyan', classe: 'bg-cyan-500' }, { nome: 'sky', classe: 'bg-sky-500' }, { nome: 'blue', classe: 'bg-blue-500' }, { nome: 'indigo', classe: 'bg-indigo-500' }, { nome: 'violet', classe: 'bg-violet-500' }, { nome: 'purple', classe: 'bg-purple-500' }, { nome: 'fuchsia', classe: 'bg-fuchsia-500' }, { nome: 'pink', classe: 'bg-pink-500' }, { nome: 'rose', classe: 'bg-rose-500' } ];
+  useEffect(() => { carregarDados(); }, []);
 
-  useEffect(() => { fetchClinicas(); carregarLista(); }, [aba]);
+  async function carregarDados() {
+      setLoading(true);
+      const { data: c } = await supabase.from('clinicas').select('*').order('nome');
+      const { data: p } = await supabase.from('profissionais').select('*').order('nome');
+      
+      setClinicas(c || []);
+      setProfissionais(p || []);
+      setLoading(false);
+  }
 
-  async function fetchClinicas() { const { data } = await supabase.from('clinicas').select('*'); if (data) setClinicas(data); }
-  async function carregarLista() { setLoading(true); if (aba === 'servicos') { const { data } = await supabase.from('servicos').select('*').order('nome'); if (data) setDados(data); } else { const { data } = await supabase.from('profissionais').select('*, profissionais_clinicas(clinica_id, clinicas(nome))').order('nome'); if (data) setDados(data); } setLoading(false); }
+  // --- AÇÕES DE CLÍNICA ---
+  async function criarClinica() {
+      if (!novaClinica) return;
+      const { error } = await supabase.from('clinicas').insert([{ nome: novaClinica }]);
+      if (error) alert('Erro: ' + error.message);
+      else {
+          setNovaClinica('');
+          setModalClinica(false);
+          carregarDados();
+      }
+  }
 
-  function editarItem(item: any) { setEditandoId(item.id); window.scrollTo({ top: 0, behavior: 'smooth' }); if (aba === 'servicos') { setNovoServico({ nome: item.nome, valor: item.valor, cor: item.cor || 'blue' }); } else { setUserIdAuth(item.user_id); setNovoProfissional({ nome: item.nome, cargo: item.cargo, nivel_acesso: item.nivel_acesso, email: item.email || '', password: '' }); const idsClinicas = item.profissionais_clinicas?.map((pc: any) => pc.clinica_id) || []; setClinicasSelecionadas(idsClinicas); } }
-  function cancelarEdicao() { setEditandoId(null); setUserIdAuth(null); setNovoServico({ nome: '', valor: '', cor: 'blue' }); setNovoProfissional({ nome: '', cargo: '', nivel_acesso: 'padrao', email: '', password: '' }); setClinicasSelecionadas([]); }
+  async function excluirClinica(id: number) {
+      if (!confirm('Tem certeza? Isso pode afetar dados vinculados.')) return;
+      await supabase.from('clinicas').delete().eq('id', id);
+      carregarDados();
+  }
 
-  async function salvar(e: any) { e.preventDefault(); setLoading(true); try { if (aba === 'servicos') { const payload = { ...novoServico, valor: parseFloat(novoServico.valor) }; if (editandoId) await supabase.from('servicos').update(payload).eq('id', editandoId); else await supabase.from('servicos').insert([payload]); setNovoServico({ nome: '', valor: '', cor: 'blue' }); } else { if (clinicasSelecionadas.length === 0) throw new Error('Selecione pelo menos uma clínica.'); if (editandoId) { await fetch('/api/editar-usuario', { method: 'POST', body: JSON.stringify({ id: editandoId, user_id: userIdAuth, ...novoProfissional, clinicas: clinicasSelecionadas }) }); } else { if (!novoProfissional.email || !novoProfissional.password) throw new Error('Email e Senha obrigatórios.'); await fetch('/api/criar-usuario', { method: 'POST', body: JSON.stringify({ ...novoProfissional, clinicas: clinicasSelecionadas }) }); } setNovoProfissional({ nome: '', cargo: '', nivel_acesso: 'padrao', email: '', password: '' }); setClinicasSelecionadas([]); } cancelarEdicao(); await carregarLista(); } catch (err: any) { alert('Erro: ' + err.message); } setLoading(false); }
-  async function excluir(id: any) { if(!confirm('ATENÇÃO: Excluir removerá o histórico. Confirmar?')) return; setLoading(true); const tabela = aba === 'servicos' ? 'servicos' : 'profissionais'; await supabase.from(tabela).delete().eq('id', id); await carregarLista(); setLoading(false); }
-  function toggleClinica(id: any) { if (clinicasSelecionadas.includes(id)) setClinicasSelecionadas(prev => prev.filter(c => c !== id)); else setClinicasSelecionadas(prev => [...prev, id]); }
+  // --- AÇÕES DE VÍNCULO (QUEM TRABALHA ONDE) ---
+  async function abrirVinculos(prof: any) {
+      setProfSelecionado(prof);
+      // Busca onde ele já trabalha
+      const { data } = await supabase.from('profissionais_clinicas').select('clinica_id').eq('profissional_id', prof.id);
+      if (data) setVinculosDoProf(data.map((v: any) => v.clinica_id));
+      setModalVinculo(true);
+  }
+
+  async function toggleVinculo(clinicaId: number) {
+      const jaTem = vinculosDoProf.includes(clinicaId);
+      
+      if (jaTem) {
+          // Remover
+          await supabase.from('profissionais_clinicas')
+              .delete()
+              .eq('profissional_id', profSelecionado.id)
+              .eq('clinica_id', clinicaId);
+          setVinculosDoProf(prev => prev.filter(id => id !== clinicaId));
+      } else {
+          // Adicionar
+          await supabase.from('profissionais_clinicas')
+              .insert([{ profissional_id: profSelecionado.id, clinica_id: clinicaId }]);
+          setVinculosDoProf(prev => [...prev, clinicaId]);
+      }
+  }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 animate-fade-in pb-20">
-      <div className="flex gap-4 border-b border-slate-200"><button onClick={() => { setAba('servicos'); cancelarEdicao(); }} className={`pb-3 px-4 font-bold text-sm flex items-center gap-2 border-b-2 transition-colors ${aba === 'servicos' ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-400'}`}><Tag size={18}/> Procedimentos</button><button onClick={() => { setAba('profissionais'); cancelarEdicao(); }} className={`pb-3 px-4 font-bold text-sm flex items-center gap-2 border-b-2 transition-colors ${aba === 'profissionais' ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-400'}`}><User size={18}/> Profissionais</button></div>
-      <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-        <div className="flex justify-between items-center mb-6"><h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">{editandoId ? 'Editando Registro' : (aba === 'servicos' ? 'Novo Procedimento' : 'Novo Profissional')}</h2>{editandoId && <button onClick={cancelarEdicao} className="text-xs font-bold text-red-500 bg-red-50 px-3 py-1.5 rounded-lg flex items-center gap-1 hover:bg-red-100"><X size={14}/> Cancelar</button>}</div>
-        <form onSubmit={salvar} className={`p-5 rounded-xl border mb-6 space-y-4 transition-colors ${editandoId ? 'bg-amber-50 border-amber-200' : 'bg-slate-50 border-slate-100'}`}>
-            <div className="flex flex-col md:flex-row gap-4 items-start">{aba === 'servicos' ? (<><div className="flex-1 w-full"><label className="text-xs font-bold text-slate-400 mb-1 block">NOME</label><input required value={novoServico.nome} onChange={e => setNovoServico({...novoServico, nome: e.target.value})} className="w-full p-2.5 bg-white rounded-lg border border-slate-200 outline-blue-500 font-medium" placeholder="Ex: Limpeza"/></div><div className="w-32"><label className="text-xs font-bold text-slate-400 mb-1 block">VALOR (R$)</label><input required type="number" value={novoServico.valor} onChange={e => setNovoServico({...novoServico, valor: e.target.value})} className="w-full p-2.5 bg-white rounded-lg border border-slate-200 outline-blue-500 font-medium" placeholder="0.00"/></div><div className="w-full md:w-auto"><label className="text-xs font-bold text-slate-400 mb-2 flex items-center gap-1"><Palette size={12}/> COR</label><div className="flex flex-wrap gap-2 max-w-[280px]">{coresDisponiveis.map(c => (<button key={c.nome} type="button" onClick={() => setNovoServico({...novoServico, cor: c.nome})} className={`w-6 h-6 rounded-full ${c.classe} transition-all hover:scale-110 ${novoServico.cor === c.nome ? 'ring-2 ring-offset-2 ring-slate-400 scale-110 shadow-md' : 'opacity-70 hover:opacity-100'}`} title={c.nome} />))}</div></div></>) : (<div className="w-full space-y-4"><div className="grid grid-cols-2 gap-4"><div><label className="text-xs font-bold text-slate-400">NOME</label><input required value={novoProfissional.nome} onChange={e => setNovoProfissional({...novoProfissional, nome: e.target.value})} className="w-full p-2.5 rounded border border-slate-200 outline-blue-500 bg-white" placeholder="Ex: Dr. Silva"/></div><div><label className="text-xs font-bold text-slate-400">CARGO</label><input required value={novoProfissional.cargo} onChange={e => setNovoProfissional({...novoProfissional, cargo: e.target.value})} className="w-full p-2.5 rounded border border-slate-200 outline-blue-500 bg-white" placeholder="Ex: Dentista"/></div></div><div className="bg-white p-4 rounded-xl border border-slate-200 grid grid-cols-1 md:grid-cols-2 gap-4 relative"><div><label className="text-xs font-bold text-slate-400 flex items-center gap-1 mb-1"><Mail size={12}/> EMAIL</label><input required type="email" value={novoProfissional.email} onChange={e => setNovoProfissional({...novoProfissional, email: e.target.value})} className="w-full p-2.5 rounded border border-slate-200 outline-blue-500 font-medium"/></div><div><label className="text-xs font-bold text-slate-400 flex items-center gap-1 mb-1"><Lock size={12}/> SENHA {editandoId && '(Vazio = Não mudar)'}</label><input type="password" value={novoProfissional.password} onChange={e => setNovoProfissional({...novoProfissional, password: e.target.value})} className="w-full p-2.5 rounded border border-slate-200 outline-blue-500 font-medium" placeholder="******"/></div></div><div className="w-full"><label className="text-xs font-bold text-slate-400 flex items-center gap-1 mb-1"><Shield size={12}/> PERMISSÃO</label><select value={novoProfissional.nivel_acesso} onChange={e => setNovoProfissional({...novoProfissional, nivel_acesso: e.target.value})} className="w-full p-2.5 rounded border border-slate-200 outline-blue-500 bg-white"><option value="padrao">Padrão</option><option value="admin">Administrador</option></select></div></div>)}</div>
-            {aba === 'profissionais' && (<div><label className="text-xs font-bold text-slate-400 block mb-2">ATENDE NAS CLÍNICAS:</label><div className="flex flex-wrap gap-2">{clinicas.map((c:any) => { const isSelected = clinicasSelecionadas.includes(c.id); return (<button key={c.id} type="button" onClick={() => toggleClinica(c.id)} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all ${isSelected ? 'bg-blue-100 border-blue-300 text-blue-800' : 'bg-white border-slate-200 text-slate-500 hover:border-blue-300'}`}>{isSelected ? <CheckSquare size={16}/> : <Square size={16}/>}{c.nome}</button>)})}</div></div>)}
-            <button disabled={loading} className={`w-full text-white p-3.5 rounded-xl font-bold flex justify-center items-center gap-2 shadow-sm transition-colors ${editandoId ? 'bg-amber-500 hover:bg-amber-600' : 'bg-blue-600 hover:bg-blue-700'}`}>{loading ? <Loader2 className="animate-spin"/> : (editandoId ? <><Save size={20}/> Salvar Alterações</> : <><Plus size={20}/> Cadastrar</>)}</button>
-        </form>
-        <div className="space-y-2">{dados.map((item: any) => (<div key={item.id} className={`flex justify-between items-center p-4 border rounded-xl transition-all group ${editandoId === item.id ? 'bg-amber-50 border-amber-300 shadow-md ring-1 ring-amber-300' : 'bg-white border-slate-100 hover:border-blue-200 hover:shadow-sm'}`}><div className="flex items-center gap-4">{aba === 'servicos' && (<div className={`w-6 h-6 rounded-full shadow-sm border border-white ring-1 ring-slate-100 ${coresDisponiveis.find(c => c.nome === item.cor)?.classe || 'bg-blue-500'}`}></div>)}<div><p className="font-bold text-slate-700 flex items-center gap-2 text-base">{item.nome}{item.nivel_acesso === 'admin' && <span className="text-[10px] bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded border border-yellow-200 font-bold uppercase flex items-center gap-1"><Shield size={10}/> Admin</span>}</p><div className="text-xs text-slate-400 flex flex-wrap gap-1 mt-1 items-center">{aba === 'servicos' ? `R$ ${item.valor}` : <span className="flex items-center gap-1"><Mail size={10}/> {item.email || 'Sem email'}</span>}</div></div></div><div className="flex gap-2 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity"><button onClick={() => editarItem(item)} className="text-slate-400 hover:text-blue-600 p-2 hover:bg-blue-50 rounded-lg transition-colors" title="Editar"><Edit size={18}/></button><button onClick={() => excluir(item.id)} className="text-slate-400 hover:text-red-600 p-2 hover:bg-red-50 rounded-lg transition-colors" title="Excluir"><Trash2 size={18}/></button></div></div>))}</div>
+    <div className="max-w-5xl mx-auto pb-20 space-y-8 animate-fade-in">
+      
+      {/* HEADER */}
+      <div>
+          <h1 className="text-3xl font-black text-slate-800">Configurações</h1>
+          <p className="text-slate-500 font-medium">Gerencie suas unidades e permissões da equipe.</p>
       </div>
+
+      {/* ABAS */}
+      <div className="flex gap-4 border-b border-slate-200">
+          <button onClick={() => setAbaAtiva('clinicas')} className={`pb-4 px-2 font-bold text-sm flex items-center gap-2 border-b-2 transition-all ${abaAtiva === 'clinicas' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>
+              <Building2 size={18}/> Minhas Clínicas
+          </button>
+          <button onClick={() => setAbaAtiva('equipe')} className={`pb-4 px-2 font-bold text-sm flex items-center gap-2 border-b-2 transition-all ${abaAtiva === 'equipe' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>
+              <Users size={18}/> Acesso da Equipe
+          </button>
+      </div>
+
+      {loading ? <div className="py-20 flex justify-center"><Loader2 className="animate-spin text-slate-300"/></div> : (
+        <>
+            {/* CONTEÚDO: CLÍNICAS */}
+            {abaAtiva === 'clinicas' && (
+                <div className="space-y-6 animate-in slide-in-from-left-4">
+                    <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="font-bold text-slate-700 text-lg">Unidades Cadastradas</h3>
+                            <button onClick={() => setModalClinica(true)} className="bg-blue-600 text-white px-4 py-2 rounded-xl font-bold text-sm hover:bg-blue-700 flex items-center gap-2 shadow-lg shadow-blue-200"><Plus size={16}/> Nova Clínica</button>
+                        </div>
+                        
+                        <div className="space-y-3">
+                            {clinicas.map(c => (
+                                <div key={c.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100 hover:border-blue-200 transition-colors group">
+                                    <div className="flex items-center gap-4">
+                                        <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center text-blue-600 border border-slate-200 font-bold"><Building2 size={20}/></div>
+                                        <span className="font-bold text-slate-700">{c.nome}</span>
+                                    </div>
+                                    <button onClick={() => excluirClinica(c.id)} className="p-2 text-slate-300 hover:text-red-500 hover:bg-white rounded-lg transition-all"><Trash2 size={18}/></button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* CONTEÚDO: EQUIPE */}
+            {abaAtiva === 'equipe' && (
+                <div className="space-y-6 animate-in slide-in-from-right-4">
+                    <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="font-bold text-slate-700 text-lg">Profissionais e Vínculos</h3>
+                            <p className="text-xs text-slate-400 font-medium">Clique em "Gerenciar Acesso" para definir onde cada um trabalha.</p>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {profissionais.map(p => (
+                                <div key={p.id} className="p-5 border border-slate-100 rounded-2xl bg-slate-50 hover:bg-white hover:shadow-md transition-all">
+                                    <div className="flex items-center gap-4 mb-4">
+                                        <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center font-bold text-lg">{p.nome.charAt(0)}</div>
+                                        <div>
+                                            <h4 className="font-bold text-slate-800">{p.nome}</h4>
+                                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${p.nivel_acesso === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-slate-200 text-slate-600'}`}>{p.cargo || 'Dentista'}</span>
+                                        </div>
+                                    </div>
+                                    <button onClick={() => abrirVinculos(p)} className="w-full py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:border-blue-400 hover:text-blue-600 transition-colors flex items-center justify-center gap-2">
+                                        <MapPin size={16}/> Gerenciar Clínicas
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )}
+        </>
+      )}
+
+      {/* MODAL NOVA CLÍNICA */}
+      {modalClinica && (
+          <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="bg-white p-6 rounded-2xl w-full max-w-sm shadow-2xl animate-in zoom-in-95">
+                  <h3 className="font-bold text-lg mb-4">Cadastrar Nova Unidade</h3>
+                  <input autoFocus value={novaClinica} onChange={e => setNovaClinica(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold mb-4" placeholder="Ex: Filial Centro" />
+                  <div className="flex gap-2">
+                      <button onClick={() => setModalClinica(false)} className="flex-1 py-3 text-slate-500 font-bold hover:bg-slate-50 rounded-xl">Cancelar</button>
+                      <button onClick={criarClinica} className="flex-1 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700">Salvar</button>
+                  </div>
+              </div>
+          </div>
+      )}
+
+      {/* MODAL VÍNCULOS */}
+      {modalVinculo && profSelecionado && (
+          <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="bg-white p-6 rounded-2xl w-full max-w-md shadow-2xl animate-in zoom-in-95">
+                  <div className="flex justify-between items-center mb-6">
+                      <div>
+                          <h3 className="font-bold text-lg">Onde {profSelecionado.nome.split(' ')[0]} atende?</h3>
+                          <p className="text-xs text-slate-400">Marque as clínicas permitidas.</p>
+                      </div>
+                      <button onClick={() => setModalVinculo(false)} className="p-2 hover:bg-slate-100 rounded-full"><X size={20}/></button>
+                  </div>
+                  
+                  <div className="space-y-2 mb-6 max-h-60 overflow-y-auto">
+                      {clinicas.map(c => {
+                          const ativo = vinculosDoProf.includes(c.id);
+                          return (
+                              <button key={c.id} onClick={() => toggleVinculo(c.id)} className={`w-full flex items-center justify-between p-4 rounded-xl border transition-all ${ativo ? 'bg-blue-50 border-blue-200' : 'bg-white border-slate-100 hover:bg-slate-50'}`}>
+                                  <span className={`font-bold ${ativo ? 'text-blue-700' : 'text-slate-600'}`}>{c.nome}</span>
+                                  <div className={`w-6 h-6 rounded-full border flex items-center justify-center ${ativo ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-slate-300'}`}>
+                                      {ativo && <Check size={14}/>}
+                                  </div>
+                              </button>
+                          );
+                      })}
+                  </div>
+                  
+                  <button onClick={() => setModalVinculo(false)} className="w-full py-3 bg-slate-900 text-white font-bold rounded-xl">Concluir</button>
+              </div>
+          </div>
+      )}
+
     </div>
   );
 }
