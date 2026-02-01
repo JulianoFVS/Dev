@@ -15,32 +15,75 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
 
-  useEffect(() => { validarSessao(); }, [pathname]);
+  // Rotas que NÃO precisam de login
+  const rotasPublicas = ['/login', '/', '/site', '/termos', '/checkout', '/cadastro'];
+  const ehRotaPublica = rotasPublicas.includes(pathname);
 
-  async function validarSessao() {
-    const { data: { session } } = await supabase.auth.getSession();
-    const rotasPublicas = ['/login', '/', '/site', '/termos', '/checkout', '/cadastro'];
-    if (rotasPublicas.includes(pathname)) { setLoading(false); return; }
+  useEffect(() => {
+    let mounted = true;
 
-    if (!session) { router.push('/login'); return; }
-    
-    if (session) {
-        setSession(session);
-        const { data: prof } = await supabase.from('profissionais').select('*').eq('user_id', session.user.id).single();
-        setPerfil(prof);
-        const { count } = await supabase.from('notificacoes').select('*', { count: 'exact', head: true }).eq('user_id', session.user.id).eq('lida', false);
-        setNotificacoesCount(count || 0);
+    async function getProfile(userId: string) {
+        try {
+            const { data: prof } = await supabase.from('profissionais').select('*').eq('user_id', userId).single();
+            if (mounted && prof) setPerfil(prof);
+            
+            const { count } = await supabase.from('notificacoes')
+                .select('*', { count: 'exact', head: true })
+                .eq('user_id', userId)
+                .eq('lida', false);
+            if (mounted) setNotificacoesCount(count || 0);
+        } catch (error) {
+            console.error('Erro ao carregar perfil', error);
+        }
     }
-    setLoading(false);
-  }
+
+    // 1. Verifica sessão inicial
+    supabase.auth.getSession().then(({ data: { session } }) => {
+        if (mounted) {
+            setSession(session);
+            if (session) getProfile(session.user.id);
+            // Se não tem sessão e é rota privada, manda pro login
+            if (!session && !ehRotaPublica) {
+                router.push('/login');
+            }
+            setLoading(false);
+        }
+    });
+
+    // 2. Escuta mudanças (Login, Logout, F5, Token Refresh)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+        if (mounted) {
+            setSession(session);
+            
+            if (session) {
+                // Usuário acabou de logar ou restaurou sessão
+                if (!perfil) getProfile(session.user.id);
+            } else if (!ehRotaPublica) {
+                // Usuário deslogou e está em área restrita
+                router.push('/login');
+            }
+            setLoading(false);
+        }
+    });
+
+    return () => {
+        mounted = false;
+        subscription.unsubscribe();
+    };
+  }, [pathname, ehRotaPublica, router]);
 
   async function handleLogout() {
       await supabase.auth.signOut();
       router.push('/login');
   }
 
-  if (['/login', '/', '/site', '/termos', '/checkout', '/cadastro'].includes(pathname)) return <>{children}</>;
+  // Renderização
   if (loading) return <div className="h-screen w-screen bg-slate-50 flex items-center justify-center text-blue-600 animate-pulse"><Building2 size={40}/></div>;
+  
+  // Se for rota pública, mostra o conteúdo direto sem menu
+  if (ehRotaPublica) return <>{children}</>;
+
+  // Se não tiver sessão (e já passou do loading), não mostra nada (o useEffect já redirecionou)
   if (!session) return null;
 
   const isAdmin = perfil?.nivel_acesso === 'admin';
@@ -56,23 +99,14 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen bg-slate-50 font-sans">
-      {/* SIDEBAR DESKTOP */}
       <aside className="w-64 bg-white border-r border-slate-200 fixed h-full hidden md:flex flex-col z-30 shadow-sm">
-        <div className="p-6 pb-2 flex justify-center">
-            {/* LOGO LINK PARA DASHBOARD */}
-            <Link href="/dashboard" className="hover:opacity-80 transition-opacity cursor-pointer">
-                <img src="/logo.png" alt="Logo" className="h-16 w-auto object-contain hover:scale-105 transition-transform"/>
-            </Link>
-        </div>
+        <div className="p-6 pb-2 flex justify-center"><Link href="/dashboard" className="hover:opacity-80 transition-opacity cursor-pointer"><img src="/logo.png" alt="Logo" className="h-16 w-auto object-contain hover:scale-105 transition-transform"/></Link></div>
         <nav className="flex-1 px-4 space-y-1 mt-6"><LinksDoMenu /></nav>
         <div className="p-6 text-center border-t border-slate-50"><p className="text-[10px] text-slate-300 font-medium">v1.0 &copy; 2025</p></div>
       </aside>
 
-      {/* BARRA MOBILE - LOGO CLICÁVEL */}
       <div className="md:hidden fixed top-0 w-full bg-white border-b border-slate-200 z-50 px-4 py-3 flex justify-between items-center shadow-sm h-16">
-        <Link href="/dashboard" className="z-50 cursor-pointer active:scale-95 transition-transform">
-            <img src="/logo.png" alt="Logo" className="h-8 w-auto" />
-        </Link>
+        <Link href="/dashboard"><img src="/logo.png" alt="Logo" className="h-8 w-auto" /></Link>
         <button onClick={() => setMenuMobileAberto(!menuMobileAberto)} className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">{menuMobileAberto ? <X size={24} /> : <Menu size={24} />}</button>
       </div>
 
