@@ -45,7 +45,13 @@ function CheckoutContent() {
           <div className="absolute top-0 right-0 w-96 h-96 bg-blue-600 rounded-full blur-3xl opacity-20 translate-x-1/2 -translate-y-1/2"></div>
           <div>
               <Link href="/" className="inline-flex items-center gap-2 text-slate-400 hover:text-white transition-colors mb-10 font-bold"><ArrowLeft size={18}/> Voltar</Link>
-              <div className="flex items-center gap-3 mb-6"><img src="/logo.png" className="h-8 brightness-0 invert opacity-80"/><span className="font-bold text-lg tracking-widest">ORTUS</span></div>
+              
+              {/* FIX DO LOGO: FUNDO BRANCO PARA CONTRASTE */}
+              <div className="flex items-center gap-3 mb-6 bg-white/10 p-3 rounded-xl w-fit backdrop-blur-sm border border-white/10">
+                  <img src="/logo.png" className="h-8 w-auto object-contain"/>
+                  <span className="font-bold text-lg tracking-widest text-white">ORTUS</span>
+              </div>
+
               <p className="text-slate-400 font-medium uppercase tracking-wider text-xs mb-2">Você está assinando:</p>
               <h1 className="text-4xl font-black mb-4">Plano {plano}</h1>
               <div className="flex items-end gap-1 mb-8"><span className="text-5xl font-bold">R$ {valor}</span><span className="text-slate-400 font-medium mb-2">/mês</span></div>
