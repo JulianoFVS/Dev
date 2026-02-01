@@ -1,10 +1,11 @@
 'use client';
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Loader2, ArrowLeft, Building2, User, Mail, Lock, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
 
-export default function Cadastro() {
+// Componente Interno (Lógica que precisa da URL)
+function CadastroContent() {
   const searchParams = useSearchParams();
   const plano = searchParams.get('plano') || 'Básico';
   const status = searchParams.get('status');
@@ -64,5 +65,14 @@ export default function Cadastro() {
             </form>
         </div>
     </div>
+  );
+}
+
+// Componente Principal (Wrapper com Suspense)
+export default function Cadastro() {
+  return (
+    <Suspense fallback={<div className="h-screen w-screen flex items-center justify-center bg-slate-50"><Loader2 className="animate-spin text-blue-600" size={40}/></div>}>
+        <CadastroContent />
+    </Suspense>
   );
 }
