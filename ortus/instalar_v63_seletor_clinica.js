@@ -1,3 +1,15 @@
+const fs = require('fs');
+const path = require('path');
+
+console.log('🏥 Instalando V63: Seletor de Clínica (Multi-unidade)...');
+
+function salvarArquivo(caminhoRelativo, conteudo) {
+    const caminhoCompleto = path.join(__dirname, caminhoRelativo);
+    fs.writeFileSync(caminhoCompleto, conteudo.trim());
+    console.log(`✅ Atualizado: ${caminhoRelativo}`);
+}
+
+const authGuard = `
 'use client';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -82,10 +94,10 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
 
   const LinksDoMenu = () => (
     <>
-      <Link href="/dashboard" onClick={() => setMenuMobileAberto(false)} className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all mb-1 ${pathname === '/dashboard' ? 'bg-blue-50 text-blue-700 font-bold shadow-sm' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'}`}><LayoutDashboard size={20} /> Dashboard</Link>
-      <Link href="/agenda" onClick={() => setMenuMobileAberto(false)} className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all mb-1 ${pathname.includes('/agenda') ? 'bg-blue-50 text-blue-700 font-bold shadow-sm' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'}`}><Calendar size={20} /> Agenda</Link>
-      <Link href="/pacientes" onClick={() => setMenuMobileAberto(false)} className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all mb-1 ${pathname.includes('/pacientes') ? 'bg-blue-50 text-blue-700 font-bold shadow-sm' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'}`}><Users size={20} /> Pacientes</Link>
-      {isAdmin ? (<><Link href="/financeiro" onClick={() => setMenuMobileAberto(false)} className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all mb-1 ${pathname.includes('/financeiro') ? 'bg-blue-50 text-blue-700 font-bold shadow-sm' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'}`}><DollarSign size={20} /> Financeiro</Link><Link href="/configuracoes" onClick={() => setMenuMobileAberto(false)} className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all mb-1 ${pathname.includes('/configuracoes') ? 'bg-blue-50 text-blue-700 font-bold shadow-sm' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'}`}><Settings size={20} /> Ajustes</Link></>) : null}
+      <Link href="/dashboard" onClick={() => setMenuMobileAberto(false)} className={\`flex items-center gap-3 px-4 py-3 rounded-xl transition-all mb-1 \${pathname === '/dashboard' ? 'bg-blue-50 text-blue-700 font-bold shadow-sm' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'}\`}><LayoutDashboard size={20} /> Dashboard</Link>
+      <Link href="/agenda" onClick={() => setMenuMobileAberto(false)} className={\`flex items-center gap-3 px-4 py-3 rounded-xl transition-all mb-1 \${pathname.includes('/agenda') ? 'bg-blue-50 text-blue-700 font-bold shadow-sm' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'}\`}><Calendar size={20} /> Agenda</Link>
+      <Link href="/pacientes" onClick={() => setMenuMobileAberto(false)} className={\`flex items-center gap-3 px-4 py-3 rounded-xl transition-all mb-1 \${pathname.includes('/pacientes') ? 'bg-blue-50 text-blue-700 font-bold shadow-sm' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'}\`}><Users size={20} /> Pacientes</Link>
+      {isAdmin ? (<><Link href="/financeiro" onClick={() => setMenuMobileAberto(false)} className={\`flex items-center gap-3 px-4 py-3 rounded-xl transition-all mb-1 \${pathname.includes('/financeiro') ? 'bg-blue-50 text-blue-700 font-bold shadow-sm' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'}\`}><DollarSign size={20} /> Financeiro</Link><Link href="/configuracoes" onClick={() => setMenuMobileAberto(false)} className={\`flex items-center gap-3 px-4 py-3 rounded-xl transition-all mb-1 \${pathname.includes('/configuracoes') ? 'bg-blue-50 text-blue-700 font-bold shadow-sm' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'}\`}><Settings size={20} /> Ajustes</Link></>) : null}
     </>
   );
 
@@ -166,7 +178,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
                 <div className="p-4 bg-slate-50 border-b border-slate-100">
                     <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Unidade Atual</p>
                     {minhasClinicas.map(c => (
-                        <button key={c.id} onClick={() => trocarClinica(c)} className={`w-full text-left px-4 py-3 mb-2 rounded-xl text-sm font-bold flex items-center justify-between border ${clinicaAtual?.id === c.id ? 'bg-white border-blue-500 text-blue-700 shadow-sm' : 'bg-transparent border-transparent text-slate-500'}`}>
+                        <button key={c.id} onClick={() => trocarClinica(c)} className={\`w-full text-left px-4 py-3 mb-2 rounded-xl text-sm font-bold flex items-center justify-between border \${clinicaAtual?.id === c.id ? 'bg-white border-blue-500 text-blue-700 shadow-sm' : 'bg-transparent border-transparent text-slate-500'}\`}>
                             {c.nome}
                             {clinicaAtual?.id === c.id && <Check size={16} className="text-blue-600"/>}
                         </button>
@@ -181,3 +193,6 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     </div>
   );
 }
+`;
+
+salvarArquivo('components/AuthGuard.tsx', authGuard);
