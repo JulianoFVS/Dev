@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { LayoutDashboard, Users, LogOut, Calendar, Menu, X, DollarSign, Settings, Building2, Bell, Mail, User, Lock, ChevronRight } from 'lucide-react';
+import { LayoutDashboard, Users, LogOut, Calendar, Menu, X, DollarSign, Settings, Building2, Bell, Mail, User, ChevronRight } from 'lucide-react';
 
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<any>(null);
@@ -19,7 +19,6 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
 
   async function validarSessao() {
     const { data: { session } } = await supabase.auth.getSession();
-    
     const rotasPublicas = ['/login', '/', '/site', '/termos', '/checkout', '/cadastro'];
     if (rotasPublicas.includes(pathname)) { setLoading(false); return; }
 
@@ -41,7 +40,6 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   }
 
   if (['/login', '/', '/site', '/termos', '/checkout', '/cadastro'].includes(pathname)) return <>{children}</>;
-  
   if (loading) return <div className="h-screen w-screen bg-slate-50 flex items-center justify-center text-blue-600 animate-pulse"><Building2 size={40}/></div>;
   if (!session) return null;
 
@@ -61,20 +59,18 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
       {/* SIDEBAR DESKTOP */}
       <aside className="w-64 bg-white border-r border-slate-200 fixed h-full hidden md:flex flex-col z-30 shadow-sm">
         <div className="p-6 pb-2 flex justify-center">
-            {/* LOGO AGORA É UM LINK PARA O DASHBOARD */}
-            <Link href="/dashboard" className="hover:opacity-80 transition-opacity" title="Voltar ao Início">
+            {/* LOGO LINK PARA DASHBOARD */}
+            <Link href="/dashboard" className="hover:opacity-80 transition-opacity cursor-pointer">
                 <img src="/logo.png" alt="Logo" className="h-16 w-auto object-contain hover:scale-105 transition-transform"/>
             </Link>
-            <h1 className="hidden">ORTUS</h1>
         </div>
         <nav className="flex-1 px-4 space-y-1 mt-6"><LinksDoMenu /></nav>
         <div className="p-6 text-center border-t border-slate-50"><p className="text-[10px] text-slate-300 font-medium">v1.0 &copy; 2025</p></div>
       </aside>
 
-      {/* BARRA MOBILE */}
-      <div className="md:hidden fixed top-0 w-full bg-white border-b border-slate-200 z-40 px-4 py-3 flex justify-between items-center shadow-sm h-16">
-        {/* LOGO MOBILE AGORA É UM LINK PARA O DASHBOARD */}
-        <Link href="/dashboard">
+      {/* BARRA MOBILE - LOGO CLICÁVEL */}
+      <div className="md:hidden fixed top-0 w-full bg-white border-b border-slate-200 z-50 px-4 py-3 flex justify-between items-center shadow-sm h-16">
+        <Link href="/dashboard" className="z-50 cursor-pointer active:scale-95 transition-transform">
             <img src="/logo.png" alt="Logo" className="h-8 w-auto" />
         </Link>
         <button onClick={() => setMenuMobileAberto(!menuMobileAberto)} className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">{menuMobileAberto ? <X size={24} /> : <Menu size={24} />}</button>
