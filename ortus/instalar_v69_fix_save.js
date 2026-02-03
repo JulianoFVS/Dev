@@ -1,3 +1,15 @@
+const fs = require('fs');
+const path = require('path');
+
+console.log('🚑 Instalando V69: Corrigindo importação do ícone Save...');
+
+function salvarArquivo(caminhoRelativo, conteudo) {
+    const caminhoCompleto = path.join(__dirname, caminhoRelativo);
+    fs.writeFileSync(caminhoCompleto, conteudo.trim());
+    console.log(`✅ Corrigido: ${caminhoRelativo}`);
+}
+
+const configPage = `
 'use client';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -151,8 +163,8 @@ export default function Configuracoes() {
       </div>
 
       <div className="flex gap-4 border-b border-slate-200">
-          <button onClick={() => setAbaAtiva('clinicas')} className={`pb-4 px-2 font-bold text-sm flex items-center gap-2 border-b-2 transition-all ${abaAtiva === 'clinicas' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><Building2 size={18}/> Minhas Clínicas</button>
-          <button onClick={() => setAbaAtiva('equipe')} className={`pb-4 px-2 font-bold text-sm flex items-center gap-2 border-b-2 transition-all ${abaAtiva === 'equipe' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><Users size={18}/> Acesso da Equipe</button>
+          <button onClick={() => setAbaAtiva('clinicas')} className={\`pb-4 px-2 font-bold text-sm flex items-center gap-2 border-b-2 transition-all \${abaAtiva === 'clinicas' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}\`}><Building2 size={18}/> Minhas Clínicas</button>
+          <button onClick={() => setAbaAtiva('equipe')} className={\`pb-4 px-2 font-bold text-sm flex items-center gap-2 border-b-2 transition-all \${abaAtiva === 'equipe' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}\`}><Users size={18}/> Acesso da Equipe</button>
       </div>
 
       {loading ? <div className="py-20 flex justify-center"><Loader2 className="animate-spin text-slate-300"/></div> : (
@@ -275,12 +287,12 @@ export default function Configuracoes() {
                   {/* Rodapé: Nível de Acesso */}
                   <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4 mb-6">
                       <div className="flex items-center gap-3">
-                          <div className={`p-3 rounded-xl ${profForm.nivel_acesso === 'admin' ? 'bg-purple-100 text-purple-600' : 'bg-white border border-slate-200 text-slate-400'}`}><Shield size={24}/></div>
+                          <div className={\`p-3 rounded-xl \${profForm.nivel_acesso === 'admin' ? 'bg-purple-100 text-purple-600' : 'bg-white border border-slate-200 text-slate-400'}\`}><Shield size={24}/></div>
                           <div><h4 className="font-bold text-slate-800 text-sm">Nível de Permissão</h4><p className="text-xs text-slate-500">Admins podem editar clínicas e equipe.</p></div>
                       </div>
                       <div className="flex bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
-                          <button onClick={() => setProfForm({...profForm, nivel_acesso: 'comum'})} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${profForm.nivel_acesso === 'comum' ? 'bg-slate-800 text-white shadow' : 'text-slate-500 hover:bg-slate-50'}`}>Comum</button>
-                          <button onClick={() => setProfForm({...profForm, nivel_acesso: 'admin'})} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${profForm.nivel_acesso === 'admin' ? 'bg-purple-600 text-white shadow' : 'text-slate-500 hover:bg-slate-50'}`}>Admin</button>
+                          <button onClick={() => setProfForm({...profForm, nivel_acesso: 'comum'})} className={\`px-4 py-2 rounded-lg text-xs font-bold transition-all \${profForm.nivel_acesso === 'comum' ? 'bg-slate-800 text-white shadow' : 'text-slate-500 hover:bg-slate-50'}\`}>Comum</button>
+                          <button onClick={() => setProfForm({...profForm, nivel_acesso: 'admin'})} className={\`px-4 py-2 rounded-lg text-xs font-bold transition-all \${profForm.nivel_acesso === 'admin' ? 'bg-purple-600 text-white shadow' : 'text-slate-500 hover:bg-slate-50'}\`}>Admin</button>
                       </div>
                   </div>
 
@@ -304,9 +316,9 @@ export default function Configuracoes() {
                       {clinicas.map(c => {
                           const ativo = vinculosDoProf.includes(c.id);
                           return (
-                              <button key={c.id} onClick={() => toggleVinculo(c.id)} className={`w-full flex items-center justify-between p-4 rounded-xl border transition-all ${ativo ? 'bg-blue-50 border-blue-200' : 'bg-white border-slate-100 hover:bg-slate-50'}`}>
-                                  <span className={`font-bold ${ativo ? 'text-blue-700' : 'text-slate-600'}`}>{c.nome}</span>
-                                  <div className={`w-6 h-6 rounded-full border flex items-center justify-center ${ativo ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-slate-300'}`}>{ativo && <Check size={14}/>}</div>
+                              <button key={c.id} onClick={() => toggleVinculo(c.id)} className={\`w-full flex items-center justify-between p-4 rounded-xl border transition-all \${ativo ? 'bg-blue-50 border-blue-200' : 'bg-white border-slate-100 hover:bg-slate-50'}\`}>
+                                  <span className={\`font-bold \${ativo ? 'text-blue-700' : 'text-slate-600'}\`}>{c.nome}</span>
+                                  <div className={\`w-6 h-6 rounded-full border flex items-center justify-center \${ativo ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-slate-300'}\`}>{ativo && <Check size={14}/>}</div>
                               </button>
                           );
                       })}
@@ -318,3 +330,6 @@ export default function Configuracoes() {
     </div>
   );
 }
+`;
+
+salvarArquivo('app/configuracoes/page.tsx', configPage);
