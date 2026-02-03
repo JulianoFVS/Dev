@@ -10,27 +10,27 @@ export async function POST(req: Request) {
     );
 
     const body = await req.json();
-    const { id, user_id, email, password, nome, cargo, nivel_acesso, clinicas } = body;
+    const { id, user_id, email, password, nome, cargo, nivel_acesso, clinicas, cpf, cro, telefone, foto_url } = body;
 
-    // 1. Atualizar Tabela Profissionais
+    // 1. Atualiza Dados no Banco (Completo)
     const { error: profError } = await supabaseAdmin
         .from('profissionais')
-        .update({ nome, cargo, nivel_acesso })
+        .update({ nome, cargo, nivel_acesso, cpf, cro, telefone, foto_url })
         .eq('id', id);
 
     if (profError) throw profError;
 
-    // 2. Atualizar Auth (Email/Senha) se fornecidos
+    // 2. Atualiza Login (Email/Senha)
     const updates: any = {};
     if (email) updates.email = email;
-    if (password) updates.password = password;
+    if (password && password.length > 0) updates.password = password;
 
     if (Object.keys(updates).length > 0 && user_id) {
         const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(user_id, updates);
         if (authError) throw authError;
     }
 
-    // 3. Atualizar Clínicas (Remove tudo e insere de novo - método simples)
+    // 3. Atualiza Vínculos
     if (clinicas) {
         await supabaseAdmin.from('profissionais_clinicas').delete().eq('profissional_id', id);
         if (clinicas.length > 0) {
@@ -45,7 +45,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: true });
 
   } catch (error: any) {
-    console.error('Erro ao editar usuário:', error);
+    console.error('Erro API Editar:', error);
     return NextResponse.json({ error: error.message || 'Erro interno' }, { status: 500 });
   }
 }
