@@ -1,3 +1,15 @@
+const fs = require('fs');
+const path = require('path');
+
+console.log('🛠️ Instalando V66: Painel de Controle (Gestão Completa de Clínicas e Equipe)...');
+
+function salvarArquivo(caminhoRelativo, conteudo) {
+    const caminhoCompleto = path.join(__dirname, caminhoRelativo);
+    fs.writeFileSync(caminhoCompleto, conteudo.trim());
+    console.log(`✅ Atualizado: ${caminhoRelativo}`);
+}
+
+const configPage = `
 'use client';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -120,8 +132,8 @@ export default function Configuracoes() {
       </div>
 
       <div className="flex gap-4 border-b border-slate-200">
-          <button onClick={() => setAbaAtiva('clinicas')} className={`pb-4 px-2 font-bold text-sm flex items-center gap-2 border-b-2 transition-all ${abaAtiva === 'clinicas' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><Building2 size={18}/> Minhas Clínicas</button>
-          <button onClick={() => setAbaAtiva('equipe')} className={`pb-4 px-2 font-bold text-sm flex items-center gap-2 border-b-2 transition-all ${abaAtiva === 'equipe' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><Users size={18}/> Acesso da Equipe</button>
+          <button onClick={() => setAbaAtiva('clinicas')} className={\`pb-4 px-2 font-bold text-sm flex items-center gap-2 border-b-2 transition-all \${abaAtiva === 'clinicas' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}\`}><Building2 size={18}/> Minhas Clínicas</button>
+          <button onClick={() => setAbaAtiva('equipe')} className={\`pb-4 px-2 font-bold text-sm flex items-center gap-2 border-b-2 transition-all \${abaAtiva === 'equipe' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}\`}><Users size={18}/> Acesso da Equipe</button>
       </div>
 
       {loading ? <div className="py-20 flex justify-center"><Loader2 className="animate-spin text-slate-300"/></div> : (
@@ -209,8 +221,8 @@ export default function Configuracoes() {
                   <div>
                       <label className="text-xs font-bold text-slate-400 uppercase">Nível de Acesso</label>
                       <div className="flex gap-2 mt-1">
-                          <button onClick={() => setProfForm({...profForm, nivel_acesso: 'comum'})} className={`flex-1 py-2 rounded-lg text-sm font-bold border ${profForm.nivel_acesso === 'comum' ? 'bg-blue-50 border-blue-500 text-blue-700' : 'bg-white border-slate-200 text-slate-500'}`}>Comum</button>
-                          <button onClick={() => setProfForm({...profForm, nivel_acesso: 'admin'})} className={`flex-1 py-2 rounded-lg text-sm font-bold border ${profForm.nivel_acesso === 'admin' ? 'bg-purple-50 border-purple-500 text-purple-700' : 'bg-white border-slate-200 text-slate-500'}`}>Admin</button>
+                          <button onClick={() => setProfForm({...profForm, nivel_acesso: 'comum'})} className={\`flex-1 py-2 rounded-lg text-sm font-bold border \${profForm.nivel_acesso === 'comum' ? 'bg-blue-50 border-blue-500 text-blue-700' : 'bg-white border-slate-200 text-slate-500'}\`}>Comum</button>
+                          <button onClick={() => setProfForm({...profForm, nivel_acesso: 'admin'})} className={\`flex-1 py-2 rounded-lg text-sm font-bold border \${profForm.nivel_acesso === 'admin' ? 'bg-purple-50 border-purple-500 text-purple-700' : 'bg-white border-slate-200 text-slate-500'}\`}>Admin</button>
                       </div>
                   </div>
 
@@ -234,9 +246,9 @@ export default function Configuracoes() {
                       {clinicas.map(c => {
                           const ativo = vinculosDoProf.includes(c.id);
                           return (
-                              <button key={c.id} onClick={() => toggleVinculo(c.id)} className={`w-full flex items-center justify-between p-4 rounded-xl border transition-all ${ativo ? 'bg-blue-50 border-blue-200' : 'bg-white border-slate-100 hover:bg-slate-50'}`}>
-                                  <span className={`font-bold ${ativo ? 'text-blue-700' : 'text-slate-600'}`}>{c.nome}</span>
-                                  <div className={`w-6 h-6 rounded-full border flex items-center justify-center ${ativo ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-slate-300'}`}>{ativo && <Check size={14}/>}</div>
+                              <button key={c.id} onClick={() => toggleVinculo(c.id)} className={\`w-full flex items-center justify-between p-4 rounded-xl border transition-all \${ativo ? 'bg-blue-50 border-blue-200' : 'bg-white border-slate-100 hover:bg-slate-50'}\`}>
+                                  <span className={\`font-bold \${ativo ? 'text-blue-700' : 'text-slate-600'}\`}>{c.nome}</span>
+                                  <div className={\`w-6 h-6 rounded-full border flex items-center justify-center \${ativo ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-slate-300'}\`}>{ativo && <Check size={14}/>}</div>
                               </button>
                           );
                       })}
@@ -248,3 +260,6 @@ export default function Configuracoes() {
     </div>
   );
 }
+`;
+
+salvarArquivo('app/configuracoes/page.tsx', configPage);
