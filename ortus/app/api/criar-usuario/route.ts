@@ -3,7 +3,6 @@ import { NextResponse } from 'next/server';
 
 export async function POST(req: Request) {
   try {
-    // Inicializa o cliente ADMIN (necessário para criar usuários)
     const supabaseAdmin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!, 
@@ -11,13 +10,14 @@ export async function POST(req: Request) {
     );
 
     const body = await req.json();
-    const { email, password, nome, cargo, nivel_acesso, clinicas } = body;
+    // Recebe TODOS os campos agora
+    const { email, password, nome, cargo, nivel_acesso, clinicas, cpf, cro, telefone, foto_url } = body;
 
     if (!email || !password) {
         return NextResponse.json({ error: 'Email e senha são obrigatórios' }, { status: 400 });
     }
 
-    // 1. Criar Usuário na Autenticação (Auth)
+    // 1. Cria Login no Auth
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
@@ -26,25 +26,28 @@ export async function POST(req: Request) {
 
     if (authError) throw authError;
 
-    // 2. Criar Registro na tabela Profissionais
+    // 2. Cria Dados no Banco (Completo)
     const { data: profData, error: profError } = await supabaseAdmin
         .from('profissionais')
         .insert([{
             user_id: authData.user.id,
             nome,
             cargo,
-            nivel_acesso: nivel_acesso || 'padrao'
+            nivel_acesso: nivel_acesso || 'padrao',
+            cpf,
+            cro,
+            telefone,
+            foto_url
         }])
         .select()
         .single();
 
     if (profError) {
-        // Se falhar no banco, deleta o auth para não ficar órfão (rollback manual)
-        await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
+        await supabaseAdmin.auth.admin.deleteUser(authData.user.id); // Desfaz se der erro
         throw profError;
     }
 
-    // 3. Vincular Clínicas (se houver)
+    // 3. Vínculos
     if (clinicas && clinicas.length > 0 && profData) {
         const vinculos = clinicas.map((clinica_id: any) => ({
             profissional_id: profData.id,
@@ -56,7 +59,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: true, user: authData.user });
 
   } catch (error: any) {
-    console.error('Erro ao criar usuário:', error);
-    return NextResponse.json({ error: error.message || 'Erro interno no servidor' }, { status: 500 });
+    console.error('Erro API Criar:', error);
+    return NextResponse.json({ error: error.message || 'Erro interno' }, { status: 500 });
   }
 }
