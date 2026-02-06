@@ -1,3 +1,15 @@
+const fs = require('fs');
+const path = require('path');
+
+console.log('💯 Instalando V100: Substituindo "O" pelo Logo Oficial no menu recolhido...');
+
+function salvarArquivo(caminhoRelativo, conteudo) {
+    const caminhoCompleto = path.join(__dirname, caminhoRelativo);
+    fs.writeFileSync(caminhoCompleto, conteudo.trim());
+    console.log(`✅ Arquivo Atualizado: ${caminhoRelativo}`);
+}
+
+const authGuardV100 = `
 'use client';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -80,8 +92,8 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const NavItem = ({ href, icon, label }: { href: string, icon: any, label: string }) => {
       const active = pathname.includes(href) || (href === '/dashboard' && pathname === '/dashboard');
       return (
-        <Link href={href} onClick={() => setMenuMobileAberto(false)} className={`flex items-center gap-3 px-3 py-3 rounded-xl transition-all mb-1 group relative ${active ? 'bg-blue-50 text-blue-700 font-bold shadow-sm' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'} ${menuRecolhido ? 'justify-center' : ''}`}>
-            <span className={`transition-transform ${!menuRecolhido && 'group-hover:scale-110'}`}>{icon}</span>
+        <Link href={href} onClick={() => setMenuMobileAberto(false)} className={\`flex items-center gap-3 px-3 py-3 rounded-xl transition-all mb-1 group relative \${active ? 'bg-blue-50 text-blue-700 font-bold shadow-sm' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'} \${menuRecolhido ? 'justify-center' : ''}\`}>
+            <span className={\`transition-transform \${!menuRecolhido && 'group-hover:scale-110'}\`}>{icon}</span>
             {!menuRecolhido && <span>{label}</span>}
             
             {/* Tooltip quando recolhido */}
@@ -98,10 +110,10 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     <div className="flex min-h-screen bg-slate-50 font-sans">
       
       {/* SIDEBAR DESKTOP */}
-      <aside className={`bg-white border-r border-slate-200 fixed h-full hidden md:flex flex-col z-30 shadow-sm transition-all duration-300 ${menuRecolhido ? 'w-20' : 'w-64'}`}>
+      <aside className={\`bg-white border-r border-slate-200 fixed h-full hidden md:flex flex-col z-30 shadow-sm transition-all duration-300 \${menuRecolhido ? 'w-20' : 'w-64'}\`}>
         
         {/* LOGO (V100 - SEMPRE LOGO) */}
-        <div className={`h-20 flex items-center border-b border-slate-50 ${menuRecolhido ? 'justify-center' : 'px-6'}`}>
+        <div className={\`h-20 flex items-center border-b border-slate-50 \${menuRecolhido ? 'justify-center' : 'px-6'}\`}>
             <Link href="/dashboard" className="cursor-pointer hover:opacity-80 transition-opacity">
                 {/* Agora usamos o logo.png nos dois casos, apenas ajustando o tamanho se necessário */}
                 <img src="/logo.png" alt="Ortus Logo" className="h-10 w-auto object-contain"/>
@@ -111,7 +123,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
         {/* SELETOR DE CLÍNICA */}
         <div className="px-3 mt-6 mb-2">
             <div className="relative">
-                <button onClick={() => !menuRecolhido && setMenuClinicaAberto(!menuClinicaAberto)} className={`w-full flex items-center p-2.5 bg-slate-50 border border-slate-200 rounded-xl hover:border-blue-300 transition-all group ${menuRecolhido ? 'justify-center bg-transparent border-transparent' : 'justify-between'}`}>
+                <button onClick={() => !menuRecolhido && setMenuClinicaAberto(!menuClinicaAberto)} className={\`w-full flex items-center p-2.5 bg-slate-50 border border-slate-200 rounded-xl hover:border-blue-300 transition-all group \${menuRecolhido ? 'justify-center bg-transparent border-transparent' : 'justify-between'}\`}>
                     <div className="flex items-center gap-3 overflow-hidden">
                         <div className="w-9 h-9 bg-white rounded-lg flex-none flex items-center justify-center border border-slate-200 text-blue-600 shadow-sm"><Building2 size={18}/></div>
                         {!menuRecolhido && (
@@ -179,7 +191,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
       </div>
 
       {/* CONTEÚDO PRINCIPAL (COM MARGEM DINÂMICA) */}
-      <main className={`flex-1 flex flex-col min-h-screen transition-all duration-300 pt-16 md:pt-0 ${menuRecolhido ? 'md:ml-20' : 'md:ml-64'}`}>
+      <main className={\`flex-1 flex flex-col min-h-screen transition-all duration-300 pt-16 md:pt-0 \${menuRecolhido ? 'md:ml-20' : 'md:ml-64'}\`}>
         
         {/* HEADER SUPERIOR */}
         <header className="bg-white border-b border-slate-200 h-16 flex items-center justify-end px-6 gap-3 sticky top-16 md:top-0 z-20 shadow-sm/50 backdrop-blur-sm bg-white/90">
@@ -216,7 +228,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
                 <div className="p-4 bg-slate-50 border-b border-slate-100">
                     <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Unidade Atual</p>
                     {minhasClinicas.map(c => (
-                        <button key={c.id} onClick={() => trocarClinica(c)} className={`w-full text-left px-4 py-3 mb-2 rounded-xl text-sm font-bold flex items-center justify-between border ${clinicaAtual?.id === c.id ? 'bg-white border-blue-500 text-blue-700 shadow-sm' : 'bg-transparent border-transparent text-slate-500'}`}>
+                        <button key={c.id} onClick={() => trocarClinica(c)} className={\`w-full text-left px-4 py-3 mb-2 rounded-xl text-sm font-bold flex items-center justify-between border \${clinicaAtual?.id === c.id ? 'bg-white border-blue-500 text-blue-700 shadow-sm' : 'bg-transparent border-transparent text-slate-500'}\`}>
                             {c.nome}
                             {clinicaAtual?.id === c.id && <Check size={16} className="text-blue-600"/>}
                         </button>
@@ -236,3 +248,6 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     </div>
   );
 }
+`;
+
+salvarArquivo('components/AuthGuard.tsx', authGuardV100);
