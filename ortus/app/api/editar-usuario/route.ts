@@ -10,17 +10,20 @@ export async function POST(req: Request) {
     );
 
     const body = await req.json();
-    const { id, user_id, email, password, nome, cargo, nivel_acesso, clinicas, cpf, cro, telefone, foto_url } = body;
+    const { id, user_id, email, password, nome, cargo, nivel_acesso, clinicas, cpf, cro, telefone, foto_url, conselho, uf, sexo, endereco } = body;
 
-    // 1. Atualiza Dados no Banco (Completo)
+    // 1. Atualiza Dados no Banco
     const { error: profError } = await supabaseAdmin
         .from('profissionais')
-        .update({ nome, cargo, nivel_acesso, cpf, cro, telefone, foto_url })
+        .update({ 
+            nome, cargo, nivel_acesso, cpf, cro, telefone, foto_url,
+            conselho, uf, sexo, endereco 
+        })
         .eq('id', id);
 
     if (profError) throw profError;
 
-    // 2. Atualiza Login (Email/Senha)
+    // 2. Atualiza Login (Email/Senha) se necessário
     const updates: any = {};
     if (email) updates.email = email;
     if (password && password.length > 0) updates.password = password;

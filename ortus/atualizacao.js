@@ -1,106 +1,669 @@
 const fs = require('fs');
 const path = require('path');
 
-// Caminho do arquivo
-const filePath = path.join('app', 'login', 'page.tsx');
+console.log('🚀 Iniciando atualização do módulo de Profissionais (Ortus)...');
 
-// Conteúdo exato do arquivo (sem caracteres de escape que quebram o script)
-const fileContent = `'use client';
-import { useState, type FormEvent } from 'react';
+// Função auxiliar para salvar arquivos
+function salvarArquivo(caminhoRelativo, conteudo) {
+    try {
+        const caminhoCompleto = path.join(__dirname, caminhoRelativo);
+        const diretorio = path.dirname(caminhoCompleto);
+
+        // Garante que a pasta existe
+        if (!fs.existsSync(diretorio)) {
+            fs.mkdirSync(diretorio, { recursive: true });
+        }
+
+        fs.writeFileSync(caminhoCompleto, conteudo.trim(), 'utf8');
+        console.log(`✅ Sucesso: ${caminhoRelativo} atualizado.`);
+    } catch (err) {
+        console.error(`❌ Erro ao salvar ${caminhoRelativo}:`, err.message);
+    }
+}
+
+// 1. API: CRIAR USUÁRIO
+const conteudoCriarUsuario = `
+import { createClient } from '@supabase/supabase-js';
+import { NextResponse } from 'next/server';
+
+export async function POST(req: Request) {
+  try {
+    const supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!, 
+      { auth: { autoRefreshToken: false, persistSession: false } }
+    );
+
+    const body = await req.json();
+    const { email, password, nome, cargo, nivel_acesso, clinicas, cpf, cro, telefone, foto_url, conselho, uf, sexo, endereco } = body;
+
+    if (!email || !password) {
+        return NextResponse.json({ error: 'Email e senha são obrigatórios' }, { status: 400 });
+    }
+
+    // 1. Cria Login no Auth
+    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true
+    });
+
+    if (authError) throw authError;
+
+    // 2. Cria Dados no Banco (Completo)
+    const { data: profData, error: profError } = await supabaseAdmin
+        .from('profissionais')
+        .insert([{
+            user_id: authData.user.id,
+            nome,
+            cargo,
+            nivel_acesso: nivel_acesso || 'padrao',
+            cpf,
+            cro,      // Equivalente ao Nº Conselho
+            telefone, // Equivalente ao Contato
+            conselho,
+            uf,
+            sexo,
+            endereco,
+            foto_url
+        }])
+        .select()
+        .single();
+
+    if (profError) {
+        await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
+        throw profError;
+    }
+
+    // 3. Vínculos
+    if (clinicas && clinicas.length > 0 && profData) {
+        const vinculos = clinicas.map((clinica_id: any) => ({
+            profissional_id: profData.id,
+            clinica_id: clinica_id
+        }));
+        await supabaseAdmin.from('profissionais_clinicas').insert(vinculos);
+    }
+
+    return NextResponse.json({ success: true, user: authData.user });
+
+  } catch (error: any) {
+    console.error('Erro API Criar:', error);
+    return NextResponse.json({ error: error.message || 'Erro interno' }, { status: 500 });
+  }
+}
+`;
+
+// 2. API: EDITAR USUÁRIO
+const conteudoEditarUsuario = `
+import { createClient } from '@supabase/supabase-js';
+import { NextResponse } from 'next/server';
+
+export async function POST(req: Request) {
+  try {
+    const supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      { auth: { autoRefreshToken: false, persistSession: false } }
+    );
+
+    const body = await req.json();
+    const { id, user_id, email, password, nome, cargo, nivel_acesso, clinicas, cpf, cro, telefone, foto_url, conselho, uf, sexo, endereco } = body;
+
+    // 1. Atualiza Dados no Banco
+    const { error: profError } = await supabaseAdmin
+        .from('profissionais')
+        .update({ 
+            nome, cargo, nivel_acesso, cpf, cro, telefone, foto_url,
+            conselho, uf, sexo, endereco 
+        })
+        .eq('id', id);
+
+    if (profError) throw profError;
+
+    // 2. Atualiza Login (Email/Senha) se necessário
+    const updates: any = {};
+    if (email) updates.email = email;
+    if (password && password.length > 0) updates.password = password;
+
+    if (Object.keys(updates).length > 0 && user_id) {
+        const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(user_id, updates);
+        if (authError) throw authError;
+    }
+
+    // 3. Atualiza Vínculos
+    if (clinicas) {
+        await supabaseAdmin.from('profissionais_clinicas').delete().eq('profissional_id', id);
+        if (clinicas.length > 0) {
+            const vinculos = clinicas.map((clinica_id: any) => ({
+                profissional_id: id,
+                clinica_id: clinica_id
+            }));
+            await supabaseAdmin.from('profissionais_clinicas').insert(vinculos);
+        }
+    }
+
+    return NextResponse.json({ success: true });
+
+  } catch (error: any) {
+    console.error('Erro API Editar:', error);
+    return NextResponse.json({ error: error.message || 'Erro interno' }, { status: 500 });
+  }
+}
+`;
+
+// 3. TELA: CONFIGURAÇÕES (Com novos campos)
+const conteudoConfiguracoes = `
+'use client';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { useRouter } from 'next/navigation';
-import { Lock, Mail, Loader2, ShieldCheck, ArrowLeft, Eye, EyeOff } from 'lucide-react';
-import Link from 'next/link';
+import { Building2, Users, Plus, Trash2, MapPin, Check, X, Loader2, Edit, UserPlus, Shield, User, FileText, Phone, Mail, Save, Lock } from 'lucide-react';
 
-export default function Login() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const router = useRouter();
+export default function Configuracoes() {
+  const [abaAtiva, setAbaAtiva] = useState('clinicas');
+  const [loading, setLoading] = useState(true);
+  
+  const [clinicas, setClinicas] = useState<any[]>([]);
+  const [profissionais, setProfissionais] = useState<any[]>([]);
+  
+  // MODAL CLÍNICA
+  const [modalClinica, setModalClinica] = useState(false);
+  const [novaClinica, setNovaClinica] = useState('');
 
-  async function handleLogin(e: FormEvent) {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) { setError('Acesso negado. Verifique seus dados.'); setLoading(false); } 
-    else { router.push('/dashboard'); router.refresh(); }
+  // MODAL PROFISSIONAL
+  const [modalProf, setModalProf] = useState(false);
+  const [salvandoProf, setSalvandoProf] = useState(false);
+  
+  const [profForm, setProfForm] = useState({ 
+      id: '', user_id: '', nome: '', cargo: 'Dentista', nivel_acesso: 'comum', 
+      email: '', senha: '', 
+      cpf: '', cro: '', telefone: '', foto_url: '',
+      conselho: 'CRO', uf: '', sexo: '', endereco: '' 
+  });
+  const [editandoProf, setEditandoProf] = useState(false);
+
+  // MODAL VINCULOS
+  const [modalVinculo, setModalVinculo] = useState(false);
+  const [profSelecionado, setProfSelecionado] = useState<any>(null);
+  const [vinculosDoProf, setVinculosDoProf] = useState<number[]>([]);
+
+  useEffect(() => { carregarDados(); }, []);
+
+  async function carregarDados() {
+      setLoading(true);
+      const { data: c } = await supabase.from('clinicas').select('*').order('nome');
+      const { data: p } = await supabase.from('profissionais').select('*').order('nome');
+      setClinicas(c || []);
+      setProfissionais(p || []);
+      setLoading(false);
+  }
+
+  // --- CLÍNICAS ---
+  async function criarClinica() {
+      if (!novaClinica) return;
+      const { error } = await supabase.from('clinicas').insert([{ nome: novaClinica }]);
+      if (error) alert('Erro: ' + error.message);
+      else { setNovaClinica(''); setModalClinica(false); carregarDados(); }
+  }
+
+  async function excluirClinica(id: number) {
+      if (!confirm('Excluir esta clínica?')) return;
+      await supabase.from('clinicas').delete().eq('id', id);
+      carregarDados();
+  }
+
+  // --- PROFISSIONAIS ---
+  function abrirNovoProf() {
+      setProfForm({ 
+          id: '', user_id: '', nome: '', cargo: 'Dentista', nivel_acesso: 'comum', 
+          email: '', senha: '', 
+          cpf: '', cro: '', telefone: '', foto_url: '',
+          conselho: 'CRO', uf: '', sexo: '', endereco: ''
+      });
+      setEditandoProf(false);
+      setModalProf(true);
+  }
+
+  function abrirEditarProf(p: any) {
+      setProfForm({ 
+          id: p.id, user_id: p.user_id, nome: p.nome, 
+          cargo: p.cargo || 'Dentista', nivel_acesso: p.nivel_acesso || 'comum', 
+          email: '', senha: '', 
+          cpf: p.cpf || '', cro: p.cro || '', telefone: p.telefone || '', foto_url: p.foto_url || '',
+          conselho: p.conselho || 'CRO', uf: p.uf || '', sexo: p.sexo || '', endereco: p.endereco || ''
+      });
+      setEditandoProf(true);
+      setModalProf(true);
+  }
+
+  async function salvarProfissional() {
+      if (!profForm.nome) return alert('Nome é obrigatório');
+      if (!editandoProf && (!profForm.email || !profForm.senha)) return alert('Email e Senha são obrigatórios para novos usuários.');
+
+      setSalvandoProf(true);
+
+      const dados = {
+          id: profForm.id,
+          user_id: profForm.user_id,
+          email: profForm.email,
+          password: profForm.senha,
+          nome: profForm.nome,
+          cargo: profForm.cargo,
+          nivel_acesso: profForm.nivel_acesso,
+          cpf: profForm.cpf,
+          cro: profForm.cro,
+          telefone: profForm.telefone,
+          foto_url: profForm.foto_url,
+          conselho: profForm.conselho,
+          uf: profForm.uf,
+          sexo: profForm.sexo,
+          endereco: profForm.endereco
+      };
+
+      try {
+          const url = editandoProf ? '/api/editar-usuario' : '/api/criar-usuario';
+          const res = await fetch(url, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(dados)
+          });
+
+          const json = await res.json();
+          if (!res.ok) throw new Error(json.error);
+
+          setModalProf(false);
+          carregarDados();
+          alert(editandoProf ? 'Dados atualizados!' : 'Profissional cadastrado com acesso ao sistema!');
+
+      } catch (err: any) {
+          alert('Erro: ' + err.message);
+      } finally {
+          setSalvandoProf(false);
+      }
+  }
+
+  async function excluirProfissional() {
+      if (!editandoProf) return;
+      if (!confirm('ATENÇÃO: Isso removerá o acesso deste usuário ao sistema. Continuar?')) return;
+      
+      const { error } = await supabase.from('profissionais').delete().eq('id', profForm.id);
+      if (error) alert('Erro ao excluir: ' + error.message);
+      else {
+          setModalProf(false);
+          carregarDados();
+      }
+  }
+
+  // --- VÍNCULOS ---
+  async function abrirVinculos(prof: any) {
+      setProfSelecionado(prof);
+      const { data } = await supabase.from('profissionais_clinicas').select('clinica_id').eq('profissional_id', prof.id);
+      if (data) setVinculosDoProf(data.map((v: any) => v.clinica_id));
+      setModalVinculo(true);
+  }
+
+  async function toggleVinculo(clinicaId: number) {
+      const jaTem = vinculosDoProf.includes(clinicaId);
+      if (jaTem) {
+          await supabase.from('profissionais_clinicas').delete().eq('profissional_id', profSelecionado.id).eq('clinica_id', clinicaId);
+          setVinculosDoProf(prev => prev.filter(id => id !== clinicaId));
+      } else {
+          await supabase.from('profissionais_clinicas').insert([{ profissional_id: profSelecionado.id, clinica_id: clinicaId }]);
+          setVinculosDoProf(prev => [...prev, clinicaId]);
+      }
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 relative overflow-hidden">
-      <Link href="/" className="absolute top-6 left-6 flex items-center gap-2 text-slate-500 font-bold hover:text-blue-600 transition-colors z-20"><ArrowLeft size={20}/> Voltar para o site</Link>
-      <div className="absolute inset-0 bg-gradient-to-br from-blue-100/40 to-slate-50 z-0"></div>
-      <div className="bg-white w-full max-w-md p-10 rounded-3xl shadow-2xl shadow-blue-900/10 border border-white relative z-10 animate-in zoom-in-95 duration-500">
-        <div className="flex flex-col items-center mb-10">
-            <Link href="/" className="h-24 w-full flex items-center justify-center mb-2 hover:scale-105 transition-transform cursor-pointer">
-                <img src="/logo.png" alt="Logo" className="h-full w-auto object-contain"/>
-            </Link>
-            <p className="text-slate-400 font-medium text-xs uppercase tracking-widest">Acesso Restrito</p>
-        </div>
-        {error && <div className="bg-red-50 text-red-600 p-4 rounded-xl text-sm font-bold flex items-center gap-2 mb-6 border border-red-100"><ShieldCheck size={18}/> {error}</div>}
-        <form onSubmit={handleLogin} className="space-y-5">
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-bold text-slate-400 uppercase ml-1 tracking-wider">Email</label>
-              <div className="relative group">
-                <Mail className="absolute left-4 top-3.5 text-slate-300 group-focus-within:text-blue-500 transition-colors" size={20} />
-                <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all font-medium text-slate-700 placeholder:text-slate-300" placeholder="seu@email.com" required/>
-              </div>
-            </div>
-            
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-bold text-slate-400 uppercase ml-1 tracking-wider">Senha</label>
-              <div className="relative group">
-                <Lock className="absolute left-4 top-3.5 text-slate-300 group-focus-within:text-blue-500 transition-colors" size={20} />
-                <input 
-                  type={showPassword ? 'text' : 'password'} 
-                  value={password} 
-                  onChange={e => setPassword(e.target.value)} 
-                  className="w-full pl-12 pr-12 py-3.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all font-medium text-slate-700 placeholder:text-slate-300" 
-                  placeholder="••••••••" 
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-3.5 text-slate-300 hover:text-blue-500 transition-colors focus:outline-none"
-                  tabIndex={-1}
-                >
-                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                </button>
-              </div>
-            </div>
+    <div className="max-w-6xl mx-auto pb-20 space-y-8 animate-fade-in">
+      
+      <div>
+          <h1 className="text-3xl font-black text-slate-800">Configurações</h1>
+          <p className="text-slate-500 font-medium">Gerencie suas unidades e equipe completa.</p>
+      </div>
 
-            <button type="submit" disabled={loading} className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white font-bold py-4 rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all shadow-lg shadow-blue-200 active:scale-[0.98] flex justify-center items-center gap-2 mt-6">{loading ? <Loader2 className="animate-spin" /> : 'Entrar no Sistema'}</button>
-        </form>
-        <p className="text-center mt-6 text-xs text-slate-400 font-medium">Ainda não tem conta? <Link href="/#precos" className="text-blue-600 hover:underline">Assinar agora</Link></p>
-    </div></div>
+      <div className="flex gap-4 border-b border-slate-200">
+          <button onClick={() => setAbaAtiva('clinicas')} className={\`pb-4 px-2 font-bold text-sm flex items-center gap-2 border-b-2 transition-all \${abaAtiva === 'clinicas' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}\`}><Building2 size={18}/> Minhas Clínicas</button>
+          <button onClick={() => setAbaAtiva('equipe')} className={\`pb-4 px-2 font-bold text-sm flex items-center gap-2 border-b-2 transition-all \${abaAtiva === 'equipe' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}\`}><Users size={18}/> Acesso da Equipe</button>
+      </div>
+
+      {loading ? <div className="py-20 flex justify-center"><Loader2 className="animate-spin text-slate-300"/></div> : (
+        <>
+            {/* ABA CLÍNICAS */}
+            {abaAtiva === 'clinicas' && (
+                <div className="space-y-6 animate-in slide-in-from-left-4">
+                    <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="font-bold text-slate-700 text-lg">Unidades Cadastradas</h3>
+                            <button onClick={() => setModalClinica(true)} className="bg-blue-600 text-white px-4 py-2 rounded-xl font-bold text-sm hover:bg-blue-700 flex items-center gap-2 shadow-lg shadow-blue-200"><Plus size={16}/> Nova Clínica</button>
+                        </div>
+                        <div className="space-y-3">
+                            {clinicas.map(c => (
+                                <div key={c.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100 hover:border-blue-200 transition-colors">
+                                    <div className="flex items-center gap-4"><div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center text-blue-600 border border-slate-200 font-bold"><Building2 size={20}/></div><span className="font-bold text-slate-700">{c.nome}</span></div>
+                                    <button onClick={() => excluirClinica(c.id)} className="p-2 text-slate-300 hover:text-red-500 hover:bg-white rounded-lg transition-all"><Trash2 size={18}/></button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ABA EQUIPE */}
+            {abaAtiva === 'equipe' && (
+                <div className="space-y-6 animate-in slide-in-from-right-4">
+                    <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="font-bold text-slate-700 text-lg">Profissionais</h3>
+                            <button onClick={abrirNovoProf} className="bg-green-600 text-white px-4 py-2 rounded-xl font-bold text-sm hover:bg-green-700 flex items-center gap-2 shadow-lg shadow-green-200"><UserPlus size={16}/> Adicionar Profissional</button>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {profissionais.map(p => (
+                                <div key={p.id} className="p-5 border border-slate-100 rounded-2xl bg-slate-50 hover:bg-white hover:shadow-md transition-all relative group flex flex-col justify-between h-full">
+                                    <div>
+                                        <div className="flex justify-between items-start mb-4">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center font-bold text-lg overflow-hidden border-2 border-white shadow-sm">
+                                                    {p.foto_url ? <img src={p.foto_url} className="w-full h-full object-cover"/> : p.nome.charAt(0)}
+                                                </div>
+                                                <div>
+                                                    <h4 className="font-bold text-slate-800 leading-tight">{p.nome}</h4>
+                                                    <p className="text-xs text-slate-400 font-bold">{p.cargo}</p>
+                                                </div>
+                                            </div>
+                                            <button onClick={() => abrirEditarProf(p)} className="p-2 text-slate-400 hover:text-blue-600 bg-white rounded-lg border border-slate-200 hover:border-blue-300 transition-all"><Edit size={16}/></button>
+                                        </div>
+                                        
+                                        <div className="space-y-2 mb-4">
+                                            {p.telefone && <div className="flex items-center gap-2 text-xs text-slate-500 font-medium"><Phone size={12}/> {p.telefone}</div>}
+                                            <div className="flex items-center gap-2 mt-2">
+                                                {p.nivel_acesso === 'admin' && <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase bg-purple-100 text-purple-700 flex items-center gap-1 border border-purple-200"><Shield size={10}/> Admin</span>}
+                                                {p.cro && <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase bg-emerald-50 text-emerald-700 border border-emerald-100 flex items-center gap-1"><FileText size={10}/> {p.conselho || 'CRO'}: {p.cro}</span>}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <button onClick={() => abrirVinculos(p)} className="w-full py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:border-blue-400 hover:text-blue-600 transition-colors flex items-center justify-center gap-2 mt-auto">
+                                        <MapPin size={14}/> Gerenciar Unidades
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )}
+        </>
+      )}
+
+      {/* MODAL CLÍNICA */}
+      {modalClinica && (
+          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="bg-white p-6 rounded-2xl w-full max-w-sm shadow-2xl animate-in zoom-in-95">
+                  <h3 className="font-bold text-lg mb-4">Cadastrar Nova Unidade</h3>
+                  <input autoFocus value={novaClinica} onChange={e => setNovaClinica(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold mb-4" placeholder="Ex: Filial Centro" />
+                  <div className="flex gap-2">
+                      <button onClick={() => setModalClinica(false)} className="flex-1 py-3 text-slate-500 font-bold hover:bg-slate-50 rounded-xl">Cancelar</button>
+                      <button onClick={criarClinica} className="flex-1 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700">Salvar</button>
+                  </div>
+              </div>
+          </div>
+      )}
+
+      {/* MODAL PROFISSIONAL */}
+      {modalProf && (
+          <div className="fixed inset-0 z-[60] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+              <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl flex flex-col max-h-[90vh] animate-in zoom-in-95 border border-slate-100">
+                  
+                  {/* CABEÇALHO */}
+                  <div className="p-6 border-b border-slate-100 flex justify-between items-start bg-slate-50/50 rounded-t-3xl flex-none">
+                      <div>
+                          <h3 className="font-black text-2xl text-slate-800">{editandoProf ? 'Editar Perfil' : 'Novo Acesso'}</h3>
+                          <p className="text-slate-500 font-medium text-sm">Dados profissionais e de acesso.</p>
+                      </div>
+                      {editandoProf && (
+                          <button onClick={excluirProfissional} className="p-2 text-red-400 hover:bg-red-50 rounded-lg hover:text-red-600 transition-colors"><Trash2 size={20}/></button>
+                      )}
+                  </div>
+                  
+                  {/* CORPO */}
+                  <div className="p-8 overflow-y-auto custom-scrollbar space-y-6 flex-1">
+                      
+                      {/* LOGIN */}
+                      <div className="bg-blue-50 p-5 rounded-2xl border border-blue-100 space-y-4">
+                          <div className="flex items-center gap-2 text-blue-700 font-bold text-sm mb-2"><Shield size={16}/> Dados de Login</div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div><label className="text-xs font-bold text-slate-400 uppercase ml-1">E-mail de Acesso</label><div className="relative"><Mail className="absolute left-3 top-3.5 text-slate-400" size={18}/><input value={profForm.email} onChange={e => setProfForm({...profForm, email: e.target.value})} className="w-full pl-10 pr-4 py-3 bg-white border border-blue-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700 placeholder:text-slate-300" placeholder="email@clinica.com"/></div></div>
+                              <div><label className="text-xs font-bold text-slate-400 uppercase ml-1">Senha {editandoProf && '(Opcional)'}</label><div className="relative"><Lock className="absolute left-3 top-3.5 text-slate-400" size={18}/><input type="password" value={profForm.senha} onChange={e => setProfForm({...profForm, senha: e.target.value})} className="w-full pl-10 pr-4 py-3 bg-white border border-blue-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700 placeholder:text-slate-300" placeholder={editandoProf ? "Manter atual" : "Criar senha"}/></div></div>
+                          </div>
+                      </div>
+
+                      {/* DADOS PESSOAIS E PROFISSIONAIS */}
+                      <div className="space-y-4">
+                          <h4 className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-2">Dados do Profissional</h4>
+                          
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div className="md:col-span-2">
+                                  <label className="text-xs font-bold text-slate-400 uppercase ml-1">Nome Completo</label>
+                                  <div className="relative"><User className="absolute left-3 top-3.5 text-slate-300" size={18}/><input value={profForm.nome} onChange={e => setProfForm({...profForm, nome: e.target.value})} className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-700" placeholder="Dr. Nome Sobrenome"/></div>
+                              </div>
+
+                              <div><label className="text-xs font-bold text-slate-400 uppercase ml-1">CPF</label><input value={profForm.cpf} onChange={e => setProfForm({...profForm, cpf: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700" placeholder="000.000.000-00"/></div>
+                              
+                              <div><label className="text-xs font-bold text-slate-400 uppercase ml-1">Sexo</label><select value={profForm.sexo} onChange={e => setProfForm({...profForm, sexo: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700"><option value="">Selecione...</option><option value="Masculino">Masculino</option><option value="Feminino">Feminino</option><option value="Outro">Outro</option></select></div>
+
+                              <div><label className="text-xs font-bold text-slate-400 uppercase ml-1">Contato / Telefone</label><div className="relative"><Phone className="absolute left-3 top-3.5 text-slate-300" size={18}/><input value={profForm.telefone} onChange={e => setProfForm({...profForm, telefone: e.target.value})} className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700" placeholder="(00) 00000-0000"/></div></div>
+                              
+                              <div><label className="text-xs font-bold text-slate-400 uppercase ml-1">Cargo</label><input value={profForm.cargo} onChange={e => setProfForm({...profForm, cargo: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-700" placeholder="Ex: Ortodontista"/></div>
+                          </div>
+
+                          <div className="md:col-span-2"><label className="text-xs font-bold text-slate-400 uppercase ml-1">Endereço</label><input value={profForm.endereco} onChange={e => setProfForm({...profForm, endereco: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700" placeholder="Rua, Número, Bairro..."/></div>
+
+                          <div className="grid grid-cols-3 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                              <div className="col-span-1"><label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Conselho</label><select value={profForm.conselho} onChange={e => setProfForm({...profForm, conselho: e.target.value})} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none text-sm font-bold"><option value="CRO">CRO</option><option value="CRM">CRM</option><option value="Outro">Outro</option></select></div>
+                              <div className="col-span-1"><label className="text-[10px] font-bold text-slate-400 uppercase ml-1">UF</label><input value={profForm.uf} onChange={e => setProfForm({...profForm, uf: e.target.value})} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none text-sm font-medium" placeholder="UF"/></div>
+                              <div className="col-span-1"><label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Nº Conselho</label><input value={profForm.cro} onChange={e => setProfForm({...profForm, cro: e.target.value})} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none text-sm font-medium" placeholder="12345"/></div>
+                          </div>
+                      </div>
+
+                      {/* PERMISSÕES */}
+                      <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4">
+                          <div className="flex items-center gap-3">
+                              <div className={\`p-3 rounded-xl \${profForm.nivel_acesso === 'admin' ? 'bg-purple-100 text-purple-600' : 'bg-white border border-slate-200 text-slate-400'}\`}><Shield size={24}/></div>
+                              <div><h4 className="font-bold text-slate-800 text-sm">Nível de Permissão</h4><p className="text-xs text-slate-500">Admins podem editar financeiro e ajustes.</p></div>
+                          </div>
+                          <div className="flex bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
+                              <button onClick={() => setProfForm({...profForm, nivel_acesso: 'comum'})} className={\`px-4 py-2 rounded-lg text-xs font-bold transition-all \${profForm.nivel_acesso === 'comum' ? 'bg-slate-800 text-white shadow' : 'text-slate-500 hover:bg-slate-50'}\`}>Comum</button>
+                              <button onClick={() => setProfForm({...profForm, nivel_acesso: 'admin'})} className={\`px-4 py-2 rounded-lg text-xs font-bold transition-all \${profForm.nivel_acesso === 'admin' ? 'bg-purple-600 text-white shadow' : 'text-slate-500 hover:bg-slate-50'}\`}>Admin</button>
+                          </div>
+                      </div>
+                  </div>
+
+                  {/* RODAPÉ */}
+                  <div className="p-6 border-t border-slate-100 bg-slate-50 flex gap-3 rounded-b-3xl flex-none">
+                      <button onClick={() => setModalProf(false)} className="flex-1 py-4 text-slate-500 font-bold hover:bg-slate-200 rounded-xl transition-colors">Cancelar</button>
+                      <button onClick={salvarProfissional} disabled={salvandoProf} className="flex-1 py-4 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all active:scale-95 flex items-center justify-center gap-2">
+                          {salvandoProf ? <Loader2 className="animate-spin"/> : <><Save size={18}/> Salvar Acesso</>}
+                      </button>
+                  </div>
+              </div>
+          </div>
+      )}
+
+      {/* MODAL VINCULOS */}
+      {modalVinculo && profSelecionado && (
+          <div className="fixed inset-0 z-[60] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="bg-white p-6 rounded-2xl w-full max-w-md shadow-2xl animate-in zoom-in-95">
+                  <div className="flex justify-between items-center mb-6">
+                      <div><h3 className="font-bold text-lg">Onde {profSelecionado.nome.split(' ')[0]} atende?</h3><p className="text-xs text-slate-400">Marque as clínicas permitidas.</p></div>
+                      <button onClick={() => setModalVinculo(false)} className="p-2 hover:bg-slate-100 rounded-full"><X size={20}/></button>
+                  </div>
+                  <div className="space-y-2 mb-6 max-h-60 overflow-y-auto">
+                      {clinicas.map(c => {
+                          const ativo = vinculosDoProf.includes(c.id);
+                          return (
+                              <button key={c.id} onClick={() => toggleVinculo(c.id)} className={\`w-full flex items-center justify-between p-4 rounded-xl border transition-all \${ativo ? 'bg-blue-50 border-blue-200' : 'bg-white border-slate-100 hover:bg-slate-50'}\`}>
+                                  <span className={\`font-bold \${ativo ? 'text-blue-700' : 'text-slate-600'}\`}>{c.nome}</span>
+                                  <div className={\`w-6 h-6 rounded-full border flex items-center justify-center \${ativo ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-slate-300'}\`}>{ativo && <Check size={14}/>}</div>
+                              </button>
+                          );
+                      })}
+                  </div>
+                  <button onClick={() => setModalVinculo(false)} className="w-full py-3 bg-slate-900 text-white font-bold rounded-xl">Concluir</button>
+              </div>
+          </div>
+      )}
+    </div>
   );
 }
 `;
 
-function ensureDirectoryExistence(filePath) {
-  const dirname = path.dirname(filePath);
-  if (fs.existsSync(dirname)) {
-    return true;
-  }
-  ensureDirectoryExistence(dirname);
-  fs.mkdirSync(dirname, { recursive: true });
-}
+// 4. TELA: MEU PERFIL (Com bloqueio de cargo)
+const conteudoPerfil = `
+'use client';
+import { useState, useEffect } from 'react';
+import { supabase } from '@/lib/supabase';
+import { User, LogOut, Save, Loader2, Lock, Mail, Upload, Briefcase } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 
-try {
-  ensureDirectoryExistence(filePath);
-  fs.writeFileSync(filePath, fileContent, 'utf8');
-  
-  // Verificação real se o arquivo existe e tem conteúdo
-  if (fs.existsSync(filePath) && fs.statSync(filePath).size > 0) {
-      console.log("SUCESSO: O arquivo login/page.tsx foi atualizado corretamente.");
-  } else {
-      throw new Error("Falha: O arquivo nao foi criado.");
+export default function Perfil() {
+  const [loading, setLoading] = useState(true);
+  const [salvando, setSalvando] = useState(false);
+  const [form, setForm] = useState({ nome: '', email: '', cargo: '', novaSenha: '' });
+  const [user, setUser] = useState<any>(null);
+  const [perfil, setPerfil] = useState<any>(null); // Guardar dados completos do perfil
+  const [fotoUrl, setFotoUrl] = useState<string | null>(null);
+  const router = useRouter();
+
+  useEffect(() => { carregar(); }, []);
+
+  async function carregar() {
+    const { data: { user } } = await supabase.auth.getUser();
+    if(user) {
+        setUser(user);
+        const { data: prof } = await supabase.from('profissionais').select('*').eq('user_id', user.id).single();
+        if(prof) {
+            setPerfil(prof);
+            setForm({ nome: prof.nome, cargo: prof.cargo, email: user.email || '', novaSenha: '' });
+            setFotoUrl(prof.foto_url);
+        }
+    }
+    setLoading(false);
   }
 
-} catch (err) {
-  console.error("ERRO FATAL:", err.message);
+  async function handleFotoUpload(e: any) {
+      if (!e.target.files || e.target.files.length === 0) return;
+      setSalvando(true);
+      const file = e.target.files[0];
+      const fileExt = file.name.split('.').pop();
+      const fileName = \`\${user.id}-\${Date.now()}.\${fileExt}\`;
+      const filePath = \`\${fileName}\`;
+
+      try {
+          const { error: uploadError } = await supabase.storage.from('avatars').upload(filePath, file);
+          if (uploadError) throw uploadError;
+
+          const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(filePath);
+          const publicUrl = urlData.publicUrl;
+
+          await supabase.from('profissionais').update({ foto_url: publicUrl }).eq('user_id', user.id);
+          setFotoUrl(publicUrl);
+          alert('Foto atualizada!');
+      } catch (error: any) {
+          alert('Erro no upload: ' + error.message);
+      }
+      setSalvando(false);
+  }
+
+  async function salvar(e: any) {
+      e.preventDefault();
+      setSalvando(true);
+      
+      const updates: any = { nome: form.nome };
+      
+      // Só atualiza cargo se for admin
+      if (perfil?.nivel_acesso === 'admin') {
+          updates.cargo = form.cargo;
+      }
+
+      await supabase.from('profissionais').update(updates).eq('user_id', user.id);
+
+      if (form.novaSenha) {
+          const { error } = await supabase.auth.updateUser({ password: form.novaSenha });
+          if (error) alert('Erro ao mudar senha: ' + error.message);
+          else alert('Senha atualizada com sucesso!');
+      }
+
+      setSalvando(false);
+      alert('Perfil atualizado!');
+  }
+
+  async function sair() {
+    await supabase.auth.signOut();
+    router.push('/login');
+  }
+
+  if (loading) return <div className="p-10 text-center text-slate-400 flex justify-center"><Loader2 className="animate-spin"/></div>;
+
+  const isAdmin = perfil?.nivel_acesso === 'admin';
+
+  return (
+    <div className="max-w-2xl mx-auto space-y-6 animate-fade-in">
+      <div className="flex justify-between items-center">
+          <h1 className="text-3xl font-black text-slate-800">Meu Perfil</h1>
+          <button onClick={sair} className="text-red-500 hover:bg-red-50 px-4 py-2 rounded-xl font-bold flex items-center gap-2 text-sm transition-colors"><LogOut size={18}/> Sair</button>
+      </div>
+
+      <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm">
+        <div className="flex flex-col items-center mb-8 relative">
+            <div className="w-32 h-32 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 mb-4 border-4 border-white shadow-lg overflow-hidden relative group">
+                {fotoUrl ? <img src={fotoUrl} className="w-full h-full object-cover"/> : <User size={64} />}
+                
+                {/* Overlay de Upload */}
+                <label className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
+                    <Upload size={24}/>
+                    <span className="text-[10px] font-bold mt-1">ALTERAR</span>
+                    <input type="file" accept="image/*" className="hidden" onChange={handleFotoUpload} />
+                </label>
+            </div>
+            <p className="text-slate-400 text-sm font-bold uppercase">Editando Informações</p>
+        </div>
+
+        <form onSubmit={salvar} className="space-y-5">
+            <div className="grid grid-cols-2 gap-5">
+                <div><label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Nome Completo</label><input required className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-700" value={form.nome} onChange={e => setForm({...form, nome: e.target.value})} /></div>
+                
+                {/* LÓGICA DE BLOQUEIO DO CARGO */}
+                <div>
+                    <label className="text-xs font-bold text-slate-400 uppercase mb-1 flex items-center gap-1">
+                        Cargo { !isAdmin && <Lock size={10} className="text-slate-400"/> }
+                    </label>
+                    <input 
+                        className={\`w-full p-3 border border-slate-200 rounded-xl outline-none font-medium \${!isAdmin ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'bg-slate-50 focus:ring-2 focus:ring-blue-500 text-slate-600'}\`} 
+                        value={form.cargo} 
+                        onChange={e => setForm({...form, cargo: e.target.value})} 
+                        disabled={!isAdmin}
+                        title={!isAdmin ? "Apenas administradores podem alterar o cargo." : ""}
+                    />
+                </div>
+            </div>
+
+            <div><label className="text-xs font-bold text-slate-400 uppercase mb-1 flex items-center gap-1"><Mail size={12}/> Email de Acesso</label><input type="email" disabled className="w-full p-3 bg-slate-100 border border-slate-200 rounded-xl outline-none text-slate-500 font-medium cursor-not-allowed" value={form.email} /></div>
+
+            <div><label className="text-xs font-bold text-slate-400 uppercase mb-1 flex items-center gap-1"><Lock size={12}/> Nova Senha (Opcional)</label><input type="password" placeholder="Deixe em branco para não alterar" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-600" value={form.novaSenha} onChange={e => setForm({...form, novaSenha: e.target.value})} /></div>
+
+            <button type="submit" disabled={salvando} className="w-full bg-blue-600 text-white font-bold py-4 rounded-xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 flex justify-center items-center gap-2 mt-4">
+                {salvando ? <Loader2 className="animate-spin"/> : <><Save size={20}/> Salvar Alterações</>}
+            </button>
+        </form>
+      </div>
+    </div>
+  );
 }
+`;
+
+// Executa as atualizações
+salvarArquivo('app/api/criar-usuario/route.ts', conteudoCriarUsuario);
+salvarArquivo('app/api/editar-usuario/route.ts', conteudoEditarUsuario);
+salvarArquivo('app/configuracoes/page.tsx', conteudoConfiguracoes);
+salvarArquivo('app/perfil/page.tsx', conteudoPerfil);
+
+console.log('🏁 Atualização concluída com sucesso!');

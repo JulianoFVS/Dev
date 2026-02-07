@@ -10,8 +10,7 @@ export async function POST(req: Request) {
     );
 
     const body = await req.json();
-    // Recebe TODOS os campos agora
-    const { email, password, nome, cargo, nivel_acesso, clinicas, cpf, cro, telefone, foto_url } = body;
+    const { email, password, nome, cargo, nivel_acesso, clinicas, cpf, cro, telefone, foto_url, conselho, uf, sexo, endereco } = body;
 
     if (!email || !password) {
         return NextResponse.json({ error: 'Email e senha são obrigatórios' }, { status: 400 });
@@ -35,15 +34,19 @@ export async function POST(req: Request) {
             cargo,
             nivel_acesso: nivel_acesso || 'padrao',
             cpf,
-            cro,
-            telefone,
+            cro,      // Equivalente ao Nº Conselho
+            telefone, // Equivalente ao Contato
+            conselho,
+            uf,
+            sexo,
+            endereco,
             foto_url
         }])
         .select()
         .single();
 
     if (profError) {
-        await supabaseAdmin.auth.admin.deleteUser(authData.user.id); // Desfaz se der erro
+        await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
         throw profError;
     }
 
