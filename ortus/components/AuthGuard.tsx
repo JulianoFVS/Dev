@@ -40,12 +40,10 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
             setPerfil(prof);
             
             let lista: any[] = [];
-            // ADMIN: Busca todas as clínicas do sistema
             if (prof.nivel_acesso === 'admin') {
                 const { data: todas } = await supabase.from('clinicas').select('id, nome');
                 if (todas) lista = todas;
             } else {
-                // COMUM: Busca apenas vinculadas
                 const { data: vinculos } = await supabase.from('profissionais_clinicas').select('clinica_id, clinicas(id, nome)').eq('profissional_id', prof.id);
                 if (vinculos) lista = vinculos.map((v: any) => v.clinicas);
             }
@@ -53,14 +51,13 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
             if (lista.length > 0) {
                 const todasOption = { id: 'todas', nome: 'Todas as Clínicas' };
                 const listaCompleta = [todasOption, ...lista];
-                
                 setMinhasClinicas(listaCompleta);
-                
                 const salva = localStorage.getItem('ortus_clinica_id');
                 const atual = listaCompleta.find((c: any) => c.id.toString() === salva) || todasOption;
-                
                 setClinicaAtual(atual);
-                localStorage.setItem('ortus_clinica_id', atual.id.toString());
+                
+                // Só salva se não tiver nada (para respeitar a escolha do usuário na tela de seleção)
+                if (!salva) localStorage.setItem('ortus_clinica_id', atual.id.toString());
             }
         }
         const { count } = await supabase.from('notificacoes').select('*', { count: 'exact', head: true }).eq('user_id', session.user.id).eq('lida', false);
@@ -85,6 +82,11 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   if (['/login', '/', '/site', '/termos', '/checkout', '/cadastro'].includes(pathname)) return <>{children}</>;
   if (loading) return <div className="h-screen w-screen bg-slate-50 flex items-center justify-center text-blue-600 animate-pulse"><Building2 size={40}/></div>;
   if (!session) return null;
+
+  // LAYOUT LIMPO PARA SELEÇÃO
+  if (pathname === '/selecao') {
+      return <>{children}</>;
+  }
 
   const isAdmin = perfil?.nivel_acesso === 'admin';
 
