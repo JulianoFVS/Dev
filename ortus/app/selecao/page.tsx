@@ -2,120 +2,155 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
-import { Plus, Building2, LayoutGrid, ArrowRight, Trash2, Loader2, X } from 'lucide-react';
+import { Building2, Plus, Globe, LogOut, ChevronRight, Loader2, AlertCircle } from 'lucide-react';
 
 export default function SelecaoClinica() {
-  const router = useRouter();
   const [clinicas, setClinicas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [modalAberto, setModalAberto] = useState(false);
-  const [novaClinica, setNovaClinica] = useState('');
+  const [criando, setCriando] = useState(false);
+  const [nomeNova, setNomeNova] = useState('');
+  const [usuario, setUsuario] = useState<any>(null);
+  
+  const router = useRouter();
 
-  useEffect(() => { carregarClinicas(); }, []);
+  useEffect(() => { carregar(); }, []);
 
-  async function carregarClinicas() {
-    const { data } = await supabase.from('clinicas').select('*').order('created_at');
-    setClinicas(data || []);
-    setLoading(false);
-  }
+  async function carregar() {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return router.push('/login');
 
-  async function criarClinica(e: any) {
-    e.preventDefault();
-    if (!novaClinica) return;
-    await supabase.from('clinicas').insert([{ nome: novaClinica, cor_tema: 'blue' }]);
-    setNovaClinica('');
-    setModalAberto(false);
-    carregarClinicas();
-  }
+    try {
+        // CHAMADA API SEGURA (Garante que Admins vejam tudo)
+        const res = await fetch('/api/listar-clinicas', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: user.id })
+        });
 
-  async function excluirClinica(e: any, id: number) {
-    e.stopPropagation();
-    if (!confirm('ATENÇÃO: Isso apagará TODOS os agendamentos e profissionais desta clínica. Continuar?')) return;
-    await supabase.from('clinicas').delete().eq('id', id);
-    carregarClinicas();
-  }
+        const json = await res.json();
+        
+        if (!res.ok) throw new Error(json.error);
 
-  function selecionar(id: string | number) {
-    // Salva a preferência no navegador
-    if (typeof window !== 'undefined') {
-        localStorage.setItem('ortus_clinica_atual', id.toString());
+        setUsuario(json.usuario);
+        
+        if (json.clinicas && json.clinicas.length > 0) {
+            // Adiciona opção "Todas" no topo
+            const lista = [
+                { id: 'todas', nome: 'Todas as Clínicas', endereco: 'Visão Geral' },
+                ...json.clinicas
+            ];
+            setClinicas(lista);
+        }
+    } catch (err) {
+        console.error('Erro ao carregar clínicas:', err);
+    } finally {
+        setLoading(false);
     }
-    router.push('/'); // Vai para o Dashboard
   }
 
-  if (loading) return <div className="h-screen flex items-center justify-center text-blue-600"><Loader2 className="animate-spin" size={40}/></div>;
+  function selecionar(id: string) {
+      localStorage.setItem('ortus_clinica_id', id);
+      router.push('/dashboard');
+  }
+
+  async function criarClinica() {
+      if (!nomeNova) return alert('Digite o nome da clínica.');
+      setCriando(true);
+      
+      // Criação direta via API ou Client (Client pode falhar se RLS for estrito, mas Admin geralmente pode inserir)
+      // Vamos tentar via Client primeiro, se falhar, precisaríamos de API de criação (já temos criar-usuario, mas não criar-clinica solta)
+      // Assumindo que RLS permite insert para auth users:
+      
+      const { data: nova, error } = await supabase.from('clinicas').insert([{ nome: nomeNova }]).select().single();
+      
+      if (nova) {
+          // Vincula automaticamente
+          if(usuario) {
+             await supabase.from('profissionais_clinicas').insert([{ profissional_id: usuario.id, clinica_id: nova.id }]);
+          }
+          alert('Clínica criada com sucesso!');
+          selecionar(nova.id.toString());
+      } else {
+          alert('Erro ao criar: ' + (error?.message || 'Verifique suas permissões'));
+          setCriando(false);
+      }
+  }
+
+  async function entrarMatriz() {
+      setCriando(true);
+      // Tenta buscar "Matriz"
+      const { data: existe } = await supabase.from('clinicas').select('*').ilike('nome', 'Matriz').maybeSingle();
+      
+      if (existe) {
+          // Se achou, seleciona (e vincula se precisar, mas vamos só selecionar por enquanto)
+          // Idealmente vincularia, mas se for Admin já vê tudo pela API
+          selecionar(existe.id.toString());
+      } else {
+          // Se não achou, cria
+          const { data: nova } = await supabase.from('clinicas').insert([{ nome: 'Matriz Principal', endereco: 'Sede' }]).select().single();
+          if (nova) selecionar(nova.id.toString());
+          else {
+              alert('Não foi possível acessar a Matriz.');
+              setCriando(false);
+          }
+      }
+  }
+
+  async function sair() {
+      await supabase.auth.signOut();
+      localStorage.removeItem('ortus_clinica_id');
+      router.push('/login');
+  }
+
+  if (loading) return <div className="h-screen flex items-center justify-center bg-slate-50 text-blue-600"><Loader2 className="animate-spin" size={40}/></div>;
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4 animate-fade-in">
-      
-      <div className="max-w-4xl w-full space-y-8">
-        <div className="text-center space-y-2">
-            <h1 className="text-4xl font-black text-slate-800 tracking-tight">ORTUS</h1>
-            <p className="text-slate-500">Selecione o ambiente de trabalho</p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            
-            {/* CARD: VISÃO GERAL (TODAS) */}
-            <div 
-                onClick={() => selecionar('todas')}
-                className="group bg-gradient-to-br from-slate-800 to-slate-900 text-white p-6 rounded-2xl shadow-lg cursor-pointer hover:scale-[1.02] transition-all relative overflow-hidden"
-            >
-                <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity"><LayoutGrid size={100}/></div>
-                <div className="relative z-10 h-full flex flex-col justify-between">
-                    <div className="bg-white/10 w-12 h-12 rounded-xl flex items-center justify-center mb-4"><LayoutGrid size={24}/></div>
-                    <div>
-                        <h3 className="text-xl font-bold">Visão Geral</h3>
-                        <p className="text-slate-300 text-sm mt-1">Gerenciar todas as clínicas</p>
-                    </div>
-                </div>
+    <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6">
+        <div className="w-full max-w-md animate-in fade-in slide-in-from-bottom-8 duration-700">
+            <div className="text-center mb-8">
+                <img src="/logo.png" alt="Ortus" className="h-12 w-auto mx-auto mb-4 object-contain"/>
+                <h1 className="text-2xl font-black text-slate-800">Selecionar Unidade</h1>
+                <p className="text-slate-500 font-medium">Bem-vindo(a), {usuario?.nome?.split(' ')[0] || 'Dr(a).'}</p>
             </div>
 
-            {/* LISTA DE CLÍNICAS */}
-            {clinicas.map(c => (
-                <div 
-                    key={c.id} 
-                    onClick={() => selecionar(c.id)}
-                    className="group bg-white p-6 rounded-2xl shadow-sm border border-slate-200 cursor-pointer hover:border-blue-400 hover:shadow-md transition-all relative"
-                >
-                    <div className="flex justify-between items-start">
-                        <div className="bg-blue-50 text-blue-600 w-12 h-12 rounded-xl flex items-center justify-center mb-4"><Building2 size={24}/></div>
-                        <button onClick={(e) => excluirClinica(e, c.id)} className="text-slate-300 hover:text-red-500 hover:bg-red-50 p-2 rounded-full transition-colors"><Trash2 size={16}/></button>
+            {clinicas.length > 0 ? (
+                <div className="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden">
+                    <div className="p-2 space-y-1 max-h-[60vh] overflow-y-auto custom-scrollbar">
+                        {clinicas.map((c) => (
+                            <button key={c.id} onClick={() => selecionar(c.id)} className="w-full flex items-center justify-between p-4 rounded-xl hover:bg-blue-50 transition-all group text-left border border-transparent hover:border-blue-100">
+                                <div className="flex items-center gap-4">
+                                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-lg font-bold shadow-sm transition-colors ${c.id === 'todas' ? 'bg-slate-800 text-white' : 'bg-white text-blue-600 border border-slate-100'}`}>
+                                        {c.id === 'todas' ? <Globe size={20}/> : <Building2 size={20}/>}
+                                    </div>
+                                    <div>
+                                        <h3 className="font-bold text-slate-800 text-sm">{c.nome}</h3>
+                                        <p className="text-[10px] text-slate-400 font-bold uppercase">{c.endereco || 'Acesso Geral'}</p>
+                                    </div>
+                                </div>
+                                <ChevronRight size={18} className="text-slate-300 group-hover:text-blue-500"/>
+                            </button>
+                        ))}
                     </div>
-                    <div>
-                        <h3 className="text-xl font-bold text-slate-800 group-hover:text-blue-600 transition-colors">{c.nome}</h3>
-                        <p className="text-slate-400 text-sm mt-1 flex items-center gap-1">Acessar painel <ArrowRight size={12}/></p>
+                    <div className="p-4 bg-slate-50 border-t border-slate-100 grid grid-cols-2 gap-3">
+                        <button onClick={() => setClinicas([])} className="py-2 text-blue-600 font-bold text-xs flex items-center justify-center gap-2 hover:bg-blue-50 rounded-lg transition-colors"><Plus size={14}/> Nova</button>
+                        <button onClick={sair} className="py-2 text-red-400 font-bold text-xs flex items-center justify-center gap-2 hover:bg-red-50 rounded-lg transition-colors"><LogOut size={14}/> Sair</button>
                     </div>
                 </div>
-            ))}
-
-            {/* CARD: NOVA CLÍNICA */}
-            <button 
-                onClick={() => setModalAberto(true)}
-                className="border-2 border-dashed border-slate-300 rounded-2xl p-6 flex flex-col items-center justify-center text-slate-400 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50/50 transition-all gap-2 min-h-[180px]"
-            >
-                <Plus size={32}/>
-                <span className="font-bold">Nova Clínica</span>
-            </button>
-        </div>
-      </div>
-
-      {/* MODAL CRIAR */}
-      {modalAberto && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-in zoom-in">
-                <div className="p-4 border-b flex justify-between items-center">
-                    <h3 className="font-bold text-slate-800">Cadastrar Clínica</h3>
-                    <button onClick={() => setModalAberto(false)}><X size={20} className="text-slate-400"/></button>
+            ) : (
+                <div className="bg-white p-8 rounded-3xl shadow-xl border border-slate-100 text-center space-y-6">
+                    <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto text-slate-400"><Building2 size={32}/></div>
+                    <div><h3 className="font-bold text-lg text-slate-800">Nenhuma unidade encontrada</h3><p className="text-sm text-slate-500">Crie a primeira clínica ou entre na Matriz.</p></div>
+                    <div className="space-y-3">
+                        <div className="flex gap-2">
+                            <input className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500" placeholder="Nome da Clínica" value={nomeNova} onChange={e => setNomeNova(e.target.value)} />
+                            <button onClick={criarClinica} disabled={criando} className="bg-blue-600 text-white p-3 rounded-xl hover:bg-blue-700">{criando ? <Loader2 className="animate-spin"/> : <Plus/>}</button>
+                        </div>
+                        <button onClick={entrarMatriz} className="w-full py-3 bg-slate-800 text-white rounded-xl font-bold text-sm hover:bg-slate-900 shadow-lg">Acessar Matriz Padrão</button>
+                    </div>
+                    <button onClick={sair} className="text-xs text-red-400 font-bold hover:underline mt-4">Sair do sistema</button>
                 </div>
-                <form onSubmit={criarClinica} className="p-6 space-y-4">
-                    <input autoFocus value={novaClinica} onChange={e => setNovaClinica(e.target.value)} placeholder="Nome da Clínica (Ex: Matriz)" className="w-full p-3 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" />
-                    <button type="submit" className="w-full bg-blue-600 text-white py-3 rounded-lg font-bold hover:bg-blue-700 transition-colors">Confirmar</button>
-                </form>
-            </div>
+            )}
         </div>
-      )}
-
     </div>
   );
 }

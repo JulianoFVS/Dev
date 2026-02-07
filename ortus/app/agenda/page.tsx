@@ -8,7 +8,6 @@ import interactionPlugin from '@fullcalendar/interaction';
 import listPlugin from '@fullcalendar/list';
 import ptBrLocale from '@fullcalendar/core/locales/pt-br';
 
-// --- IMPORTS COMPLETOS (SEM ERRO DE ÍCONES) ---
 import { 
   Plus, X, Loader2, CheckCircle, MapPin, User, Building2, 
   Calendar as CalIcon, ChevronLeft, ChevronRight, 
@@ -20,23 +19,19 @@ export default function Agenda() {
   const [events, setEvents] = useState<any[]>([]);
   const [usuarioAtual, setUsuarioAtual] = useState<any>(null);
   
-  // Listas
   const [clinicas, setClinicas] = useState<any[]>([]);
   const [profissionais, setProfissionais] = useState<any[]>([]);
   const [profissionaisFiltrados, setProfissionaisFiltrados] = useState<any[]>([]);
   const [pacientes, setPacientes] = useState<any[]>([]);
   const [servicos, setServicos] = useState<any[]>([]);
   
-  // Filtros e Estado
   const [clinicaFiltro, setClinicaFiltro] = useState('todas');
   const [openModal, setOpenModal] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // MODAIS SECUNDÁRIOS
   const [modalNovoPaciente, setModalNovoPaciente] = useState(false);
   const [modalNovoServico, setModalNovoServico] = useState(false);
 
-  // FORMULÁRIOS
   const [formData, setFormData] = useState({ 
       id: null, title: '', date: '', time: '08:00', theme: 'blue', 
       paciente_id: '', valor: '0', desconto: '0', observacoes: '', 
@@ -46,7 +41,14 @@ export default function Agenda() {
   const [formPaciente, setFormPaciente] = useState({ nome: '', cpf: '', telefone: '', email: '', data_nascimento: '', endereco: '' });
   const [formServico, setFormServico] = useState({ nome: '', valor: '0' });
 
-  useEffect(() => { inicializar(); }, []);
+  useEffect(() => { 
+      // Sincroniza
+      const globalCid = localStorage.getItem('ortus_clinica_id');
+      if (globalCid) setClinicaFiltro(globalCid);
+      
+      inicializar(); 
+  }, []);
+
   useEffect(() => { if(usuarioAtual) carregarEventos(); }, [clinicaFiltro, usuarioAtual]);
   
   useEffect(() => { 
@@ -173,8 +175,6 @@ export default function Agenda() {
       e.preventDefault();
       if (!formPaciente.nome) return alert('Nome é obrigatório');
       
-      // --- CORREÇÃO: TRATAMENTO DE DATA VAZIA ---
-      // Se a data for string vazia, enviamos null para o banco não reclamar
       const payload = { 
           ...formPaciente, 
           data_nascimento: formPaciente.data_nascimento || null, 
@@ -235,6 +235,7 @@ export default function Agenda() {
 
       <div className="flex-1 bg-white rounded-xl shadow-sm border border-slate-200 p-4 overflow-hidden"><FullCalendar ref={calendarRef} plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, listPlugin]} initialView="timeGridWeek" headerToolbar={{ left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,timeGridDay,listWeek' }} buttonText={{ today: 'Hoje', month: 'Mês', week: 'Semana', day: 'Dia', list: 'Lista' }} locale={ptBrLocale} slotMinTime="07:00:00" slotMaxTime="20:00:00" allDaySlot={false} events={events} eventContent={renderEventContent} dateClick={handleDateClick} eventClick={handleEventClick} height="100%" slotDuration="00:30:00" dayHeaderFormat={{ weekday: 'short', day: 'numeric' }} nowIndicator={true} navLinks={true} /></div>
       
+      {/* MODAL PRINCIPAL OMITIDO PARA BREVIDADE (Mantido Igual) */}
       {openModal && ( 
           <div className="fixed inset-0 bg-slate-900/40 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
               <div className="bg-white w-full max-w-lg rounded-2xl shadow-xl overflow-hidden flex flex-col max-h-[95vh] animate-zoom-in border border-slate-100">
@@ -247,8 +248,6 @@ export default function Agenda() {
                           <div><label className="text-xs font-bold text-slate-500 uppercase mb-1">Clínica</label><select value={formData.clinica_id} onChange={e => setFormData({...formData, clinica_id: e.target.value})} className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none"><option value="">Selecione...</option>{clinicas.map((c:any) => <option key={c.id} value={c.id}>{c.nome}</option>)}</select></div>
                           <div><label className="text-xs font-bold text-slate-500 uppercase mb-1">Profissional</label><select value={formData.profissional_id} onChange={e => setFormData({...formData,profissional_id: e.target.value})} className={`w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none ${usuarioAtual?.nivel !== 'admin' ? 'opacity-60' : ''}`} disabled={usuarioAtual?.nivel !== 'admin'}><option value="">Qualquer um...</option>{profissionaisFiltrados.map((p:any) => <option key={p.id} value={p.id}>{p.nome}</option>)}</select></div>
                       </div>
-                      
-                      {/* PACIENTE */}
                       <div>
                           <div className="flex justify-between items-center mb-1">
                               <label className="text-xs font-bold text-slate-500 uppercase">Paciente</label>
@@ -256,13 +255,10 @@ export default function Agenda() {
                           </div>
                           <select value={formData.paciente_id} onChange={e => setFormData({...formData, paciente_id: e.target.value})} className="w-full p-2.5 border border-slate-200 rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none"><option value="">Selecione...</option>{pacientes.filter((p:any) => !formData.clinica_id || p.clinica_id == formData.clinica_id).map((p:any) => <option key={p.id} value={p.id}>{p.nome}</option>)}</select>
                       </div>
-                      
                       <div className="grid grid-cols-2 gap-4">
                           <div><label className="text-xs font-bold text-slate-500 uppercase mb-1">Data</label><input type="date" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} className="w-full p-2.5 border border-slate-200 rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none" /></div>
                           <div><label className="text-xs font-bold text-slate-500 uppercase mb-1">Hora</label><input type="time" value={formData.time} onChange={e => setFormData({...formData, time: e.target.value})} className="w-full p-2.5 border border-slate-200 rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none" /></div>
                       </div>
-                      
-                      {/* PROCEDIMENTO */}
                       <div>
                           <div className="flex justify-between items-center mb-1">
                               <label className="text-xs font-bold text-slate-500 uppercase">Procedimento</label>
@@ -270,8 +266,6 @@ export default function Agenda() {
                           </div>
                           <select onChange={(e) => { const s = servicos.find((x:any) => x.id == e.target.value); if(s) setFormData(p => ({...p, title: s.nome, valor: s.valor, theme: s.cor || 'blue'})) }} className="w-full p-2.5 mb-2 bg-blue-50 border border-blue-100 text-blue-700 rounded-lg text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer"><option value="">✨ Selecionar Catálogo...</option>{servicos.map((s:any) => <option key={s.id} value={s.id}>{s.nome} - R$ {s.valor}</option>)}</select>
                       </div>
-                      
-                      {/* FINANCEIRO (3 COLUNAS) */}
                       <div className="grid grid-cols-3 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200/60">
                           <div>
                               <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Valor (R$)</label>
@@ -300,8 +294,7 @@ export default function Agenda() {
               </div>
           </div> 
       )}
-
-      {/* MODAL NOVO PACIENTE (ÍCONES E DATA CORRIGIDOS) */}
+      {/* MODAIS SECUNDÁRIOS OMITIDOS (Mantidos iguais) */}
       {modalNovoPaciente && (
           <div className="fixed inset-0 z-[60] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
               <div className="bg-white w-full max-w-xl rounded-2xl shadow-xl p-6 animate-in zoom-in-95 overflow-y-auto max-h-[90vh]">
@@ -322,7 +315,6 @@ export default function Agenda() {
           </div>
       )}
 
-      {/* MODAL NOVO SERVIÇO */}
       {modalNovoServico && (
           <div className="fixed inset-0 z-[60] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
               <div className="bg-white w-full max-w-sm rounded-2xl shadow-xl p-6 animate-in zoom-in-95">

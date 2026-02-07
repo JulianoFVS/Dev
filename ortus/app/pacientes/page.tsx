@@ -17,7 +17,13 @@ export default function Pacientes() {
 
   const router = useRouter();
 
-  useEffect(() => { carregarDados(); }, []);
+  useEffect(() => { 
+      // Sincroniza com a seleção global
+      const globalCid = localStorage.getItem('ortus_clinica_id');
+      if (globalCid) setFiltroClinica(globalCid);
+      
+      carregarDados(); 
+  }, []);
 
   async function carregarDados() {
     setLoading(true);

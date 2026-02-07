@@ -13,13 +13,16 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<any>(null);
   const [perfil, setPerfil] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  
   const [menuMobileAberto, setMenuMobileAberto] = useState(false);
+  const [notificacoesCount, setNotificacoesCount] = useState(0);
+  
+  // ESTADO DO MENU LATERAL (EXPANDIDO/RECOLHIDO)
   const [menuRecolhido, setMenuRecolhido] = useState(false);
+
+  // MULTI-CLÍNICA
   const [minhasClinicas, setMinhasClinicas] = useState<any[]>([]);
   const [clinicaAtual, setClinicaAtual] = useState<any>(null);
   const [menuClinicaAberto, setMenuClinicaAberto] = useState(false);
-  const [notificacoesCount, setNotificacoesCount] = useState(0);
   
   const router = useRouter();
   const pathname = usePathname();
@@ -38,29 +41,24 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
         const { data: prof } = await supabase.from('profissionais').select('*').eq('user_id', session.user.id).single();
         if (prof) {
             setPerfil(prof);
-            
-            let lista: any[] = [];
-            // ADMIN: Busca todas as clínicas do sistema
-            if (prof.nivel_acesso === 'admin') {
-                const { data: todas } = await supabase.from('clinicas').select('id, nome');
-                if (todas) lista = todas;
-            } else {
-                // COMUM: Busca apenas vinculadas
-                const { data: vinculos } = await supabase.from('profissionais_clinicas').select('clinica_id, clinicas(id, nome)').eq('profissional_id', prof.id);
-                if (vinculos) lista = vinculos.map((v: any) => v.clinicas);
-            }
-
-            if (lista.length > 0) {
-                const todasOption = { id: 'todas', nome: 'Todas as Clínicas' };
-                const listaCompleta = [todasOption, ...lista];
+            const { data: vinculos } = await supabase.from('profissionais_clinicas').select('clinica_id, clinicas(id, nome)').eq('profissional_id', prof.id);
+            if (vinculos && vinculos.length > 0) {
+                const listaClinicas = vinculos.map((v: any) => v.clinicas);
+                setMinhasClinicas(listaClinicas);
                 
-                setMinhasClinicas(listaCompleta);
-                
+                // LÓGICA DE RECUPERAÇÃO DO LOCALSTORAGE
                 const salva = localStorage.getItem('ortus_clinica_id');
-                const atual = listaCompleta.find((c: any) => c.id.toString() === salva) || todasOption;
                 
-                setClinicaAtual(atual);
-                localStorage.setItem('ortus_clinica_id', atual.id.toString());
+                if (salva === 'all') {
+                    // Se estiver salvo como 'all', setamos um objeto especial
+                    setClinicaAtual({ id: 'all', nome: 'Todas as Clínicas' });
+                } else {
+                    // Senão, tenta achar a clínica pelo ID, ou pega a primeira
+                    const atual = listaClinicas.find((c: any) => c.id.toString() === salva) || listaClinicas[0];
+                    setClinicaAtual(atual);
+                    // Se não tinha nada salvo, salva a primeira
+                    if (!salva) localStorage.setItem('ortus_clinica_id', atual.id.toString());
+                }
             }
         }
         const { count } = await supabase.from('notificacoes').select('*', { count: 'exact', head: true }).eq('user_id', session.user.id).eq('lida', false);
@@ -71,9 +69,12 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
 
   function trocarClinica(clinica: any) {
       setClinicaAtual(clinica);
-      localStorage.setItem('ortus_clinica_id', clinica.id.toString());
+      // Se for o objeto 'all', salva 'all', senão salva o ID
+      const valorParaSalvar = clinica.id === 'all' ? 'all' : clinica.id.toString();
+      localStorage.setItem('ortus_clinica_id', valorParaSalvar);
+      
       setMenuClinicaAberto(false);
-      window.location.reload();
+      window.location.reload(); // Recarrega para atualizar os dados nas páginas
   }
 
   async function handleLogout() {
@@ -94,24 +95,34 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
         <Link href={href} onClick={() => setMenuMobileAberto(false)} className={`flex items-center gap-3 px-3 py-3 rounded-xl transition-all mb-1 group relative ${active ? 'bg-blue-50 text-blue-700 font-bold shadow-sm' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'} ${menuRecolhido ? 'justify-center' : ''}`}>
             <span className={`transition-transform ${!menuRecolhido && 'group-hover:scale-110'}`}>{icon}</span>
             {!menuRecolhido && <span>{label}</span>}
-            {menuRecolhido && (<div className="absolute left-full ml-2 bg-slate-800 text-white text-xs font-bold px-2 py-1 rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-50 shadow-lg">{label}</div>)}
+            {menuRecolhido && (
+                <div className="absolute left-full ml-2 bg-slate-800 text-white text-xs font-bold px-2 py-1 rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-50 shadow-lg">
+                    {label}
+                </div>
+            )}
         </Link>
       );
   };
 
   return (
     <div className="flex min-h-screen bg-slate-50 font-sans">
+      
+      {/* SIDEBAR DESKTOP */}
       <aside className={`bg-white border-r border-slate-200 fixed h-full hidden md:flex flex-col z-30 shadow-sm transition-all duration-300 ${menuRecolhido ? 'w-20' : 'w-64'}`}>
+        
         <div className={`h-20 flex items-center border-b border-slate-50 ${menuRecolhido ? 'justify-center' : 'px-6'}`}>
-            <Link href="/dashboard" className="cursor-pointer hover:opacity-80 transition-opacity"><img src="/logo.png" alt="Ortus Logo" className="h-10 w-auto object-contain"/></Link>
+            <Link href="/dashboard" className="cursor-pointer hover:opacity-80 transition-opacity">
+                <img src="/logo.png" alt="Ortus Logo" className="h-10 w-auto object-contain"/>
+            </Link>
         </div>
         
         <div className="px-3 mt-6 mb-2">
             <div className="relative">
                 <button onClick={() => !menuRecolhido && setMenuClinicaAberto(!menuClinicaAberto)} className={`w-full flex items-center p-2.5 bg-slate-50 border border-slate-200 rounded-xl hover:border-blue-300 transition-all group ${menuRecolhido ? 'justify-center bg-transparent border-transparent' : 'justify-between'}`}>
                     <div className="flex items-center gap-3 overflow-hidden">
-                        <div className={`w-9 h-9 rounded-lg flex-none flex items-center justify-center border shadow-sm transition-colors ${clinicaAtual?.id === 'todas' ? 'bg-slate-800 text-white border-slate-900 shadow-md ring-2 ring-slate-100' : 'bg-white text-blue-600 border-slate-200'}`}>
-                            {clinicaAtual?.id === 'todas' ? <Globe size={18}/> : <Building2 size={18}/>}
+                        {/* Ícone muda se for Todas ou Específica */}
+                        <div className={`w-9 h-9 rounded-lg flex-none flex items-center justify-center border border-slate-200 shadow-sm ${clinicaAtual?.id === 'all' ? 'bg-purple-100 text-purple-600' : 'bg-white text-blue-600'}`}>
+                            {clinicaAtual?.id === 'all' ? <Globe size={18}/> : <Building2 size={18}/>}
                         </div>
                         {!menuRecolhido && (
                             <div className="text-left truncate">
@@ -126,12 +137,16 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
                 {menuClinicaAberto && !menuRecolhido && (
                     <div className="absolute top-full left-0 w-full mt-2 bg-white border border-slate-100 rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2">
                         <p className="px-4 py-2 text-[10px] font-bold text-slate-400 uppercase bg-slate-50 border-b border-slate-100">Trocar Unidade</p>
+                        
+                        {/* OPÇÃO TODAS AS CLÍNICAS */}
+                        <button onClick={() => trocarClinica({ id: 'all', nome: 'Todas as Clínicas' })} className="w-full text-left px-4 py-3 text-sm font-bold text-slate-700 hover:bg-purple-50 hover:text-purple-700 flex items-center justify-between border-b border-slate-50">
+                             <div className="flex items-center gap-2"><Globe size={16}/> Todas as Clínicas</div>
+                             {clinicaAtual?.id === 'all' && <Check size={16} className="text-purple-600"/>}
+                        </button>
+
                         {minhasClinicas.map(c => (
-                            <button key={c.id} onClick={() => trocarClinica(c)} className={`w-full text-left px-4 py-3 text-sm font-bold flex items-center justify-between border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors ${c.id === 'todas' ? 'text-slate-900 bg-slate-50/50 hover:bg-slate-100' : 'text-slate-600'}`}>
-                                <div className="flex items-center gap-2">
-                                    {c.id === 'todas' && <Globe size={14} className="text-slate-600"/>}
-                                    {c.nome}
-                                </div>
+                            <button key={c.id} onClick={() => trocarClinica(c)} className="w-full text-left px-4 py-3 text-sm font-bold text-slate-700 hover:bg-blue-50 hover:text-blue-700 flex items-center justify-between">
+                                {c.nome}
                                 {clinicaAtual?.id === c.id && <Check size={16} className="text-blue-600"/>}
                             </button>
                         ))}
@@ -145,19 +160,40 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
             <NavItem href="/agenda" icon={<Calendar size={22}/>} label="Agenda" />
             <NavItem href="/pacientes" icon={<Users size={22}/>} label="Pacientes" />
             <NavItem href="/proteses" icon={<Smile size={22}/>} label="Próteses" />
-            {isAdmin && (<><div className="my-2 border-t border-slate-100 mx-2"></div><NavItem href="/financeiro" icon={<DollarSign size={22}/>} label="Financeiro" /><NavItem href="/configuracoes" icon={<Settings size={22}/>} label="Ajustes" /></>)}
+            {isAdmin && (
+                <>
+                    <div className="my-2 border-t border-slate-100 mx-2"></div>
+                    <NavItem href="/financeiro" icon={<DollarSign size={22}/>} label="Financeiro" />
+                    <NavItem href="/configuracoes" icon={<Settings size={22}/>} label="Ajustes" />
+                </>
+            )}
         </nav>
 
-        <button onClick={() => setMenuRecolhido(!menuRecolhido)} className="absolute top-24 -right-3 bg-white border border-slate-200 shadow-sm p-1 rounded-full text-slate-400 hover:text-blue-600 hover:border-blue-300 transition-all z-50 hidden md:flex items-center justify-center w-6 h-6">{menuRecolhido ? <ChevronRight size={14}/> : <ChevronLeft size={14}/>}</button>
-        <div className="p-4 border-t border-slate-50">{!menuRecolhido ? (<p className="text-[10px] text-center text-slate-300 font-medium">v1.0 &copy; 2025</p>) : (<div className="w-1 h-1 bg-slate-300 rounded-full mx-auto"></div>)}</div>
+        <button 
+            onClick={() => setMenuRecolhido(!menuRecolhido)} 
+            className="absolute top-24 -right-3 bg-white border border-slate-200 shadow-sm p-1 rounded-full text-slate-400 hover:text-blue-600 hover:border-blue-300 transition-all z-50 hidden md:flex items-center justify-center w-6 h-6"
+            title={menuRecolhido ? "Expandir Menu" : "Recolher Menu"}
+        >
+            {menuRecolhido ? <ChevronRight size={14}/> : <ChevronLeft size={14}/>}
+        </button>
+
+        <div className="p-4 border-t border-slate-50">
+             {!menuRecolhido ? (
+                 <p className="text-[10px] text-center text-slate-300 font-medium">v1.0 &copy; 2025</p>
+             ) : (
+                 <div className="w-1 h-1 bg-slate-300 rounded-full mx-auto"></div>
+             )}
+        </div>
       </aside>
 
+      {/* HEADER MOBILE */}
       <div className="md:hidden fixed top-0 w-full bg-white border-b border-slate-200 z-50 px-4 py-3 flex justify-between items-center shadow-sm h-16">
         <Link href="/dashboard"><img src="/logo.png" alt="Logo" className="h-8 w-auto" /></Link>
         <button onClick={() => setMenuMobileAberto(!menuMobileAberto)} className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">{menuMobileAberto ? <X size={24} /> : <Menu size={24} />}</button>
       </div>
 
       <main className={`flex-1 flex flex-col min-h-screen transition-all duration-300 pt-16 md:pt-0 ${menuRecolhido ? 'md:ml-20' : 'md:ml-64'}`}>
+        
         <header className="bg-white border-b border-slate-200 h-16 flex items-center justify-end px-6 gap-3 sticky top-16 md:top-0 z-20 shadow-sm/50 backdrop-blur-sm bg-white/90">
             <div className="md:hidden mr-auto flex items-center gap-2">
                  <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 rounded-lg border border-slate-200">
@@ -165,6 +201,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
                     <span className="text-xs font-bold text-slate-700 max-w-[100px] truncate">{clinicaAtual?.nome}</span>
                  </div>
             </div>
+
             <div className="flex items-center gap-1 border-r border-slate-100 pr-3 mr-1">
                 <Link href="/inbox?tab=mensagens" className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all relative" title="Mensagens"><Mail size={20}/></Link>
                 <Link href="/inbox?tab=alertas" className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all relative" title="Alertas"><Bell size={20}/>{notificacoesCount > 0 && <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>}</Link>
@@ -175,6 +212,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
             </Link>
             <button onClick={handleLogout} className="ml-1 p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all border border-transparent hover:border-red-100 hidden md:block" title="Sair"><LogOut size={20}/></button>
         </header>
+        
         <div className="p-4 md:p-8 animate-in fade-in slide-in-from-bottom-2 duration-500">{children}</div>
       </main>
 
@@ -187,6 +225,13 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
                 </div>
                 <div className="p-4 bg-slate-50 border-b border-slate-100">
                     <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Unidade Atual</p>
+                    
+                    {/* OPÇÃO TODAS MOBILE */}
+                    <button onClick={() => trocarClinica({ id: 'all', nome: 'Todas as Clínicas' })} className={`w-full text-left px-4 py-3 mb-2 rounded-xl text-sm font-bold flex items-center justify-between border ${clinicaAtual?.id === 'all' ? 'bg-purple-50 border-purple-200 text-purple-700' : 'bg-transparent border-transparent text-slate-500'}`}>
+                        Todas as Clínicas
+                        {clinicaAtual?.id === 'all' && <Check size={16} className="text-purple-600"/>}
+                    </button>
+
                     {minhasClinicas.map(c => (
                         <button key={c.id} onClick={() => trocarClinica(c)} className={`w-full text-left px-4 py-3 mb-2 rounded-xl text-sm font-bold flex items-center justify-between border ${clinicaAtual?.id === c.id ? 'bg-white border-blue-500 text-blue-700 shadow-sm' : 'bg-transparent border-transparent text-slate-500'}`}>
                             {c.nome}

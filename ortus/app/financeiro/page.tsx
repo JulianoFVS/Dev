@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { 
     TrendingUp, TrendingDown, Wallet, Activity, Plus, 
-    Printer, ArrowUpCircle, ArrowDownCircle, Loader2, X, Save, Calendar
+    Printer, ArrowUpCircle, ArrowDownCircle, Loader2, X, Save, Calendar, AlertCircle
 } from 'lucide-react';
 
 export default function Financeiro() {
@@ -54,12 +54,15 @@ export default function Financeiro() {
   async function carregarDados() {
     setLoading(true);
     
+    // RECUPERA A CLÍNICA ATUAL
+    const clinicaId = localStorage.getItem('ortus_clinica_id');
+    const filtrarClinica = clinicaId && clinicaId !== 'todas';
+
     let inicio = '';
     let fim = '';
 
     if (modoData === 'mes') {
         const [ano, mes] = mesSelecionado.split('-');
-        // Pega o último dia do mês corretamente
         const ultimoDia = new Date(parseInt(ano), parseInt(mes), 0).getDate();
         inicio = `${mesSelecionado}-01`;
         fim = `${mesSelecionado}-${ultimoDia}`;
@@ -68,26 +71,32 @@ export default function Financeiro() {
         fim = dataFim;
     }
 
-    // Adiciona hora para pegar o dia inteiro (00:00 até 23:59)
     const inicioFull = `${inicio}T00:00:00`;
     const fimFull = `${fim}T23:59:59`;
 
     try {
         // 1. BUSCAR AGENDAMENTOS (ENTRADAS)
-        // Atenção: Filtra por 'concluido'
-        const { data: agendamentos } = await supabase
+        let qAg = supabase
             .from('agendamentos')
             .select('id, valor_final, data_hora, procedimento, pacientes(nome)')
             .eq('status', 'concluido') 
             .gte('data_hora', inicioFull)
             .lte('data_hora', fimFull);
+        
+        if (filtrarClinica) qAg = qAg.eq('clinica_id', clinicaId);
+
+        const { data: agendamentos } = await qAg;
 
         // 2. BUSCAR LANÇAMENTOS MANUAIS
-        const { data: manuais } = await supabase
+        let qMan = supabase
             .from('despesas')
             .select('*')
             .gte('data', inicio)
             .lte('data', fim);
+        
+        if (filtrarClinica) qMan = qMan.eq('clinica_id', clinicaId);
+
+        const { data: manuais } = await qMan;
 
         // 3. PROCESSAR DADOS
         const listaAgendamentos = (agendamentos || []).map((e: any) => ({
@@ -132,6 +141,16 @@ export default function Financeiro() {
   async function salvarLancamento(e: any) {
       e.preventDefault(); 
       setSalvando(true);
+
+      const clinicaId = localStorage.getItem('ortus_clinica_id');
+      
+      // BLOQUEIA LANÇAMENTO EM "TODAS" PARA EVITAR DADOS SEM DONO
+      if (!clinicaId || clinicaId === 'todas') {
+          alert('⚠️ Para lançar uma nova despesa/receita, por favor selecione uma Unidade Específica no menu lateral.');
+          setSalvando(false);
+          return;
+      }
+
       const { data: { user } } = await supabase.auth.getUser();
       
       const payload = { 
@@ -140,6 +159,7 @@ export default function Financeiro() {
           data: novoLancamento.data, 
           categoria: novoLancamento.categoria, 
           tipo: novoLancamento.tipo,
+          clinica_id: clinicaId, // Salva com o ID da clínica atual
           user_id: user?.id 
       };
 
@@ -273,6 +293,12 @@ export default function Financeiro() {
                 
                 <form onSubmit={salvarLancamento} className="p-6 space-y-5">
                     
+                    {/* AVISO SE FOR TODAS */}
+                    <div className="p-3 bg-blue-50 text-blue-700 text-xs font-bold rounded-xl flex items-start gap-2 border border-blue-100">
+                        <AlertCircle size={16} className="mt-0.5 flex-none"/>
+                        <span>O lançamento será vinculado à clínica selecionada no menu. Certifique-se de estar na unidade correta.</span>
+                    </div>
+
                     <div className="grid grid-cols-2 gap-3 p-1 bg-slate-100 rounded-xl">
                         <button type="button" onClick={() => setNovoLancamento({...novoLancamento, tipo: 'entrada'})} className={`py-3 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${novoLancamento.tipo === 'entrada' ? 'bg-white text-green-600 shadow-sm ring-1 ring-black/5' : 'text-slate-400 hover:text-slate-600'}`}><ArrowUpCircle size={18}/> Receita</button>
                         <button type="button" onClick={() => setNovoLancamento({...novoLancamento, tipo: 'saida'})} className={`py-3 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${novoLancamento.tipo === 'saida' ? 'bg-white text-red-600 shadow-sm ring-1 ring-black/5' : 'text-slate-400 hover:text-slate-600'}`}><ArrowDownCircle size={18}/> Despesa</button>
