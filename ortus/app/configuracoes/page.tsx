@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Building2, Users, Plus, Trash2, MapPin, Check, X, Loader2, Edit, UserPlus, Shield, User, Camera, FileText, Phone, Mail, Save, Lock, AlertTriangle } from 'lucide-react';
+import { Building2, Users, Plus, Trash2, MapPin, Check, X, Loader2, Edit, UserPlus, Shield, User, FileText, Phone, Mail, Save, Lock } from 'lucide-react';
 
 export default function Configuracoes() {
   const [abaAtiva, setAbaAtiva] = useState('clinicas');
@@ -17,9 +17,12 @@ export default function Configuracoes() {
   // MODAL PROFISSIONAL
   const [modalProf, setModalProf] = useState(false);
   const [salvandoProf, setSalvandoProf] = useState(false);
+  
   const [profForm, setProfForm] = useState({ 
       id: '', user_id: '', nome: '', cargo: 'Dentista', nivel_acesso: 'comum', 
-      email: '', senha: '', cpf: '', cro: '', telefone: '', foto_url: ''
+      email: '', senha: '', 
+      cpf: '', cro: '', telefone: '', foto_url: '',
+      conselho: 'CRO', uf: '', sexo: '', endereco: '' 
   });
   const [editandoProf, setEditandoProf] = useState(false);
 
@@ -57,7 +60,9 @@ export default function Configuracoes() {
   function abrirNovoProf() {
       setProfForm({ 
           id: '', user_id: '', nome: '', cargo: 'Dentista', nivel_acesso: 'comum', 
-          email: '', senha: '', cpf: '', cro: '', telefone: '', foto_url: '' 
+          email: '', senha: '', 
+          cpf: '', cro: '', telefone: '', foto_url: '',
+          conselho: 'CRO', uf: '', sexo: '', endereco: ''
       });
       setEditandoProf(false);
       setModalProf(true);
@@ -68,7 +73,8 @@ export default function Configuracoes() {
           id: p.id, user_id: p.user_id, nome: p.nome, 
           cargo: p.cargo || 'Dentista', nivel_acesso: p.nivel_acesso || 'comum', 
           email: '', senha: '', 
-          cpf: p.cpf || '', cro: p.cro || '', telefone: p.telefone || '', foto_url: p.foto_url || ''
+          cpf: p.cpf || '', cro: p.cro || '', telefone: p.telefone || '', foto_url: p.foto_url || '',
+          conselho: p.conselho || 'CRO', uf: p.uf || '', sexo: p.sexo || '', endereco: p.endereco || ''
       });
       setEditandoProf(true);
       setModalProf(true);
@@ -91,7 +97,11 @@ export default function Configuracoes() {
           cpf: profForm.cpf,
           cro: profForm.cro,
           telefone: profForm.telefone,
-          foto_url: profForm.foto_url
+          foto_url: profForm.foto_url,
+          conselho: profForm.conselho,
+          uf: profForm.uf,
+          sexo: profForm.sexo,
+          endereco: profForm.endereco
       };
 
       try {
@@ -212,7 +222,7 @@ export default function Configuracoes() {
                                             {p.telefone && <div className="flex items-center gap-2 text-xs text-slate-500 font-medium"><Phone size={12}/> {p.telefone}</div>}
                                             <div className="flex items-center gap-2 mt-2">
                                                 {p.nivel_acesso === 'admin' && <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase bg-purple-100 text-purple-700 flex items-center gap-1 border border-purple-200"><Shield size={10}/> Admin</span>}
-                                                {p.cro && <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase bg-emerald-50 text-emerald-700 border border-emerald-100 flex items-center gap-1"><FileText size={10}/> CRO: {p.cro}</span>}
+                                                {p.cro && <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase bg-emerald-50 text-emerald-700 border border-emerald-100 flex items-center gap-1"><FileText size={10}/> {p.conselho || 'CRO'}: {p.cro}</span>}
                                             </div>
                                         </div>
                                     </div>
@@ -243,26 +253,26 @@ export default function Configuracoes() {
           </div>
       )}
 
-      {/* MODAL PROFISSIONAL ESTÁVEL (ESTRUTURA FIXA) */}
+      {/* MODAL PROFISSIONAL */}
       {modalProf && (
           <div className="fixed inset-0 z-[60] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
               <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl flex flex-col max-h-[90vh] animate-in zoom-in-95 border border-slate-100">
                   
-                  {/* CABEÇALHO FIXO */}
+                  {/* CABEÇALHO */}
                   <div className="p-6 border-b border-slate-100 flex justify-between items-start bg-slate-50/50 rounded-t-3xl flex-none">
                       <div>
                           <h3 className="font-black text-2xl text-slate-800">{editandoProf ? 'Editar Perfil' : 'Novo Acesso'}</h3>
-                          <p className="text-slate-500 font-medium text-sm">Crie um login e senha para seu colaborador.</p>
+                          <p className="text-slate-500 font-medium text-sm">Dados profissionais e de acesso.</p>
                       </div>
                       {editandoProf && (
                           <button onClick={excluirProfissional} className="p-2 text-red-400 hover:bg-red-50 rounded-lg hover:text-red-600 transition-colors"><Trash2 size={20}/></button>
                       )}
                   </div>
                   
-                  {/* CORPO COM ROLAGEM */}
+                  {/* CORPO */}
                   <div className="p-8 overflow-y-auto custom-scrollbar space-y-6 flex-1">
                       
-                      {/* DADOS DE ACESSO */}
+                      {/* LOGIN */}
                       <div className="bg-blue-50 p-5 rounded-2xl border border-blue-100 space-y-4">
                           <div className="flex items-center gap-2 text-blue-700 font-bold text-sm mb-2"><Shield size={16}/> Dados de Login</div>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -271,19 +281,31 @@ export default function Configuracoes() {
                           </div>
                       </div>
 
-                      {/* DADOS PESSOAIS */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                          <div className="space-y-4">
-                              <div><label className="text-xs font-bold text-slate-400 uppercase ml-1">Nome Completo</label><div className="relative"><User className="absolute left-3 top-3.5 text-slate-300" size={18}/><input value={profForm.nome} onChange={e => setProfForm({...profForm, nome: e.target.value})} className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-700" placeholder="Dr. Nome Sobrenome"/></div></div>
-                              <div><label className="text-xs font-bold text-slate-400 uppercase ml-1">Telefone / WhatsApp</label><div className="relative"><Phone className="absolute left-3 top-3.5 text-slate-300" size={18}/><input value={profForm.telefone} onChange={e => setProfForm({...profForm, telefone: e.target.value})} className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700" placeholder="(00) 00000-0000"/></div></div>
+                      {/* DADOS PESSOAIS E PROFISSIONAIS */}
+                      <div className="space-y-4">
+                          <h4 className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-2">Dados do Profissional</h4>
+                          
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div className="md:col-span-2">
+                                  <label className="text-xs font-bold text-slate-400 uppercase ml-1">Nome Completo</label>
+                                  <div className="relative"><User className="absolute left-3 top-3.5 text-slate-300" size={18}/><input value={profForm.nome} onChange={e => setProfForm({...profForm, nome: e.target.value})} className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-700" placeholder="Dr. Nome Sobrenome"/></div>
+                              </div>
+
+                              <div><label className="text-xs font-bold text-slate-400 uppercase ml-1">CPF</label><input value={profForm.cpf} onChange={e => setProfForm({...profForm, cpf: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700" placeholder="000.000.000-00"/></div>
+                              
+                              <div><label className="text-xs font-bold text-slate-400 uppercase ml-1">Sexo</label><select value={profForm.sexo} onChange={e => setProfForm({...profForm, sexo: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700"><option value="">Selecione...</option><option value="Masculino">Masculino</option><option value="Feminino">Feminino</option><option value="Outro">Outro</option></select></div>
+
+                              <div><label className="text-xs font-bold text-slate-400 uppercase ml-1">Contato / Telefone</label><div className="relative"><Phone className="absolute left-3 top-3.5 text-slate-300" size={18}/><input value={profForm.telefone} onChange={e => setProfForm({...profForm, telefone: e.target.value})} className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700" placeholder="(00) 00000-0000"/></div></div>
+                              
+                              <div><label className="text-xs font-bold text-slate-400 uppercase ml-1">Cargo</label><input value={profForm.cargo} onChange={e => setProfForm({...profForm, cargo: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-700" placeholder="Ex: Ortodontista"/></div>
                           </div>
 
-                          <div className="space-y-4">
-                              <div><label className="text-xs font-bold text-slate-400 uppercase ml-1">Cargo</label><input value={profForm.cargo} onChange={e => setProfForm({...profForm, cargo: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-700" placeholder="Ex: Ortodontista"/></div>
-                              <div className="grid grid-cols-2 gap-3">
-                                  <div><label className="text-xs font-bold text-slate-400 uppercase ml-1">CPF</label><input value={profForm.cpf} onChange={e => setProfForm({...profForm, cpf: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700" placeholder="000.000.000-00"/></div>
-                                  <div><label className="text-xs font-bold text-slate-400 uppercase ml-1">CRO</label><input value={profForm.cro} onChange={e => setProfForm({...profForm, cro: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700" placeholder="UF-00000"/></div>
-                              </div>
+                          <div className="md:col-span-2"><label className="text-xs font-bold text-slate-400 uppercase ml-1">Endereço</label><input value={profForm.endereco} onChange={e => setProfForm({...profForm, endereco: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700" placeholder="Rua, Número, Bairro..."/></div>
+
+                          <div className="grid grid-cols-3 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                              <div className="col-span-1"><label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Conselho</label><select value={profForm.conselho} onChange={e => setProfForm({...profForm, conselho: e.target.value})} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none text-sm font-bold"><option value="CRO">CRO</option><option value="CRM">CRM</option><option value="Outro">Outro</option></select></div>
+                              <div className="col-span-1"><label className="text-[10px] font-bold text-slate-400 uppercase ml-1">UF</label><input value={profForm.uf} onChange={e => setProfForm({...profForm, uf: e.target.value})} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none text-sm font-medium" placeholder="UF"/></div>
+                              <div className="col-span-1"><label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Nº Conselho</label><input value={profForm.cro} onChange={e => setProfForm({...profForm, cro: e.target.value})} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none text-sm font-medium" placeholder="12345"/></div>
                           </div>
                       </div>
 
@@ -300,7 +322,7 @@ export default function Configuracoes() {
                       </div>
                   </div>
 
-                  {/* RODAPÉ FIXO */}
+                  {/* RODAPÉ */}
                   <div className="p-6 border-t border-slate-100 bg-slate-50 flex gap-3 rounded-b-3xl flex-none">
                       <button onClick={() => setModalProf(false)} className="flex-1 py-4 text-slate-500 font-bold hover:bg-slate-200 rounded-xl transition-colors">Cancelar</button>
                       <button onClick={salvarProfissional} disabled={salvandoProf} className="flex-1 py-4 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all active:scale-95 flex items-center justify-center gap-2">

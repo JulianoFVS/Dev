@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { User, LogOut, Save, Loader2, Lock, Mail, Upload } from 'lucide-react';
+import { User, LogOut, Save, Loader2, Lock, Mail, Upload, Briefcase } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 export default function Perfil() {
@@ -9,6 +9,7 @@ export default function Perfil() {
   const [salvando, setSalvando] = useState(false);
   const [form, setForm] = useState({ nome: '', email: '', cargo: '', novaSenha: '' });
   const [user, setUser] = useState<any>(null);
+  const [perfil, setPerfil] = useState<any>(null); // Guardar dados completos do perfil
   const [fotoUrl, setFotoUrl] = useState<string | null>(null);
   const router = useRouter();
 
@@ -20,6 +21,7 @@ export default function Perfil() {
         setUser(user);
         const { data: prof } = await supabase.from('profissionais').select('*').eq('user_id', user.id).single();
         if(prof) {
+            setPerfil(prof);
             setForm({ nome: prof.nome, cargo: prof.cargo, email: user.email || '', novaSenha: '' });
             setFotoUrl(prof.foto_url);
         }
@@ -36,15 +38,12 @@ export default function Perfil() {
       const filePath = `${fileName}`;
 
       try {
-          // 1. Upload
           const { error: uploadError } = await supabase.storage.from('avatars').upload(filePath, file);
           if (uploadError) throw uploadError;
 
-          // 2. Get URL
           const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(filePath);
           const publicUrl = urlData.publicUrl;
 
-          // 3. Update Profile
           await supabase.from('profissionais').update({ foto_url: publicUrl }).eq('user_id', user.id);
           setFotoUrl(publicUrl);
           alert('Foto atualizada!');
@@ -58,10 +57,15 @@ export default function Perfil() {
       e.preventDefault();
       setSalvando(true);
       
-      // 1. Atualizar dados do Profissional
-      await supabase.from('profissionais').update({ nome: form.nome, cargo: form.cargo }).eq('user_id', user.id);
+      const updates: any = { nome: form.nome };
+      
+      // Só atualiza cargo se for admin
+      if (perfil?.nivel_acesso === 'admin') {
+          updates.cargo = form.cargo;
+      }
 
-      // 2. Atualizar Senha (se preenchida)
+      await supabase.from('profissionais').update(updates).eq('user_id', user.id);
+
       if (form.novaSenha) {
           const { error } = await supabase.auth.updateUser({ password: form.novaSenha });
           if (error) alert('Erro ao mudar senha: ' + error.message);
@@ -78,6 +82,8 @@ export default function Perfil() {
   }
 
   if (loading) return <div className="p-10 text-center text-slate-400 flex justify-center"><Loader2 className="animate-spin"/></div>;
+
+  const isAdmin = perfil?.nivel_acesso === 'admin';
 
   return (
     <div className="max-w-2xl mx-auto space-y-6 animate-fade-in">
@@ -104,7 +110,20 @@ export default function Perfil() {
         <form onSubmit={salvar} className="space-y-5">
             <div className="grid grid-cols-2 gap-5">
                 <div><label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Nome Completo</label><input required className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-700" value={form.nome} onChange={e => setForm({...form, nome: e.target.value})} /></div>
-                <div><label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Cargo / Especialidade</label><input className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-slate-600" value={form.cargo} onChange={e => setForm({...form, cargo: e.target.value})} /></div>
+                
+                {/* LÓGICA DE BLOQUEIO DO CARGO */}
+                <div>
+                    <label className="text-xs font-bold text-slate-400 uppercase mb-1 flex items-center gap-1">
+                        Cargo { !isAdmin && <Lock size={10} className="text-slate-400"/> }
+                    </label>
+                    <input 
+                        className={`w-full p-3 border border-slate-200 rounded-xl outline-none font-medium ${!isAdmin ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'bg-slate-50 focus:ring-2 focus:ring-blue-500 text-slate-600'}`} 
+                        value={form.cargo} 
+                        onChange={e => setForm({...form, cargo: e.target.value})} 
+                        disabled={!isAdmin}
+                        title={!isAdmin ? "Apenas administradores podem alterar o cargo." : ""}
+                    />
+                </div>
             </div>
 
             <div><label className="text-xs font-bold text-slate-400 uppercase mb-1 flex items-center gap-1"><Mail size={12}/> Email de Acesso</label><input type="email" disabled className="w-full p-3 bg-slate-100 border border-slate-200 rounded-xl outline-none text-slate-500 font-medium cursor-not-allowed" value={form.email} /></div>
