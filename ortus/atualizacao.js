@@ -1,4 +1,11 @@
-'use client';
+const fs = require('fs');
+const path = require('path');
+
+// Caminho do arquivo
+const filePath = path.join('app', 'login', 'page.tsx');
+
+// Conteúdo exato do arquivo (sem caracteres de escape que quebram o script)
+const fileContent = `'use client';
 import { useState, type FormEvent } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
@@ -71,4 +78,29 @@ export default function Login() {
         <p className="text-center mt-6 text-xs text-slate-400 font-medium">Ainda não tem conta? <Link href="/#precos" className="text-blue-600 hover:underline">Assinar agora</Link></p>
     </div></div>
   );
+}
+`;
+
+function ensureDirectoryExistence(filePath) {
+  const dirname = path.dirname(filePath);
+  if (fs.existsSync(dirname)) {
+    return true;
+  }
+  ensureDirectoryExistence(dirname);
+  fs.mkdirSync(dirname, { recursive: true });
+}
+
+try {
+  ensureDirectoryExistence(filePath);
+  fs.writeFileSync(filePath, fileContent, 'utf8');
+  
+  // Verificação real se o arquivo existe e tem conteúdo
+  if (fs.existsSync(filePath) && fs.statSync(filePath).size > 0) {
+      console.log("SUCESSO: O arquivo login/page.tsx foi atualizado corretamente.");
+  } else {
+      throw new Error("Falha: O arquivo nao foi criado.");
+  }
+
+} catch (err) {
+  console.error("ERRO FATAL:", err.message);
 }
