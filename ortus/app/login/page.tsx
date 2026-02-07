@@ -17,9 +17,19 @@ export default function Login() {
     e.preventDefault();
     setLoading(true);
     setError(null);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) { setError('Acesso negado. Verifique seus dados.'); setLoading(false); } 
-    else { router.push('/dashboard'); router.refresh(); }
+    
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+      
+      // AQUI ESTÁ A MUDANÇA: Manda para a seleção, não para o dashboard
+      router.push('/selecao'); 
+      router.refresh();
+      
+    } catch (err: any) {
+      setError('Acesso negado. Verifique seus dados.');
+      setLoading(false);
+    }
   }
 
   return (
@@ -29,7 +39,8 @@ export default function Login() {
       <div className="bg-white w-full max-w-md p-10 rounded-3xl shadow-2xl shadow-blue-900/10 border border-white relative z-10 animate-in zoom-in-95 duration-500">
         <div className="flex flex-col items-center mb-10">
             <Link href="/" className="h-24 w-full flex items-center justify-center mb-2 hover:scale-105 transition-transform cursor-pointer">
-                <img src="/logo.png" alt="Logo" className="h-full w-auto object-contain"/>
+                {/* LOGO DA ORTUS */}
+                <img src="/logo.png" alt="Ortus Logo" className="h-full w-auto object-contain"/>
             </Link>
             <p className="text-slate-400 font-medium text-xs uppercase tracking-widest">Acesso Restrito</p>
         </div>
@@ -55,12 +66,7 @@ export default function Login() {
                   placeholder="••••••••" 
                   required
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-3.5 text-slate-300 hover:text-blue-500 transition-colors focus:outline-none"
-                  tabIndex={-1}
-                >
+                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-3.5 text-slate-300 hover:text-blue-500 transition-colors focus:outline-none" tabIndex={-1}>
                   {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                 </button>
               </div>

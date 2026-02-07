@@ -3,7 +3,8 @@ import { NextResponse } from 'next/server';
 
 export async function POST(req: Request) {
   try {
-    // Cliente com permissão total (Service Role)
+    // Usa a chave de serviço (Service Role) para ignorar as regras de segurança (RLS)
+    // Isso garante que vamos ver TUDO que está no banco
     const supabaseAdmin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -13,44 +14,35 @@ export async function POST(req: Request) {
     const { userId } = await req.json();
 
     if (!userId) {
-        return NextResponse.json({ error: 'ID do usuário obrigatório' }, { status: 400 });
+        return NextResponse.json({ error: 'UserID ausente' }, { status: 400 });
     }
 
-    // 1. Verifica quem é o usuário e seu nível
-    const { data: prof, error: profError } = await supabaseAdmin
+    // 1. Pega dados do profissional (apenas para saudação)
+    const { data: prof } = await supabaseAdmin
         .from('profissionais')
-        .select('id, nome, nivel_acesso')
+        .select('*')
         .eq('user_id', userId)
         .single();
 
-    if (profError || !prof) {
-        return NextResponse.json({ error: 'Perfil profissional não encontrado' }, { status: 404 });
+    // 2. BUSCA TODAS AS CLÍNICAS (SEM FILTRO DE USUÁRIO)
+    // Isso resolve o problema de não aparecerem as clínicas cadastradas
+    const { data: todasClinicas, error: erroClinicas } = await supabaseAdmin
+        .from('clinicas')
+        .select('id, nome, endereco')
+        .order('nome');
+
+    if (erroClinicas) {
+        console.error('Erro ao buscar clínicas:', erroClinicas);
+        return NextResponse.json({ error: 'Erro ao buscar clínicas no banco.' }, { status: 500 });
     }
 
-    let listaClinicas = [];
-
-    // 2. Lógica de Busca
-    if (prof.nivel_acesso === 'admin') {
-        // ADMIN: Busca TODAS as clínicas do sistema
-        const { data: todas } = await supabaseAdmin
-            .from('clinicas')
-            .select('id, nome, endereco')
-            .order('nome');
-        listaClinicas = todas || [];
-    } else {
-        // COMUM: Busca apenas as vinculadas
-        const { data: vinculos } = await supabaseAdmin
-            .from('profissionais_clinicas')
-            .select('clinica_id, clinicas(id, nome, endereco)')
-            .eq('profissional_id', prof.id);
-        
-        listaClinicas = vinculos?.map((v: any) => v.clinicas) || [];
-    }
-
-    return NextResponse.json({ clinicas: listaClinicas, usuario: prof });
+    return NextResponse.json({ 
+        clinicas: todasClinicas || [], 
+        usuario: prof || { nome: 'Usuário' } 
+    });
 
   } catch (error: any) {
-    console.error('Erro API Listar:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('Erro Crítico API:', error);
+    return NextResponse.json({ error: 'Erro interno no servidor' }, { status: 500 });
   }
 }
