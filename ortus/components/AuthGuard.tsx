@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { verificarBackupAutomatico } from '@/lib/backup';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { 
@@ -25,6 +26,12 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
   useEffect(() => { validarSessao(); }, [pathname]);
+
+  // Backup automático: dispara em background a cada vez que um usuário autenticado
+  // usa o sistema, se faz mais de 12h desde o último backup. Throttle de 1h/sessão.
+  useEffect(() => {
+      if (session) verificarBackupAutomatico().catch(() => {});
+  }, [session]);
 
   async function validarSessao() {
     const { data: { session } } = await supabase.auth.getSession();
@@ -146,7 +153,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
             <NavItem href="/dashboard" icon={<LayoutDashboard size={22}/>} label="Visão Geral" />
             <NavItem href="/agenda" icon={<Calendar size={22}/>} label="Agenda" />
             <NavItem href="/pacientes" icon={<Users size={22}/>} label="Pacientes" />
-            <NavItem href="/proteses" icon={<Smile size={22}/>} label="Próteses" />
+            <NavItem href="/proteses" icon={<Smile size={22}/>} label="Controle de Próteses" />
             {isAdmin && (<><div className="my-2 border-t border-slate-100 mx-2"></div><NavItem href="/financeiro" icon={<DollarSign size={22}/>} label="Financeiro" /><NavItem href="/configuracoes" icon={<Settings size={22}/>} label="Ajustes" /></>)}
         </nav>
 
@@ -200,7 +207,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
                     <NavItem href="/dashboard" icon={<LayoutDashboard size={20}/>} label="Dashboard" />
                     <NavItem href="/agenda" icon={<Calendar size={20}/>} label="Agenda" />
                     <NavItem href="/pacientes" icon={<Users size={20}/>} label="Pacientes" />
-                    <NavItem href="/proteses" icon={<Smile size={20}/>} label="Próteses" />
+                    <NavItem href="/proteses" icon={<Smile size={20}/>} label="Controle de Próteses" />
                     {isAdmin && <><NavItem href="/financeiro" icon={<DollarSign size={20}/>} label="Financeiro" /><NavItem href="/configuracoes" icon={<Settings size={20}/>} label="Ajustes" /></>}
                 </div>
                 <div className="p-5 border-t border-slate-100 bg-slate-50"><button onClick={handleLogout} className="flex w-full items-center justify-center gap-3 px-4 py-3 text-red-500 hover:bg-red-50 rounded-xl font-bold bg-white border border-slate-200 shadow-sm transition-all active:scale-95"><LogOut size={18} /> Sair do Sistema</button></div>

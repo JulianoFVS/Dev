@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Search, Plus, LayoutGrid, List as ListIcon, User, Phone, Edit, Trash2, Activity, Loader2, ChevronRight, Building2 } from 'lucide-react';
+import { Search, Plus, LayoutGrid, List as ListIcon, User, Phone, Edit, Trash2, Activity, Loader2, ChevronRight, Building2, Download } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
@@ -57,6 +57,52 @@ export default function Pacientes() {
       if(data) router.push(`/pacientes/${data.id}`);
   }
 
+  function exportarCSV() {
+      if (filtrados.length === 0) return alert('Nenhum paciente para exportar com os filtros atuais.');
+
+      const headers = [
+          'ID', 'Nome', 'CPF', 'RG', 'Telefone', 'Email', 'Data Nascimento',
+          'Sexo', 'Endereço', 'Clínica', 'Status', 'Cadastrado em',
+          'Anamnese (resumo)', 'Medicamentos', 'Observações Clínicas',
+          'Total Anamneses', 'Total Tratamentos', 'Total Documentos', 'Total Débitos'
+      ];
+
+      const escapeCSV = (val: any) => {
+          if (val === null || val === undefined) return '';
+          const s = String(val).replace(/"/g, '""').replace(/\r?\n/g, ' ');
+          return `"${s}"`;
+      };
+
+      const rows = filtrados.map((p: any) => {
+          const fm = p.ficha_medica || {};
+          const condicoes = ['Diabetes','Hipertensão','Cardiopatia','Asma/Bronquite','Alergia Antibiótico','Alergia Anestésico','Gestante','Fumante','Uso de Anticoagulante']
+              .filter(k => fm[k]).join('; ');
+          return [
+              p.id, p.nome, p.cpf, p.rg, p.telefone, p.email, p.data_nascimento,
+              p.sexo, p.endereco, p.nome_clinica, p.status,
+              p.created_at ? new Date(p.created_at).toLocaleDateString('pt-BR') : '',
+              condicoes,
+              fm.medicamentos || '',
+              p.anamnese || '',
+              (fm.anamneses || []).length,
+              (fm.tratamentos || []).length,
+              (fm.documentos || []).length,
+              (p.agendamentos || []).filter((a: any) => a.status === 'fiado').length,
+          ].map(escapeCSV).join(',');
+      });
+
+      const bom = '\uFEFF'; // UTF-8 BOM para Excel reconhecer acentos
+      const csv = bom + headers.map(escapeCSV).join(',') + '\n' + rows.join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const dataStr = new Date().toISOString().split('T')[0];
+      a.download = `pacientes_${dataStr}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+  }
+
   const filtrados = pacientes.filter((p: any) => {
       const bateBusca = p.nome.toLowerCase().includes(busca.toLowerCase()) || (p.telefone || '').includes(busca);
       const bateClinica = filtroClinica === 'todas' ? true : p.clinica_id == filtroClinica;
@@ -65,9 +111,12 @@ export default function Pacientes() {
 
   return (
     <div className="max-w-7xl mx-auto space-y-6 pb-20 animate-fade-in">
-      <div className="flex justify-between items-end">
+      <div className="flex flex-wrap justify-between items-end gap-3">
           <div><h1 className="text-3xl font-black text-slate-800">Pacientes</h1><p className="text-slate-500">Gerencie seus clientes.</p></div>
-          <button onClick={novoPaciente} className="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-blue-700 shadow-lg flex items-center gap-2"><Plus size={20}/> Novo Paciente</button>
+          <div className="flex gap-2">
+              <button onClick={exportarCSV} className="bg-white text-slate-700 border border-slate-200 px-5 py-3 rounded-xl font-bold hover:bg-slate-50 hover:border-emerald-300 hover:text-emerald-700 shadow-sm flex items-center gap-2 transition-all" title="Exportar lista filtrada para CSV"><Download size={18}/> Exportar ({filtrados.length})</button>
+              <button onClick={novoPaciente} className="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-blue-700 shadow-lg flex items-center gap-2"><Plus size={20}/> Novo Paciente</button>
+          </div>
       </div>
 
       <div className="bg-white p-2 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row gap-2">

@@ -11,8 +11,19 @@ import ptBrLocale from '@fullcalendar/core/locales/pt-br';
 import { 
   Plus, X, Loader2, CheckCircle, MapPin, User, Building2, 
   Calendar as CalIcon, ChevronLeft, ChevronRight, 
-  UserPlus, FilePlus, DollarSign, Phone, Mail, FileText, Calendar, Trash2
+  UserPlus, FilePlus, DollarSign, Phone, Mail, FileText, Calendar, Trash2,
+  Clock, Ban
 } from 'lucide-react';
+
+// Paleta de cores por tema (gradiente + acento + texto)
+const TEMA_CORES: Record<string, { grad: string; accent: string; text: string; soft: string; ring: string; label: string }> = {
+  blue:   { grad: 'from-blue-500 to-blue-600',     accent: 'bg-blue-700',     text: 'text-white', soft: 'bg-blue-50 text-blue-700 border-blue-200',       ring: 'ring-blue-400',   label: 'Azul' },
+  green:  { grad: 'from-emerald-500 to-emerald-600', accent: 'bg-emerald-700', text: 'text-white', soft: 'bg-emerald-50 text-emerald-700 border-emerald-200', ring: 'ring-emerald-400', label: 'Verde' },
+  red:    { grad: 'from-rose-500 to-rose-600',     accent: 'bg-rose-700',     text: 'text-white', soft: 'bg-rose-50 text-rose-700 border-rose-200',       ring: 'ring-rose-400',   label: 'Vermelho' },
+  yellow: { grad: 'from-amber-400 to-amber-500',   accent: 'bg-amber-600',    text: 'text-amber-950', soft: 'bg-amber-50 text-amber-700 border-amber-200', ring: 'ring-amber-400',  label: 'Amarelo' },
+  purple: { grad: 'from-violet-500 to-violet-600', accent: 'bg-violet-700',   text: 'text-white', soft: 'bg-violet-50 text-violet-700 border-violet-200', ring: 'ring-violet-400', label: 'Roxo' },
+  slate:  { grad: 'from-slate-500 to-slate-600',   accent: 'bg-slate-700',    text: 'text-white', soft: 'bg-slate-50 text-slate-700 border-slate-200',     ring: 'ring-slate-400',  label: 'Cinza' },
+};
 
 export default function Agenda() {
   const calendarRef = useRef(null);
@@ -26,6 +37,7 @@ export default function Agenda() {
   const [servicos, setServicos] = useState<any[]>([]);
   
   const [clinicaFiltro, setClinicaFiltro] = useState('todas');
+  const [clinicaGlobal, setClinicaGlobal] = useState<string | null>(null);
   const [openModal, setOpenModal] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -44,8 +56,10 @@ export default function Agenda() {
   useEffect(() => { 
       // Sincroniza
       const globalCid = localStorage.getItem('ortus_clinica_id');
-      if (globalCid) setClinicaFiltro(globalCid);
-      
+      if (globalCid) {
+          setClinicaFiltro(globalCid);
+          setClinicaGlobal(globalCid);
+      }
       inicializar(); 
   }, []);
 
@@ -208,29 +222,207 @@ export default function Agenda() {
   }
 
   const renderEventContent = (eventInfo:any) => {
-      const props = eventInfo.event.extendedProps; const status = props.status; const viewType = eventInfo.view.type;
-      const mapBg:any = { slate: 'bg-slate-500', blue: 'bg-blue-500', red: 'bg-red-500', green: 'bg-green-500', yellow: 'bg-yellow-500', purple: 'bg-purple-500' };
-      const bgClass = mapBg[props.cor] || 'bg-blue-500';
-      if (viewType === 'listWeek' || viewType === 'dayGridMonth') return (<div className="flex items-center gap-1 overflow-hidden w-full"><div className={`w-2 h-2 rounded-full ${status === 'cancelado' ? 'bg-red-500' : bgClass}`}></div><span className={`text-xs font-medium truncate ${status === 'cancelado' ? 'line-through text-slate-400' : 'text-slate-700'}`}>{eventInfo.timeText && <span className="mr-1 opacity-70">{eventInfo.timeText}</span>}{eventInfo.event.title}</span></div>);
-      let classes = `w-full h-full p-1 px-2 rounded-md shadow-sm transition-all hover:opacity-90 ${bgClass} text-white border-l-[3px] border-white/30`;
-      if (status === 'cancelado') return (<div className="w-full h-full p-1 rounded-md bg-red-100 border-l-4 border-red-500 text-red-700 flex flex-col justify-center relative opacity-80"><span className="font-bold text-[10px] line-through truncate">{eventInfo.event.title}</span><span className="text-[9px] uppercase font-bold text-red-600">Cancelado</span></div>);
-      if (status === 'concluido') return (<div className="w-full h-full p-1 rounded-md bg-slate-200 border-l-4 border-slate-500 text-slate-600 flex flex-col justify-center opacity-75"><span className="font-bold text-[10px] truncate">{eventInfo.event.title}</span><span className="text-[9px] uppercase font-bold">Concluído</span></div>);
-      return (<div className={classes}><div className="text-[10px] font-medium opacity-90">{eventInfo.timeText}</div><div className="text-xs font-bold truncate leading-tight">{eventInfo.event.title}</div></div>);
+      const props = eventInfo.event.extendedProps;
+      const status = props.status;
+      const viewType = eventInfo.view.type;
+      const tema = TEMA_CORES[props.cor] || TEMA_CORES.blue;
+      const isList = viewType === 'listWeek';
+      const isMonth = viewType === 'dayGridMonth';
+
+      // Mês e Lista: pílula compacta colorida
+      if (isList || isMonth) {
+        if (status === 'cancelado') {
+          return (
+            <div className="flex items-center gap-1.5 overflow-hidden w-full px-1.5 py-0.5 rounded-md bg-rose-50 border border-rose-200">
+              <Ban size={10} className="text-rose-500 shrink-0"/>
+              <span className="text-[11px] font-semibold truncate line-through text-rose-500">
+                {eventInfo.timeText && <span className="mr-1 opacity-70">{eventInfo.timeText}</span>}{eventInfo.event.title}
+              </span>
+            </div>
+          );
+        }
+        if (status === 'concluido') {
+          return (
+            <div className="flex items-center gap-1.5 overflow-hidden w-full px-1.5 py-0.5 rounded-md bg-emerald-50 border border-emerald-200">
+              <CheckCircle size={10} className="text-emerald-600 shrink-0"/>
+              <span className="text-[11px] font-semibold truncate text-emerald-700">
+                {eventInfo.timeText && <span className="mr-1 opacity-70">{eventInfo.timeText}</span>}{eventInfo.event.title}
+              </span>
+            </div>
+          );
+        }
+        return (
+          <div className={`flex items-center gap-1.5 overflow-hidden w-full px-1.5 py-0.5 rounded-md border ${tema.soft}`}>
+            <div className={`w-2 h-2 rounded-full bg-gradient-to-br ${tema.grad} shrink-0 shadow-sm`}></div>
+            <span className="text-[11px] font-semibold truncate">
+              {eventInfo.timeText && <span className="mr-1 opacity-70">{eventInfo.timeText}</span>}{eventInfo.event.title}
+            </span>
+          </div>
+        );
+      }
+
+      // Visões timeGrid (Dia/Semana)
+      if (status === 'fiado') {
+        return (
+          <div className="w-full h-full p-1.5 rounded-md bg-amber-50 border-l-[4px] border-amber-500 text-amber-800 flex flex-col justify-center overflow-hidden">
+            <div className="flex items-center gap-1">
+              <DollarSign size={10} className="shrink-0"/>
+              <span className="text-[9px] uppercase font-extrabold tracking-wide">Fiado</span>
+            </div>
+            <span className="font-bold text-[11px] truncate">{eventInfo.event.title}</span>
+          </div>
+        );
+      }
+      if (status === 'cancelado') {
+        return (
+          <div className="w-full h-full p-1.5 rounded-md bg-rose-50 border-l-[4px] border-rose-500 text-rose-700 flex flex-col justify-center relative overflow-hidden">
+            <div className="flex items-center gap-1">
+              <Ban size={10} className="shrink-0"/>
+              <span className="text-[9px] uppercase font-extrabold tracking-wide">Cancelado</span>
+            </div>
+            <span className="font-bold text-[11px] line-through truncate opacity-80">{eventInfo.event.title}</span>
+          </div>
+        );
+      }
+      if (status === 'concluido') {
+        return (
+          <div className="w-full h-full p-1.5 rounded-md bg-emerald-50 border-l-[4px] border-emerald-500 text-emerald-800 flex flex-col justify-center overflow-hidden">
+            <div className="flex items-center gap-1">
+              <CheckCircle size={10} className="shrink-0"/>
+              <span className="text-[9px] uppercase font-extrabold tracking-wide">Concluído</span>
+            </div>
+            <span className="font-bold text-[11px] truncate">{eventInfo.event.title}</span>
+          </div>
+        );
+      }
+      return (
+        <div className={`w-full h-full px-2 py-1 rounded-md shadow-sm bg-gradient-to-br ${tema.grad} ${tema.text} border-l-[4px] ${tema.accent.replace('bg-', 'border-')} overflow-hidden hover:shadow-md hover:brightness-110 transition-all`}>
+          <div className="flex items-center gap-1 text-[10px] font-bold opacity-95">
+            <Clock size={9} className="shrink-0"/>
+            <span>{eventInfo.timeText}</span>
+          </div>
+          <div className="text-[12px] font-extrabold truncate leading-tight drop-shadow-sm">{eventInfo.event.title}</div>
+        </div>
+      );
   };
 
   return (
     <div className="h-[calc(100vh-6rem)] md:h-[calc(100vh-2rem)] flex flex-col space-y-4">
-      <style jsx global>{` .fc { font-family: inherit; } .fc-header-toolbar { margin-bottom: 1.5rem !important; } .fc-toolbar-title { font-size: 1.25rem !important; font-weight: 800 !important; color: #1e293b; text-transform: capitalize; } .fc-button { background-color: white !important; color: #475569 !important; border: 1px solid #e2e8f0 !important; font-weight: 600 !important; font-size: 0.875rem !important; padding: 0.5rem 1rem !important; box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); text-transform: capitalize; transition: all 0.2s; } .fc-button:hover { background-color: #f8fafc !important; color: #0f172a !important; border-color: #cbd5e1 !important; } .fc-button-active { background-color: #f1f5f9 !important; color: #2563eb !important; border-color: #cbd5e1 !important; box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.06) !important; } .fc-button-primary:focus { box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.5) !important; } .fc-theme-standard td, .fc-theme-standard th { border-color: #e2e8f0; } .fc-scrollgrid { border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; } .fc-timegrid-slot-label { color: #64748b; font-size: 11px; font-weight: 500; } .fc-day-today { background-color: #f8fafc !important; } .fc-event { border: none; background: transparent; box-shadow: none; } .fc-daygrid-event { white-space: normal !important; align-items: center; } .fc-col-header-cell { background-color: #f8fafc; padding: 12px 0; } .fc-col-header-cell-cushion { color: #475569; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; } .fc-list { border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; } .fc-list-day-cushion { background-color: #f8fafc !important; } .fc-list-event:hover td { background-color: #f1f5f9 !important; cursor: pointer; } `}</style>
+      <style jsx global>{`
+        .fc { font-family: inherit; }
+        .fc-header-toolbar { margin-bottom: 1.25rem !important; }
+        .fc-toolbar-title { font-size: 1.25rem !important; font-weight: 800 !important; color: #1e293b; text-transform: capitalize; }
+        .fc-button { background-color: white !important; color: #475569 !important; border: 1px solid #e2e8f0 !important; font-weight: 600 !important; font-size: 0.875rem !important; padding: 0.5rem 1rem !important; box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05); text-transform: capitalize; transition: all 0.2s; }
+        .fc-button:hover { background-color: #eff6ff !important; color: #1d4ed8 !important; border-color: #bfdbfe !important; }
+        .fc-button-active { background: linear-gradient(135deg, #3b82f6, #2563eb) !important; color: white !important; border-color: #2563eb !important; box-shadow: 0 2px 6px rgba(37, 99, 235, 0.35) !important; }
+        .fc-today-button { background: linear-gradient(135deg, #f0fdf4, #dcfce7) !important; color: #15803d !important; border-color: #bbf7d0 !important; }
+        .fc-today-button:hover:not(:disabled) { background: linear-gradient(135deg, #dcfce7, #bbf7d0) !important; }
+        .fc-button-primary:focus { box-shadow: 0 0 0 3px rgba(59,130,246,0.35) !important; }
+
+        .fc-theme-standard td, .fc-theme-standard th { border-color: #e2e8f0; }
+        .fc-scrollgrid { border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; }
+
+        /* Cabeçalho dos dias com gradiente sutil */
+        .fc-col-header-cell { background: linear-gradient(180deg, #f8fafc, #f1f5f9); padding: 10px 0; }
+        .fc-col-header-cell-cushion { color: #475569; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; }
+        .fc-col-header-cell.fc-day-today { background: linear-gradient(180deg, #dbeafe, #bfdbfe) !important; }
+        .fc-col-header-cell.fc-day-today .fc-col-header-cell-cushion { color: #1d4ed8; }
+        .fc-col-header-cell.fc-day-sat .fc-col-header-cell-cushion,
+        .fc-col-header-cell.fc-day-sun .fc-col-header-cell-cushion { color: #9333ea; }
+
+        /* Coluna do dia atual destacada */
+        .fc-day-today { background-color: #eff6ff !important; }
+        .fc-timegrid-col.fc-day-today { background: linear-gradient(180deg, rgba(59,130,246,0.06), rgba(59,130,246,0.02)) !important; }
+        .fc-daygrid-day.fc-day-today .fc-daygrid-day-number { background: #2563eb; color: white; border-radius: 9999px; padding: 2px 8px; font-weight: 800; }
+
+        /* Fim de semana com tom suave */
+        .fc-day-sat, .fc-day-sun { background-color: #faf5ff20; }
+        .fc-timegrid-col.fc-day-sat, .fc-timegrid-col.fc-day-sun { background-color: rgba(168,85,247,0.04); }
+
+        /* Slots de tempo */
+        .fc-timegrid-slot-label { color: #64748b; font-size: 11px; font-weight: 600; }
+        .fc-timegrid-slot { height: 2.4em; }
+        .fc-timegrid-slot-minor { border-top-style: dotted !important; }
+
+        /* Indicador "agora" mais visível */
+        .fc-timegrid-now-indicator-line { border-color: #ef4444 !important; border-width: 2px !important; box-shadow: 0 0 8px rgba(239,68,68,0.4); }
+        .fc-timegrid-now-indicator-arrow { border-color: #ef4444 !important; border-width: 6px !important; }
+
+        /* Eventos - usamos custom render */
+        .fc-event { border: none; background: transparent; box-shadow: none; cursor: pointer; }
+        .fc-event:hover { z-index: 5; }
+        .fc-daygrid-event { white-space: normal !important; align-items: center; padding: 1px 0; }
+        .fc-timegrid-event { box-shadow: 0 2px 4px rgba(15,23,42,0.08) !important; border-radius: 6px; }
+        .fc-timegrid-event .fc-event-main { padding: 0; }
+
+        /* Lista */
+        .fc-list { border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; }
+        .fc-list-day-cushion { background: linear-gradient(90deg, #eff6ff, #f8fafc) !important; color: #1e40af !important; font-weight: 800 !important; }
+        .fc-list-event:hover td { background-color: #eff6ff !important; cursor: pointer; }
+        .fc-list-event-time { color: #2563eb !important; font-weight: 700 !important; }
+
+        /* Números do mês */
+        .fc-daygrid-day-number { color: #475569; font-weight: 700; padding: 6px 8px !important; }
+        .fc-day-other .fc-daygrid-day-number { color: #cbd5e1; }
+      `}</style>
       
-      <div className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm border border-slate-200">
-          <div className="flex items-center gap-2">
-              <div className="bg-blue-50 p-2 rounded-lg text-blue-600"><CalIcon size={20}/></div>
-              <div>
-                  <h1 className="text-lg font-bold text-slate-800 leading-tight">Agenda</h1>
-                  <div className="flex items-center gap-1 text-xs text-slate-500"><Building2 size={10}/><select value={clinicaFiltro} onChange={e => setClinicaFiltro(e.target.value)} className="bg-transparent outline-none font-bold hover:text-blue-600 cursor-pointer"><option value="todas">Todas as Clínicas</option>{clinicas.map((c:any) => <option key={c.id} value={c.id}>{c.nome}</option>)}</select></div>
-              </div>
-          </div>
-          <button onClick={() => { setOpenModal(true); setFormData(prev => ({...prev, id: null})); }} className="bg-blue-600 text-white px-5 py-2.5 rounded-lg font-bold hover:bg-blue-700 flex items-center gap-2 text-sm shadow-sm transition-colors"><Plus size={18}/> Novo Agendamento</button>
+      <div className="space-y-3">
+        <div className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm border border-slate-200 gap-4">
+            <div className="flex items-center gap-3 flex-1 min-w-0">
+                <div className="bg-gradient-to-br from-blue-500 to-blue-600 p-2.5 rounded-xl text-white shadow-md shrink-0"><CalIcon size={22}/></div>
+                <div className="flex-1 min-w-0">
+                    <h1 className="text-lg font-black text-slate-800 leading-tight">Agenda</h1>
+                    {(() => {
+                        const isTodas = clinicaFiltro === 'todas';
+                        const cAtual = clinicas.find((c:any) => String(c.id) === String(clinicaFiltro));
+                        const cGlobal = clinicas.find((c:any) => String(c.id) === String(clinicaGlobal));
+                        const divergente = !isTodas && clinicaGlobal && String(clinicaFiltro) !== String(clinicaGlobal);
+                        const wrap = divergente
+                            ? 'bg-rose-50 border-rose-300 text-rose-700 ring-2 ring-rose-200 animate-pulse'
+                            : isTodas
+                                ? 'bg-amber-50 border-amber-300 text-amber-800'
+                                : 'bg-blue-50 border-blue-200 text-blue-700';
+                        return (
+                            <div className={`mt-1 inline-flex items-center gap-2 pl-2.5 pr-1 py-1 rounded-lg border text-xs font-bold ${wrap}`}>
+                                <Building2 size={12}/>
+                                <span className="hidden sm:inline">Filtro:</span>
+                                <select value={clinicaFiltro} onChange={e => setClinicaFiltro(e.target.value)} className="bg-transparent outline-none font-black cursor-pointer pr-2">
+                                    <option value="todas">🌐 Todas as Clínicas</option>
+                                    {clinicas.map((c:any) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                                </select>
+                                {divergente && <span className="text-[10px] font-black uppercase bg-rose-600 text-white px-1.5 py-0.5 rounded">≠ {cGlobal?.nome || 'global'}</span>}
+                                {isTodas && <span className="text-[10px] font-black uppercase bg-amber-600 text-white px-1.5 py-0.5 rounded">visão geral</span>}
+                            </div>
+                        );
+                    })()}
+                </div>
+            </div>
+            <div className="flex items-center gap-3 shrink-0">
+                <div className="hidden lg:flex items-center gap-3 text-[11px] font-bold uppercase tracking-wide pr-3 border-r border-slate-200">
+                    <span className="flex items-center gap-1.5 text-slate-600"><span className="w-2.5 h-2.5 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 shadow-sm"></span> Agendado</span>
+                    <span className="flex items-center gap-1.5 text-emerald-700"><CheckCircle size={12}/> Concluído</span>
+                    <span className="flex items-center gap-1.5 text-amber-700"><DollarSign size={12}/> Fiado</span>
+                    <span className="flex items-center gap-1.5 text-rose-600"><Ban size={12}/> Cancelado</span>
+                </div>
+                <button onClick={() => { setOpenModal(true); setFormData(prev => ({...prev, id: null, clinica_id: clinicaFiltro !== 'todas' ? clinicaFiltro : ''})); }} className="bg-gradient-to-br from-blue-600 to-blue-700 text-white px-5 py-2.5 rounded-lg font-bold hover:from-blue-700 hover:to-blue-800 flex items-center gap-2 text-sm shadow-md hover:shadow-lg transition-all"><Plus size={18}/> Novo Agendamento</button>
+            </div>
+        </div>
+
+        {/* Aviso de divergência */}
+        {clinicaFiltro !== 'todas' && clinicaGlobal && String(clinicaFiltro) !== String(clinicaGlobal) && (() => {
+            const cAtual = clinicas.find((c:any) => String(c.id) === String(clinicaFiltro));
+            const cGlobal = clinicas.find((c:any) => String(c.id) === String(clinicaGlobal));
+            return (
+                <div className="bg-rose-50 border-2 border-rose-300 rounded-xl p-3 flex items-center gap-3 shadow-sm">
+                    <div className="w-9 h-9 rounded-lg bg-rose-500 text-white flex items-center justify-center shrink-0 animate-pulse"><Ban size={16}/></div>
+                    <div className="flex-1 text-sm">
+                        <div className="font-black text-rose-800">Atenção! Você está visualizando outra clínica.</div>
+                        <div className="text-rose-600 text-xs">Clínica atual selecionada: <strong>{cGlobal?.nome}</strong>. Visualizando: <strong>{cAtual?.nome}</strong>.</div>
+                    </div>
+                    <button onClick={() => setClinicaFiltro(clinicaGlobal!)} className="px-3 py-1.5 bg-rose-600 text-white text-xs font-bold rounded-lg hover:bg-rose-700 shrink-0">Voltar para minha clínica</button>
+                </div>
+            );
+        })()}
       </div>
 
       <div className="flex-1 bg-white rounded-xl shadow-sm border border-slate-200 p-4 overflow-hidden"><FullCalendar ref={calendarRef} plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, listPlugin]} initialView="timeGridWeek" headerToolbar={{ left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,timeGridDay,listWeek' }} buttonText={{ today: 'Hoje', month: 'Mês', week: 'Semana', day: 'Dia', list: 'Lista' }} locale={ptBrLocale} slotMinTime="07:00:00" slotMaxTime="20:00:00" allDaySlot={false} events={events} eventContent={renderEventContent} dateClick={handleDateClick} eventClick={handleEventClick} height="100%" slotDuration="00:30:00" dayHeaderFormat={{ weekday: 'short', day: 'numeric' }} nowIndicator={true} navLinks={true} /></div>
@@ -245,7 +437,22 @@ export default function Agenda() {
                   </div>
                   <div className="p-6 space-y-5 overflow-y-auto">
                       <div className="grid grid-cols-2 gap-4">
-                          <div><label className="text-xs font-bold text-slate-500 uppercase mb-1">Clínica</label><select value={formData.clinica_id} onChange={e => setFormData({...formData, clinica_id: e.target.value})} className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none"><option value="">Selecione...</option>{clinicas.map((c:any) => <option key={c.id} value={c.id}>{c.nome}</option>)}</select></div>
+                          <div>
+                              <label className="text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-1">
+                                  Clínica
+                                  {clinicaFiltro !== 'todas' && <span className="text-[9px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded normal-case">🔒 Travada no filtro</span>}
+                              </label>
+                              <select
+                                  value={formData.clinica_id}
+                                  onChange={e => setFormData({...formData, clinica_id: e.target.value})}
+                                  disabled={clinicaFiltro !== 'todas'}
+                                  className={`w-full p-2.5 border rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none ${clinicaFiltro !== 'todas' ? 'bg-slate-100 border-slate-200 text-slate-600 cursor-not-allowed' : 'bg-white border-slate-200'}`}
+                              >
+                                  <option value="">Selecione...</option>
+                                  {clinicas.map((c:any) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                              </select>
+                              {clinicaFiltro !== 'todas' && <p className="text-[10px] text-slate-400 mt-1">Para escolher outra clínica, troque o filtro para "Todas as Clínicas".</p>}
+                          </div>
                           <div><label className="text-xs font-bold text-slate-500 uppercase mb-1">Profissional</label><select value={formData.profissional_id} onChange={e => setFormData({...formData,profissional_id: e.target.value})} className={`w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none ${usuarioAtual?.nivel !== 'admin' ? 'opacity-60' : ''}`} disabled={usuarioAtual?.nivel !== 'admin'}><option value="">Qualquer um...</option>{profissionaisFiltrados.map((p:any) => <option key={p.id} value={p.id}>{p.nome}</option>)}</select></div>
                       </div>
                       <div>
@@ -284,6 +491,7 @@ export default function Agenda() {
                       <div className="flex gap-3 pt-2">
                           {formData.id && <button onClick={excluirAgendamento} className="p-3 text-red-400 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={20}/></button>}
                           <button onClick={() => saveOrUpdate('concluido')} className="flex-1 bg-green-50 text-green-700 py-2.5 rounded-lg font-bold text-xs uppercase hover:bg-green-100 border border-green-200">Concluir</button>
+                          <button onClick={() => saveOrUpdate('fiado')} className="flex-1 bg-amber-50 text-amber-700 py-2.5 rounded-lg font-bold text-xs uppercase hover:bg-amber-100 border border-amber-200" title="Concluir mas marcar como devendo">Fiado</button>
                           <button onClick={() => saveOrUpdate('cancelado')} className="flex-1 bg-red-50 text-red-600 py-2.5 rounded-lg font-bold text-xs uppercase hover:bg-red-100 border border-red-200">Cancelar</button>
                       </div>
                   </div>
