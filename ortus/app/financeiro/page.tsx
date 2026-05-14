@@ -524,13 +524,14 @@ export default function Financeiro() {
 
       {/* MODAL DE LANÇAMENTO */}
       {modalAberto && (
-        <div className="fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
-            <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden flex flex-col animate-zoom-in border border-slate-100">
-                <div className="p-6 border-b bg-slate-50 flex justify-between items-center">
+        <div className="fixed inset-0 bg-slate-900/30 z-50 flex items-center justify-center p-4 animate-fade-in">
+            <div className="bg-white w-full max-w-md max-h-[90vh] rounded-3xl shadow-2xl overflow-hidden flex flex-col animate-zoom-in border border-slate-100">
+                <div className="p-5 border-b bg-slate-50 flex justify-between items-center shrink-0">
                     <h3 className="font-black text-xl text-slate-800">Novo Lançamento</h3>
                     <button onClick={() => setModalAberto(false)} className="text-slate-400 hover:text-red-500 p-1 bg-white rounded-full border border-slate-200 hover:border-red-200 transition-colors"><X size={20}/></button>
                 </div>
-                <form onSubmit={salvarLancamento} className="p-6 space-y-5 max-h-[80vh] overflow-y-auto">
+                <form onSubmit={salvarLancamento} className="flex-1 flex flex-col min-h-0">
+                  <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-5">
                     <div className="p-3 bg-blue-50 text-blue-700 text-xs font-bold rounded-xl flex items-start gap-2 border border-blue-100">
                         <AlertCircle size={16} className="mt-0.5 flex-none"/>
                         <span>O lançamento será vinculado à clínica selecionada no menu lateral.</span>
@@ -593,12 +594,13 @@ export default function Financeiro() {
                         </div>
                     </div>
 
-                    <div className="pt-4 flex gap-3">
-                        <button type="button" onClick={() => setModalAberto(false)} className="flex-1 py-3 rounded-xl font-bold text-slate-500 hover:bg-slate-100 transition-colors">Cancelar</button>
-                        <button type="submit" disabled={salvando} className="flex-1 bg-slate-900 text-white rounded-xl font-bold py-3 hover:bg-black transition-all shadow-lg flex justify-center items-center gap-2">
-                            {salvando ? <Loader2 className="animate-spin"/> : <><Save size={18}/> Salvar</>}
-                        </button>
-                    </div>
+                  </div>
+                  <div className="p-5 border-t border-slate-100 bg-white flex gap-3 shrink-0">
+                      <button type="button" onClick={() => setModalAberto(false)} className="flex-1 py-3 rounded-xl font-bold text-slate-500 hover:bg-slate-100 transition-colors">Cancelar</button>
+                      <button type="submit" disabled={salvando} className="flex-1 bg-slate-900 text-white rounded-xl font-bold py-3 hover:bg-black transition-all shadow-lg flex justify-center items-center gap-2">
+                          {salvando ? <Loader2 className="animate-spin"/> : <><Save size={18}/> Salvar</>}
+                      </button>
+                  </div>
                 </form>
             </div>
         </div>
@@ -606,7 +608,7 @@ export default function Financeiro() {
 
       {/* MODAL CANCELAR */}
       {modalCancelar && (
-        <div className="fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+        <div className="fixed inset-0 bg-slate-900/30 z-50 flex items-center justify-center p-4">
             <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden border border-slate-100">
                 <div className="p-5 border-b bg-rose-50 flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-rose-500 text-white flex items-center justify-center"><Ban size={20}/></div>
