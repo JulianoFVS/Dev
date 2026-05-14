@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { usePatientSlideOver } from '@/components/PatientSlideOver';
-import { AlertTriangle, Check, CheckCircle2, ChevronRight, Edit3, GripVertical, Loader2, Plus, Search, Smile, Sparkles, Trash2, X } from 'lucide-react';
+import { AlertTriangle, Check, CheckCircle2, ChevronRight, Edit3, Filter, GripVertical, Loader2, Plus, Search, Smile, Sparkles, Trash2, X } from 'lucide-react';
 
 type ColumnTitle = 'Solicitado' | 'No Laboratório' | 'Em Prova Clínica' | 'Aguardando Ajuste' | 'Finalizado / Entregue';
 type Category = 'Removível' | 'Fixa' | '';
@@ -12,6 +12,7 @@ type Position = 'Superior' | 'Inferior' | 'Ambas' | '';
 type ChecklistItem = { tarefa: string; feito: boolean };
 type Column = { id: number; titulo: string; ordem: number; clinica_id?: string | null };
 type PatientOption = { id: string | number; nome: string; telefone?: string | null; clinica_id?: string | null };
+type StatusKey = 'espera' | 'lab' | 'clinica' | 'feito';
 type Card = {
   id: number;
   coluna_id: number;
@@ -27,6 +28,7 @@ type Card = {
   data_entrega?: string | null;
   valor?: number | string | null;
   created_at?: string | null;
+  status?: StatusKey | null;
 };
 
 type CardForm = {
@@ -37,6 +39,7 @@ type CardForm = {
   cor_gengiva: string;
   posicao: Position;
   descricao: string;
+  status: StatusKey;
 };
 
 const STANDARD_COLUMNS: ColumnTitle[] = [
@@ -58,6 +61,7 @@ const EMPTY_FORM: CardForm = {
   cor_gengiva: '',
   posicao: '',
   descricao: '',
+  status: 'espera',
 };
 
 function normalizeClinicId(value: string | null) {
@@ -95,13 +99,23 @@ function isChecklistDone(checklist?: ChecklistItem[] | null) {
   return items.length === 0 || items.every((item) => item.feito);
 }
 
-function columnStyle(title: string) {
-  if (title === 'Solicitado') return 'border-blue-100 bg-blue-50/60 text-blue-700';
-  if (title === 'No Laboratório') return 'border-amber-100 bg-amber-50/60 text-amber-700';
-  if (title === 'Em Prova Clínica') return 'border-violet-100 bg-violet-50/60 text-violet-700';
-  if (title === 'Aguardando Ajuste') return 'border-orange-100 bg-orange-50/60 text-orange-700';
-  return 'border-emerald-100 bg-emerald-50/60 text-emerald-700';
+const VALID_STATUS: StatusKey[] = ['espera', 'lab', 'clinica', 'feito'];
+
+function cardStatus(card: Card | null | undefined): StatusKey {
+  const value = card?.status;
+  if (value && (VALID_STATUS as string[]).includes(value)) return value as StatusKey;
+  return 'espera';
 }
+
+const STATUS_TOKENS: Record<StatusKey, { label: string; cardBorder: string; pill: string; ring: string; dot: string }> = {
+  espera:  { label: 'Em espera',         cardBorder: 'border-l-4 border-l-blue-400',    pill: 'bg-blue-100 text-blue-700',       ring: 'ring-blue-200',     dot: 'bg-blue-500' },
+  lab:     { label: 'Pronto no lab',     cardBorder: 'border-l-4 border-l-emerald-500', pill: 'bg-emerald-100 text-emerald-700', ring: 'ring-emerald-200',  dot: 'bg-emerald-500' },
+  clinica: { label: 'Pronto na clínica', cardBorder: 'border-l-4 border-l-violet-500',  pill: 'bg-violet-100 text-violet-700',   ring: 'ring-violet-200',   dot: 'bg-violet-500' },
+  feito:   { label: 'Concluída',         cardBorder: 'border-l-4 border-l-slate-400',   pill: 'bg-slate-200 text-slate-600',     ring: 'ring-slate-200',    dot: 'bg-slate-400' },
+};
+
+// Coluna é apenas organizacional — paleta neutra única
+const COLUMN_NEUTRAL = 'border-slate-200 bg-slate-50/60 text-slate-700';
 
 function dedupeColumnsByTitle(items: Column[]) {
   const seen = new Set<string>();
@@ -134,6 +148,9 @@ export default function KanbanProtesesInteligente() {
   const [editingColumn, setEditingColumn] = useState<Column | null>(null);
   const [columnTitle, setColumnTitle] = useState('');
   const [toast, setToast] = useState<{ type: 'warning' | 'success'; message: string } | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [periodFilter, setPeriodFilter] = useState<'all' | '7d' | '30d' | '90d'>('all');
+  const [statusFilter, setStatusFilter] = useState<StatusKey[]>([]);
 
   useEffect(() => {
     const storedClinic = typeof window !== 'undefined' ? localStorage.getItem('ortus_clinica_id') : null;
@@ -246,6 +263,7 @@ export default function KanbanProtesesInteligente() {
       cor_gengiva: card.cor_gengiva || '',
       posicao: position,
       descricao: card.descricao || '',
+      status: cardStatus(card),
     });
     setModalOpen(true);
   }
@@ -277,6 +295,7 @@ export default function KanbanProtesesInteligente() {
       cor_dente: form.cor_dente.trim(),
       cor_gengiva: form.cor_gengiva.trim(),
       posicao: form.posicao,
+      status: form.status,
       checklist: editingCard?.tipo_protese === form.tipo_protese && Array.isArray(editingCard.checklist) ? editingCard.checklist : buildChecklist(form.tipo_protese),
     };
 
@@ -327,7 +346,7 @@ export default function KanbanProtesesInteligente() {
   }
 
   async function deleteColumn(column: Column) {
-    const count = cardsByColumn(column.id).length;
+    const count = cards.filter((card) => card.coluna_id === column.id).length;
     const message = count > 0
       ? `Remover o quadro "${column.titulo}" também removerá ${count} pedido(s). Continuar?`
       : `Remover o quadro "${column.titulo}"?`;
@@ -346,8 +365,38 @@ export default function KanbanProtesesInteligente() {
     window.setTimeout(() => setToast(null), 4200);
   }
 
+  const filteredCards = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+
+    let cutoff: number | null = null;
+    if (periodFilter !== 'all') {
+      const days = periodFilter === '7d' ? 7 : periodFilter === '30d' ? 30 : 90;
+      cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+    }
+
+    return cards.filter((card) => {
+      if (cutoff !== null) {
+        const created = card.created_at ? new Date(card.created_at).getTime() : 0;
+        if (!created || created < cutoff) return false;
+      }
+      if (statusFilter.length > 0 && !statusFilter.includes(cardStatus(card))) return false;
+      if (!query) return true;
+      const haystack = [card.paciente_nome, card.tipo_protese, card.categoria, card.descricao, card.cor_dente, card.posicao]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      return haystack.includes(query);
+    });
+  }, [cards, searchQuery, periodFilter, statusFilter]);
+
+  function toggleStatusFilter(key: StatusKey) {
+    setStatusFilter((current) =>
+      current.includes(key) ? current.filter((k) => k !== key) : [...current, key]
+    );
+  }
+
   function cardsByColumn(columnId: number) {
-    return cards.filter((card) => card.coluna_id === columnId);
+    return filteredCards.filter((card) => card.coluna_id === columnId);
   }
 
   function canMoveToColumn(card: Card, column: Column) {
@@ -438,6 +487,83 @@ export default function KanbanProtesesInteligente() {
         </div>
       )}
 
+      {/* BARRA DE FILTROS: busca + período + legenda de cores */}
+      <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-4 flex flex-col lg:flex-row lg:items-center gap-3 shrink-0 w-full max-w-full min-w-0">
+        <div className="relative flex-1 min-w-0 max-w-md">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Buscar por paciente, tipo, cor..."
+            className="w-full pl-9 pr-9 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-sm font-bold text-slate-700 outline-none focus:bg-white focus:border-pink-300 focus:ring-2 focus:ring-pink-100 transition-all"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+              title="Limpar busca"
+            >
+              <X size={14} />
+            </button>
+          )}
+        </div>
+
+        <div className="flex items-center gap-1.5 text-[11px] font-black text-slate-400 uppercase tracking-wider shrink-0">
+          <Filter size={13} /> Período:
+        </div>
+        <div className="flex bg-slate-100 p-1 rounded-xl gap-0.5 shrink-0">
+          {([
+            { id: 'all', label: 'Todos' },
+            { id: '7d', label: '7 dias' },
+            { id: '30d', label: '30 dias' },
+            { id: '90d', label: '90 dias' },
+          ] as const).map((p) => (
+            <button
+              key={p.id}
+              onClick={() => setPeriodFilter(p.id)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${periodFilter === p.id ? 'bg-white text-pink-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+
+        {/* FILTRO DE STATUS (chips clicáveis com cor) */}
+        <div className="flex items-center gap-1.5 lg:ml-auto pl-0 lg:pl-3 lg:border-l border-slate-200 shrink-0 flex-wrap">
+          <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider mr-1">Status:</span>
+          {(['espera', 'lab', 'clinica', 'feito'] as StatusKey[]).map((k) => {
+            const active = statusFilter.includes(k);
+            const noneSelected = statusFilter.length === 0;
+            const dim = !active && !noneSelected;
+            return (
+              <button
+                key={k}
+                onClick={() => toggleStatusFilter(k)}
+                className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 border transition-all ${active ? `${STATUS_TOKENS[k].pill} border-current shadow-sm` : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300'} ${dim ? 'opacity-40' : ''}`}
+                title={active ? 'Remover filtro' : 'Filtrar por este status'}
+              >
+                <span className={`w-2 h-2 rounded-full ${STATUS_TOKENS[k].dot}`}></span>
+                {STATUS_TOKENS[k].label}
+              </button>
+            );
+          })}
+          {statusFilter.length > 0 && (
+            <button
+              onClick={() => setStatusFilter([])}
+              className="px-2 py-1 rounded-lg text-[10px] font-black text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center gap-1"
+              title="Limpar filtro de status"
+            >
+              <X size={11} /> Limpar
+            </button>
+          )}
+        </div>
+
+        <div className="text-[11px] font-bold text-slate-400 shrink-0">
+          {filteredCards.length} de {cards.length} pedido(s)
+        </div>
+      </div>
+
       <div className="flex-1 bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden min-h-0 w-full max-w-full min-w-0">
         {loading ? (
           <div className="h-full flex items-center justify-center text-slate-400 font-bold gap-2">
@@ -451,14 +577,14 @@ export default function KanbanProtesesInteligente() {
                 const isTrialColumn = column.id === provaClinicaColumn?.id;
 
                 return (
-                  <section key={column.id} className={`w-80 flex-none h-full rounded-3xl border flex flex-col min-h-0 ${columnStyle(column.titulo)}`}>
+                  <section key={column.id} className={`w-80 flex-none h-full rounded-3xl border flex flex-col min-h-0 ${COLUMN_NEUTRAL}`}>
                     <div className="p-4 border-b border-white/60 flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <h2 className="font-black text-xs uppercase tracking-wider text-slate-800 truncate">{column.titulo}</h2>
                         <p className="text-[11px] font-bold opacity-70 mt-1">{columnCards.length} pedido(s)</p>
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
-                        {isTrialColumn && <span className="text-[10px] font-black px-2 py-1 rounded-lg bg-white/80 text-violet-700">Checklist ativo</span>}
+                        {isTrialColumn && <span className="text-[10px] font-black px-2 py-1 rounded-lg bg-white/80 text-violet-700">Checklist</span>}
                         <button onClick={() => openEditColumn(column)} className="p-1.5 rounded-lg bg-white/60 text-slate-400 hover:text-blue-600 hover:bg-white transition-colors" title="Editar quadro">
                           <Edit3 size={13} />
                         </button>
@@ -477,7 +603,10 @@ export default function KanbanProtesesInteligente() {
                       onDrop={(event) => handleDrop(event, column)}
                       className={`flex-1 overflow-y-auto custom-scrollbar p-3 space-y-3 transition-colors ${dragOverColumn === column.id ? 'bg-white/70 ring-2 ring-pink-200 ring-inset' : ''}`}
                     >
-                      {columnCards.map((card) => (
+                      {columnCards.map((card) => {
+                        const status = cardStatus(card);
+                        const tokens = STATUS_TOKENS[status];
+                        return (
                         <article
                           key={card.id}
                           draggable
@@ -486,28 +615,32 @@ export default function KanbanProtesesInteligente() {
                             setDraggedCard(null);
                             setDragOverColumn(null);
                           }}
-                          className={`bg-white border rounded-2xl shadow-sm hover:shadow-lg transition-all cursor-grab active:cursor-grabbing group ${draggedCard?.id === card.id ? 'opacity-50 scale-95 border-dashed border-slate-400' : 'border-slate-200'} ${isTrialColumn ? 'p-4 ring-1 ring-violet-100' : 'p-3'}`}
+                          onClick={() => openEditOrder(card)}
+                          className={`bg-white border rounded-2xl shadow-sm hover:shadow-lg hover:ring-2 ${tokens.ring} transition-all cursor-pointer active:cursor-grabbing group ${tokens.cardBorder} ${draggedCard?.id === card.id ? 'opacity-50 scale-95 border-dashed border-slate-400' : 'border-slate-200'} ${isTrialColumn ? 'p-4' : 'p-3'}`}
+                          title="Clique para editar · Arraste para mover"
                         >
                           <div className="flex items-start justify-between gap-2 mb-3">
                             <div className="min-w-0">
-                              <button
-                                onClick={() => {
-                                  const patientId = patientIdByName(card.paciente_nome);
-                                  if (patientId) openPatient(patientId);
-                                }}
-                                className="font-black text-slate-900 text-sm truncate max-w-[210px] hover:text-blue-600 hover:underline underline-offset-2 text-left"
-                                title="Abrir visão 360º do paciente"
-                              >
-                                {card.paciente_nome}
-                              </button>
-                              <p className="text-[10px] font-black uppercase tracking-wider text-pink-600 mt-1">{card.tipo_protese || 'Prótese'}</p>
+                              <p className="font-black text-slate-900 text-sm truncate max-w-[210px]">{card.paciente_nome}</p>
+                              <div className="flex items-center gap-1.5 mt-1">
+                                <span className={`text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded ${tokens.pill}`}>{tokens.label}</span>
+                                <p className="text-[10px] font-black uppercase tracking-wider text-pink-600 truncate">{card.tipo_protese || 'Prótese'}</p>
+                              </div>
                             </div>
-                            <div className="flex items-center gap-1">
+                            <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
                               <GripVertical size={16} className="text-slate-300" />
-                              <button onClick={() => openEditOrder(card)} className="opacity-0 group-hover:opacity-100 p-1 rounded-lg text-slate-300 hover:text-blue-500 hover:bg-blue-50 transition-all" title="Editar pedido">
-                                <Edit3 size={14} />
+                              <button
+                                onClick={(e) => { e.stopPropagation(); const patientId = patientIdByName(card.paciente_nome); if (patientId) openPatient(patientId); }}
+                                className="opacity-0 group-hover:opacity-100 p-1 rounded-lg text-slate-300 hover:text-blue-500 hover:bg-blue-50 transition-all"
+                                title="Abrir paciente"
+                              >
+                                <Search size={14} />
                               </button>
-                              <button onClick={() => deleteCard(card.id)} className="opacity-0 group-hover:opacity-100 p-1 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all">
+                              <button
+                                onClick={(e) => { e.stopPropagation(); deleteCard(card.id); }}
+                                className="opacity-0 group-hover:opacity-100 p-1 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all"
+                                title="Excluir pedido"
+                              >
                                 <Trash2 size={14} />
                               </button>
                             </div>
@@ -525,7 +658,7 @@ export default function KanbanProtesesInteligente() {
                           </div>
 
                           {isTrialColumn ? (
-                            <div className="space-y-2 rounded-2xl bg-violet-50/60 border border-violet-100 p-3">
+                            <div className="space-y-2 rounded-2xl bg-violet-50/60 border border-violet-100 p-3" onClick={(e) => e.stopPropagation()}>
                               <p className="text-[10px] font-black uppercase tracking-wider text-violet-700">Provas clínicas</p>
                               {(Array.isArray(card.checklist) && card.checklist.length ? card.checklist : buildChecklist(card.tipo_protese || '')).map((item, index) => (
                                 <label key={`${card.id}-${item.tarefa}`} className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer">
@@ -537,16 +670,9 @@ export default function KanbanProtesesInteligente() {
                           ) : (
                             <p className="text-xs text-slate-500 line-clamp-2 min-h-[32px]">{card.descricao || `${card.categoria || 'Pedido'} · ${card.cor_gengiva ? `Gengiva ${card.cor_gengiva}` : 'Sem observações adicionais'}`}</p>
                           )}
-
-                          <div className="mt-3 flex gap-2">
-                            {columns.map((target) => target.id !== card.coluna_id && (
-                              <button key={target.id} onClick={() => moveCard(card, target)} className="hidden first:flex px-2 py-1 rounded-lg bg-slate-50 text-slate-400 hover:text-pink-600 hover:bg-pink-50 text-[10px] font-black transition-colors">
-                                <ChevronRight size={12} />
-                              </button>
-                            ))}
-                          </div>
                         </article>
-                      ))}
+                        );
+                      })}
 
                       {columnCards.length === 0 && (
                         <div className="h-32 rounded-2xl border border-dashed border-white/80 bg-white/40 flex items-center justify-center text-xs font-bold opacity-60">Arraste pedidos para cá</div>
@@ -597,17 +723,22 @@ export default function KanbanProtesesInteligente() {
                 )}
               </section>
 
-              {editingCard && (
-                <section className="rounded-3xl border border-slate-200 p-4 animate-in fade-in slide-in-from-bottom-2">
-                  <div className="flex items-center gap-3 mb-3">
-                    <span className="w-7 h-7 rounded-xl bg-slate-700 text-white flex items-center justify-center text-xs font-black">↔</span>
-                    <h3 className="font-black text-slate-800">Quadro atual</h3>
-                  </div>
-                  <select value={targetColumnId || ''} onChange={(event) => setTargetColumnId(Number(event.target.value))} className="w-full p-3 rounded-2xl bg-slate-50 border border-slate-200 font-bold outline-none focus:ring-2 focus:ring-pink-500">
-                    {columns.map((column) => <option key={column.id} value={column.id}>{column.titulo}</option>)}
-                  </select>
-                </section>
-              )}
+              <section className="rounded-3xl border border-slate-200 p-4 animate-in fade-in slide-in-from-bottom-2">
+                <div className="flex items-center gap-3 mb-3">
+                  <span className={`w-7 h-7 rounded-xl ${STATUS_TOKENS[form.status].dot} text-white flex items-center justify-center text-xs font-black`}>●</span>
+                  <h3 className="font-black text-slate-800">Status atual</h3>
+                </div>
+                <select
+                  value={form.status}
+                  onChange={(event) => setForm((current) => ({ ...current, status: event.target.value as StatusKey }))}
+                  className="w-full p-3 rounded-2xl bg-slate-50 border border-slate-200 font-bold outline-none focus:ring-2 focus:ring-pink-500"
+                >
+                  {(['espera', 'lab', 'clinica', 'feito'] as StatusKey[]).map((key) => (
+                    <option key={key} value={key}>{STATUS_TOKENS[key].label}</option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-slate-400 font-bold mt-2">O status acompanha o pedido independente do quadro onde ele esteja.</p>
+              </section>
 
               {form.paciente_nome && (
                 <section className="rounded-3xl border border-slate-200 p-4 animate-in fade-in slide-in-from-bottom-2">

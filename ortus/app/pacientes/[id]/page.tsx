@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
@@ -645,7 +645,6 @@ export default function PacienteDetalhe() {
                 </div>
             </div>
             <div className="flex gap-2 flex-wrap">
-                <button onClick={() => setModalDoc(true)} className="px-4 py-2 bg-slate-800 text-white rounded-xl font-bold text-sm hover:bg-black transition-colors flex items-center gap-2 shadow-lg"><Printer size={16}/> Documentos</button>
                 <button onClick={abrirWhatsapp} className="px-4 py-2 bg-green-500 text-white rounded-xl font-bold text-sm hover:bg-green-600 transition-colors flex items-center gap-2 shadow-lg shadow-green-200"><MessageCircle size={16}/> WhatsApp</button>
                 {modoEdicao ? (
                     <>
@@ -963,10 +962,13 @@ export default function PacienteDetalhe() {
                     <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-200 shadow-sm animate-in fade-in">
                         <div className="flex flex-wrap justify-between items-center gap-3 mb-5">
                             <h3 className="text-lg font-black text-slate-800 flex items-center gap-2"><FolderOpen size={20} className="text-amber-500"/> Documentos & Imagens</h3>
-                            <label className={`px-4 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 cursor-pointer shadow-sm transition-all ${uploadingDoc ? 'bg-slate-300 text-white cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>
-                                {uploadingDoc ? <><Loader2 size={14} className="animate-spin"/> Enviando...</> : <><Upload size={14}/> Enviar Arquivo</>}
-                                <input type="file" className="hidden" onChange={uploadDocumento} disabled={uploadingDoc} accept="image/*,application/pdf,.doc,.docx,.txt"/>
-                            </label>
+                            <div className="flex gap-2 flex-wrap">
+                                <button onClick={() => setModalDoc(true)} className="px-4 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 bg-slate-800 text-white hover:bg-black transition-colors shadow-sm"><Printer size={14}/> Emitir Receita/Atestado</button>
+                                <label className={`px-4 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 cursor-pointer shadow-sm transition-all ${uploadingDoc ? 'bg-slate-300 text-white cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>
+                                    {uploadingDoc ? <><Loader2 size={14} className="animate-spin"/> Enviando...</> : <><Upload size={14}/> Enviar Arquivo</>}
+                                    <input type="file" className="hidden" onChange={uploadDocumento} disabled={uploadingDoc} accept="image/*,application/pdf,.doc,.docx,.txt"/>
+                                </label>
+                            </div>
                         </div>
 
                         {documentos.length === 0 ? (
