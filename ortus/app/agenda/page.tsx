@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
@@ -7,6 +8,7 @@ import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import listPlugin from '@fullcalendar/list';
 import ptBrLocale from '@fullcalendar/core/locales/pt-br';
+import { usePatientSlideOver } from '@/components/PatientSlideOver';
 
 import { 
   Plus, X, Loader2, CheckCircle, MapPin, User, Building2, 
@@ -27,6 +29,9 @@ const TEMA_CORES: Record<string, { grad: string; accent: string; text: string; s
 
 export default function Agenda() {
   const calendarRef = useRef(null);
+  const searchParams = useSearchParams();
+  const pacientePreSelecionado = searchParams?.get('paciente');
+  const { openPatient } = usePatientSlideOver();
   const [events, setEvents] = useState<any[]>([]);
   const [usuarioAtual, setUsuarioAtual] = useState<any>(null);
   
@@ -64,6 +69,24 @@ export default function Agenda() {
   }, []);
 
   useEffect(() => { if(usuarioAtual) carregarEventos(); }, [clinicaFiltro, usuarioAtual]);
+
+  useEffect(() => {
+      if (!pacientePreSelecionado || pacientes.length === 0) return;
+      const paciente = pacientes.find((p: any) => String(p.id) === String(pacientePreSelecionado));
+      if (!paciente) return;
+      const hoje = new Date().toISOString().split('T')[0];
+      const preClinica = clinicaFiltro !== 'todas' ? clinicaFiltro : paciente.clinica_id || '';
+      const preProfissional = (usuarioAtual?.nivel !== 'admin' && usuarioAtual?.profissional_id) ? usuarioAtual.profissional_id : '';
+      setFormData({ id: null, title: '', date: hoje, time: '08:00', theme: 'blue', paciente_id: paciente.id, valor: '0', desconto: '0', observacoes: '', status: 'agendado', clinica_id: preClinica, profissional_id: preProfissional });
+      setOpenModal(true);
+  }, [pacientePreSelecionado, pacientes]);
+
+  // Revalida quando o Action Hub criar/quitar agendamentos in-place
+  useEffect(() => {
+      function handle() { if (usuarioAtual) carregarEventos(); }
+      window.addEventListener('ortus:agenda-changed', handle);
+      return () => window.removeEventListener('ortus:agenda-changed', handle);
+  }, [usuarioAtual, clinicaFiltro]);
   
   useEffect(() => { 
       if (!formData.clinica_id) { 
@@ -228,6 +251,21 @@ export default function Agenda() {
       const tema = TEMA_CORES[props.cor] || TEMA_CORES.blue;
       const isList = viewType === 'listWeek';
       const isMonth = viewType === 'dayGridMonth';
+      const patientName = Array.isArray(props.pacientes) ? props.pacientes[0]?.nome : props.pacientes?.nome;
+      const procedure = props.procedimento || eventInfo.event.title;
+      const PatientTrigger = ({ className }: { className?: string }) => (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            openPatient(props.paciente_id);
+          }}
+          className={`font-extrabold hover:underline hover:decoration-2 underline-offset-2 ${className || ''}`}
+          title="Abrir visão 360º do paciente"
+        >
+          {patientName || 'Paciente'}
+        </button>
+      );
 
       // Mês e Lista: pílula compacta colorida
       if (isList || isMonth) {
@@ -236,7 +274,7 @@ export default function Agenda() {
             <div className="flex items-center gap-1.5 overflow-hidden w-full px-1.5 py-0.5 rounded-md bg-rose-50 border border-rose-200">
               <Ban size={10} className="text-rose-500 shrink-0"/>
               <span className="text-[11px] font-semibold truncate line-through text-rose-500">
-                {eventInfo.timeText && <span className="mr-1 opacity-70">{eventInfo.timeText}</span>}{eventInfo.event.title}
+                {eventInfo.timeText && <span className="mr-1 opacity-70">{eventInfo.timeText}</span>}<PatientTrigger /> <span className="opacity-80">- {procedure}</span>
               </span>
             </div>
           );
@@ -246,7 +284,7 @@ export default function Agenda() {
             <div className="flex items-center gap-1.5 overflow-hidden w-full px-1.5 py-0.5 rounded-md bg-emerald-50 border border-emerald-200">
               <CheckCircle size={10} className="text-emerald-600 shrink-0"/>
               <span className="text-[11px] font-semibold truncate text-emerald-700">
-                {eventInfo.timeText && <span className="mr-1 opacity-70">{eventInfo.timeText}</span>}{eventInfo.event.title}
+                {eventInfo.timeText && <span className="mr-1 opacity-70">{eventInfo.timeText}</span>}<PatientTrigger /> <span className="opacity-80">- {procedure}</span>
               </span>
             </div>
           );
@@ -255,7 +293,7 @@ export default function Agenda() {
           <div className={`flex items-center gap-1.5 overflow-hidden w-full px-1.5 py-0.5 rounded-md border ${tema.soft}`}>
             <div className={`w-2 h-2 rounded-full bg-gradient-to-br ${tema.grad} shrink-0 shadow-sm`}></div>
             <span className="text-[11px] font-semibold truncate">
-              {eventInfo.timeText && <span className="mr-1 opacity-70">{eventInfo.timeText}</span>}{eventInfo.event.title}
+              {eventInfo.timeText && <span className="mr-1 opacity-70">{eventInfo.timeText}</span>}<PatientTrigger /> <span className="opacity-80">- {procedure}</span>
             </span>
           </div>
         );
@@ -269,7 +307,7 @@ export default function Agenda() {
               <DollarSign size={10} className="shrink-0"/>
               <span className="text-[9px] uppercase font-extrabold tracking-wide">Fiado</span>
             </div>
-            <span className="font-bold text-[11px] truncate">{eventInfo.event.title}</span>
+            <span className="font-bold text-[11px] truncate"><PatientTrigger /> <span className="opacity-80">- {procedure}</span></span>
           </div>
         );
       }
@@ -280,7 +318,7 @@ export default function Agenda() {
               <Ban size={10} className="shrink-0"/>
               <span className="text-[9px] uppercase font-extrabold tracking-wide">Cancelado</span>
             </div>
-            <span className="font-bold text-[11px] line-through truncate opacity-80">{eventInfo.event.title}</span>
+            <span className="font-bold text-[11px] line-through truncate opacity-80"><PatientTrigger /> <span>- {procedure}</span></span>
           </div>
         );
       }
@@ -291,7 +329,7 @@ export default function Agenda() {
               <CheckCircle size={10} className="shrink-0"/>
               <span className="text-[9px] uppercase font-extrabold tracking-wide">Concluído</span>
             </div>
-            <span className="font-bold text-[11px] truncate">{eventInfo.event.title}</span>
+            <span className="font-bold text-[11px] truncate"><PatientTrigger /> <span className="opacity-80">- {procedure}</span></span>
           </div>
         );
       }
@@ -301,7 +339,7 @@ export default function Agenda() {
             <Clock size={9} className="shrink-0"/>
             <span>{eventInfo.timeText}</span>
           </div>
-          <div className="text-[12px] font-extrabold truncate leading-tight drop-shadow-sm">{eventInfo.event.title}</div>
+          <div className="text-[12px] font-extrabold truncate leading-tight drop-shadow-sm"><PatientTrigger /> <span className="opacity-90">- {procedure}</span></div>
         </div>
       );
   };
@@ -429,7 +467,7 @@ export default function Agenda() {
       
       {/* MODAL PRINCIPAL OMITIDO PARA BREVIDADE (Mantido Igual) */}
       {openModal && ( 
-          <div className="fixed inset-0 bg-slate-900/40 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
+          <div className="fixed inset-0 bg-slate-900/30 z-50 flex items-center justify-center p-4 animate-fade-in">
               <div className="bg-white w-full max-w-lg rounded-2xl shadow-xl overflow-hidden flex flex-col max-h-[95vh] animate-zoom-in border border-slate-100">
                   <div className="p-5 border-b bg-slate-50 flex justify-between items-center">
                       <h3 className="font-bold text-slate-800 flex items-center gap-2">{formData.id ? 'Editar Agendamento' : 'Novo Agendamento'}</h3>
@@ -504,7 +542,7 @@ export default function Agenda() {
       )}
       {/* MODAIS SECUNDÁRIOS OMITIDOS (Mantidos iguais) */}
       {modalNovoPaciente && (
-          <div className="fixed inset-0 z-[60] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-[60] bg-slate-900/30 flex items-center justify-center p-4">
               <div className="bg-white w-full max-w-xl rounded-2xl shadow-xl p-6 animate-in zoom-in-95 overflow-y-auto max-h-[90vh]">
                   <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-slate-800"><UserPlus size={20} className="text-green-600"/> Cadastrar Paciente</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
@@ -524,7 +562,7 @@ export default function Agenda() {
       )}
 
       {modalNovoServico && (
-          <div className="fixed inset-0 z-[60] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-[60] bg-slate-900/30 flex items-center justify-center p-4">
               <div className="bg-white w-full max-w-sm rounded-2xl shadow-xl p-6 animate-in zoom-in-95">
                   <h3 className="font-bold text-lg mb-4 flex items-center gap-2"><FilePlus size={20} className="text-purple-600"/> Novo Serviço</h3>
                   <div className="space-y-3">

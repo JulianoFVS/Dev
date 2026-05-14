@@ -4,6 +4,8 @@ import { supabase } from '@/lib/supabase';
 import { verificarBackupAutomatico } from '@/lib/backup';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
+import { PatientSlideOverProvider } from '@/components/PatientSlideOver';
+import { PatientActionModalProvider } from '@/components/PatientActionModal';
 import { 
     LayoutDashboard, Users, LogOut, Calendar, Menu, X, DollarSign, 
     Settings, Building2, Bell, Mail, User, ChevronRight, ChevronsUpDown, 
@@ -109,6 +111,8 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   };
 
   return (
+    <PatientSlideOverProvider>
+    <PatientActionModalProvider>
     <div className="flex min-h-screen bg-slate-50 font-sans">
       <aside className={`bg-white border-r border-slate-200 fixed h-full hidden md:flex flex-col z-30 shadow-sm transition-all duration-300 ${menuRecolhido ? 'w-20' : 'w-64'}`}>
         <div className={`h-20 flex items-center border-b border-slate-50 ${menuRecolhido ? 'justify-center' : 'px-6'}`}>
@@ -166,7 +170,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
         <button onClick={() => setMenuMobileAberto(!menuMobileAberto)} className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">{menuMobileAberto ? <X size={24} /> : <Menu size={24} />}</button>
       </div>
 
-      <main className={`flex-1 flex flex-col min-h-screen transition-all duration-300 pt-16 md:pt-0 ${menuRecolhido ? 'md:ml-20' : 'md:ml-64'}`}>
+      <main className={`flex-1 min-w-0 flex flex-col min-h-screen transition-all duration-300 pt-16 md:pt-0 ${menuRecolhido ? 'md:ml-20' : 'md:ml-64'}`}>
         <header className="bg-white border-b border-slate-200 h-16 flex items-center justify-end px-6 gap-3 sticky top-16 md:top-0 z-20 shadow-sm/50 backdrop-blur-sm bg-white/90">
             <div className="md:hidden mr-auto flex items-center gap-2">
                  <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 rounded-lg border border-slate-200">
@@ -184,7 +188,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
             </Link>
             <button onClick={handleLogout} className="ml-1 p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all border border-transparent hover:border-red-100 hidden md:block" title="Sair"><LogOut size={20}/></button>
         </header>
-        <div className="p-4 md:p-8 animate-in fade-in slide-in-from-bottom-2 duration-500">{children}</div>
+        <div className="p-4 md:p-8 min-w-0 max-w-full animate-in fade-in slide-in-from-bottom-2 duration-500">{children}</div>
       </main>
 
       {menuMobileAberto && (
@@ -215,5 +219,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
         </div>
       )}
     </div>
+    </PatientActionModalProvider>
+    </PatientSlideOverProvider>
   );
 }

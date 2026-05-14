@@ -4,6 +4,8 @@ import { supabase } from '@/lib/supabase';
 import { Search, Plus, LayoutGrid, List as ListIcon, User, Phone, Edit, Trash2, Activity, Loader2, ChevronRight, Building2, Download } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { usePatientSlideOver } from '@/components/PatientSlideOver';
+import { usePatientActionModal } from '@/components/PatientActionModal';
 
 export default function Pacientes() {
   const [pacientes, setPacientes] = useState<any[]>([]);
@@ -16,6 +18,8 @@ export default function Pacientes() {
   const [filtroClinica, setFiltroClinica] = useState('todas');
 
   const router = useRouter();
+  const { openPatient } = usePatientSlideOver();
+  const { openPatientActions } = usePatientActionModal();
 
   useEffect(() => { 
       // Sincroniza com a seleção global
@@ -150,7 +154,7 @@ export default function Pacientes() {
             <table className="w-full text-left">
                 <thead className="bg-slate-50 border-b border-slate-100"><tr><th className="p-4 pl-6 text-xs font-bold text-slate-400 uppercase">Nome</th><th className="p-4 text-xs font-bold text-slate-400 uppercase">Clínica</th><th className="p-4 text-xs font-bold text-slate-400 uppercase">Telefone</th><th className="p-4 text-xs font-bold text-slate-400 uppercase">Status</th><th className="p-4 text-right"></th></tr></thead>
                 <tbody className="divide-y divide-slate-50">{filtrados.map((p: any) => (
-                    <tr key={p.id} onClick={() => router.push(`/pacientes/${p.id}`)} className="hover:bg-blue-50 cursor-pointer transition-colors group">
+                    <tr key={p.id} onClick={() => openPatientActions(p.id)} className="hover:bg-blue-50 cursor-pointer transition-colors group">
                         <td className="p-4 pl-6 font-bold text-slate-700">{p.nome}</td>
                         <td className="p-4 text-sm text-slate-500 flex items-center gap-2">{p.nome_clinica ? <span className="bg-slate-100 px-2 py-0.5 rounded text-xs font-bold text-slate-600">{p.nome_clinica}</span> : <span className="text-slate-300 italic">--</span>}</td>
                         <td className="p-4 text-sm text-slate-500">{p.telefone}</td>
@@ -162,7 +166,7 @@ export default function Pacientes() {
         </div>
        ) : (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">{filtrados.map((p: any) => (
-            <div key={p.id} onClick={() => router.push(`/pacientes/${p.id}`)} className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm hover:shadow-md cursor-pointer transition-all hover:border-blue-200 group">
+            <div key={p.id} onClick={() => openPatientActions(p.id)} className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm hover:shadow-md cursor-pointer transition-all hover:border-blue-200 group">
                 <div className="flex items-center gap-4 mb-4"><div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center font-bold text-lg group-hover:bg-blue-600 group-hover:text-white transition-colors">{p.nome.charAt(0)}</div><div><h3 className="font-bold text-slate-800 truncate w-40">{p.nome}</h3><p className="text-xs text-slate-400 uppercase font-bold">{p.nome_clinica || 'Sem Clínica'}</p></div></div>
                 <div className="text-sm text-slate-500 flex items-center gap-2"><Phone size={14}/> {p.telefone || 'Sem telefone'}</div>
             </div>

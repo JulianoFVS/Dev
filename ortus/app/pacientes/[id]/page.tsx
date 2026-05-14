@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { User, Phone, Edit, ArrowLeft, Save, Loader2, FileText, Clock, Trash2, Calendar, Pill, AlertTriangle, Stethoscope, X, Check, Building2, Printer, MessageCircle, Smile, Plus, Eraser, CheckCircle, ClipboardList, FolderOpen, AlertCircle, Upload, Download, Image as ImageIcon, DollarSign, Settings } from 'lucide-react';
 import Link from 'next/link';
 import { carregarModelos, type ModeloAnamnese } from '@/lib/anamnese';
@@ -245,9 +245,24 @@ function Tooth({ num, state, ferramenta, onApply, isUpper }: { num: number; stat
 export default function PacienteDetalhe() {
   const { id } = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const initialTab = searchParams?.get('tab') || 'dados';
   const [loading, setLoading] = useState(true);
   
-  const [abaAtiva, setAbaAtiva] = useState('dados'); 
+  const [abaAtiva, setAbaAtiva] = useState(initialTab);
+
+  // Revalida quando o Action Hub registrar tratamento in-place neste paciente
+  useEffect(() => {
+      function handle(event: Event) {
+          const detail = (event as CustomEvent<{ pacienteId?: string | number }>).detail;
+          if (!detail || String(detail.pacienteId) === String(id)) {
+              carregar();
+          }
+      }
+      window.addEventListener('ortus:tratamento-changed', handle as EventListener);
+      return () => window.removeEventListener('ortus:tratamento-changed', handle as EventListener);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]); 
   const [modoEdicao, setModoEdicao] = useState(false); 
   const [modalDoc, setModalDoc] = useState(false); 
   const [tipoDoc, setTipoDoc] = useState('receita'); 
