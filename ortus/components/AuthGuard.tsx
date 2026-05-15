@@ -9,8 +9,9 @@ import { PatientActionModalProvider } from '@/components/PatientActionModal';
 import { 
     LayoutDashboard, Users, LogOut, Calendar, Menu, X, DollarSign, 
     Settings, Building2, Bell, Mail, User, ChevronRight, ChevronsUpDown, 
-    Check, Smile, ChevronLeft, Globe
+    Check, Smile, ChevronLeft, Globe, ShieldCheck, ShieldAlert
 } from 'lucide-react';
+import { useClinica, getClinicLabel } from '@/app/context/ClinicaContext';
 
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<any>(null);
@@ -26,6 +27,10 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   
   const router = useRouter();
   const pathname = usePathname();
+
+  // Header switcher (consome o ClinicaProvider global multi-tenant)
+  const { clinics: ctxClinics, activeClinic: ctxActive, setActiveClinicById } = useClinica();
+  const [headerSwitchOpen, setHeaderSwitchOpen] = useState(false);
 
   useEffect(() => { validarSessao(); }, [pathname]);
 
@@ -47,14 +52,51 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
         const { data: prof } = await supabase.from('profissionais').select('*').eq('user_id', session.user.id).single();
         if (prof) {
             setPerfil(prof);
+
+            // ===== Temporary Password Flow =====
+            // Se o profissional ainda tem senha temporária, bloqueia tudo
+            // exceto a tela /primeiro-acesso até que ele troque a senha.
+            if (prof.precisa_trocar_senha && pathname !== '/primeiro-acesso') {
+                router.replace('/primeiro-acesso');
+                setLoading(false);
+                return;
+            }
+
+            // ===== Backoffice Super Admin =====
+            // Apenas super admins podem ver /super-admin; demais rotam para /dashboard.
+            if (pathname.startsWith('/super-admin') && !prof.is_super_admin) {
+                router.replace('/dashboard');
+                setLoading(false);
+                return;
+            }
             
+            // ===== Multi-Tenant Hard Boundary =====
+            // 3 etapas (compatível com RLS sem embeds aninhados):
+            //   1. profissionais (já está em `prof` acima)
+            //   2. profissionais_clinicas → clinica_ids
+            //   3. clinicas (in ids)
+            // Super admins recebem visão global (intencional).
             let lista: any[] = [];
-            if (prof.nivel_acesso === 'admin') {
-                const { data: todas } = await supabase.from('clinicas').select('id, nome');
+            if (prof.is_super_admin) {
+                const { data: todas, error } = await supabase.from('clinicas').select('id, nome').order('nome');
+                if (error) console.error('[AuthGuard] clinicas (super admin):', error);
                 if (todas) lista = todas;
             } else {
-                const { data: vinculos } = await supabase.from('profissionais_clinicas').select('clinica_id, clinicas(id, nome)').eq('profissional_id', prof.id);
-                if (vinculos) lista = vinculos.map((v: any) => v.clinicas);
+                const { data: vinculos, error: vincErr } = await supabase
+                    .from('profissionais_clinicas')
+                    .select('clinica_id')
+                    .eq('profissional_id', prof.id);
+                if (vincErr) console.error('[AuthGuard] profissionais_clinicas:', vincErr);
+                const ids = Array.from(new Set((vinculos || []).map((v: any) => v.clinica_id))).filter((x) => x !== null && x !== undefined);
+                if (ids.length > 0) {
+                    const { data: clins, error: clErr } = await supabase
+                        .from('clinicas')
+                        .select('id, nome')
+                        .in('id', ids as any)
+                        .order('nome');
+                    if (clErr) console.error('[AuthGuard] clinicas (in ids):', clErr);
+                    if (clins) lista = clins;
+                }
             }
 
             if (lista.length > 0) {
@@ -92,8 +134,8 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   if (loading) return <div className="h-screen w-screen bg-slate-50 flex items-center justify-center text-blue-600 animate-pulse"><Building2 size={40}/></div>;
   if (!session) return null;
 
-  // LAYOUT LIMPO PARA SELEÇÃO
-  if (pathname === '/selecao') {
+  // LAYOUT LIMPO PARA SELEÇÃO, PRIMEIRO ACESSO E SUPER ADMIN
+  if (pathname === '/selecao' || pathname === '/primeiro-acesso' || pathname.startsWith('/super-admin')) {
       return <>{children}</>;
   }
 
@@ -158,7 +200,8 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
             <NavItem href="/agenda" icon={<Calendar size={22}/>} label="Agenda" />
             <NavItem href="/pacientes" icon={<Users size={22}/>} label="Pacientes" />
             <NavItem href="/proteses" icon={<Smile size={22}/>} label="Controle de Próteses" />
-            {isAdmin && (<><div className="my-2 border-t border-slate-100 mx-2"></div><NavItem href="/financeiro" icon={<DollarSign size={22}/>} label="Financeiro" /><NavItem href="/configuracoes" icon={<Settings size={22}/>} label="Ajustes" /></>)}
+            {isAdmin && (<><div className="my-2 border-t border-slate-100 mx-2"></div><NavItem href="/financeiro" icon={<DollarSign size={22}/>} label="Financeiro" /><NavItem href="/ajustes/equipe" icon={<ShieldCheck size={22}/>} label="Equipe" /><NavItem href="/configuracoes" icon={<Settings size={22}/>} label="Ajustes" /></>)}
+            {perfil?.is_super_admin && (<><div className="my-2 border-t border-slate-100 mx-2"></div><NavItem href="/super-admin" icon={<ShieldAlert size={22}/>} label="Painel SaaS" /></>)}
         </nav>
 
         <button onClick={() => setMenuRecolhido(!menuRecolhido)} className="absolute top-24 -right-3 bg-white border border-slate-200 shadow-sm p-1 rounded-full text-slate-400 hover:text-blue-600 hover:border-blue-300 transition-all z-50 hidden md:flex items-center justify-center w-6 h-6">{menuRecolhido ? <ChevronRight size={14}/> : <ChevronLeft size={14}/>}</button>
@@ -172,11 +215,53 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
 
       <main className={`flex-1 min-w-0 flex flex-col min-h-screen transition-all duration-300 pt-16 md:pt-0 ${menuRecolhido ? 'md:ml-20' : 'md:ml-64'}`}>
         <header className="bg-white border-b border-slate-200 h-16 flex items-center justify-end px-6 gap-3 sticky top-16 md:top-0 z-20 shadow-sm/50 backdrop-blur-sm bg-white/90">
-            <div className="md:hidden mr-auto flex items-center gap-2">
-                 <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 rounded-lg border border-slate-200">
-                    <Building2 size={14} className="text-blue-600"/>
-                    <span className="text-xs font-bold text-slate-700 max-w-[100px] truncate">{clinicaAtual?.nome}</span>
-                 </div>
+            {/* SWITCH DE UNIDADE NO HEADER (multi-tenant) */}
+            <div className="mr-auto relative">
+                <button
+                    onClick={() => setHeaderSwitchOpen((v) => !v)}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 rounded-xl border border-slate-200 hover:border-blue-300 hover:bg-blue-50/40 transition-all group"
+                    title="Trocar unidade"
+                >
+                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${ctxActive?.id === 'all' ? 'bg-purple-100 text-purple-600' : 'bg-white text-blue-600 border border-slate-200'}`}>
+                        {ctxActive?.id === 'all' ? <Globe size={14}/> : <Building2 size={14}/>}
+                    </div>
+                    <div className="text-left min-w-0">
+                        <p className="text-[9px] font-black uppercase tracking-wider text-slate-400 leading-none">Unidade</p>
+                        <p className="text-xs font-bold text-slate-700 max-w-[220px] truncate">{ctxActive ? getClinicLabel(ctxActive) : 'Selecione'}</p>
+                    </div>
+                    <ChevronsUpDown size={14} className="text-slate-400 group-hover:text-blue-500"/>
+                </button>
+                {headerSwitchOpen && (
+                    <>
+                        <button aria-label="Fechar" className="fixed inset-0 z-30" onClick={() => setHeaderSwitchOpen(false)}/>
+                        <div className="absolute top-full left-0 mt-2 w-72 bg-white border border-slate-100 rounded-2xl shadow-2xl z-40 overflow-hidden animate-in fade-in slide-in-from-top-2">
+                            <p className="px-4 py-2 text-[10px] font-bold text-slate-400 uppercase bg-slate-50 border-b border-slate-100">Trocar Unidade</p>
+                            <button
+                                onClick={() => { setActiveClinicById('all'); setHeaderSwitchOpen(false); window.location.reload(); }}
+                                className="w-full text-left px-4 py-3 text-sm font-bold text-slate-700 hover:bg-purple-50 hover:text-purple-700 flex items-center justify-between border-b border-slate-50"
+                            >
+                                <div className="flex items-center gap-2"><Globe size={16}/> Todas as Clínicas</div>
+                                {ctxActive?.id === 'all' && <Check size={16} className="text-purple-600"/>}
+                            </button>
+                            {ctxClinics.length === 0 && (
+                                <p className="px-4 py-4 text-xs text-slate-400 italic">Nenhuma unidade vinculada ao seu usuário.</p>
+                            )}
+                            {ctxClinics.map((c: any) => (
+                                <button
+                                    key={c.id}
+                                    onClick={() => { setActiveClinicById(String(c.id)); setHeaderSwitchOpen(false); window.location.reload(); }}
+                                    className="w-full text-left px-4 py-3 text-sm font-bold text-slate-700 hover:bg-blue-50 hover:text-blue-700 flex items-center justify-between"
+                                >
+                                    <div className="min-w-0">
+                                        <p className="truncate">{getClinicLabel(c)}</p>
+                                        {c.endereco && <p className="text-[10px] text-slate-400 font-medium truncate">{c.endereco}</p>}
+                                    </div>
+                                    {String(ctxActive?.id) === String(c.id) && <Check size={16} className="text-blue-600 shrink-0 ml-2"/>}
+                                </button>
+                            ))}
+                        </div>
+                    </>
+                )}
             </div>
             <div className="flex items-center gap-1 border-r border-slate-100 pr-3 mr-1">
                 <Link href="/inbox?tab=mensagens" className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all relative" title="Mensagens"><Mail size={20}/></Link>
@@ -212,7 +297,8 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
                     <NavItem href="/agenda" icon={<Calendar size={20}/>} label="Agenda" />
                     <NavItem href="/pacientes" icon={<Users size={20}/>} label="Pacientes" />
                     <NavItem href="/proteses" icon={<Smile size={20}/>} label="Controle de Próteses" />
-                    {isAdmin && <><NavItem href="/financeiro" icon={<DollarSign size={20}/>} label="Financeiro" /><NavItem href="/configuracoes" icon={<Settings size={20}/>} label="Ajustes" /></>}
+                    {isAdmin && <><NavItem href="/financeiro" icon={<DollarSign size={20}/>} label="Financeiro" /><NavItem href="/ajustes/equipe" icon={<ShieldCheck size={20}/>} label="Equipe" /><NavItem href="/configuracoes" icon={<Settings size={20}/>} label="Ajustes" /></>}
+                    {perfil?.is_super_admin && <NavItem href="/super-admin" icon={<ShieldAlert size={20}/>} label="Painel SaaS" />}
                 </div>
                 <div className="p-5 border-t border-slate-100 bg-slate-50"><button onClick={handleLogout} className="flex w-full items-center justify-center gap-3 px-4 py-3 text-red-500 hover:bg-red-50 rounded-xl font-bold bg-white border border-slate-200 shadow-sm transition-all active:scale-95"><LogOut size={18} /> Sair do Sistema</button></div>
             </div>

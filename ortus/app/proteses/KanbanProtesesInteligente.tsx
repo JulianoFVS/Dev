@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { usePatientSlideOver } from '@/components/PatientSlideOver';
+import { useClinica } from '@/app/context/ClinicaContext';
 import { AlertTriangle, Check, CheckCircle2, ChevronRight, Edit3, Filter, GripVertical, Loader2, Plus, Search, Smile, Sparkles, Trash2, X } from 'lucide-react';
 
 type ColumnTitle = 'Solicitado' | 'No Laboratório' | 'Em Prova Clínica' | 'Aguardando Ajuste' | 'Finalizado / Entregue';
@@ -17,6 +18,7 @@ type Card = {
   id: number;
   coluna_id: number;
   clinica_id?: string | null;
+  paciente_id?: string | null;
   paciente_nome: string;
   descricao?: string | null;
   categoria?: string | null;
@@ -32,6 +34,7 @@ type Card = {
 };
 
 type CardForm = {
+  paciente_id: string | null;
   paciente_nome: string;
   categoria: Category;
   tipo_protese: string;
@@ -54,6 +57,7 @@ const REMOVABLE_TYPES = ['PPR (Com grampo)', 'PPR (Sem grampo)', 'PT', 'Flexíve
 const FIXED_TYPES = ['Coroa sobre dente', 'Coroa sobre implante', 'Protocolo', 'Fixa adesiva'];
 
 const EMPTY_FORM: CardForm = {
+  paciente_id: null,
   paciente_nome: '',
   categoria: '',
   tipo_protese: '',
@@ -131,6 +135,7 @@ export default function KanbanProtesesInteligente() {
   const searchParams = useSearchParams();
   const pacientePreSelecionado = searchParams?.get('paciente');
   const { openPatient } = usePatientSlideOver();
+  const { activeClinicId, loading: clinicLoading } = useClinica();
   const [columns, setColumns] = useState<Column[]>([]);
   const [cards, setCards] = useState<Card[]>([]);
   const [patients, setPatients] = useState<PatientOption[]>([]);
@@ -152,19 +157,20 @@ export default function KanbanProtesesInteligente() {
   const [periodFilter, setPeriodFilter] = useState<'all' | '7d' | '30d' | '90d'>('all');
   const [statusFilter, setStatusFilter] = useState<StatusKey[]>([]);
 
+  // Sincroniza clinicId com contexto global (reativo)
   useEffect(() => {
-    const storedClinic = typeof window !== 'undefined' ? localStorage.getItem('ortus_clinica_id') : null;
-    const nextClinicId = normalizeClinicId(storedClinic);
+    if (clinicLoading) return;
+    const nextClinicId = normalizeClinicId(activeClinicId === 'all' ? null : activeClinicId ?? null);
     setClinicId(nextClinicId);
     loadBoard(nextClinicId);
-  }, []);
+  }, [clinicLoading, activeClinicId]);
 
   useEffect(() => {
     if (!pacientePreSelecionado || patients.length === 0 || columns.length === 0) return;
     const paciente = patients.find((p) => String(p.id) === String(pacientePreSelecionado));
     if (!paciente) return;
     const solicitado = columns.find((column) => column.titulo === 'Solicitado') || columns[0];
-    setForm({ ...EMPTY_FORM, paciente_nome: paciente.nome });
+    setForm({ ...EMPTY_FORM, paciente_id: String(paciente.id), paciente_nome: paciente.nome });
     setPatientSearch(paciente.nome);
     setEditingCard(null);
     setTargetColumnId(solicitado?.id || null);
@@ -256,6 +262,7 @@ export default function KanbanProtesesInteligente() {
     setTargetColumnId(card.coluna_id);
     setPatientSearch(card.paciente_nome);
     setForm({
+      paciente_id: card.paciente_id ? String(card.paciente_id) : null,
       paciente_nome: card.paciente_nome || '',
       categoria: category,
       tipo_protese: card.tipo_protese || '',
@@ -269,8 +276,41 @@ export default function KanbanProtesesInteligente() {
   }
 
   function selectPatient(patient: PatientOption) {
-    setForm((current) => ({ ...current, paciente_nome: patient.nome }));
+    setForm((current) => ({ ...current, paciente_id: String(patient.id), paciente_nome: patient.nome }));
     setPatientSearch(patient.nome);
+  }
+
+  const [creatingPatient, setCreatingPatient] = useState(false);
+
+  async function quickCreatePatient() {
+    const nome = patientSearch.trim();
+    if (!nome || creatingPatient) return;
+
+    setCreatingPatient(true);
+    const payload: { nome: string; clinica_id?: string } = { nome };
+    if (clinicId) payload.clinica_id = clinicId;
+
+    const { data, error } = await supabase
+      .from('pacientes')
+      .insert([payload])
+      .select('id, nome, telefone, clinica_id')
+      .single();
+
+    setCreatingPatient(false);
+
+    if (error || !data) {
+      showToast('warning', 'Não foi possível criar o paciente: ' + (error?.message || 'erro desconhecido'));
+      return;
+    }
+
+    const novo = data as PatientOption;
+    setPatients((current) => [...current, novo].sort((a, b) => a.nome.localeCompare(b.nome)));
+    selectPatient(novo);
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('ortus:paciente-changed'));
+    }
+    showToast('success', `${novo.nome} cadastrado e selecionado.`);
   }
 
   function selectCategory(category: Category) {
@@ -281,6 +321,7 @@ export default function KanbanProtesesInteligente() {
     const requestedColumn = targetColumnId ? columns.find((column) => column.id === targetColumnId) : columns.find((column) => column.titulo === 'Solicitado') || columns[0];
     if (!requestedColumn || requestedColumn.id < 0) return showToast('warning', 'As etapas padrão ainda não foram carregadas.');
     if (!form.paciente_nome.trim()) return showToast('warning', 'Selecione ou informe o paciente.');
+    if (!form.paciente_id) return showToast('warning', 'Selecione o paciente da lista ou clique em “Cadastrar como novo paciente”.');
     if (!form.categoria) return showToast('warning', 'Escolha a categoria da prótese.');
     if (!form.tipo_protese) return showToast('warning', 'Escolha o tipo da prótese.');
 
@@ -288,6 +329,7 @@ export default function KanbanProtesesInteligente() {
     const payload = {
       coluna_id: requestedColumn.id,
       clinica_id: clinicId,
+      paciente_id: form.paciente_id,
       paciente_nome: form.paciente_nome.trim(),
       descricao: form.descricao.trim(),
       categoria: form.categoria,
@@ -709,8 +751,22 @@ export default function KanbanProtesesInteligente() {
                 </div>
                 <div className="relative">
                   <Search size={16} className="absolute left-3 top-3.5 text-slate-400" />
-                  <input value={patientSearch} onChange={(event) => { setPatientSearch(event.target.value); setForm((current) => ({ ...current, paciente_nome: event.target.value })); }} className="w-full pl-10 pr-3 py-3 rounded-2xl bg-slate-50 border border-slate-200 outline-none focus:ring-2 focus:ring-pink-500 font-bold text-slate-700" placeholder="Buscar ou digitar nome do paciente" />
+                  <input value={patientSearch} onChange={(event) => { const v = event.target.value; setPatientSearch(v); setForm((current) => ({ ...current, paciente_nome: v, paciente_id: current.paciente_nome === v ? current.paciente_id : null })); }} className="w-full pl-10 pr-3 py-3 rounded-2xl bg-slate-50 border border-slate-200 outline-none focus:ring-2 focus:ring-pink-500 font-bold text-slate-700" placeholder="Buscar ou digitar nome do paciente" />
                 </div>
+                {patientSearch.trim() && filteredPatients.length === 0 && !patients.some((p) => p.nome.toLowerCase() === patientSearch.trim().toLowerCase()) && (
+                  <button
+                    onClick={quickCreatePatient}
+                    disabled={creatingPatient}
+                    className="mt-3 w-full p-3 rounded-2xl border-2 border-dashed border-pink-200 bg-pink-50/60 hover:bg-pink-50 hover:border-pink-400 text-pink-700 font-bold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-60 disabled:cursor-wait"
+                    title="Cadastrar este paciente rapidamente"
+                  >
+                    {creatingPatient ? (
+                      <><Loader2 size={16} className="animate-spin"/> Cadastrando...</>
+                    ) : (
+                      <><Plus size={16}/> Cadastrar &quot;<span className="font-black">{patientSearch.trim()}</span>&quot; como novo paciente</>
+                    )}
+                  </button>
+                )}
                 {patientSearch && filteredPatients.length > 0 && (
                   <div className="mt-3 grid sm:grid-cols-2 gap-2">
                     {filteredPatients.map((patient) => (

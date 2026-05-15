@@ -6,6 +6,7 @@ import { User, Phone, Edit, ArrowLeft, Save, Loader2, FileText, Clock, Trash2, C
 import Link from 'next/link';
 import { carregarModelos, type ModeloAnamnese } from '@/lib/anamnese';
 import { TEETH_UPPER, TEETH_LOWER, type ToothLibData } from '@/lib/teeth-data';
+import { fetchUserClinicas } from '@/lib/clinicScoped';
 
 // =============== ODONTOGRAMA - Padrão Codental (Vista Lateral + Oclusal) ===============
 type Face = 'V' | 'M' | 'D' | 'L' | 'O'; // Vestibular, Mesial, Distal, Lingual/Palatal, Oclusal/Incisal
@@ -301,8 +302,8 @@ export default function PacienteDetalhe() {
 
   async function carregar() {
       setLoading(true);
-      const { data: listaClinicas } = await supabase.from('clinicas').select('*');
-      if (listaClinicas) setClinicas(listaClinicas);
+      const listaClinicas = await fetchUserClinicas();
+      setClinicas(listaClinicas);
 
       const { data } = await supabase.from('pacientes').select('*').eq('id', id).single();
       if (data) {

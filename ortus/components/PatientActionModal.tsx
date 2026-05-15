@@ -3,13 +3,14 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import { AlertCircle, ArrowLeft, Calendar, CheckCircle2, DollarSign, FileText, FolderOpen, Loader2, Smile, X } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Calendar, CheckCircle2, DollarSign, FileText, FolderOpen, Loader2, Phone, Smile, Sparkles, User, X } from 'lucide-react';
 import AppointmentForm from '@/components/forms/AppointmentForm';
 import ProsthesisForm from '@/components/forms/ProsthesisForm';
 import TreatmentForm from '@/components/forms/TreatmentForm';
 
 type PatientActionModalContextValue = {
   openPatientActions: (patientId: string | number | null | undefined) => void;
+  openQuickCapture: (initialClinicaId?: string | null) => void;
   closePatientActions: () => void;
 };
 
@@ -69,14 +70,24 @@ export function PatientActionModalProvider({ children }: { children: React.React
   const [activeFlow, setActiveFlow] = useState<ActiveFlow>('idle');
   const [toast, setToast] = useState<{ message: string; tone: 'success' | 'info' } | null>(null);
 
+  // Quick Capture (Cadastro Rápido) state
+  const [quickCapture, setQuickCapture] = useState(false);
+  const [qcInitialClinicaId, setQcInitialClinicaId] = useState<string | null>(null);
+  const [qcNome, setQcNome] = useState('');
+  const [qcTelefone, setQcTelefone] = useState('');
+  const [qcSaving, setQcSaving] = useState(false);
+  const [qcError, setQcError] = useState<string | null>(null);
+
   const closePatientActions = useCallback(() => {
     setOpen(false);
     setActiveFlow('idle');
+    setQuickCapture(false);
   }, []);
 
   const openPatientActions = useCallback(async (patientId: string | number | null | undefined) => {
     if (!patientId) return;
     setOpen(true);
+    setQuickCapture(false);
     setActiveFlow('idle');
     setLoading(true);
     setError(null);
@@ -97,7 +108,61 @@ export function PatientActionModalProvider({ children }: { children: React.React
     setLoading(false);
   }, []);
 
-  const value = useMemo(() => ({ openPatientActions, closePatientActions }), [openPatientActions, closePatientActions]);
+  const openQuickCapture = useCallback((initialClinicaId?: string | null) => {
+    setQcInitialClinicaId(initialClinicaId || null);
+    setQcNome('');
+    setQcTelefone('');
+    setQcError(null);
+    setQcSaving(false);
+    setPatient(null);
+    setError(null);
+    setActiveFlow('idle');
+    setQuickCapture(true);
+    setOpen(true);
+  }, []);
+
+  async function submitQuickCapture() {
+    const nome = qcNome.trim();
+    if (!nome) {
+      setQcError('Informe o nome do paciente.');
+      return;
+    }
+
+    setQcSaving(true);
+    setQcError(null);
+
+    const payload: { nome: string; telefone: string; clinica_id?: string } = {
+      nome,
+      telefone: qcTelefone.trim(),
+    };
+    if (qcInitialClinicaId) payload.clinica_id = qcInitialClinicaId;
+
+    const { data, error } = await supabase
+      .from('pacientes')
+      .insert([payload])
+      .select('id, nome, telefone, cpf, clinica_id, clinicas(nome), agendamentos(id, data_hora, status, valor, valor_final)')
+      .single();
+
+    setQcSaving(false);
+
+    if (error || !data) {
+      setQcError(error?.message || 'Não foi possível cadastrar o paciente.');
+      return;
+    }
+
+    // Notifica a lista de pacientes (e qualquer outro listener)
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('ortus:paciente-changed'));
+    }
+
+    // Transição in-place: mantém modal aberto, troca para o Hub de Ações
+    setPatient(data as PatientData);
+    setQuickCapture(false);
+    setActiveFlow('idle');
+    setToast({ message: `${(data as PatientData).nome} cadastrado. O que deseja fazer agora?`, tone: 'success' });
+  }
+
+  const value = useMemo(() => ({ openPatientActions, openQuickCapture, closePatientActions }), [openPatientActions, openQuickCapture, closePatientActions]);
 
   useEffect(() => {
     if (!open) return;
@@ -169,12 +234,16 @@ export function PatientActionModalProvider({ children }: { children: React.React
         <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-900/30 animate-in fade-in">
           <button aria-label="Fechar" className="absolute inset-0" onClick={closePatientActions} />
           <div className="relative bg-white w-full max-w-lg rounded-3xl shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[92vh] animate-in zoom-in-95 duration-200">
-            <div className={`p-5 border-b border-slate-100 bg-gradient-to-br ${flowMeta?.gradient || 'from-blue-50 to-white'} flex items-start justify-between gap-4 shrink-0`}>
+            <div className={`p-5 border-b border-slate-100 bg-gradient-to-br ${quickCapture ? 'from-indigo-50 to-white' : (flowMeta?.gradient || 'from-blue-50 to-white')} flex items-start justify-between gap-4 shrink-0`}>
               <div className="flex items-center gap-3 min-w-0">
                 {activeFlow !== 'idle' ? (
                   <button onClick={() => setActiveFlow('idle')} className="w-11 h-11 rounded-2xl bg-white border border-slate-200 text-slate-500 hover:text-slate-800 hover:bg-slate-50 flex items-center justify-center shrink-0 transition-colors" aria-label="Voltar">
                     <ArrowLeft size={18} />
                   </button>
+                ) : quickCapture ? (
+                  <div className="w-14 h-14 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shadow-lg shadow-indigo-100 shrink-0">
+                    <Sparkles size={22} />
+                  </div>
                 ) : (
                   <div className="w-14 h-14 rounded-2xl bg-blue-600 text-white flex items-center justify-center shadow-lg shadow-blue-100 shrink-0 font-black text-lg tracking-wider">
                     {loading ? <Loader2 className="animate-spin" size={22} /> : getInitials(patient?.nome)}
@@ -182,11 +251,13 @@ export function PatientActionModalProvider({ children }: { children: React.React
                 )}
                 <div className="min-w-0">
                   <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">
-                    {activeFlow === 'idle' ? 'Ações rápidas' : flowMeta?.title}
+                    {quickCapture ? 'Cadastro rápido' : activeFlow === 'idle' ? 'Ações rápidas' : flowMeta?.title}
                   </p>
-                  <h2 className="text-xl font-black text-slate-900 truncate">{patient?.nome || (loading ? 'Carregando...' : 'Paciente')}</h2>
+                  <h2 className="text-xl font-black text-slate-900 truncate">
+                    {quickCapture ? (qcNome.trim() || 'Novo paciente') : (patient?.nome || (loading ? 'Carregando...' : 'Paciente'))}
+                  </h2>
                   <p className="text-xs font-bold text-slate-400 truncate">
-                    {activeFlow === 'idle' ? getClinicName(patient) : flowMeta?.subtitle}
+                    {quickCapture ? 'Cadastre em segundos para iniciar uma ação.' : activeFlow === 'idle' ? getClinicName(patient) : flowMeta?.subtitle}
                   </p>
                 </div>
               </div>
@@ -195,7 +266,73 @@ export function PatientActionModalProvider({ children }: { children: React.React
               </button>
             </div>
 
-            {activeFlow === 'idle' && (
+            {quickCapture && (
+              <div className="flex-1 overflow-y-auto custom-scrollbar p-5 space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                    <User size={12} /> Nome <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    autoFocus
+                    type="text"
+                    value={qcNome}
+                    onChange={(event) => setQcNome(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' && !qcSaving) {
+                        event.preventDefault();
+                        submitQuickCapture();
+                      }
+                    }}
+                    placeholder="Nome completo do paciente"
+                    className="w-full p-3 rounded-2xl bg-slate-50 border border-slate-200 font-bold text-slate-800 outline-none focus:bg-white focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition-all"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                    <Phone size={12} /> WhatsApp / Telefone
+                  </label>
+                  <input
+                    type="tel"
+                    value={qcTelefone}
+                    onChange={(event) => setQcTelefone(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' && !qcSaving) {
+                        event.preventDefault();
+                        submitQuickCapture();
+                      }
+                    }}
+                    placeholder="(00) 00000-0000"
+                    className="w-full p-3 rounded-2xl bg-slate-50 border border-slate-200 font-bold text-slate-800 outline-none focus:bg-white focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition-all"
+                  />
+                </div>
+
+                {qcError && (
+                  <div className="p-3 rounded-2xl bg-red-50 border border-red-100 text-red-700 flex gap-2 text-sm font-bold">
+                    <AlertCircle size={18} className="shrink-0" />
+                    <span>{qcError}</span>
+                  </div>
+                )}
+
+                <button
+                  onClick={submitQuickCapture}
+                  disabled={qcSaving || !qcNome.trim()}
+                  className="w-full p-4 rounded-2xl bg-indigo-600 text-white font-black text-sm hover:bg-indigo-700 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed transition-all shadow-lg shadow-indigo-100 flex items-center justify-center gap-2"
+                >
+                  {qcSaving ? (
+                    <><Loader2 size={18} className="animate-spin" /> Cadastrando...</>
+                  ) : (
+                    <><Sparkles size={18} /> Cadastrar Paciente</>
+                  )}
+                </button>
+
+                <p className="text-[11px] text-slate-400 font-medium text-center">
+                  Após cadastrar, você poderá agendar, criar prótese ou abrir a ficha completa.
+                </p>
+              </div>
+            )}
+
+            {!quickCapture && activeFlow === 'idle' && (
               <>
                 <div className="flex-1 overflow-y-auto custom-scrollbar p-5 space-y-4">
                   {error && (

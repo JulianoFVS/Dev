@@ -19,13 +19,52 @@ export default function Login() {
     setError(null);
     
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      const { data: signIn, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
-      
-      // AQUI ESTÁ A MUDANÇA: Manda para a seleção, não para o dashboard
-      router.push('/selecao'); 
+
+      // Tenant flow: decide se vai direto para o dashboard ou se precisa selecionar unidade.
+      const userId = signIn.user?.id;
+      let count = 0;
+      let unicaClinicaId: string | null = null;
+      let precisaTrocarSenha = false;
+
+      if (userId) {
+        const { data: prof } = await supabase
+          .from('profissionais')
+          .select('id, precisa_trocar_senha')
+          .eq('user_id', userId)
+          .single();
+
+        precisaTrocarSenha = !!prof?.precisa_trocar_senha;
+
+        if (prof?.id) {
+          const { data: vinculos } = await supabase
+            .from('profissionais_clinicas')
+            .select('clinica_id')
+            .eq('profissional_id', prof.id);
+
+          count = vinculos?.length || 0;
+          if (count === 1) unicaClinicaId = String(vinculos![0].clinica_id);
+        }
+      }
+
+      // Senha temporária: redireciona para troca obrigatória antes de qualquer coisa.
+      if (precisaTrocarSenha) {
+        router.push('/primeiro-acesso');
+        router.refresh();
+        return;
+      }
+
+      if (count === 1 && unicaClinicaId) {
+        // Usuário tem acesso a apenas uma unidade: salva e vai direto.
+        localStorage.setItem('ortus_clinica_id', unicaClinicaId);
+        router.push('/dashboard');
+      } else {
+        // 0 ou múltiplas: deixa o usuário escolher (a tela trata o caso 0 também).
+        router.push('/selecao');
+      }
       router.refresh();
-      
+
     } catch (err: any) {
       setError('Acesso negado. Verifique seus dados.');
       setLoading(false);

@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase';
 import { Building2, Users, Plus, Trash2, MapPin, Check, X, Loader2, Edit, UserPlus, Shield, User, FileText, Phone, Mail, Save, Lock, ClipboardList, HelpCircle, FileSignature, Tag, SlidersHorizontal, Database, Download, Upload, Bell, Palette, AlertCircle, RotateCcw, AlertTriangle } from 'lucide-react';
 import { carregarModelos, salvarModelos, novoIdModelo, novoIdPergunta, type ModeloAnamnese, type PerguntaAnamnese, type TipoPergunta } from '@/lib/anamnese';
 import { listarBackups, criarBackupAgora, baixarBackupComoJson, excluirBackup as deletarBackupServer, restaurarBackup } from '@/lib/backup';
+import { fetchUserClinicas } from '@/lib/clinicScoped';
 
 // ==== Helpers de localStorage para abas auxiliares ====
 const KEY_PREFS = 'ortus_preferencias';
@@ -287,7 +288,7 @@ export default function Configuracoes() {
 
   async function carregarDados() {
       setLoading(true);
-      const { data: c } = await supabase.from('clinicas').select('*').order('nome');
+      const c = await fetchUserClinicas();
       const { data: p } = await supabase.from('profissionais').select('*').order('nome');
       setClinicas(c || []);
       setProfissionais(p || []);

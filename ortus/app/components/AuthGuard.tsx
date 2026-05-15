@@ -8,6 +8,7 @@ import {
     Settings, Building2, Bell, Mail, User, ChevronRight, ChevronsUpDown, 
     Check, Smile, ChevronLeft, Globe
 } from 'lucide-react';
+import { useClinica, getClinicLabel } from '@/app/context/ClinicaContext';
 
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<any>(null);
@@ -26,6 +27,10 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   
   const router = useRouter();
   const pathname = usePathname();
+
+  // Header switcher (consome o ClinicaProvider global)
+  const { clinics: ctxClinics, activeClinic: ctxActive, setActiveClinicById } = useClinica();
+  const [headerSwitchOpen, setHeaderSwitchOpen] = useState(false);
 
   useEffect(() => { validarSessao(); }, [pathname]);
 
@@ -195,11 +200,54 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
       <main className={`flex-1 flex flex-col min-h-screen transition-all duration-300 pt-16 md:pt-0 ${menuRecolhido ? 'md:ml-20' : 'md:ml-64'}`}>
         
         <header className="bg-white border-b border-slate-200 h-16 flex items-center justify-end px-6 gap-3 sticky top-16 md:top-0 z-20 shadow-sm/50 backdrop-blur-sm bg-white/90">
-            <div className="md:hidden mr-auto flex items-center gap-2">
-                 <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 rounded-lg border border-slate-200">
-                    <Building2 size={14} className="text-blue-600"/>
-                    <span className="text-xs font-bold text-slate-700 max-w-[100px] truncate">{clinicaAtual?.nome}</span>
-                 </div>
+            {/* SWITCH DE UNIDADE NO HEADER (multi-tenant) */}
+            <div className="mr-auto relative">
+                <button
+                    onClick={() => setHeaderSwitchOpen((v) => !v)}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 rounded-xl border border-slate-200 hover:border-blue-300 hover:bg-blue-50/40 transition-all group"
+                    title="Trocar unidade"
+                >
+                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${ctxActive?.id === 'all' ? 'bg-purple-100 text-purple-600' : 'bg-white text-blue-600 border border-slate-200'}`}>
+                        {ctxActive?.id === 'all' ? <Globe size={14}/> : <Building2 size={14}/>}
+                    </div>
+                    <div className="text-left min-w-0">
+                        <p className="text-[9px] font-black uppercase tracking-wider text-slate-400 leading-none">Unidade</p>
+                        <p className="text-xs font-bold text-slate-700 max-w-[180px] truncate">{ctxActive ? getClinicLabel(ctxActive) : 'Selecione'}</p>
+                    </div>
+                    <ChevronsUpDown size={14} className="text-slate-400 group-hover:text-blue-500"/>
+                </button>
+
+                {headerSwitchOpen && (
+                    <>
+                        <button aria-label="Fechar" className="fixed inset-0 z-30" onClick={() => setHeaderSwitchOpen(false)}/>
+                        <div className="absolute top-full left-0 mt-2 w-72 bg-white border border-slate-100 rounded-2xl shadow-2xl z-40 overflow-hidden animate-in fade-in slide-in-from-top-2">
+                            <p className="px-4 py-2 text-[10px] font-bold text-slate-400 uppercase bg-slate-50 border-b border-slate-100">Trocar Unidade</p>
+                            <button
+                                onClick={() => { setActiveClinicById('all'); setHeaderSwitchOpen(false); window.location.reload(); }}
+                                className="w-full text-left px-4 py-3 text-sm font-bold text-slate-700 hover:bg-purple-50 hover:text-purple-700 flex items-center justify-between border-b border-slate-50"
+                            >
+                                <div className="flex items-center gap-2"><Globe size={16}/> Todas as Clínicas</div>
+                                {ctxActive?.id === 'all' && <Check size={16} className="text-purple-600"/>}
+                            </button>
+                            {ctxClinics.length === 0 && (
+                                <p className="px-4 py-4 text-xs text-slate-400 italic">Nenhuma unidade vinculada ao seu usuário.</p>
+                            )}
+                            {ctxClinics.map((c) => (
+                                <button
+                                    key={c.id}
+                                    onClick={() => { setActiveClinicById(String(c.id)); setHeaderSwitchOpen(false); window.location.reload(); }}
+                                    className="w-full text-left px-4 py-3 text-sm font-bold text-slate-700 hover:bg-blue-50 hover:text-blue-700 flex items-center justify-between"
+                                >
+                                    <div className="min-w-0">
+                                        <p className="truncate">{getClinicLabel(c)}</p>
+                                        {c.endereco && <p className="text-[10px] text-slate-400 font-medium truncate">{c.endereco}</p>}
+                                    </div>
+                                    {String(ctxActive?.id) === String(c.id) && <Check size={16} className="text-blue-600 shrink-0 ml-2"/>}
+                                </button>
+                            ))}
+                        </div>
+                    </>
+                )}
             </div>
 
             <div className="flex items-center gap-1 border-r border-slate-100 pr-3 mr-1">

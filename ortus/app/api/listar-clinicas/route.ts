@@ -24,21 +24,28 @@ export async function POST(req: Request) {
         .eq('user_id', userId)
         .single();
 
-    // 2. BUSCA TODAS AS CLÍNICAS (SEM FILTRO DE USUÁRIO)
-    // Isso resolve o problema de não aparecerem as clínicas cadastradas
-    const { data: todasClinicas, error: erroClinicas } = await supabaseAdmin
-        .from('clinicas')
-        .select('id, nome, endereco')
-        .order('nome');
+    // 2. BUSCA APENAS AS CLÍNICAS VINCULADAS AO PROFISSIONAL (multi-tenant)
+    let clinicas: any[] = [];
+    if (prof?.id) {
+        const { data: vinculos, error: erroVinc } = await supabaseAdmin
+            .from('profissionais_clinicas')
+            .select('clinicas(id, nome, endereco, rede_id, redes(id, nome))')
+            .eq('profissional_id', prof.id);
 
-    if (erroClinicas) {
-        console.error('Erro ao buscar clínicas:', erroClinicas);
-        return NextResponse.json({ error: 'Erro ao buscar clínicas no banco.' }, { status: 500 });
+        if (erroVinc) {
+            console.error('Erro ao buscar vínculos:', erroVinc);
+            return NextResponse.json({ error: 'Erro ao buscar unidades do usuário.' }, { status: 500 });
+        }
+
+        clinicas = (vinculos || [])
+            .map((v: any) => v.clinicas)
+            .filter(Boolean)
+            .sort((a: any, b: any) => (a.nome || '').localeCompare(b.nome || ''));
     }
 
-    return NextResponse.json({ 
-        clinicas: todasClinicas || [], 
-        usuario: prof || { nome: 'Usuário' } 
+    return NextResponse.json({
+        clinicas,
+        usuario: prof || { nome: 'Usuário' }
     });
 
   } catch (error: any) {

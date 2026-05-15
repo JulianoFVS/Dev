@@ -6,6 +6,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { usePatientSlideOver } from '@/components/PatientSlideOver';
 import { usePatientActionModal } from '@/components/PatientActionModal';
+import { useClinica } from '@/app/context/ClinicaContext';
+import { fetchUserClinicas } from '@/lib/clinicScoped';
 
 export default function Pacientes() {
   const [pacientes, setPacientes] = useState<any[]>([]);
@@ -19,25 +21,45 @@ export default function Pacientes() {
 
   const router = useRouter();
   const { openPatient } = usePatientSlideOver();
-  const { openPatientActions } = usePatientActionModal();
+  const { openPatientActions, openQuickCapture } = usePatientActionModal();
+  const { activeClinicId, loading: clinicLoading } = useClinica();
+
+  // Sincroniza filtro de clínica com contexto global
+  useEffect(() => {
+      if (activeClinicId) setFiltroClinica(activeClinicId === 'all' ? 'todas' : activeClinicId);
+  }, [activeClinicId]);
 
   useEffect(() => { 
-      // Sincroniza com a seleção global
-      const globalCid = localStorage.getItem('ortus_clinica_id');
-      if (globalCid) setFiltroClinica(globalCid);
-      
-      carregarDados(); 
+      if (!clinicLoading) carregarDados(); 
+  }, [clinicLoading]);
+
+  // Atualiza a lista quando um paciente é criado/alterado em outro lugar (ex.: Quick Capture)
+  useEffect(() => {
+      function handle() { carregarDados(); }
+      window.addEventListener('ortus:paciente-changed', handle);
+      return () => window.removeEventListener('ortus:paciente-changed', handle);
   }, []);
 
   async function carregarDados() {
     setLoading(true);
     
-    // 1. Carregar Clínicas
-    const { data: listaClinicas } = await supabase.from('clinicas').select('*').order('nome');
-    if (listaClinicas) setClinicas(listaClinicas);
+    // 1. Carregar Clínicas (apenas as do usuário logado — multi-tenant)
+    const listaClinicas = await fetchUserClinicas();
+    setClinicas(listaClinicas);
+    const idsPermitidos = listaClinicas.map((c) => c.id);
 
-    // 2. Carregar Pacientes
-    const { data } = await supabase.from('pacientes').select('*, agendamentos(data_hora, status), clinicas(nome)').order('created_at', { ascending: false });
+    // 2. Carregar Pacientes restritos às clínicas do usuário
+    let pacientesQuery = supabase
+        .from('pacientes')
+        .select('*, agendamentos(data_hora, status), clinicas(nome)')
+        .order('created_at', { ascending: false });
+    if (idsPermitidos.length > 0) {
+        pacientesQuery = pacientesQuery.in('clinica_id', idsPermitidos as any);
+    } else {
+        // Sem clínicas vinculadas: força lista vazia para não exibir lixo.
+        setPacientes([]); setLoading(false); return;
+    }
+    const { data } = await pacientesQuery;
     
     if (data) {
         const formatados = data.map((p: any) => {
@@ -52,13 +74,10 @@ export default function Pacientes() {
     setLoading(false);
   }
 
-  async function novoPaciente() {
-      // Se tiver filtro de clínica selecionado, já cria o paciente nela
-      const payload: any = { nome: 'Novo Paciente', telefone: '' };
-      if (filtroClinica !== 'todas') payload.clinica_id = filtroClinica;
-
-      const { data, error } = await supabase.from('pacientes').insert([payload]).select().single();
-      if(data) router.push(`/pacientes/${data.id}`);
+  function novoPaciente() {
+      // Quick Capture: abre o modal de cadastro rápido. Se houver filtro de clínica ativo,
+      // pré-seleciona-o para o INSERT. Após cadastrar, a UI desliza para o Hub de Ações.
+      openQuickCapture(filtroClinica !== 'todas' ? filtroClinica : null);
   }
 
   function exportarCSV() {
