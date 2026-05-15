@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useClinica, getClinicLabel } from '@/app/context/ClinicaContext';
+import { fetchUserEquipe } from '@/lib/clinicScoped';
 import {
     Users, UserPlus, Loader2, X, Mail, Building2, ShieldCheck, Copy, Check,
     KeyRound, AlertTriangle, User, Briefcase,
@@ -48,56 +49,19 @@ export default function EquipePage() {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) { setLoading(false); return; }
 
+            // Pega meu perfil só para o gate de acesso (admin/super admin)
             const { data: meu } = await supabase
                 .from('profissionais')
-                .select('id, nome, nivel_acesso')
+                .select('id, nome, nivel_acesso, is_super_admin')
                 .eq('user_id', user.id)
                 .single();
             setPerfilCaller(meu);
 
-            // Equipe = todos os profissionais que dividem ao menos UMA clínica com o admin logado.
-            const { data: minhasClinicas } = await supabase
-                .from('profissionais_clinicas')
-                .select('clinica_id')
-                .eq('profissional_id', meu?.id);
-            const idsClin = (minhasClinicas || []).map((v: any) => v.clinica_id);
-
-            if (idsClin.length === 0) {
-                setProfissionais([]);
-                setLoading(false);
-                return;
-            }
-
-            const { data: vinculos } = await supabase
-                .from('profissionais_clinicas')
-                .select('profissional_id, clinica_id, clinicas(id, nome)')
-                .in('clinica_id', idsClin);
-
-            const idsProf = Array.from(new Set((vinculos || []).map((v: any) => v.profissional_id)));
-            const { data: profs } = await supabase
-                .from('profissionais')
-                .select('id, nome, cargo, nivel_acesso, user_id, precisa_trocar_senha')
-                .in('id', idsProf);
-
-            // Deduplica clinicas por profissional (a tabela profissionais_clinicas
-            // pode conter pares (profissional_id, clinica_id) duplicados; sem dedupe
-            // o React reclama de keys duplicadas ao renderizar as badges).
-            const mapClinPorProf = new Map<string, Map<string, any>>();
-            (vinculos || []).forEach((v: any) => {
-                if (!v.clinicas) return;
-                const profKey = String(v.profissional_id);
-                const clinKey = String(v.clinicas.id);
-                const inner = mapClinPorProf.get(profKey) || new Map<string, any>();
-                if (!inner.has(clinKey)) inner.set(clinKey, v.clinicas);
-                mapClinPorProf.set(profKey, inner);
-            });
-
-            const lista: Profissional[] = (profs || []).map((p: any) => ({
-                ...p,
-                clinicas: Array.from((mapClinPorProf.get(String(p.id)) || new Map()).values()),
-            }));
-
-            setProfissionais(lista);
+            // Helper centralizado que aplica regras de visibilidade:
+            //  - super admin: todos
+            //  - demais: colegas das mesmas clínicas
+            const lista = await fetchUserEquipe();
+            setProfissionais(lista as any);
         } catch (e) {
             console.error(e);
         }
@@ -182,7 +146,7 @@ export default function EquipePage() {
         } catch {}
     }
 
-    const isAdmin = perfilCaller?.nivel_acesso === 'admin';
+    const isAdmin = perfilCaller?.nivel_acesso === 'admin' || perfilCaller?.is_super_admin;
 
     const totalAtivos = useMemo(() => profissionais.length, [profissionais]);
 
