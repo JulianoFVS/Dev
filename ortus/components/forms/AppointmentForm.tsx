@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Building2, Calendar, Clock, DollarSign, Loader2, Save, User } from 'lucide-react';
+import { fetchUserClinicas } from '@/lib/clinicScoped';
 
 export type AppointmentPatient = {
   id: string | number;
@@ -63,19 +64,19 @@ export default function AppointmentForm({ paciente, defaultDate, defaultTime, on
   useEffect(() => {
     let mounted = true;
     (async () => {
-      const [{ data: user }, deps] = await Promise.all([
+      const [{ data: user }, deps, clinicasUsuario] = await Promise.all([
         supabase.auth.getUser(),
         Promise.all([
           supabase.from('servicos').select('*').order('nome'),
-          supabase.from('clinicas').select('id, nome'),
           supabase.from('profissionais').select('id, nome, user_id, profissionais_clinicas(clinica_id)'),
         ]),
+        fetchUserClinicas(),
       ]);
       if (!mounted) return;
 
-      const [{ data: serv }, { data: cl }, { data: pr }] = deps;
+      const [{ data: serv }, { data: pr }] = deps;
       setServicos(serv || []);
-      setClinicas(cl || []);
+      setClinicas(clinicasUsuario.map((c) => ({ id: c.id, nome: c.nome })));
       setProfissionais(pr || []);
 
       const authedUserId = user?.user?.id;

@@ -6,6 +6,7 @@ import {
     Printer, ArrowUpCircle, ArrowDownCircle, Loader2, X, Save, Calendar, AlertCircle,
     Trash2, Ban, Clock as ClockIcon, RotateCcw, CheckCircle, Tag
 } from 'lucide-react';
+import { useClinica, getClinicLabel } from '@/app/context/ClinicaContext';
 
 // ===== Categorias persistidas em localStorage =====
 const KEY_CATS = 'ortus_categorias_financeiro';
@@ -39,6 +40,7 @@ function salvarMeta(m: any) {
 }
 
 export default function Financeiro() {
+  const { activeClinicId, activeClinic, loading: clinicLoading } = useClinica();
   const [transacoes, setTransacoes] = useState<any[]>([]);
   const [resumo, setResumo] = useState({ entrada: 0, saida: 0, saldo: 0, andamento: 0 });
   const [loading, setLoading] = useState(true);
@@ -63,7 +65,11 @@ export default function Financeiro() {
       data: new Date().toISOString().split('T')[0],
       categoria: 'Geral',
       status: 'concluido' as 'concluido' | 'andamento',
+      paciente_id: '' as string,
   });
+
+  // Pacientes (vinculação opcional ao lançamento)
+  const [pacientesOptions, setPacientesOptions] = useState<{ id: string; nome: string }[]>([]);
 
   // Cancelamento
   const [modalCancelar, setModalCancelar] = useState<any>(null);
@@ -76,12 +82,12 @@ export default function Financeiro() {
       setCategorias(carregarCategorias());
   }, []);
 
-  useEffect(() => { if (dataInicio && dataFim) carregarDados(); }, [mesSelecionado, dataInicio, dataFim, modoData]);
+  useEffect(() => { if (dataInicio && dataFim && !clinicLoading) carregarDados(); }, [mesSelecionado, dataInicio, dataFim, modoData, clinicLoading, activeClinicId]);
 
   async function carregarDados() {
     setLoading(true);
-    const clinicaId = localStorage.getItem('ortus_clinica_id');
-    const filtrarClinica = clinicaId && clinicaId !== 'todas';
+    const clinicaId = activeClinicId;
+    const filtrarClinica = clinicaId && clinicaId !== 'all';
 
     let inicio = '', fim = '';
     if (modoData === 'mes') {
@@ -149,15 +155,18 @@ export default function Financeiro() {
   }
 
   function abrirNovoLancamento() {
-      const clinicaId = localStorage.getItem('ortus_clinica_id');
-      if (!clinicaId || clinicaId === 'todas') {
-          alert('Selecione uma Clínica específica no menu lateral antes de lançar.');
+      if (!activeClinicId || activeClinicId === 'all') {
+          alert('Selecione uma Clínica específica no menu antes de lançar.');
           return;
       }
-      setNovoLancamento({ tipo: 'saida', descricao: '', valor: '', data: new Date().toISOString().split('T')[0], categoria: 'Geral', status: 'concluido' });
+      setNovoLancamento({ tipo: 'saida', descricao: '', valor: '', data: new Date().toISOString().split('T')[0], categoria: 'Geral', status: 'concluido', paciente_id: '' });
       setModoCategoria('lista');
       setNovaCatTemp('');
       setModalAberto(true);
+      // Carrega pacientes da clínica para vinculação opcional
+      supabase.from('pacientes').select('id, nome').eq('clinica_id', activeClinicId).order('nome').then(({ data }) => {
+          setPacientesOptions((data || []) as { id: string; nome: string }[]);
+      });
   }
 
   function adicionarNovaCategoria() {
@@ -178,12 +187,12 @@ export default function Financeiro() {
   async function salvarLancamento(e: any) {
       e.preventDefault();
       setSalvando(true);
-      const clinicaId = localStorage.getItem('ortus_clinica_id');
-      if (!clinicaId || clinicaId === 'todas') {
-          alert('Selecione uma clínica específica no menu lateral.');
+      if (!activeClinicId || activeClinicId === 'all') {
+          alert('Selecione uma clínica específica no menu.');
           setSalvando(false);
           return;
       }
+      const clinicaId = activeClinicId;
       const { data: { user } } = await supabase.auth.getUser();
       const payload: any = {
           descricao: novoLancamento.descricao,
@@ -194,6 +203,7 @@ export default function Financeiro() {
           clinica_id: clinicaId,
           user_id: user?.id,
           status: novoLancamento.status,
+          paciente_id: novoLancamento.paciente_id || null,
       };
       const { data: ins, error } = await supabase.from('despesas').insert([payload]).select().single();
       if (error) { alert('Erro: ' + error.message); setSalvando(false); return; }
@@ -255,7 +265,7 @@ export default function Financeiro() {
 
   // ===== IMPRESSÃO BONITA =====
   function imprimirRelatorio() {
-      const clinicaNome = localStorage.getItem('ortus_clinica_nome') || 'ORTUS CLINIC';
+      const clinicaNome = activeClinic ? getClinicLabel(activeClinic) : 'ORTUS CLINIC';
       const periodoStr = modoData === 'mes'
           ? new Date(mesSelecionado + '-15').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
           : `${new Date(dataInicio).toLocaleDateString('pt-BR')} a ${new Date(dataFim).toLocaleDateString('pt-BR')}`;
@@ -583,6 +593,20 @@ export default function Financeiro() {
                                 <p className="text-[10px] text-slate-400 mt-1 flex items-center gap-1"><Tag size={10}/> Esta categoria será usada apenas neste lançamento (não será salva para reutilização).</p>
                             </div>
                         )}
+                    </div>
+
+                    {/* PACIENTE (vinculação opcional) */}
+                    <div>
+                        <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Paciente <span className="text-slate-300 normal-case font-medium">(opcional)</span></label>
+                        <select
+                            value={novoLancamento.paciente_id}
+                            onChange={e => setNovoLancamento({ ...novoLancamento, paciente_id: e.target.value })}
+                            className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-600 cursor-pointer"
+                        >
+                            <option value="">Sem vínculo (despesa operacional)</option>
+                            {pacientesOptions.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
+                        </select>
+                        <p className="text-[10px] text-slate-400 mt-1">Se vinculado, este lançamento será excluído automaticamente caso o paciente seja removido.</p>
                     </div>
 
                     {/* STATUS */}

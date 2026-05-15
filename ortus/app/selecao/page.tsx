@@ -4,6 +4,13 @@ import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import { Building2, Globe, LogOut, ChevronRight, Loader2, PlusCircle } from 'lucide-react';
 
+function nomeRede(c: any): string | null {
+    const r = c?.redes;
+    if (!r) return null;
+    const obj = Array.isArray(r) ? r[0] : r;
+    return obj?.nome || null;
+}
+
 export default function SelecaoClinica() {
   const [clinicas, setClinicas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -50,11 +57,39 @@ export default function SelecaoClinica() {
     }
   }
 
-  // Fallback caso a API falhe (busca direta)
+  // Fallback caso a API falhe (busca direta) — 3 etapas compatíveis com RLS.
   async function fallbackCarregarDoCliente() {
-      const { data } = await supabase.from('clinicas').select('id, nome, endereco');
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) { setLoading(false); return; }
+
+      const { data: prof } = await supabase
+          .from('profissionais')
+          .select('id, is_super_admin')
+          .eq('user_id', session.user.id)
+          .maybeSingle();
+
+      let minhas: { id: any; nome: string; endereco: string }[] = [];
+      if (prof?.is_super_admin) {
+          const { data } = await supabase.from('clinicas').select('id, nome, endereco').order('nome');
+          minhas = (data || []) as any;
+      } else if (prof?.id) {
+          const { data: vinculos } = await supabase
+              .from('profissionais_clinicas')
+              .select('clinica_id')
+              .eq('profissional_id', prof.id);
+          const ids = Array.from(new Set((vinculos || []).map((v: any) => v.clinica_id))).filter((x) => x !== null && x !== undefined);
+          if (ids.length > 0) {
+              const { data } = await supabase
+                  .from('clinicas')
+                  .select('id, nome, endereco')
+                  .in('id', ids as any)
+                  .order('nome');
+              minhas = (data || []) as any;
+          }
+      }
+
       const opcaoTodas = { id: 'todas', nome: 'Todas as Clínicas', endereco: 'Visão Geral' };
-      setClinicas([opcaoTodas, ...(data || [])]);
+      setClinicas([opcaoTodas, ...minhas]);
       setLoading(false);
   }
 
@@ -107,6 +142,9 @@ export default function SelecaoClinica() {
                                 {c.id === 'todas' ? <Globe size={22}/> : <Building2 size={22}/>}
                             </div>
                             <div>
+                                {c.id !== 'todas' && nomeRede(c) && (
+                                    <p className="text-[10px] text-blue-500 font-black uppercase tracking-wider mb-0.5">{nomeRede(c)}</p>
+                                )}
                                 <h3 className="font-bold text-slate-700 text-sm group-hover:text-blue-700 transition-colors">{c.nome}</h3>
                                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wide">{c.endereco || 'Unidade'}</p>
                             </div>

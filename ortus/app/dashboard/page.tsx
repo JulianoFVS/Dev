@@ -3,14 +3,16 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 import { Users, Calendar, DollarSign, ArrowRight, Clock, Loader2 } from 'lucide-react';
+import { useClinica } from '@/app/context/ClinicaContext';
 
 export default function Dashboard() {
   const [stats, setStats] = useState({ pacientes: 0, agendamentos: 0, faturamento: 0 });
   const [proximos, setProximos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [usuario, setUsuario] = useState<any>(null);
+  const { activeClinicId, loading: clinicLoading } = useClinica();
 
-  useEffect(() => { carregarDados(); }, []);
+  useEffect(() => { if (!clinicLoading) carregarDados(); }, [clinicLoading, activeClinicId]);
 
   async function carregarDados() {
     setLoading(true);
@@ -28,14 +30,13 @@ export default function Dashboard() {
             if (vinculos) idsPermitidos = vinculos.map(v => v.clinica_id);
         }
 
-        // 2. APLICAR FILTRO LOCAL (Local Storage)
-        const clinicaIdStorage = localStorage.getItem('ortus_clinica_id');
-        let filtrosIds = [];
+        // 2. APLICAR FILTRO via contexto global (reativo)
+        let filtrosIds: number[] = [];
 
-        if (clinicaIdStorage && clinicaIdStorage !== 'todas') {
+        if (activeClinicId && activeClinicId !== 'all') {
             // Se selecionou uma específica, filtra só ela (se tiver permissão)
-            if (idsPermitidos.includes(Number(clinicaIdStorage))) {
-                filtrosIds = [Number(clinicaIdStorage)];
+            if (idsPermitidos.includes(Number(activeClinicId))) {
+                filtrosIds = [Number(activeClinicId)];
             } else {
                 filtrosIds = idsPermitidos; // Fallback segurança
             }

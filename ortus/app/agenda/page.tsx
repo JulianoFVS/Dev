@@ -9,6 +9,8 @@ import interactionPlugin from '@fullcalendar/interaction';
 import listPlugin from '@fullcalendar/list';
 import ptBrLocale from '@fullcalendar/core/locales/pt-br';
 import { usePatientSlideOver } from '@/components/PatientSlideOver';
+import { useClinica } from '@/app/context/ClinicaContext';
+import { fetchUserClinicas } from '@/lib/clinicScoped';
 
 import { 
   Plus, X, Loader2, CheckCircle, MapPin, User, Building2, 
@@ -32,6 +34,7 @@ export default function Agenda() {
   const searchParams = useSearchParams();
   const pacientePreSelecionado = searchParams?.get('paciente');
   const { openPatient } = usePatientSlideOver();
+  const { activeClinicId, loading: clinicLoading } = useClinica();
   const [events, setEvents] = useState<any[]>([]);
   const [usuarioAtual, setUsuarioAtual] = useState<any>(null);
   
@@ -58,15 +61,17 @@ export default function Agenda() {
   const [formPaciente, setFormPaciente] = useState({ nome: '', cpf: '', telefone: '', email: '', data_nascimento: '', endereco: '' });
   const [formServico, setFormServico] = useState({ nome: '', valor: '0' });
 
+  // Sincroniza filtro com contexto global (reativo)
+  useEffect(() => {
+      if (!activeClinicId) return;
+      const cid = activeClinicId === 'all' ? 'todas' : activeClinicId;
+      setClinicaFiltro(cid);
+      setClinicaGlobal(activeClinicId === 'all' ? null : activeClinicId);
+  }, [activeClinicId]);
+
   useEffect(() => { 
-      // Sincroniza
-      const globalCid = localStorage.getItem('ortus_clinica_id');
-      if (globalCid) {
-          setClinicaFiltro(globalCid);
-          setClinicaGlobal(globalCid);
-      }
-      inicializar(); 
-  }, []);
+      if (!clinicLoading) inicializar(); 
+  }, [clinicLoading]);
 
   useEffect(() => { if(usuarioAtual) carregarEventos(); }, [clinicaFiltro, usuarioAtual]);
 
@@ -111,11 +116,27 @@ export default function Agenda() {
       fetchDados(); 
   }
 
-  async function fetchDados() { 
-      const { data: cl } = await supabase.from('clinicas').select('*'); if (cl) setClinicas(cl); 
-      const { data: pr } = await supabase.from('profissionais').select('*, profissionais_clinicas(clinica_id)'); if (pr) setProfissionais(pr); 
-      const { data: pac } = await supabase.from('pacientes').select('id, nome, clinica_id').order('nome'); if (pac) setPacientes(pac); 
-      const { data: serv } = await supabase.from('servicos').select('*').order('nome'); if (serv) setServicos(serv); 
+  async function fetchDados() {
+      // Clínicas restritas ao usuário (multi-tenant)
+      const cl = await fetchUserClinicas();
+      setClinicas(cl);
+      const idsPermitidos = cl.map((c) => c.id);
+
+      const { data: pr } = await supabase.from('profissionais').select('*, profissionais_clinicas(clinica_id)'); if (pr) setProfissionais(pr);
+
+      // Pacientes apenas das clínicas permitidas
+      if (idsPermitidos.length > 0) {
+          const { data: pac } = await supabase
+              .from('pacientes')
+              .select('id, nome, clinica_id')
+              .in('clinica_id', idsPermitidos as any)
+              .order('nome');
+          if (pac) setPacientes(pac);
+      } else {
+          setPacientes([]);
+      }
+
+      const { data: serv } = await supabase.from('servicos').select('*').order('nome'); if (serv) setServicos(serv);
   }
 
   async function carregarEventos() { 

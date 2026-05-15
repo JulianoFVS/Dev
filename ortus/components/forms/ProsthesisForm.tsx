@@ -81,6 +81,7 @@ export default function ProsthesisForm({ paciente, onSuccess, onCancel }: Prosth
     const payload = {
       coluna_id: solicitado.id,
       clinica_id: clinicId,
+      paciente_id: paciente.id,
       paciente_nome: paciente.nome,
       descricao: form.descricao.trim(),
       categoria: form.categoria,
