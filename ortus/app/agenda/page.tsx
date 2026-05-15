@@ -10,7 +10,7 @@ import listPlugin from '@fullcalendar/list';
 import ptBrLocale from '@fullcalendar/core/locales/pt-br';
 import { usePatientSlideOver } from '@/components/PatientSlideOver';
 import { useClinica } from '@/app/context/ClinicaContext';
-import { fetchUserClinicas } from '@/lib/clinicScoped';
+import { fetchUserClinicas, fetchUserEquipe } from '@/lib/clinicScoped';
 
 import { 
   Plus, X, Loader2, CheckCircle, MapPin, User, Building2, 
@@ -122,7 +122,15 @@ export default function Agenda() {
       setClinicas(cl);
       const idsPermitidos = cl.map((c) => c.id);
 
-      const { data: pr } = await supabase.from('profissionais').select('*, profissionais_clinicas(clinica_id)'); if (pr) setProfissionais(pr);
+      // Equipe visível ao usuário (filtrada por rede; super admin vê tudo).
+      // Mantém a forma `{ profissionais_clinicas: [{ clinica_id }] }` esperada
+      // pela UI a partir das `clinicas` retornadas pelo helper.
+      const equipe = await fetchUserEquipe();
+      const equipeNormalizada = equipe.map((p: any) => ({
+          ...p,
+          profissionais_clinicas: (p.clinicas || []).map((c: any) => ({ clinica_id: c.id })),
+      }));
+      setProfissionais(equipeNormalizada as any);
 
       // Pacientes apenas das clínicas permitidas
       if (idsPermitidos.length > 0) {

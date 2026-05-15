@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase';
 import { Building2, Users, Plus, Trash2, MapPin, Check, X, Loader2, Edit, UserPlus, Shield, User, FileText, Phone, Mail, Save, Lock, ClipboardList, HelpCircle, FileSignature, Tag, SlidersHorizontal, Database, Download, Upload, Bell, Palette, AlertCircle, RotateCcw, AlertTriangle } from 'lucide-react';
 import { carregarModelos, salvarModelos, novoIdModelo, novoIdPergunta, type ModeloAnamnese, type PerguntaAnamnese, type TipoPergunta } from '@/lib/anamnese';
 import { listarBackups, criarBackupAgora, baixarBackupComoJson, excluirBackup as deletarBackupServer, restaurarBackup } from '@/lib/backup';
-import { fetchUserClinicas } from '@/lib/clinicScoped';
+import { fetchUserClinicas, fetchUserEquipe } from '@/lib/clinicScoped';
 
 // ==== Helpers de localStorage para abas auxiliares ====
 const KEY_PREFS = 'ortus_preferencias';
@@ -46,7 +46,9 @@ function salvarDocs(d: ModeloDocumento[]) { if (typeof window !== 'undefined') l
 export default function Configuracoes() {
   const [abaAtiva, setAbaAtiva] = useState('clinicas');
   const [loading, setLoading] = useState(true);
-  
+  // Gate de acesso: só admin de tenant ou super admin podem entrar.
+  const [perfilCaller, setPerfilCaller] = useState<any>(null);
+
   const [clinicas, setClinicas] = useState<any[]>([]);
   const [profissionais, setProfissionais] = useState<any[]>([]);
   
@@ -288,10 +290,29 @@ export default function Configuracoes() {
 
   async function carregarDados() {
       setLoading(true);
+      // 1) Identifica o usuário logado e checa permissão antes de
+      //    qualquer SELECT em tabelas sensíveis.
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { setPerfilCaller(null); setLoading(false); return; }
+      const { data: meu } = await supabase
+          .from('profissionais')
+          .select('id, nivel_acesso, is_super_admin')
+          .eq('user_id', user.id)
+          .maybeSingle();
+      setPerfilCaller(meu);
+
+      const podeVerEquipe = meu?.nivel_acesso === 'admin' || meu?.is_super_admin;
+
+      // 2) Multi-tenant: clínicas e equipe sempre filtradas pelo helper.
+      //    A lista de profissionais só carrega se o usuário tem permissão.
       const c = await fetchUserClinicas();
-      const { data: p } = await supabase.from('profissionais').select('*').order('nome');
       setClinicas(c || []);
-      setProfissionais(p || []);
+      if (podeVerEquipe) {
+          const equipe = await fetchUserEquipe();
+          setProfissionais(equipe || []);
+      } else {
+          setProfissionais([]);
+      }
       setLoading(false);
   }
 
@@ -489,7 +510,9 @@ export default function Configuracoes() {
       <div className="flex gap-4 border-b border-slate-200">
           <div className="flex gap-1 overflow-x-auto pb-1 -mb-1">
               <button onClick={() => setAbaAtiva('clinicas')} className={`pb-4 px-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${abaAtiva === 'clinicas' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><Building2 size={16}/> Clínicas</button>
-              <button onClick={() => setAbaAtiva('equipe')} className={`pb-4 px-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${abaAtiva === 'equipe' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><Users size={16}/> Equipe</button>
+              {(perfilCaller?.nivel_acesso === 'admin' || perfilCaller?.is_super_admin) && (
+                <button onClick={() => setAbaAtiva('equipe')} className={`pb-4 px-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${abaAtiva === 'equipe' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><Users size={16}/> Equipe</button>
+              )}
               <button onClick={() => setAbaAtiva('geral')} className={`pb-4 px-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${abaAtiva === 'geral' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><SlidersHorizontal size={16}/> Geral</button>
               <button onClick={() => setAbaAtiva('anamnese')} className={`pb-4 px-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${abaAtiva === 'anamnese' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><ClipboardList size={16}/> Anamnese</button>
               <button onClick={() => setAbaAtiva('documentos')} className={`pb-4 px-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${abaAtiva === 'documentos' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><FileSignature size={16}/> Contratos & Docs</button>
@@ -521,7 +544,7 @@ export default function Configuracoes() {
             )}
 
             {/* ABA EQUIPE */}
-            {abaAtiva === 'equipe' && (
+            {abaAtiva === 'equipe' && (perfilCaller?.nivel_acesso === 'admin' || perfilCaller?.is_super_admin) && (
                 <div className="space-y-6 animate-in slide-in-from-right-4">
                     <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
                         <div className="flex justify-between items-center mb-6">
