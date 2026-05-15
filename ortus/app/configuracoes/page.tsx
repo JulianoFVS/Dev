@@ -296,11 +296,71 @@ export default function Configuracoes() {
   }
 
   // --- CLÍNICAS ---
+  // Cria uma nova clínica DENTRO da rede do usuário logado e vincula ele
+  // automaticamente como membro (caso contrário, com RLS ativo, ninguém
+  // mais conseguiria enxergar a clínica recém-criada).
   async function criarClinica() {
       if (!novaClinica) return;
-      const { error } = await supabase.from('clinicas').insert([{ nome: novaClinica }]);
-      if (error) alert('Erro: ' + error.message);
-      else { setNovaClinica(''); setModalClinica(false); carregarDados(); }
+      try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session) { alert('Sessão expirada. Faça login novamente.'); return; }
+
+          // 1) Profissional + rede_id atual do usuário (via primeiro vínculo)
+          const { data: prof } = await supabase
+              .from('profissionais')
+              .select('id, is_super_admin')
+              .eq('user_id', session.user.id)
+              .maybeSingle();
+
+          if (!prof?.id) {
+              alert('Não foi possível identificar seu perfil. Contate o suporte.');
+              return;
+          }
+
+          let redeId: any = null;
+          const { data: vinculos } = await supabase
+              .from('profissionais_clinicas')
+              .select('clinicas(rede_id)')
+              .eq('profissional_id', prof.id)
+              .limit(1);
+          const primeiroVinculo: any = vinculos?.[0]?.clinicas;
+          redeId = primeiroVinculo?.rede_id ?? null;
+
+          if (!redeId && !prof.is_super_admin) {
+              alert('Sua conta não está vinculada a nenhuma rede. Contate o suporte para configurar sua rede antes de criar clínicas.');
+              return;
+          }
+
+          // 2) Cria a clínica já com rede_id (se houver)
+          const payload: any = { nome: novaClinica.trim() };
+          if (redeId !== null && redeId !== undefined) payload.rede_id = redeId;
+
+          const { data: novaC, error } = await supabase
+              .from('clinicas')
+              .insert([payload])
+              .select('id')
+              .single();
+          if (error || !novaC) {
+              alert('Erro ao criar clínica: ' + (error?.message || 'desconhecido'));
+              return;
+          }
+
+          // 3) Vincula o criador à nova clínica para que ele a enxergue
+          const { error: vincErr } = await supabase
+              .from('profissionais_clinicas')
+              .insert([{ profissional_id: prof.id, clinica_id: novaC.id }]);
+          if (vincErr) {
+              console.error('Aviso: clínica criada mas vínculo falhou:', vincErr);
+              alert('Clínica criada, mas não foi possível vincular você automaticamente. Vincule manualmente em /ajustes/equipe.');
+          }
+
+          setNovaClinica('');
+          setModalClinica(false);
+          carregarDados();
+      } catch (e: any) {
+          console.error(e);
+          alert('Erro inesperado: ' + (e?.message || e));
+      }
   }
 
   async function excluirClinica(id: number) {
