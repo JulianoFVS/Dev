@@ -17,13 +17,15 @@ export type ClinicaSlim = {
 };
 
 /**
- * Retorna apenas as clínicas que o usuário logado tem vínculo direto
- * em `profissionais_clinicas`. Deduplica por id e ordena por nome.
+ * Retorna as clínicas que o usuário logado pode acessar:
+ *  - usuário comum: apenas as vinculadas via `profissionais_clinicas`.
+ *  - super admin: todas (visão global do dono do SaaS).
  *
- * Se o usuário é `is_super_admin`, devolve todas as clínicas (uso
- * exclusivo do backoffice; não chame em telas de tenant).
+ * Use `restrictSuperAdminToVinculos: true` se quiser que mesmo um super
+ * admin veja apenas seus próprios vínculos (raro — útil em telas que
+ * representam um tenant específico).
  */
-export async function fetchUserClinicas(opts?: { includeAllForSuperAdmin?: boolean }): Promise<ClinicaSlim[]> {
+export async function fetchUserClinicas(opts?: { restrictSuperAdminToVinculos?: boolean }): Promise<ClinicaSlim[]> {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) return [];
 
@@ -48,7 +50,8 @@ export async function fetchUserClinicas(opts?: { includeAllForSuperAdmin?: boole
         .maybeSingle();
     logErro('profissionais.select', profErr);
 
-    if (opts?.includeAllForSuperAdmin && prof?.is_super_admin) {
+    // Super admin → visão global por padrão (a menos que opte por vínculos)
+    if (prof?.is_super_admin && !opts?.restrictSuperAdminToVinculos) {
         const { data, error } = await supabase
             .from('clinicas')
             .select('id, nome, endereco, rede_id')

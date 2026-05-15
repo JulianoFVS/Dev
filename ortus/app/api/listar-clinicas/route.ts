@@ -17,16 +17,24 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: 'UserID ausente' }, { status: 400 });
     }
 
-    // 1. Pega dados do profissional (apenas para saudação)
+    // 1. Pega dados do profissional (apenas para saudação + flag super admin)
     const { data: prof } = await supabaseAdmin
         .from('profissionais')
         .select('*')
         .eq('user_id', userId)
         .single();
 
-    // 2. BUSCA APENAS AS CLÍNICAS VINCULADAS AO PROFISSIONAL (multi-tenant)
+    // 2. BUSCA AS CLÍNICAS DO USUÁRIO (multi-tenant)
+    //    - super admin: visão global (todas as clínicas)
+    //    - usuário comum: apenas as vinculadas via profissionais_clinicas
     let clinicas: any[] = [];
-    if (prof?.id) {
+    if (prof?.is_super_admin) {
+        const { data: todas } = await supabaseAdmin
+            .from('clinicas')
+            .select('id, nome, endereco, rede_id, redes(id, nome)')
+            .order('nome');
+        clinicas = (todas || []).filter(Boolean);
+    } else if (prof?.id) {
         const { data: vinculos, error: erroVinc } = await supabaseAdmin
             .from('profissionais_clinicas')
             .select('clinicas(id, nome, endereco, rede_id, redes(id, nome))')
