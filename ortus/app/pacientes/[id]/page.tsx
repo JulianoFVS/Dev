@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { carregarModelos, type ModeloAnamnese } from '@/lib/anamnese';
 // teeth-data lib no longer needed — using PNG images from /assets/dentes/
 import { fetchUserClinicas } from '@/lib/clinicScoped';
+import { registrarAudit } from '@/lib/auditLog';
 
 // =============== ODONTOGRAMA - Padrão Codental (Vista Lateral + Oclusal) ===============
 type Face = 'V' | 'M' | 'D' | 'L' | 'O'; // Vestibular, Mesial, Distal, Lingual/Palatal, Oclusal/Incisal
@@ -294,6 +295,7 @@ export default function PacienteDetalhe() {
           setTratamentos(fm.tratamentos || []);
           setAnamnesesAnteriores(fm.anamneses || []);
           setDocumentos(fm.documentos || []);
+          registrarAudit({ acao: 'visualizou', entidade: 'paciente', entidade_id: String(id) });
       }
       const { data: hist } = await supabase.from('agendamentos').select('*, profissionais(nome)').eq('paciente_id', id).order('data_hora', { ascending: false });
       setHistorico(hist || []);
@@ -309,7 +311,41 @@ export default function PacienteDetalhe() {
       await supabase.from('pacientes').update(payload).eq('id', id);
       setFicha(fichaMerged);
       setModoEdicao(false);
+      registrarAudit({ acao: 'editou', entidade: 'paciente', entidade_id: String(id) });
       alert('Dados salvos com sucesso!');
+  }
+
+  function handleExportarDados() {
+      const dados = {
+          exportado_em: new Date().toISOString(),
+          finalidade: 'Portabilidade de dados conforme LGPD (Lei 13.709/2018)',
+          paciente: {
+              nome: form.nome,
+              cpf: form.cpf,
+              telefone: form.telefone,
+              email: form.email,
+              data_nascimento: form.data_nascimento,
+              endereco: form.endereco,
+              observacoes: form.observacoes,
+          },
+          anamneses: anamnesesAnteriores,
+          odontograma,
+          tratamentos,
+          documentos: documentos.map(d => ({ id: d.id, nome: d.nome, tipo: d.tipo, criado_em: d.criado_em })),
+      };
+      const json = JSON.stringify(dados, null, 2);
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const nomeArquivo = (form.nome || 'paciente').replace(/\s+/g, '_').toLowerCase();
+      a.href = url;
+      a.download = `prontuario_paciente_${nomeArquivo}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      registrarAudit({ acao: 'exportou', entidade: 'paciente', entidade_id: String(id), detalhes: { tipo: 'lgpd_portabilidade' } });
+      alert('Os dados foram exportados em formato estruturado conforme a LGPD.');
   }
 
   // ===== Odontograma helpers =====
@@ -626,6 +662,7 @@ export default function PacienteDetalhe() {
                 </div>
             </div>
             <div className="flex gap-2 flex-wrap">
+                {form.nome && <button onClick={handleExportarDados} className="px-3 py-2 bg-slate-50 border border-slate-200 text-slate-600 rounded-xl font-bold text-xs hover:bg-slate-100 transition-colors flex items-center gap-1.5" title="Exportar prontuário (LGPD)"><Download size={14}/> LGPD</button>}
                 <button onClick={abrirWhatsapp} className="px-4 py-2 bg-green-500 text-white rounded-xl font-bold text-sm hover:bg-green-600 transition-colors flex items-center gap-2 shadow-lg shadow-green-200"><MessageCircle size={16}/> WhatsApp</button>
                 {modoEdicao ? (
                     <>

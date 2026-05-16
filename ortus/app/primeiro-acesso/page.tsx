@@ -19,6 +19,7 @@ export default function PrimeiroAcesso() {
     const [confirmar, setConfirmar] = useState('');
     const [mostrar, setMostrar] = useState(false);
     const [erro, setErro] = useState<string | null>(null);
+    const [aceitouTermos, setAceitouTermos] = useState(false);
 
     useEffect(() => {
         (async () => {
@@ -55,6 +56,7 @@ export default function PrimeiroAcesso() {
         const errSenha = validarSenha(novaSenha);
         if (errSenha) { setErro(errSenha); return; }
         if (novaSenha !== confirmar) { setErro('As senhas não coincidem.'); return; }
+        if (!aceitouTermos) { setErro('Você precisa aceitar os termos para acessar o sistema.'); return; }
 
         setSalvando(true);
         try {
@@ -155,6 +157,23 @@ export default function PrimeiroAcesso() {
                             />
                         </div>
                     </div>
+
+                    <label className="flex items-start gap-3 cursor-pointer group mt-2">
+                        <input
+                            type="checkbox"
+                            checked={aceitouTermos}
+                            onChange={(e) => setAceitouTermos(e.target.checked)}
+                            className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 accent-blue-600"
+                        />
+                        <span className="text-xs text-slate-500 leading-relaxed">
+                            Eu li e concordo com os{' '}
+                            <a href="/termos" target="_blank" className="text-blue-600 font-bold hover:underline">Termos de Uso</a>{' '}e a{' '}
+                            <a href="/privacidade" target="_blank" className="text-blue-600 font-bold hover:underline">Política de Privacidade</a>.
+                        </span>
+                    </label>
+                    {!aceitouTermos && erro?.includes('termos') && (
+                        <p className="text-[11px] text-red-500 font-bold ml-7">Você precisa aceitar os termos para acessar o sistema.</p>
+                    )}
 
                     <button
                         type="submit"
