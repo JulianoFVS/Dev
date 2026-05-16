@@ -5,7 +5,7 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { User, Phone, Edit, ArrowLeft, Save, Loader2, FileText, Clock, Trash2, Calendar, Pill, AlertTriangle, Stethoscope, X, Check, Building2, Printer, MessageCircle, Smile, Plus, Eraser, CheckCircle, ClipboardList, FolderOpen, AlertCircle, Upload, Download, Image as ImageIcon, DollarSign, Settings } from 'lucide-react';
 import Link from 'next/link';
 import { carregarModelos, type ModeloAnamnese } from '@/lib/anamnese';
-import { TEETH_UPPER, TEETH_LOWER, type ToothLibData } from '@/lib/teeth-data';
+// teeth-data lib no longer needed — using PNG images from /assets/dentes/
 import { fetchUserClinicas } from '@/lib/clinicScoped';
 
 // =============== ODONTOGRAMA - Padrão Codental (Vista Lateral + Oclusal) ===============
@@ -43,24 +43,14 @@ const QUAD_LEITE = {
   inf: [[85,84,83,82,81], [71,72,73,74,75]],
 };
 
-// =============== ODONTOGRAMA LINE-ART ===============
-// Estilo: contorno fino, sem fill (branco transparente), traço slate-500
-// ViewBox lateral: 60x110 | oclusal: 60x60
+// =============== ODONTOGRAMA — PNG 3D + Oclusal 2D ===============
+// Cada dente usa imagem PNG realista + quadrado clássico de 5 faces
 
-// Mapeia número FDI → dado anatômico da lib (paths SVG profissionais)
-// FDI: 1X = sup direito, 2X = sup esquerdo, 3X = inf esquerdo, 4X = inf direito
-// X = posição (1=incisivo central, 2=lateral, 3=canino, 4=1º pré, 5=2º pré, 6=1º molar, 7=2º molar, 8=3º molar)
-function getToothLibData(num: number): { data: ToothLibData; mirror: boolean; isUpper: boolean } | null {
-  const quad = Math.floor(num / 10);
-  const pos = num % 10;
-  if (pos < 1 || pos > 8) return null;
-  const isUpper = quad === 1 || quad === 2 || quad === 5 || quad === 6;
-  const arr = isUpper ? TEETH_UPPER : TEETH_LOWER;
-  const data = arr[Math.min(pos - 1, arr.length - 1)];
-  if (!data) return null;
-  // Lado esquerdo do paciente (quadrantes 2 e 3) é espelhado horizontalmente
-  const mirror = quad === 2 || quad === 3 || quad === 6 || quad === 7;
-  return { data, mirror, isUpper };
+/** Returns the PNG src path for a given FDI tooth number. */
+function toothPngSrc(num: number): string {
+  const decade = Math.floor(num / 10);
+  const arch = (decade === 1 || decade === 2 || decade === 5 || decade === 6) ? 'sup' : 'inf';
+  return `/assets/dentes/dentadura-${arch}-${num}.png`;
 }
 
 // OCLUSAL: quadrado com X diagonal + quadrado central = 5 zonas trapezoidais/quadrada
@@ -95,73 +85,63 @@ function getOcclusalZones() {
 
 const OCC_ZONES = getOcclusalZones();
 
-function tipoDoDente(num: number): 'incisor' | 'canine' | 'premolar' | 'molar' {
-  const ld = num % 10;
-  if (ld <= 2) return 'incisor';
-  if (ld === 3) return 'canine';
-  if (ld <= 5) return 'premolar';
-  return 'molar';
-}
-
 const STROKE = '#475569';        // slate-600 (cor do traço)
 
-// Vista lateral - usa paths anatômicos do react-odontogram (extraídos para lib/teeth-data.ts)
-function ToothLateral({ num, state, isUpper, ferramenta, onApply }: { num: number; state: ToothState; isUpper: boolean; ferramenta: string; onApply: (face: Face | null) => void }) {
-  const lib = getToothLibData(num);
+const IMG_W = 52;
+const IMG_H = 76;
+
+// Vista lateral - imagem PNG realista com sinalização visual por condição
+function ToothLateral({ num, state }: { num: number; state: ToothState; isUpper: boolean }) {
   const cond = state.cond;
+  const isExtracao = cond === 'extracao';
   const isAusente = cond === 'ausente';
+  const isCoroa = cond === 'coroa';
+  const isImplante = cond === 'implante';
+  const hasTratado = cond === 'normal' && Object.values(state.faces).some(v => v === 'tratado');
 
-  // Determinar fill/stroke baseado em condição
-  let fillColor = 'transparent';
-  let strokeColor = STROKE;
-  if (cond === 'coroa') { strokeColor = '#f59e0b'; fillColor = '#fef3c7'; }
-  else if (cond === 'extracao') { strokeColor = '#dc2626'; }
-  else if (cond === 'implante') { strokeColor = '#0ea5e9'; fillColor = '#e0f2fe'; }
-  else {
-    // Cor pelo status agregado de faces
-    const faceVals = Object.values(state.faces || {});
-    if (faceVals.includes('carie')) { strokeColor = '#dc2626'; fillColor = '#fee2e2'; }
-    else if (faceVals.includes('restaurado')) { strokeColor = '#1d4ed8'; fillColor = '#dbeafe'; }
-    else if (faceVals.includes('tratado')) { strokeColor = '#047857'; fillColor = '#d1fae5'; }
+  // CSS filter — unified drop-shadow glow per condition
+  let imgFilter: string | undefined;
+  let imgOpacity = 1;
+
+  if (isExtracao) {
+    imgFilter = 'drop-shadow(0 0 6px #dc2626)';
+    imgOpacity = 0.5;
+  } else if (isAusente) {
+    imgFilter = 'grayscale(1)';
+    imgOpacity = 0.3;
+  } else if (isCoroa) {
+    imgFilter = 'drop-shadow(0 0 6px #f59e0b)';
+  } else if (isImplante) {
+    imgFilter = 'drop-shadow(0 0 6px #06b6d4)';
+  } else if (hasTratado) {
+    imgFilter = 'drop-shadow(0 0 6px #a855f7)';
   }
-
-  if (!lib) {
-    // Fallback simples para dentes de leite ou números fora do padrão
-    return <div className="w-[42px] h-[60px] border border-dashed border-slate-300 rounded text-[8px] flex items-center justify-center text-slate-400">{num}</div>;
-  }
-
-  const { data, mirror } = lib;
-  const { x, y, w, h } = data.bbox;
-  const lhpArr = Array.isArray(data.lineHighlightPath) ? data.lineHighlightPath : [data.lineHighlightPath].filter(Boolean) as string[];
-
-  // Para dentes superiores, NÃO precisamos flipar (a lib já desenha com raízes no topo).
-  // Largura fixa 42px, altura proporcional ao bbox.
-  const renderW = 42;
-  const renderH = Math.round(renderW * h / w);
 
   return (
-    <svg
-      viewBox={`${x} ${y} ${w} ${h}`}
-      width={renderW}
-      height={renderH}
-      className={`${isAusente ? 'opacity-25' : ''} block cursor-pointer`}
-      style={{ transform: mirror ? 'scaleX(-1)' : undefined, transformOrigin: 'center' }}
-      onClick={() => onApply(null)}
-    >
-      {/* sombra (sutil) */}
-      <path d={data.shadowPath} fill="rgba(0,0,0,0.06)"/>
-      {/* corpo do dente */}
-      <path d={data.outlinePath} fill={fillColor} stroke={strokeColor} strokeWidth={1.3} strokeLinejoin="round"/>
-      {/* destaques anatômicos (cuspes, ranhuras) */}
-      {lhpArr.map((p, i) => p ? <path key={i} d={p} fill="none" stroke={strokeColor} strokeWidth={0.7} opacity={0.55}/> : null)}
-      {/* extracao: X vermelho sobre o dente */}
-      {cond === 'extracao' && (
-        <g stroke="#dc2626" strokeWidth={3} strokeLinecap="round">
-          <line x1={x + 2} y1={y + 2} x2={x + w - 2} y2={y + h - 2}/>
-          <line x1={x + w - 2} y1={y + 2} x2={x + 2} y2={y + h - 2}/>
-        </g>
+    <div className="relative flex items-center justify-center" style={{ width: IMG_W, height: IMG_H }}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={toothPngSrc(num)}
+        alt={`Dente ${num}`}
+        draggable={false}
+        width={IMG_W}
+        height={IMG_H}
+        className="w-full h-full object-contain pointer-events-none select-none mix-blend-multiply"
+        style={{
+          opacity: imgOpacity,
+          filter: imgFilter,
+        }}
+      />
+      {/* Extração ONLY: X vermelho sobreposto */}
+      {isExtracao && (
+        <svg className="absolute inset-0 pointer-events-none" width={IMG_W} height={IMG_H} viewBox={`0 0 ${IMG_W} ${IMG_H}`}>
+          <g stroke="#dc2626" strokeWidth={2.5} strokeLinecap="round">
+            <line x1={10} y1={10} x2={IMG_W - 10} y2={IMG_H - 10} />
+            <line x1={IMG_W - 10} y1={10} x2={10} y2={IMG_H - 10} />
+          </g>
+        </svg>
       )}
-    </svg>
+    </div>
   );
 }
 
@@ -179,7 +159,7 @@ function ToothOcclusal({ num, state, ferramenta, onApply }: { num: number; state
 
   return (
     <div className="relative">
-      <svg viewBox="0 0 60 60" width="40" height="40" className={`${isAusente ? 'opacity-25' : ''} block`}>
+      <svg viewBox="0 0 60 60" width="48" height="48" className={`${isAusente ? 'opacity-25' : ''} block`}>
         {/* Quadrado externo */}
         <rect x={o.x} y={o.y} width={o.w} height={o.h} rx="3" ry="3" fill="transparent" stroke={isCoroa ? '#f59e0b' : STROKE} strokeWidth="1" strokeLinejoin="round"/>
 
@@ -223,10 +203,10 @@ function ToothOcclusal({ num, state, ferramenta, onApply }: { num: number; state
 
 function Tooth({ num, state, ferramenta, onApply, isUpper }: { num: number; state: ToothState; ferramenta: string; onApply: (face: Face | null) => void; isUpper: boolean }) {
   return (
-    <div className="flex flex-col items-center select-none w-[44px] shrink-0">
+    <div className="flex flex-col items-center select-none w-[56px] shrink-0">
       {isUpper ? (
         <>
-          <ToothLateral num={num} state={state} isUpper={true} ferramenta={ferramenta} onApply={onApply}/>
+          <ToothLateral num={num} state={state} isUpper={true}/>
           <div className="h-1"/>
           <ToothOcclusal num={num} state={state} ferramenta={ferramenta} onApply={(f) => onApply(f)}/>
           <div className="text-[10px] font-extrabold text-slate-600 tabular-nums mt-1">{num}</div>
@@ -236,7 +216,7 @@ function Tooth({ num, state, ferramenta, onApply, isUpper }: { num: number; stat
           <div className="text-[10px] font-extrabold text-slate-600 tabular-nums mb-1">{num}</div>
           <ToothOcclusal num={num} state={state} ferramenta={ferramenta} onApply={(f) => onApply(f)}/>
           <div className="h-1"/>
-          <ToothLateral num={num} state={state} isUpper={false} ferramenta={ferramenta} onApply={onApply}/>
+          <ToothLateral num={num} state={state} isUpper={false}/>
         </>
       )}
     </div>
@@ -879,13 +859,13 @@ export default function PacienteDetalhe() {
                             </div>
 
                             {/* Arcadas - dente lib + face-grid + número, em colunas alinhadas */}
-                            <div className="overflow-x-auto bg-white rounded-2xl p-6 border border-slate-200">
+                            <div className="w-full bg-white rounded-2xl p-4 border border-slate-200 overflow-x-hidden flex justify-center">
                                 {(() => {
                                     const quad = tipoArcada === 'permanente' ? QUAD_PERM : QUAD_LEITE;
                                     return (
-                                        <div className="min-w-fit mx-auto">
+                                        <div className="inline-flex flex-col items-center">
                                             {/* Superior */}
-                                            <div className="flex gap-0.5 justify-center items-end">
+                                            <div className="flex justify-center items-end">
                                                 {quad.sup[0].map(n => <Tooth key={n} num={n} isUpper={true} state={odontograma[n] || { faces: {}, cond: 'normal' }} ferramenta={ferramenta} onApply={(f) => aplicarFerramenta(n, f)} />)}
                                                 <div className="w-1 self-stretch border-l-2 border-dashed border-slate-300 mx-2"></div>
                                                 {quad.sup[1].map(n => <Tooth key={n} num={n} isUpper={true} state={odontograma[n] || { faces: {}, cond: 'normal' }} ferramenta={ferramenta} onApply={(f) => aplicarFerramenta(n, f)} />)}
@@ -893,7 +873,7 @@ export default function PacienteDetalhe() {
                                             {/* linha média */}
                                             <div className="h-px bg-gradient-to-r from-transparent via-slate-400 to-transparent my-3"></div>
                                             {/* Inferior */}
-                                            <div className="flex gap-0.5 justify-center items-start">
+                                            <div className="flex justify-center items-start">
                                                 {quad.inf[0].map(n => <Tooth key={n} num={n} isUpper={false} state={odontograma[n] || { faces: {}, cond: 'normal' }} ferramenta={ferramenta} onApply={(f) => aplicarFerramenta(n, f)} />)}
                                                 <div className="w-1 self-stretch border-l-2 border-dashed border-slate-300 mx-2"></div>
                                                 {quad.inf[1].map(n => <Tooth key={n} num={n} isUpper={false} state={odontograma[n] || { faces: {}, cond: 'normal' }} ferramenta={ferramenta} onApply={(f) => aplicarFerramenta(n, f)} />)}
