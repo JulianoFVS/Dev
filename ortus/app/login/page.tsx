@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import { Lock, Mail, Loader2, ShieldCheck, ArrowLeft, Eye, EyeOff } from 'lucide-react';
 import Link from 'next/link';
+import { registrarAudit } from '@/lib/auditLog';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -47,6 +48,8 @@ export default function Login() {
           if (count === 1) unicaClinicaId = String(vinculos![0].clinica_id);
         }
       }
+
+      registrarAudit({ acao: 'login', entidade: 'profissional', entidade_id: userId || undefined });
 
       // Senha temporária: redireciona para troca obrigatória antes de qualquer coisa.
       if (precisaTrocarSenha) {

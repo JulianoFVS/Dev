@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { User, LogOut, Save, Loader2, Lock, Mail, Upload, Briefcase } from 'lucide-react';
+import { User, LogOut, Save, Loader2, Lock, Mail, Upload, Briefcase, Trash2, AlertTriangle, Download } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 export default function Perfil() {
@@ -81,6 +81,64 @@ export default function Perfil() {
     router.push('/login');
   }
 
+  function handleExportarMeusDados() {
+      const dados = {
+          exportado_em: new Date().toISOString(),
+          finalidade: 'Portabilidade de dados conforme LGPD (Lei 13.709/2018)',
+          profissional: {
+              nome: perfil?.nome,
+              email: user?.email,
+              cargo: perfil?.cargo,
+              nivel_acesso: perfil?.nivel_acesso,
+              criado_em: perfil?.created_at,
+          },
+      };
+      const json = JSON.stringify(dados, null, 2);
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `meus_dados_ortus_${(perfil?.nome || 'usuario').replace(/\s+/g, '_').toLowerCase()}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      alert('Seus dados foram exportados em formato JSON conforme a LGPD.');
+  }
+
+  async function handleSolicitarExclusao() {
+      const confirmacao = prompt(
+          'ATENÇÃO: Esta ação é irreversível.\n\n' +
+          'Sua conta e todos os dados associados serão marcados para exclusão permanente em 30 dias.\n\n' +
+          'Digite "EXCLUIR" para confirmar:'
+      );
+      if (confirmacao !== 'EXCLUIR') {
+          alert('Exclusão cancelada. O texto digitado não confere.');
+          return;
+      }
+      try {
+          // Marca a conta para exclusão (soft-delete com data de expiração)
+          const { error } = await supabase
+              .from('profissionais')
+              .update({
+                  exclusao_solicitada_em: new Date().toISOString(),
+                  ativo: false,
+              })
+              .eq('user_id', user.id);
+          if (error) throw error;
+
+          alert(
+              'Solicitação registrada com sucesso.\n\n' +
+              'Sua conta será desativada imediatamente e os dados serão excluídos permanentemente em 30 dias.\n\n' +
+              'Caso mude de ideia, entre em contato com o suporte dentro desse prazo.'
+          );
+          await supabase.auth.signOut();
+          router.push('/login');
+      } catch (err: any) {
+          alert('Erro ao processar solicitação: ' + (err?.message || 'Tente novamente.'));
+      }
+  }
+
   if (loading) return <div className="p-10 text-center text-slate-400 flex justify-center"><Loader2 className="animate-spin"/></div>;
 
   const isAdmin = perfil?.nivel_acesso === 'admin';
@@ -134,6 +192,40 @@ export default function Perfil() {
                 {salvando ? <Loader2 className="animate-spin"/> : <><Save size={20}/> Salvar Alterações</>}
             </button>
         </form>
+      </div>
+
+      {/* LGPD — Direitos do Titular */}
+      <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm">
+        <h2 className="text-lg font-black text-slate-800 flex items-center gap-2 mb-1"><AlertTriangle size={18} className="text-amber-500"/> Seus Dados (LGPD)</h2>
+        <p className="text-xs text-slate-400 mb-5">Conforme a Lei 13.709/2018, você possui direito de acessar, exportar e solicitar a exclusão dos seus dados pessoais.</p>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <button
+                onClick={handleExportarMeusDados}
+                className="p-4 bg-blue-50 border border-blue-200 rounded-xl hover:bg-blue-100 transition-colors flex items-center gap-3 group"
+            >
+                <div className="w-9 h-9 bg-blue-600 text-white rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform"><Download size={16}/></div>
+                <div className="text-left">
+                    <div className="text-sm font-bold text-blue-900">Exportar Meus Dados</div>
+                    <div className="text-[10px] text-blue-600">Download em JSON estruturado</div>
+                </div>
+            </button>
+
+            <button
+                onClick={handleSolicitarExclusao}
+                className="p-4 bg-red-50 border border-red-200 rounded-xl hover:bg-red-100 transition-colors flex items-center gap-3 group"
+            >
+                <div className="w-9 h-9 bg-red-600 text-white rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform"><Trash2 size={16}/></div>
+                <div className="text-left">
+                    <div className="text-sm font-bold text-red-900">Solicitar Exclusão</div>
+                    <div className="text-[10px] text-red-600">Remover conta e dados permanentemente</div>
+                </div>
+            </button>
+        </div>
+
+        <p className="text-[10px] text-slate-400 mt-4 leading-relaxed">
+            A exclusão será processada em até 30 dias. Dados retidos por obrigação legal (logs de acesso — Marco Civil da Internet) serão anonimizados após o prazo legal de 6 meses.
+        </p>
       </div>
     </div>
   );
