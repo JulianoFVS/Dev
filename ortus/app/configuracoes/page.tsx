@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Building2, Users, Plus, Trash2, MapPin, Check, X, Loader2, Edit, UserPlus, Shield, User, FileText, Phone, Mail, Save, Lock, ClipboardList, HelpCircle, FileSignature, Tag, SlidersHorizontal, Database, Download, Upload, Bell, Palette, AlertCircle, RotateCcw, AlertTriangle } from 'lucide-react';
+import { Building2, Users, Plus, Trash2, MapPin, Check, X, Loader2, Edit, UserPlus, Shield, User, FileText, Phone, Mail, Save, Lock, ClipboardList, HelpCircle, FileSignature, Tag, SlidersHorizontal, Database, Download, Upload, Bell, Palette, RotateCcw, AlertTriangle } from 'lucide-react';
 import { carregarModelos, salvarModelos, novoIdModelo, novoIdPergunta, type ModeloAnamnese, type PerguntaAnamnese, type TipoPergunta } from '@/lib/anamnese';
 import { listarBackups, criarBackupAgora, baixarBackupComoJson, excluirBackup as deletarBackupServer, restaurarBackup } from '@/lib/backup';
 import { fetchUserClinicas, fetchUserEquipe } from '@/lib/clinicScoped';
@@ -807,49 +807,6 @@ export default function Configuracoes() {
                                 })}
                             </div>
                         )}
-                    </div>
-
-                    {/* SETUP / DOCUMENTAÇÃO */}
-                    <div className="bg-amber-50 border border-amber-200 p-5 rounded-2xl text-xs text-amber-900 space-y-2">
-                        <div className="font-black uppercase flex items-center gap-2"><AlertCircle size={14}/> Setup necessário no Supabase (uma vez só)</div>
-                        <p>Cole no <strong>SQL Editor</strong> do Supabase e execute:</p>
-                        <pre className="bg-amber-100 p-3 rounded-lg text-[10px] overflow-x-auto whitespace-pre"><code>{`CREATE TABLE IF NOT EXISTS backups (
-  id BIGSERIAL PRIMARY KEY,
-  criado_em TIMESTAMPTZ DEFAULT NOW(),
-  tipo TEXT DEFAULT 'automatico',
-  dados JSONB,
-  observacao TEXT,
-  tamanho_kb INTEGER
-);
-CREATE INDEX IF NOT EXISTS idx_backups_criado ON backups (criado_em DESC);
-
-CREATE OR REPLACE FUNCTION criar_backup_completo(p_tipo TEXT DEFAULT 'automatico', p_obs TEXT DEFAULT NULL)
-RETURNS bigint AS $$
-DECLARE novo_id bigint; snapshot jsonb;
-BEGIN
-  snapshot := jsonb_build_object(
-    'pacientes', (SELECT COALESCE(jsonb_agg(row_to_json(p)), '[]'::jsonb) FROM pacientes p),
-    'agendamentos', (SELECT COALESCE(jsonb_agg(row_to_json(a)), '[]'::jsonb) FROM agendamentos a),
-    'despesas', (SELECT COALESCE(jsonb_agg(row_to_json(d)), '[]'::jsonb) FROM despesas d),
-    'clinicas', (SELECT COALESCE(jsonb_agg(row_to_json(c)), '[]'::jsonb) FROM clinicas c),
-    'profissionais', (SELECT COALESCE(jsonb_agg(row_to_json(pr)), '[]'::jsonb) FROM profissionais pr),
-    'servicos', (SELECT COALESCE(jsonb_agg(row_to_json(s)), '[]'::jsonb) FROM servicos s)
-  );
-  INSERT INTO backups (tipo, dados, observacao, tamanho_kb)
-  VALUES (p_tipo, snapshot, p_obs, LENGTH(snapshot::text)/1024)
-  RETURNING id INTO novo_id;
-  DELETE FROM backups WHERE id IN (
-    SELECT id FROM backups WHERE tipo LIKE 'automatico%' ORDER BY criado_em DESC OFFSET 30
-  );
-  RETURN novo_id;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- (Opcional) Cron 2x/dia no servidor (requer pg_cron habilitado):
--- CREATE EXTENSION IF NOT EXISTS pg_cron;
--- SELECT cron.schedule('ortus_backup_12h', '0 12 * * *', $sql$SELECT criar_backup_completo('automatico_12h')$sql$);
--- SELECT cron.schedule('ortus_backup_00h', '0 0 * * *',  $sql$SELECT criar_backup_completo('automatico_00h')$sql$);`}</code></pre>
-                        <p>O sistema também dispara um backup automaticamente sempre que um usuário usa o app e faz mais de 12h desde o último — então mesmo sem pg_cron, ficam 2 snapshots por dia.</p>
                     </div>
 
                     {/* CONFIG LOCAIS */}
