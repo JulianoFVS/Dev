@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { User, Phone, Edit, ArrowLeft, Save, Loader2, FileText, Clock, Trash2, Calendar, Pill, AlertTriangle, Stethoscope, X, Check, Building2, Printer, MessageCircle, Smile, Plus, Eraser, CheckCircle, ClipboardList, FolderOpen, AlertCircle, Upload, Download, Image as ImageIcon, DollarSign, Settings } from 'lucide-react';
+import { User, Phone, Edit, ArrowLeft, Save, Loader2, FileText, Clock, Trash2, Calendar, CalendarPlus, Pill, AlertTriangle, Stethoscope, X, Check, Building2, Printer, MessageCircle, Smile, Plus, Eraser, CheckCircle, ClipboardList, FolderOpen, AlertCircle, Upload, Download, Image as ImageIcon, DollarSign, Settings } from 'lucide-react';
 import Link from 'next/link';
 import { carregarModelos, type ModeloAnamnese } from '@/lib/anamnese';
 // teeth-data lib no longer needed — using PNG images from /assets/dentes/
@@ -202,13 +202,12 @@ function ToothOcclusal({ num, state, ferramenta, onApply }: { num: number; state
   );
 }
 
-function Tooth({ num, state, ferramenta, onApply, isUpper }: { num: number; state: ToothState; ferramenta: string; onApply: (face: Face | null) => void; isUpper: boolean }) {
+function Tooth({ num, state, ferramenta, onApply, isUpper, esquematico }: { num: number; state: ToothState; ferramenta: string; onApply: (face: Face | null) => void; isUpper: boolean; esquematico?: boolean }) {
   return (
     <div className="flex flex-col items-center select-none w-[56px] shrink-0">
       {isUpper ? (
         <>
-          <ToothLateral num={num} state={state} isUpper={true}/>
-          <div className="h-1"/>
+          {!esquematico && <><ToothLateral num={num} state={state} isUpper={true}/><div className="h-1"/></>}
           <ToothOcclusal num={num} state={state} ferramenta={ferramenta} onApply={(f) => onApply(f)}/>
           <div className="text-[10px] font-extrabold text-slate-600 tabular-nums mt-1">{num}</div>
         </>
@@ -216,8 +215,7 @@ function Tooth({ num, state, ferramenta, onApply, isUpper }: { num: number; stat
         <>
           <div className="text-[10px] font-extrabold text-slate-600 tabular-nums mb-1">{num}</div>
           <ToothOcclusal num={num} state={state} ferramenta={ferramenta} onApply={(f) => onApply(f)}/>
-          <div className="h-1"/>
-          <ToothLateral num={num} state={state} isUpper={false}/>
+          {!esquematico && <><div className="h-1"/><ToothLateral num={num} state={state} isUpper={false}/></>}
         </>
       )}
     </div>
@@ -261,8 +259,10 @@ export default function PacienteDetalhe() {
   const [ferramenta, setFerramenta] = useState<string>('carie');
   const [tipoArcada, setTipoArcada] = useState<'permanente' | 'leite'>('permanente');
   const [savingOdo, setSavingOdo] = useState(false);
+  const [visaoOdonto, setVisaoOdonto] = useState<'anatomica' | 'esquematica' | 'livre'>('anatomica');
+  const [textoOdontogramaLivre, setTextoOdontogramaLivre] = useState('');
   const [modalTrat, setModalTrat] = useState(false);
-  const [tratEdit, setTratEdit] = useState<any>({ id: null, dente: '', procedimento: '', data: new Date().toISOString().split('T')[0], status: 'concluido', valor: '', observacoes: '' });
+  const [tratEdit, setTratEdit] = useState<any>({ id: null, dente: '', procedimento: '', data: new Date().toISOString().split('T')[0], status: 'concluido', valor: '', observacoes: '', agendarNaAgenda: false, horaAgendamento: '09:00' });
 
   // ANAMNESE
   const [modelosAnamnese, setModelosAnamnese] = useState<ModeloAnamnese[]>([]);
@@ -293,6 +293,7 @@ export default function PacienteDetalhe() {
           setFicha(fm);
           setOdontograma(fm.odontograma || {});
           setTratamentos(fm.tratamentos || []);
+          setTextoOdontogramaLivre(fm.texto_livre || '');
           setAnamnesesAnteriores(fm.anamneses || []);
           setDocumentos(fm.documentos || []);
           registrarAudit({ acao: 'visualizou', entidade: 'paciente', entidade_id: String(id) });
@@ -381,7 +382,7 @@ export default function PacienteDetalhe() {
 
   async function salvarOdontograma() {
       setSavingOdo(true);
-      const fichaMerged = { ...ficha, odontograma, tratamentos };
+      const fichaMerged = { ...ficha, odontograma, tratamentos, texto_livre: textoOdontogramaLivre };
       const { error } = await supabase.from('pacientes').update({ ficha_medica: fichaMerged }).eq('id', id);
       setFicha(fichaMerged);
       setSavingOdo(false);
@@ -389,24 +390,60 @@ export default function PacienteDetalhe() {
   }
 
   function abrirNovoTratamento() {
-      setTratEdit({ id: null, dente: '', procedimento: '', data: new Date().toISOString().split('T')[0], status: 'concluido', valor: '', observacoes: '' });
+      setTratEdit({ id: null, dente: '', procedimento: '', data: new Date().toISOString().split('T')[0], status: 'concluido', valor: '', observacoes: '', agendarNaAgenda: false, horaAgendamento: '09:00' });
       setModalTrat(true);
   }
 
   async function salvarTratamento() {
       if (!tratEdit.procedimento) return alert('Informe o procedimento');
+      const { agendarNaAgenda, horaAgendamento, ...tratSemAgenda } = tratEdit;
       let novaLista;
-      if (tratEdit.id) {
-          novaLista = tratamentos.map(t => t.id === tratEdit.id ? tratEdit : t);
+      if (tratSemAgenda.id) {
+          novaLista = tratamentos.map(t => t.id === tratSemAgenda.id ? tratSemAgenda : t);
       } else {
-          novaLista = [...tratamentos, { ...tratEdit, id: Date.now().toString(), criado_em: new Date().toISOString() }];
+          novaLista = [...tratamentos, { ...tratSemAgenda, id: Date.now().toString(), criado_em: new Date().toISOString() }];
       }
       setTratamentos(novaLista);
       const fichaMerged = { ...ficha, odontograma, tratamentos: novaLista };
       const { error } = await supabase.from('pacientes').update({ ficha_medica: fichaMerged }).eq('id', id);
       setFicha(fichaMerged);
       if (error) return alert('Erro: ' + error.message);
+
+      // Agendar na agenda se solicitado
+      let agendado = false;
+      if (agendarNaAgenda && tratEdit.data) {
+          try {
+              const { data: { session } } = await supabase.auth.getSession();
+              const userId = session?.user?.id;
+              let profId: string | null = null;
+              let clinicaId: string | null = null;
+              if (userId) {
+                  const { data: prof } = await supabase.from('profissionais').select('id').eq('user_id', userId).maybeSingle();
+                  profId = prof?.id || null;
+              }
+              if (clinicas.length > 0) clinicaId = String(clinicas[0].id);
+              const dataHoraISO = new Date(`${tratEdit.data}T${horaAgendamento || '09:00'}:00`).toISOString();
+              const payload: any = {
+                  paciente_id: id,
+                  data_hora: dataHoraISO,
+                  procedimento: `Tratamento: ${tratEdit.procedimento}`,
+                  valor: parseFloat(tratEdit.valor) || 0,
+                  valor_final: parseFloat(tratEdit.valor) || 0,
+                  status: 'agendado',
+                  observacoes: tratEdit.observacoes || '',
+              };
+              if (profId) payload.profissional_id = profId;
+              if (clinicaId) payload.clinica_id = clinicaId;
+              const { error: agErr } = await supabase.from('agendamentos').insert([payload]);
+              if (agErr) throw agErr;
+              agendado = true;
+          } catch (e: any) {
+              alert('Tratamento salvo, mas erro ao agendar: ' + (e.message || e));
+          }
+      }
+
       setModalTrat(false);
+      alert(agendado ? 'Tratamento salvo e consulta marcada na agenda!' : 'Tratamento salvo com sucesso!');
   }
 
   async function excluirTratamento(tid: string) {
@@ -416,6 +453,161 @@ export default function PacienteDetalhe() {
       const fichaMerged = { ...ficha, odontograma, tratamentos: novaLista };
       await supabase.from('pacientes').update({ ficha_medica: fichaMerged }).eq('id', id);
       setFicha(fichaMerged);
+  }
+
+  const valorTotalOrcamento = tratamentos.reduce((acc: number, t: any) => acc + (parseFloat(t.valor) || 0), 0);
+
+  function formatarMoeda(v: number) {
+      return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  }
+
+  function imprimirOrcamento() {
+      const dataHoje = new Date().toLocaleDateString('pt-BR');
+      const horaGeracao = new Date().toLocaleString('pt-BR');
+
+      // --- Seção 1: Diagnóstico Odontograma ---
+      let secaoDiagnostico = '';
+      if (visaoOdonto === 'livre' && textoOdontogramaLivre.trim()) {
+          secaoDiagnostico = `
+              <div class="mb-8">
+                  <h2 class="text-sm font-bold uppercase tracking-wider text-slate-500 border-b-2 border-blue-600 pb-2 mb-4">Planejamento (Texto Livre)</h2>
+                  <div class="bg-slate-50 border border-slate-200 rounded-lg p-4 text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">${textoOdontogramaLivre}</div>
+              </div>`;
+      } else {
+          const dentesAlterados = Object.entries(odontograma).filter(([, st]) => {
+              return st.cond !== 'normal' || Object.values(st.faces || {}).some(v => v && v !== 'higido');
+          });
+          if (dentesAlterados.length > 0) {
+              const linhasDiag = dentesAlterados.map(([num, st]) => {
+                  const detalhes: string[] = [];
+                  if (st.cond !== 'normal') {
+                      const condLabel = TOOLS.find(t => t.key === st.cond)?.label || st.cond;
+                      const condColor = TOOLS.find(t => t.key === st.cond)?.color || '#64748b';
+                      detalhes.push(`<span class="inline-flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full inline-block" style="background:${condColor}"></span>${condLabel}</span>`);
+                  }
+                  Object.entries(st.faces || {}).forEach(([f, v]) => {
+                      if (v && v !== 'higido') {
+                          const fLabel = FACE_LABELS[f as Face] || f;
+                          const fColor = FACE_COLORS[v as FaceStatus] || '#64748b';
+                          const vLabel = TOOLS.find(t => t.key === v)?.label || v;
+                          detalhes.push(`<span class="inline-flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full inline-block border border-slate-300" style="background:${fColor}"></span>${vLabel} — ${fLabel}</span>`);
+                      }
+                  });
+                  return `<tr class="border-b border-slate-100"><td class="py-2 pr-4 font-bold text-blue-700 text-center w-20">${num}</td><td class="py-2 text-slate-600"><div class="flex flex-wrap gap-x-4 gap-y-1">${detalhes.join('')}</div></td></tr>`;
+              }).join('');
+              secaoDiagnostico = `
+              <div class="mb-8">
+                  <h2 class="text-sm font-bold uppercase tracking-wider text-slate-500 border-b-2 border-blue-600 pb-2 mb-4">Diagnóstico — Estado dos Dentes</h2>
+                  <table class="w-full text-sm"><thead><tr class="bg-slate-50 text-left"><th class="py-2 px-3 font-bold text-slate-500 text-center w-20">Dente</th><th class="py-2 px-3 font-bold text-slate-500">Condição / Faces</th></tr></thead><tbody>${linhasDiag}</tbody></table>
+              </div>`;
+          } else {
+              secaoDiagnostico = `<div class="mb-8"><h2 class="text-sm font-bold uppercase tracking-wider text-slate-500 border-b-2 border-blue-600 pb-2 mb-4">Diagnóstico — Estado dos Dentes</h2><p class="text-sm text-slate-400 italic">Nenhuma marcação registrada no odontograma.</p></div>`;
+          }
+      }
+
+      // --- Seção 2: Tratamentos e Valores ---
+      let secaoTratamentos = '';
+      if (tratamentos.length > 0) {
+          const linhasTrat = tratamentos.map((t: any) => {
+              const val = parseFloat(t.valor) || 0;
+              const statusClass = t.status === 'concluido' ? 'bg-emerald-100 text-emerald-700' : t.status === 'andamento' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700';
+              return `<tr class="border-b border-slate-100"><td class="py-2.5 px-3 font-bold text-blue-700 text-center">${t.dente || '-'}</td><td class="py-2.5 px-3 font-medium text-slate-700">${t.procedimento}</td><td class="py-2.5 px-3 text-center"><span class="text-[10px] uppercase font-bold px-2 py-0.5 rounded ${statusClass}">${t.status}</span></td><td class="py-2.5 px-3 text-right font-bold text-slate-800">${formatarMoeda(val)}</td></tr>`;
+          }).join('');
+          secaoTratamentos = `
+          <div class="mb-8">
+              <h2 class="text-sm font-bold uppercase tracking-wider text-slate-500 border-b-2 border-emerald-600 pb-2 mb-4">Tratamentos Propostos</h2>
+              <table class="w-full text-sm">
+                  <thead><tr class="bg-slate-50"><th class="py-2 px-3 font-bold text-slate-500 text-center w-20">Dente</th><th class="py-2 px-3 font-bold text-slate-500 text-left">Procedimento</th><th class="py-2 px-3 font-bold text-slate-500 text-center w-28">Status</th><th class="py-2 px-3 font-bold text-slate-500 text-right w-32">Valor</th></tr></thead>
+                  <tbody>${linhasTrat}</tbody>
+                  <tfoot><tr class="bg-emerald-50 border-t-2 border-emerald-200"><td colspan="3" class="py-3 px-3 text-right font-bold text-slate-600 uppercase text-xs tracking-wider">Valor Total</td><td class="py-3 px-3 text-right font-black text-emerald-700 text-lg">${formatarMoeda(valorTotalOrcamento)}</td></tr></tfoot>
+              </table>
+          </div>`;
+      } else {
+          secaoTratamentos = `<div class="mb-8"><h2 class="text-sm font-bold uppercase tracking-wider text-slate-500 border-b-2 border-emerald-600 pb-2 mb-4">Tratamentos Propostos</h2><p class="text-sm text-slate-400 italic">Nenhum tratamento registrado.</p></div>`;
+      }
+
+      const html = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Orçamento — ${form.nome || 'Paciente'}</title>
+    <script src="https://cdn.tailwindcss.com"><\/script>
+    <style>
+        @media print {
+            body { background: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .no-print { display: none !important; }
+            .a4-sheet { box-shadow: none !important; margin: 0 !important; padding: 10mm !important; max-width: 100% !important; min-height: auto !important; }
+        }
+        @page { size: A4; margin: 10mm; }
+    </style>
+</head>
+<body class="bg-slate-200 min-h-screen">
+    <!-- Barra de controle -->
+    <div class="no-print sticky top-0 z-50 bg-white/90 backdrop-blur border-b border-slate-200 shadow-sm">
+        <div class="max-w-[210mm] mx-auto flex items-center justify-between px-6 py-3">
+            <span class="text-sm font-bold text-slate-600">Pré-visualização do Documento</span>
+            <div class="flex items-center gap-3">
+                <button onclick="window.print()" class="bg-blue-600 text-white px-6 py-2.5 rounded-lg font-bold text-sm hover:bg-blue-700 transition-colors shadow-sm flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                    Imprimir / Salvar como PDF
+                </button>
+                <button onclick="window.close()" class="text-slate-400 hover:text-slate-600 p-2 hover:bg-slate-100 rounded-lg transition-colors" title="Fechar">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Folha A4 -->
+    <div class="a4-sheet max-w-[210mm] min-h-[297mm] bg-white mx-auto my-8 p-12 shadow-2xl rounded-sm relative">
+        <!-- Cabeçalho -->
+        <div class="flex items-center justify-between border-b-2 border-slate-800 pb-4 mb-8">
+            <div>
+                <h1 class="text-2xl font-black text-slate-800 tracking-tight">ORTUS</h1>
+                <p class="text-xs text-slate-400 font-semibold uppercase tracking-widest mt-0.5">Ficha Clínica e Orçamento</p>
+            </div>
+            <div class="text-right">
+                <div class="text-xs text-slate-500 font-semibold">Data: <span class="text-slate-800 font-bold">${dataHoje}</span></div>
+            </div>
+        </div>
+
+        <!-- Dados do Paciente -->
+        <div class="bg-slate-50 rounded-xl border border-slate-200 p-4 mb-8 grid grid-cols-2 gap-4">
+            <div><span class="text-[10px] uppercase font-bold text-slate-400 block">Paciente</span><span class="text-sm font-bold text-slate-800">${form.nome || '-'}</span></div>
+            <div><span class="text-[10px] uppercase font-bold text-slate-400 block">CPF</span><span class="text-sm font-bold text-slate-800">${form.cpf || '-'}</span></div>
+            <div><span class="text-[10px] uppercase font-bold text-slate-400 block">Telefone</span><span class="text-sm font-bold text-slate-800">${form.telefone || '-'}</span></div>
+            <div><span class="text-[10px] uppercase font-bold text-slate-400 block">Email</span><span class="text-sm font-bold text-slate-800">${form.email || '-'}</span></div>
+        </div>
+
+        ${secaoDiagnostico}
+        ${secaoTratamentos}
+
+        <!-- Rodapé -->
+        <div class="absolute bottom-12 left-12 right-12 border-t border-slate-200 pt-4 flex justify-between items-center text-[10px] text-slate-400">
+            <span>Documento gerado pelo sistema ORTUS em ${horaGeracao}</span>
+            <span class="font-bold">Este documento não possui valor fiscal.</span>
+        </div>
+    </div>
+</body>
+</html>`;
+
+      const win = window.open('', '_blank');
+      if (win) {
+          win.document.write(html);
+          win.document.close();
+      }
+  }
+
+  function enviarOrcamentoWhatsapp() {
+      if (!form.telefone) return alert('Paciente sem telefone cadastrado.');
+      const linhas = tratamentos.map((t: any) => {
+          const val = parseFloat(t.valor) || 0;
+          return `▸ Dente ${t.dente || '-'}: ${t.procedimento} — ${formatarMoeda(val)}`;
+      }).join('\n');
+      const msg = `*Orçamento Odontológico* 🦷\nPaciente: *${form.nome}*\n\n${linhas || 'Sem tratamentos.'}\n\n*Total: ${formatarMoeda(valorTotalOrcamento)}*\n\n_Gerado pelo ORTUS_`;
+      const numero = form.telefone.replace(/\D/g, '');
+      window.open(`https://wa.me/55${numero}?text=${encodeURIComponent(msg)}`, '_blank');
   }
 
   // ===== ANAMNESE helpers =====
@@ -854,12 +1046,33 @@ export default function PacienteDetalhe() {
                         <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-200 shadow-sm">
                             <div className="flex flex-wrap justify-between items-center gap-3 mb-5">
                                 <h3 className="text-lg font-black text-slate-800 flex items-center gap-2"><Smile size={20} className="text-blue-500"/> Odontograma</h3>
-                                <div className="flex gap-2">
-                                    <button onClick={() => { if(confirm('Limpar todo o odontograma?')) setOdontograma({}); }} className="px-3 py-2 text-xs font-bold rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center gap-1.5"><Eraser size={14}/> Limpar Tudo</button>
-                                    <button onClick={salvarOdontograma} disabled={savingOdo} className="px-4 py-2 text-xs font-bold rounded-lg bg-blue-600 text-white hover:bg-blue-700 flex items-center gap-1.5 shadow-sm disabled:opacity-50">{savingOdo ? <Loader2 size={14} className="animate-spin"/> : <Save size={14}/>} Salvar Odontograma</button>
+                                <div className="flex gap-2 flex-wrap">
+                                    <div className="flex bg-slate-100 border border-slate-200 rounded-lg p-0.5">
+                                        {(['anatomica', 'esquematica', 'livre'] as const).map(v => (
+                                            <button key={v} onClick={() => setVisaoOdonto(v)} className={`px-2.5 py-1.5 text-[10px] font-bold rounded-md transition-all ${visaoOdonto === v ? 'bg-white text-blue-600 shadow' : 'text-slate-500 hover:text-slate-700'}`}>
+                                                {v === 'anatomica' ? 'Anatômica' : v === 'esquematica' ? 'Esquemática' : 'Texto Livre'}
+                                            </button>
+                                        ))}
+                                    </div>
+                                    {visaoOdonto !== 'livre' && <button onClick={() => { if(confirm('Limpar todo o odontograma?')) setOdontograma({}); }} className="px-3 py-2 text-xs font-bold rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center gap-1.5"><Eraser size={14}/> Limpar</button>}
+                                    <button onClick={imprimirOrcamento} className="px-3 py-2 text-xs font-bold rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center gap-1.5"><Printer size={14}/> PDF</button>
+                                    <button onClick={enviarOrcamentoWhatsapp} className="px-3 py-2 text-xs font-bold rounded-lg bg-green-500 text-white hover:bg-green-600 flex items-center gap-1.5 shadow-sm"><MessageCircle size={14}/> WhatsApp</button>
+                                    <button onClick={salvarOdontograma} disabled={savingOdo} className="px-4 py-2 text-xs font-bold rounded-lg bg-blue-600 text-white hover:bg-blue-700 flex items-center gap-1.5 shadow-sm disabled:opacity-50">{savingOdo ? <Loader2 size={14} className="animate-spin"/> : <Save size={14}/>} Salvar</button>
                                 </div>
                             </div>
 
+                            {visaoOdonto === 'livre' ? (
+                                <div className="mt-2">
+                                    <textarea
+                                        value={textoOdontogramaLivre}
+                                        onChange={e => setTextoOdontogramaLivre(e.target.value)}
+                                        className="w-full min-h-[400px] p-4 text-base text-slate-700 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 resize-y leading-relaxed font-medium"
+                                        placeholder="Digite livremente as observações e o plano de tratamento do paciente..."
+                                    />
+                                    <p className="text-[10px] text-slate-400 mt-2">Este texto será salvo junto ao odontograma e pode ser impresso via o botão PDF.</p>
+                                </div>
+                            ) : (
+                            <>
                             {/* Legenda + Tabs Permanente/Leite */}
                             <div className="mb-4 p-3 bg-gradient-to-br from-slate-50 to-blue-50/30 rounded-xl border border-slate-200">
                                 <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
@@ -898,22 +1111,23 @@ export default function PacienteDetalhe() {
                             {/* Arcadas - dente lib + face-grid + número, em colunas alinhadas */}
                             <div className="w-full bg-white rounded-2xl p-4 border border-slate-200 overflow-x-hidden flex justify-center">
                                 {(() => {
+                                    const isEsq = visaoOdonto === 'esquematica';
                                     const quad = tipoArcada === 'permanente' ? QUAD_PERM : QUAD_LEITE;
                                     return (
                                         <div className="inline-flex flex-col items-center">
                                             {/* Superior */}
-                                            <div className="flex justify-center items-end">
-                                                {quad.sup[0].map(n => <Tooth key={n} num={n} isUpper={true} state={odontograma[n] || { faces: {}, cond: 'normal' }} ferramenta={ferramenta} onApply={(f) => aplicarFerramenta(n, f)} />)}
+                                            <div className={`flex justify-center ${isEsq ? 'items-center' : 'items-end'}`}>
+                                                {quad.sup[0].map(n => <Tooth key={n} num={n} isUpper={true} esquematico={isEsq} state={odontograma[n] || { faces: {}, cond: 'normal' }} ferramenta={ferramenta} onApply={(f) => aplicarFerramenta(n, f)} />)}
                                                 <div className="w-1 self-stretch border-l-2 border-dashed border-slate-300 mx-2"></div>
-                                                {quad.sup[1].map(n => <Tooth key={n} num={n} isUpper={true} state={odontograma[n] || { faces: {}, cond: 'normal' }} ferramenta={ferramenta} onApply={(f) => aplicarFerramenta(n, f)} />)}
+                                                {quad.sup[1].map(n => <Tooth key={n} num={n} isUpper={true} esquematico={isEsq} state={odontograma[n] || { faces: {}, cond: 'normal' }} ferramenta={ferramenta} onApply={(f) => aplicarFerramenta(n, f)} />)}
                                             </div>
                                             {/* linha média */}
                                             <div className="h-px bg-gradient-to-r from-transparent via-slate-400 to-transparent my-3"></div>
                                             {/* Inferior */}
-                                            <div className="flex justify-center items-start">
-                                                {quad.inf[0].map(n => <Tooth key={n} num={n} isUpper={false} state={odontograma[n] || { faces: {}, cond: 'normal' }} ferramenta={ferramenta} onApply={(f) => aplicarFerramenta(n, f)} />)}
+                                            <div className={`flex justify-center ${isEsq ? 'items-center' : 'items-start'}`}>
+                                                {quad.inf[0].map(n => <Tooth key={n} num={n} isUpper={false} esquematico={isEsq} state={odontograma[n] || { faces: {}, cond: 'normal' }} ferramenta={ferramenta} onApply={(f) => aplicarFerramenta(n, f)} />)}
                                                 <div className="w-1 self-stretch border-l-2 border-dashed border-slate-300 mx-2"></div>
-                                                {quad.inf[1].map(n => <Tooth key={n} num={n} isUpper={false} state={odontograma[n] || { faces: {}, cond: 'normal' }} ferramenta={ferramenta} onApply={(f) => aplicarFerramenta(n, f)} />)}
+                                                {quad.inf[1].map(n => <Tooth key={n} num={n} isUpper={false} esquematico={isEsq} state={odontograma[n] || { faces: {}, cond: 'normal' }} ferramenta={ferramenta} onApply={(f) => aplicarFerramenta(n, f)} />)}
                                             </div>
                                         </div>
                                     );
@@ -939,6 +1153,8 @@ export default function PacienteDetalhe() {
                                     })}
                                 </div>
                             </div>
+                            </>
+                            )}
                         </div>
 
                         {/* TRATAMENTOS REALIZADOS */}
@@ -970,6 +1186,20 @@ export default function PacienteDetalhe() {
                                             <button onClick={() => excluirTratamento(t.id)} className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg"><Trash2 size={14}/></button>
                                         </div>
                                     ))}
+                                </div>
+                            )}
+
+                            {/* Valor Total do Orçamento */}
+                            {tratamentos.length > 0 && (
+                                <div className="mt-4 pt-4 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3">
+                                    <div className="flex items-center gap-2 text-sm text-slate-500 font-semibold">
+                                        <DollarSign size={16} className="text-emerald-500"/>
+                                        <span>{tratamentos.length} tratamento{tratamentos.length !== 1 ? 's' : ''} registrado{tratamentos.length !== 1 ? 's' : ''}</span>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <span className="text-xs font-bold text-slate-400 uppercase">Valor Total:</span>
+                                        <span className="text-xl font-black text-emerald-600">{formatarMoeda(valorTotalOrcamento)}</span>
+                                    </div>
                                 </div>
                             )}
                         </div>
@@ -1114,10 +1344,30 @@ export default function PacienteDetalhe() {
                             <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Observações</label>
                             <textarea value={tratEdit.observacoes} onChange={e => setTratEdit({...tratEdit, observacoes: e.target.value})} className="w-full p-2.5 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 h-20 resize-none" />
                         </div>
+                        {/* Agendar na Agenda */}
+                        <div className={`p-3 rounded-xl border transition-all ${tratEdit.agendarNaAgenda ? 'bg-blue-50 border-blue-200' : 'bg-slate-50 border-slate-200'}`}>
+                            <label className="flex items-center gap-3 cursor-pointer">
+                                <div className={`w-5 h-5 rounded-md border flex items-center justify-center transition-colors ${tratEdit.agendarNaAgenda ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-slate-300'}`}>
+                                    {tratEdit.agendarNaAgenda && <Check size={14}/>}
+                                </div>
+                                <input type="checkbox" className="hidden" checked={tratEdit.agendarNaAgenda || false} onChange={e => setTratEdit({...tratEdit, agendarNaAgenda: e.target.checked})} />
+                                <div className="flex items-center gap-2">
+                                    <CalendarPlus size={16} className={tratEdit.agendarNaAgenda ? 'text-blue-600' : 'text-slate-400'}/>
+                                    <span className={`text-sm font-bold ${tratEdit.agendarNaAgenda ? 'text-blue-700' : 'text-slate-600'}`}>Agendar consulta na Agenda</span>
+                                </div>
+                            </label>
+                            {tratEdit.agendarNaAgenda && (
+                                <div className="mt-3 ml-8">
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Horário da Consulta</label>
+                                    <input type="time" value={tratEdit.horaAgendamento || '09:00'} onChange={e => setTratEdit({...tratEdit, horaAgendamento: e.target.value})} className="w-full max-w-[160px] p-2.5 border border-blue-200 rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500 bg-white"/>
+                                    <p className="text-[10px] text-blue-500 mt-1.5 font-semibold">A consulta será criada na data acima ({tratEdit.data ? new Date(tratEdit.data + 'T12:00:00').toLocaleDateString('pt-BR') : '-'}) às {tratEdit.horaAgendamento || '09:00'}.</p>
+                                </div>
+                            )}
+                        </div>
                     </div>
                     <div className="flex gap-2 justify-end mt-5">
                         <button onClick={() => setModalTrat(false)} className="px-4 py-2 text-slate-500 font-bold hover:bg-slate-100 rounded-lg">Cancelar</button>
-                        <button onClick={salvarTratamento} className="px-5 py-2 bg-emerald-600 text-white font-bold rounded-lg hover:bg-emerald-700 shadow-sm flex items-center gap-2"><Save size={14}/> Salvar</button>
+                        <button onClick={salvarTratamento} className="px-5 py-2 bg-emerald-600 text-white font-bold rounded-lg hover:bg-emerald-700 shadow-sm flex items-center gap-2"><Save size={14}/> {tratEdit.agendarNaAgenda ? 'Salvar e Agendar' : 'Salvar'}</button>
                     </div>
                 </div>
             </div>
