@@ -2,12 +2,13 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
-import { Users, Calendar, DollarSign, ArrowRight, Clock, Loader2 } from 'lucide-react';
+import { Users, Calendar, DollarSign, ArrowRight, Clock, Loader2, Cake, Gift } from 'lucide-react';
 import { useClinica } from '@/app/context/ClinicaContext';
 
 export default function Dashboard() {
   const [stats, setStats] = useState({ pacientes: 0, agendamentos: 0, faturamento: 0 });
   const [proximos, setProximos] = useState<any[]>([]);
+  const [aniversariantes, setAniversariantes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [usuario, setUsuario] = useState<any>(null);
   const { activeClinicId, loading: clinicLoading } = useClinica();
@@ -114,6 +115,33 @@ export default function Dashboard() {
             .limit(4);
             
         setProximos(prox || []);
+
+        // E. ANIVERSARIANTES DA SEMANA
+        const { data: todosPacientes } = await supabase
+            .from('pacientes')
+            .select('id, nome, data_nascimento, telefone')
+            .in('clinica_id', filtrosIds)
+            .not('data_nascimento', 'is', null);
+
+        if (todosPacientes) {
+            const agora = new Date();
+            const aniv = todosPacientes.filter(p => {
+                if (!p.data_nascimento) return false;
+                const nasc = new Date(p.data_nascimento + 'T12:00:00');
+                const mesNasc = nasc.getMonth();
+                const diaNasc = nasc.getDate();
+                const anivEsteAno = new Date(agora.getFullYear(), mesNasc, diaNasc);
+                const diff = (anivEsteAno.getTime() - agora.getTime()) / (1000 * 60 * 60 * 24);
+                return diff >= -1 && diff <= 7;
+            }).map(p => {
+                const nasc = new Date(p.data_nascimento + 'T12:00:00');
+                const anivEsteAno = new Date(agora.getFullYear(), nasc.getMonth(), nasc.getDate());
+                const diff = Math.ceil((anivEsteAno.getTime() - agora.getTime()) / (1000 * 60 * 60 * 24));
+                const idade = agora.getFullYear() - nasc.getFullYear();
+                return { ...p, diasPara: diff, idade, anivEsteAno };
+            }).sort((a, b) => a.diasPara - b.diasPara);
+            setAniversariantes(aniv);
+        }
     }
     setLoading(false);
   }
@@ -128,6 +156,39 @@ export default function Dashboard() {
       
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6"><div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4"><div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl"><Users size={24}/></div><div><p className="text-sm font-bold text-slate-400 uppercase">Pacientes</p><p className="text-2xl font-black text-slate-800">{stats.pacientes}</p></div></div><div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4"><div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl"><Calendar size={24}/></div><div><p className="text-sm font-bold text-slate-400 uppercase">Agendamentos Hoje</p><p className="text-2xl font-black text-slate-800">{stats.agendamentos}</p></div></div><div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4"><div className="p-3 bg-amber-50 text-amber-600 rounded-xl"><DollarSign size={24}/></div><div><p className="text-sm font-bold text-slate-400 uppercase">Faturamento Mês</p><p className="text-2xl font-black text-slate-800">R$ {stats.faturamento.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</p></div></div></div>
       
+      {aniversariantes.length > 0 && (
+        <div className="bg-gradient-to-r from-pink-50 to-amber-50 rounded-3xl border border-pink-200/50 shadow-sm overflow-hidden">
+          <div className="p-5 border-b border-pink-100 flex justify-between items-center">
+            <h3 className="font-bold text-slate-700 flex items-center gap-2"><Cake size={20} className="text-pink-500"/> Aniversariantes da Semana</h3>
+            <span className="text-[10px] font-bold text-pink-400 uppercase">{aniversariantes.length} paciente{aniversariantes.length !== 1 ? 's' : ''}</span>
+          </div>
+          <div className="divide-y divide-pink-100/50">
+            {aniversariantes.map(p => {
+              const isHoje = p.diasPara <= 0;
+              return (
+                <div key={p.id} className="p-4 flex items-center justify-between hover:bg-white/40 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm ${isHoje ? 'bg-pink-500 text-white animate-pulse' : 'bg-white text-pink-600 border border-pink-200'}`}>
+                      {isHoje ? <Gift size={18}/> : <Cake size={16}/>}
+                    </div>
+                    <div>
+                      <p className="font-bold text-slate-700 text-sm">{p.nome}</p>
+                      <p className="text-[11px] text-slate-500">
+                        {isHoje ? <span className="text-pink-600 font-black">Faz aniversário HOJE! 🎉</span> : `Aniversário em ${p.diasPara} dia${p.diasPara !== 1 ? 's' : ''}`}
+                        <span className="text-slate-400 ml-2">· {p.idade} anos</span>
+                      </p>
+                    </div>
+                  </div>
+                  {p.telefone && (
+                    <a href={`https://wa.me/55${p.telefone.replace(/\D/g, '')}?text=${encodeURIComponent(`Olá ${p.nome.split(' ')[0]}! 🎂 A equipe da clínica deseja um Feliz Aniversário! 🥳`)}`} target="_blank" rel="noopener" className="px-3 py-1.5 text-[10px] font-bold rounded-lg bg-emerald-500 text-white hover:bg-emerald-600 transition-colors shadow-sm">WhatsApp 🎂</a>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden"><div className="p-6 border-b border-slate-50 bg-slate-50/50 flex justify-between items-center"><h3 className="font-bold text-slate-700 flex items-center gap-2"><Clock size={20} className="text-blue-500"/> Próximos Atendimentos</h3><Link href="/agenda" className="text-xs font-bold text-blue-600 hover:underline">Ver todos</Link></div><div className="divide-y divide-slate-50">{proximos.length === 0 ? (<div className="p-8 text-center text-slate-400">Nenhum agendamento futuro encontrado.</div>) : (proximos.map((ag: any) => (<div key={ag.id} className="p-4 flex items-center justify-between hover:bg-slate-50 transition-colors"><div className="flex items-center gap-4"><div className="flex flex-col items-center justify-center w-12 h-12 bg-blue-50 text-blue-700 rounded-xl font-bold text-xs border border-blue-100"><span>{new Date(ag.data_hora).getDate()}</span><span className="text-[9px] uppercase">{new Date(ag.data_hora).toLocaleString('pt-BR', { month: 'short' }).replace('.','')}</span></div><div><p className="font-bold text-slate-700">{ag.pacientes?.nome}</p><p className="text-xs text-slate-500">{ag.procedimento} • {new Date(ag.data_hora).toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'})}</p></div></div><div className="flex items-center gap-2"><span className={`text-[10px] font-bold px-2 py-1 rounded-md uppercase ${ag.status === 'concluido' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}`}>{ag.status}</span></div></div>)))}</div></div>
     </div>
   );

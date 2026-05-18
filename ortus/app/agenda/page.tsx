@@ -555,6 +555,18 @@ export default function Agenda() {
                           </div>
                       </div>
                       
+                      {(() => {
+                          const pac = pacientes.find((p: any) => p.id == formData.paciente_id);
+                          const tel = pac?.telefone?.replace(/\D/g, '');
+                          if (!tel || !formData.date || !formData.time) return null;
+                          const dataFmt = new Date(formData.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+                          const msg = `Olá ${(pac?.nome || '').split(' ')[0]}! 😊\n\nSua consulta está confirmada:\n📅 ${dataFmt} às ${formData.time}h\n📋 ${formData.title || 'Consulta'}\n\nPedimos que confirme sua presença respondendo esta mensagem. Obrigado!`;
+                          return (
+                              <a href={`https://wa.me/55${tel}?text=${encodeURIComponent(msg)}`} target="_blank" rel="noopener" className="flex items-center justify-center gap-2 py-2.5 rounded-lg font-bold text-xs uppercase bg-emerald-500 text-white hover:bg-emerald-600 border border-emerald-600 transition-colors shadow-sm">
+                                  <Phone size={13}/> Confirmar via WhatsApp
+                              </a>
+                          );
+                      })()}
                       <div className="flex gap-3 pt-2">
                           {formData.id && <button onClick={excluirAgendamento} className="p-3 text-red-400 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={20}/></button>}
                           <button onClick={() => saveOrUpdate('concluido')} className="flex-1 bg-green-50 text-green-700 py-2.5 rounded-lg font-bold text-xs uppercase hover:bg-green-100 border border-green-200">Concluir</button>

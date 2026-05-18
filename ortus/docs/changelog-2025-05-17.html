@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>ORTUS — Release Notes 17/05/2025</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @media print {
+            body { background: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .no-print { display: none !important; }
+            .page-break { page-break-before: always; }
+            .a4 { box-shadow: none !important; margin: 0 !important; max-width: 100% !important; }
+        }
+        @page { size: A4; margin: 12mm; }
+        body { font-family: 'Inter', 'Segoe UI', system-ui, sans-serif; }
+    </style>
+</head>
+<body class="bg-slate-200 min-h-screen">
+
+    <!-- Barra de controle -->
+    <div class="no-print sticky top-0 z-50 bg-white/90 backdrop-blur border-b border-slate-200 shadow-sm">
+        <div class="max-w-[210mm] mx-auto flex items-center justify-between px-6 py-3">
+            <span class="text-sm font-bold text-slate-600">Release Notes ORTUS &mdash; 17/05/2025</span>
+            <button onclick="window.print()" class="bg-blue-600 text-white px-6 py-2 rounded-lg font-bold text-sm hover:bg-blue-700 transition-colors shadow-sm">
+                Salvar como PDF / Imprimir
+            </button>
+        </div>
+    </div>
+
+    <!-- PÁGINA 1 -->
+    <div class="a4 max-w-[210mm] bg-white mx-auto my-8 p-12 shadow-2xl rounded-sm">
+
+        <!-- Cabeçalho -->
+        <div class="flex items-center justify-between border-b-2 border-slate-800 pb-4 mb-8">
+            <div>
+                <h1 class="text-3xl font-black text-slate-800 tracking-tight">ORTUS</h1>
+                <p class="text-xs text-slate-400 font-semibold uppercase tracking-widest mt-0.5">Sistema de Gestao Odontologica Inteligente</p>
+            </div>
+            <div class="text-right">
+                <div class="text-lg font-black text-blue-600">Release Notes</div>
+                <div class="text-xs text-slate-500 font-semibold">17 de Maio de 2025</div>
+            </div>
+        </div>
+
+        <!-- Intro -->
+        <div class="bg-blue-50 border border-blue-200 rounded-xl p-5 mb-8">
+            <p class="text-sm text-blue-800 font-semibold leading-relaxed">
+                Esta atualização traz <strong>11 melhorias significativas</strong> ao sistema ORTUS, incluindo um modulo completo de Harmonizacao Orofacial, 
+                relatorios gerenciais, busca global inteligente e migracao de dados para a nuvem. Todas as alteracoes foram validadas com verificacao de tipos (TypeScript).
+            </p>
+        </div>
+
+        <!-- Item 1 -->
+        <div class="mb-6">
+            <div class="flex items-center gap-3 mb-2">
+                <span class="bg-purple-100 text-purple-700 text-[10px] font-black uppercase px-2 py-0.5 rounded">Novo Modulo</span>
+                <h2 class="text-base font-black text-slate-800">1. Harmonizacao Orofacial (HOF)</h2>
+            </div>
+            <p class="text-sm text-slate-600 mb-2"><strong>Onde acessar:</strong> Ficha do Paciente &rarr; aba "Harmonizacao (HOF)"</p>
+            <ul class="text-sm text-slate-600 space-y-1 ml-4 list-disc">
+                <li>Mapa facial interativo com marcacao de pontos de aplicacao</li>
+                <li>5 tipos de marcacao: Toxina Botulinica, Acido Hialuronico, Bioestimulador, PMMA, Fios PDO</li>
+                <li>Upload de fotos antes/depois por angulo (Frontal, Perfil D, Perfil E, Sorrindo)</li>
+                <li>Alertas inteligentes de vencimento de toxina (90-180 dias)</li>
+                <li>Protocolos pre-definidos (Harmonizacao Completa, Bigode Chines, Olheiras, Rinomodelacao, etc.)</li>
+                <li>Termo de Consentimento HOF com aceite e impressao</li>
+                <li>Impressao do Mapa HOF em documento A4 formatado</li>
+            </ul>
+        </div>
+
+        <!-- Item 2 -->
+        <div class="mb-6">
+            <div class="flex items-center gap-3 mb-2">
+                <span class="bg-emerald-100 text-emerald-700 text-[10px] font-black uppercase px-2 py-0.5 rounded">Melhoria</span>
+                <h2 class="text-base font-black text-slate-800">2. Armazenamento em Nuvem (Storage)</h2>
+            </div>
+            <p class="text-sm text-slate-600 mb-2"><strong>Onde acessar:</strong> Aba HOF (fotos) e aba "Documentos"</p>
+            <ul class="text-sm text-slate-600 space-y-1 ml-4 list-disc">
+                <li>Fotos e documentos agora sao enviados para Supabase Storage (nao mais base64)</li>
+                <li>Compressao automatica de imagens (max 1200px, JPEG 80%)</li>
+                <li>Exclusao remove arquivo fisico do bucket</li>
+                <li>Limite de upload aumentado de 3MB para 10MB</li>
+            </ul>
+        </div>
+
+        <!-- Item 3 -->
+        <div class="mb-6">
+            <div class="flex items-center gap-3 mb-2">
+                <span class="bg-amber-100 text-amber-700 text-[10px] font-black uppercase px-2 py-0.5 rounded">Correcao</span>
+                <h2 class="text-base font-black text-slate-800">3. Inbox Reativo</h2>
+            </div>
+            <p class="text-sm text-slate-600"><strong>Onde acessar:</strong> Pagina /inbox</p>
+            <p class="text-sm text-slate-600 mt-1">Corrigido: marcar notificacao como lida agora atualiza a lista instantaneamente, sem recarregar a pagina inteira.</p>
+        </div>
+
+        <!-- Item 4 -->
+        <div class="mb-6">
+            <div class="flex items-center gap-3 mb-2">
+                <span class="bg-pink-100 text-pink-700 text-[10px] font-black uppercase px-2 py-0.5 rounded">Novo Recurso</span>
+                <h2 class="text-base font-black text-slate-800">4. Aniversariantes no Dashboard</h2>
+            </div>
+            <p class="text-sm text-slate-600 mb-2"><strong>Onde acessar:</strong> Dashboard &mdash; secao rosa/ambar no topo</p>
+            <ul class="text-sm text-slate-600 space-y-1 ml-4 list-disc">
+                <li>Card com aniversariantes da semana (proximos 7 dias)</li>
+                <li>Indicador pulsante para aniversario de hoje</li>
+                <li>Idade calculada automaticamente</li>
+                <li>Botao WhatsApp com mensagem de felicitacao pre-formatada</li>
+            </ul>
+        </div>
+
+        <!-- Item 5 -->
+        <div class="mb-6">
+            <div class="flex items-center gap-3 mb-2">
+                <span class="bg-green-100 text-green-700 text-[10px] font-black uppercase px-2 py-0.5 rounded">Novo Recurso</span>
+                <h2 class="text-base font-black text-slate-800">5. Confirmacao via WhatsApp na Agenda</h2>
+            </div>
+            <p class="text-sm text-slate-600 mb-2"><strong>Onde acessar:</strong> Agenda &rarr; clicar em qualquer agendamento</p>
+            <ul class="text-sm text-slate-600 space-y-1 ml-4 list-disc">
+                <li>Botao verde "Confirmar via WhatsApp" no modal de agendamento</li>
+                <li>Aparece automaticamente quando paciente tem telefone cadastrado</li>
+                <li>Mensagem com nome, data, horario e procedimento</li>
+            </ul>
+        </div>
+
+        <!-- Item 6 -->
+        <div class="mb-6">
+            <div class="flex items-center gap-3 mb-2">
+                <span class="bg-cyan-100 text-cyan-700 text-[10px] font-black uppercase px-2 py-0.5 rounded">Novo Recurso</span>
+                <h2 class="text-base font-black text-slate-800">6. Omnibar &mdash; Busca Global (Ctrl+K)</h2>
+            </div>
+            <p class="text-sm text-slate-600 mb-2"><strong>Onde acessar:</strong> Qualquer pagina &rarr; Ctrl+K ou botao "Buscar..." na sidebar</p>
+            <ul class="text-sm text-slate-600 space-y-1 ml-4 list-disc">
+                <li>Busca pacientes por nome, CPF ou telefone</li>
+                <li>Navegacao rapida para qualquer pagina do sistema</li>
+                <li>Teclado: setas para navegar, Enter para selecionar, Esc para fechar</li>
+                <li>Clicar em paciente abre o Slide-Over de detalhes</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- PÁGINA 2 -->
+    <div class="a4 max-w-[210mm] bg-white mx-auto my-8 p-12 shadow-2xl rounded-sm page-break">
+
+        <!-- Item 7 -->
+        <div class="mb-6">
+            <div class="flex items-center gap-3 mb-2">
+                <span class="bg-purple-100 text-purple-700 text-[10px] font-black uppercase px-2 py-0.5 rounded">Nova Pagina</span>
+                <h2 class="text-base font-black text-slate-800">7. Pagina de Relatorios</h2>
+            </div>
+            <p class="text-sm text-slate-600 mb-2"><strong>Onde acessar:</strong> Sidebar &rarr; "Relatorios" (apenas administradores)</p>
+            <ul class="text-sm text-slate-600 space-y-1 ml-4 list-disc">
+                <li>KPIs: Receita Total, Despesas, Lucro Liquido, Pacientes Atendidos</li>
+                <li>Taxa de Comparecimento com grafico circular</li>
+                <li>Valores em aberto (fiados) com alerta visual</li>
+                <li>Ticket Medio por consulta</li>
+                <li>Grafico de Faturamento Mensal (barras)</li>
+                <li>Ranking de Procedimentos mais realizados</li>
+                <li>Filtros: Este mes, 3 meses, 6 meses, Este ano</li>
+                <li>Botao Imprimir relatorio</li>
+            </ul>
+        </div>
+
+        <!-- Item 8 -->
+        <div class="mb-6">
+            <div class="flex items-center gap-3 mb-2">
+                <span class="bg-teal-100 text-teal-700 text-[10px] font-black uppercase px-2 py-0.5 rounded">Novo Recurso</span>
+                <h2 class="text-base font-black text-slate-800">8. Evolucao / Prontuario Clinico</h2>
+            </div>
+            <p class="text-sm text-slate-600 mb-2"><strong>Onde acessar:</strong> Ficha do Paciente &rarr; aba "Evolucao"</p>
+            <ul class="text-sm text-slate-600 space-y-1 ml-4 list-disc">
+                <li>Registro narrativo de cada atendimento (obrigatorio CRO)</li>
+                <li>Campos: data, profissional, descricao livre</li>
+                <li>Timeline cronologica visual com todas as evolucoes</li>
+                <li>Botao "Imprimir Prontuario" &mdash; documento A4 com campo de assinatura</li>
+                <li>Excluir registros individualmente</li>
+            </ul>
+        </div>
+
+        <!-- Item 9 -->
+        <div class="mb-6">
+            <div class="flex items-center gap-3 mb-2">
+                <span class="bg-emerald-100 text-emerald-700 text-[10px] font-black uppercase px-2 py-0.5 rounded">Melhoria</span>
+                <h2 class="text-base font-black text-slate-800">9. Refatoracao Interna (page.tsx paciente)</h2>
+            </div>
+            <p class="text-sm text-slate-600">Melhoria interna: a aba Evolucao foi extraida como componente independente (TabEvolucao.tsx), reduzindo ~90 linhas do arquivo principal e estabelecendo padrao para futuras modularizacoes.</p>
+        </div>
+
+        <!-- Item 10 -->
+        <div class="mb-6">
+            <div class="flex items-center gap-3 mb-2">
+                <span class="bg-indigo-100 text-indigo-700 text-[10px] font-black uppercase px-2 py-0.5 rounded">Infraestrutura</span>
+                <h2 class="text-base font-black text-slate-800">10. Migracao localStorage &rarr; Supabase</h2>
+            </div>
+            <p class="text-sm text-slate-600 mb-2"><strong>Impacto:</strong> Configuracoes e Financeiro agora sincronizam entre dispositivos</p>
+            <ul class="text-sm text-slate-600 space-y-1 ml-4 list-disc">
+                <li>Categorias financeiras persistidas no banco por clinica</li>
+                <li>Preferencias da clinica (horarios, dias, tema) no banco</li>
+                <li>Modelos de documentos (contratos, termos) no banco</li>
+                <li>Meta de lancamentos (cancelamentos) no banco</li>
+                <li>Fallback automatico: dados antigos do localStorage migram sozinhos</li>
+                <li>Nova tabela: <code>configuracoes_clinica</code> com RLS</li>
+            </ul>
+        </div>
+
+        <!-- Item 11 -->
+        <div class="mb-6">
+            <div class="flex items-center gap-3 mb-2">
+                <span class="bg-blue-100 text-blue-700 text-[10px] font-black uppercase px-2 py-0.5 rounded">Novo Recurso</span>
+                <h2 class="text-base font-black text-slate-800">11. Busca Avancada de Pacientes</h2>
+            </div>
+            <p class="text-sm text-slate-600 mb-2"><strong>Onde acessar:</strong> Pagina /pacientes &rarr; botao "Filtros"</p>
+            <ul class="text-sm text-slate-600 space-y-1 ml-4 list-disc">
+                <li>Busca agora inclui CPF alem de nome e telefone</li>
+                <li>Filtro por Status (Ativo / Agendado / Novo)</li>
+                <li>Filtro "Com debito" &mdash; apenas pacientes devedores</li>
+                <li>Filtro "Sem consulta ha X dias" (30, 60, 90, 180, 365)</li>
+                <li>Filtro por procedimento pendente (busca textual)</li>
+                <li>Indicador visual quando filtros estao ativos</li>
+                <li>Botao "Limpar filtros"</li>
+            </ul>
+        </div>
+
+        <!-- Rodapé -->
+        <div class="mt-10 pt-6 border-t-2 border-slate-200">
+            <div class="flex justify-between items-center text-[10px] text-slate-400">
+                <span>ORTUS &mdash; Sistema de Gestao Odontologica Inteligente</span>
+                <span>Documento gerado em 17/05/2025</span>
+            </div>
+            <div class="text-center mt-4">
+                <span class="text-xs font-bold text-slate-500">Total: 6 novos arquivos criados &bull; 8 arquivos alterados &bull; 0 erros TypeScript</span>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

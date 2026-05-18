@@ -29,7 +29,6 @@ export default function Inbox() {
   async function marcarLida(id: any) {
       setTodos(prev => prev.map(n => n.id === id ? { ...n, lida: true } : n));
       await supabase.from('notificacoes').update({ lida: true }).eq('id', id);
-      window.location.reload(); 
   }
 
   async function excluir(id: any) {

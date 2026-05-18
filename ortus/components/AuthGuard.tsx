@@ -6,10 +6,11 @@ import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { PatientSlideOverProvider } from '@/components/PatientSlideOver';
 import { PatientActionModalProvider } from '@/components/PatientActionModal';
+import Omnibar from '@/components/Omnibar';
 import { 
     LayoutDashboard, Users, LogOut, Calendar, Menu, X, DollarSign, 
     Settings, Building2, Bell, Mail, User, ChevronRight, ChevronsUpDown, 
-    Check, Smile, ChevronLeft, Globe, ShieldCheck, ShieldAlert
+    Check, Smile, ChevronLeft, Globe, ShieldCheck, ShieldAlert, Search, BarChart3
 } from 'lucide-react';
 import { useClinica, getClinicLabel } from '@/app/context/ClinicaContext';
 
@@ -196,11 +197,21 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
         </div>
 
         <nav className="flex-1 px-3 space-y-1 mt-4 overflow-y-auto custom-scrollbar">
+            {!menuRecolhido ? (
+                <button onClick={() => { const e = new KeyboardEvent('keydown', { key: 'k', metaKey: true, ctrlKey: true, bubbles: true }); window.dispatchEvent(e); }} className="w-full flex items-center gap-3 px-3 py-2.5 mb-2 rounded-xl text-sm font-semibold text-slate-400 bg-slate-50 border border-slate-200 hover:border-blue-300 hover:text-blue-500 transition-all">
+                    <Search size={16}/> Buscar...
+                    <kbd className="ml-auto text-[9px] font-bold bg-white border border-slate-200 px-1.5 py-0.5 rounded">⌘K</kbd>
+                </button>
+            ) : (
+                <button onClick={() => { const e = new KeyboardEvent('keydown', { key: 'k', metaKey: true, ctrlKey: true, bubbles: true }); window.dispatchEvent(e); }} className="flex items-center justify-center p-2.5 mb-2 rounded-xl text-slate-400 bg-slate-50 border border-slate-200 hover:border-blue-300 hover:text-blue-500 transition-all" title="Buscar (Ctrl+K)">
+                    <Search size={18}/>
+                </button>
+            )}
             <NavItem href="/dashboard" icon={<LayoutDashboard size={22}/>} label="Visão Geral" />
             <NavItem href="/agenda" icon={<Calendar size={22}/>} label="Agenda" />
             <NavItem href="/pacientes" icon={<Users size={22}/>} label="Pacientes" />
             <NavItem href="/proteses" icon={<Smile size={22}/>} label="Controle de Próteses" />
-            {isAdmin && (<><div className="my-2 border-t border-slate-100 mx-2"></div><NavItem href="/financeiro" icon={<DollarSign size={22}/>} label="Financeiro" /><NavItem href="/ajustes/equipe" icon={<ShieldCheck size={22}/>} label="Equipe" /><NavItem href="/configuracoes" icon={<Settings size={22}/>} label="Ajustes" /></>)}
+            {isAdmin && (<><div className="my-2 border-t border-slate-100 mx-2"></div><NavItem href="/financeiro" icon={<DollarSign size={22}/>} label="Financeiro" /><NavItem href="/relatorios" icon={<BarChart3 size={22}/>} label="Relatórios" /><NavItem href="/ajustes/equipe" icon={<ShieldCheck size={22}/>} label="Equipe" /><NavItem href="/configuracoes" icon={<Settings size={22}/>} label="Ajustes" /></>)}
             {perfil?.is_super_admin && (<><div className="my-2 border-t border-slate-100 mx-2"></div><NavItem href="/super-admin" icon={<ShieldAlert size={22}/>} label="Painel SaaS" /></>)}
         </nav>
 
@@ -297,7 +308,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
                     <NavItem href="/agenda" icon={<Calendar size={20}/>} label="Agenda" />
                     <NavItem href="/pacientes" icon={<Users size={20}/>} label="Pacientes" />
                     <NavItem href="/proteses" icon={<Smile size={20}/>} label="Controle de Próteses" />
-                    {isAdmin && <><NavItem href="/financeiro" icon={<DollarSign size={20}/>} label="Financeiro" /><NavItem href="/ajustes/equipe" icon={<ShieldCheck size={20}/>} label="Equipe" /><NavItem href="/configuracoes" icon={<Settings size={20}/>} label="Ajustes" /></>}
+                    {isAdmin && <><NavItem href="/financeiro" icon={<DollarSign size={20}/>} label="Financeiro" /><NavItem href="/relatorios" icon={<BarChart3 size={20}/>} label="Relatórios" /><NavItem href="/ajustes/equipe" icon={<ShieldCheck size={20}/>} label="Equipe" /><NavItem href="/configuracoes" icon={<Settings size={20}/>} label="Ajustes" /></>}
                     {perfil?.is_super_admin && <NavItem href="/super-admin" icon={<ShieldAlert size={20}/>} label="Painel SaaS" />}
                 </div>
                 <div className="p-5 border-t border-slate-100 bg-slate-50"><button onClick={handleLogout} className="flex w-full items-center justify-center gap-3 px-4 py-3 text-red-500 hover:bg-red-50 rounded-xl font-bold bg-white border border-slate-200 shadow-sm transition-all active:scale-95"><LogOut size={18} /> Sair do Sistema</button></div>
@@ -305,6 +316,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
         </div>
       )}
     </div>
+    <Omnibar />
     </PatientActionModalProvider>
     </PatientSlideOverProvider>
   );
