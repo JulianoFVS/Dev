@@ -191,7 +191,24 @@ export default function KanbanProtesesInteligente() {
   };
   function getColumnIcon(col: Column) { return ICON_MAP[col.icone || DEFAULT_ICONS[col.titulo] || 'package'] || <Package size={14} />; }
 
-  const MAX_VISIBLE_FLOW = 5;
+  // Calcula quantas etapas cabem dinamicamente no container
+  const flowBarRef = useRef<HTMLDivElement>(null);
+  const [maxVisibleFlow, setMaxVisibleFlow] = useState(5);
+  useEffect(() => {
+    const el = flowBarRef.current;
+    if (!el) return;
+    const BUTTON_WIDTH = 180; // ~px por botão compacto
+    const OVERFLOW_WIDTH = 120; // espaço reservado para "+N etapas"
+    function calc() {
+      const available = el!.clientWidth;
+      const fits = Math.max(1, Math.floor((available - OVERFLOW_WIDTH) / BUTTON_WIDTH));
+      setMaxVisibleFlow(columns.length <= fits ? columns.length : fits);
+    }
+    calc();
+    const ro = new ResizeObserver(calc);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [columns.length]);
 
   // Sincroniza clinicId com contexto global (reativo) — evita reload desnecessário
   const prevClinicRef = useRef<string | null | undefined>(undefined);
@@ -658,38 +675,38 @@ export default function KanbanProtesesInteligente() {
       {!loading && columns.length > 0 && (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm shrink-0 w-full max-w-full min-w-0 px-5 py-3">
           <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2">Fluxo do Processo</p>
-          <div className="flex items-center gap-0">
-            {columns.slice(0, MAX_VISIBLE_FLOW).map((col, idx) => {
+          <div ref={flowBarRef} className="flex items-center gap-1 flex-wrap">
+            {columns.slice(0, maxVisibleFlow).map((col, idx) => {
               const count = cardsByColumn(col.id).length;
               return (
-                <div key={col.id} className="flex items-center flex-1 min-w-0">
+                <div key={col.id} className="flex items-center">
                   <button
                     onClick={() => document.getElementById(`coluna-${col.id}`)?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })}
-                    className="flex items-center gap-2 w-full px-3 py-2 rounded-xl text-xs font-black transition-all hover:bg-pink-50 hover:text-pink-700 text-slate-600 border border-transparent hover:border-pink-200 active:scale-95 justify-center"
+                    className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-black transition-all hover:bg-pink-50 hover:text-pink-700 text-slate-600 border border-transparent hover:border-pink-200 active:scale-95"
                   >
                     <span className="w-7 h-7 rounded-lg bg-pink-50 text-pink-500 flex items-center justify-center shrink-0">{getColumnIcon(col)}</span>
-                    <span className="hidden sm:inline truncate">{col.titulo}</span>
+                    <span className="hidden sm:inline whitespace-nowrap">{col.titulo}</span>
                     <span className="px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-400 text-[10px] font-black shrink-0">{count}</span>
                   </button>
-                  {idx < Math.min(columns.length, MAX_VISIBLE_FLOW) - 1 && <ChevronRight size={14} className="text-slate-300 shrink-0" />}
+                  {idx < maxVisibleFlow - 1 && columns.length > 1 && <ChevronRight size={14} className="text-slate-300 shrink-0" />}
                 </div>
               );
             })}
 
             {/* Overflow: +N etapas dropdown */}
-            {columns.length > MAX_VISIBLE_FLOW && (
+            {columns.length > maxVisibleFlow && (
               <div className="relative shrink-0 ml-1">
                 <button
                   onClick={() => setFlowDropdownOpen(!flowDropdownOpen)}
                   className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black bg-pink-50 text-pink-600 border border-pink-200 hover:bg-pink-100 transition-all active:scale-95"
                 >
-                  +{columns.length - MAX_VISIBLE_FLOW} etapas
+                  +{columns.length - maxVisibleFlow} etapas
                   <ChevronDown size={13} className={`transition-transform ${flowDropdownOpen ? 'rotate-180' : ''}`} />
                 </button>
                 {flowDropdownOpen && (
                   <div className="absolute top-full right-0 mt-2 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 min-w-[240px] py-2 animate-in fade-in slide-in-from-top-2">
                     <p className="px-4 py-1.5 text-[10px] font-black uppercase tracking-wider text-slate-400">Etapas do Fluxo ({columns.length} no total)</p>
-                    {columns.slice(MAX_VISIBLE_FLOW).map((col, idx) => {
+                    {columns.slice(maxVisibleFlow).map((col, idx) => {
                       const count = cardsByColumn(col.id).length;
                       return (
                         <button
@@ -697,7 +714,7 @@ export default function KanbanProtesesInteligente() {
                           onClick={() => { document.getElementById(`coluna-${col.id}`)?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' }); setFlowDropdownOpen(false); }}
                           className="w-full text-left px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-pink-50 hover:text-pink-700 flex items-center gap-3 transition-colors"
                         >
-                          <span className="text-[11px] font-black text-slate-400 w-5">{MAX_VISIBLE_FLOW + idx + 1}</span>
+                          <span className="text-[11px] font-black text-slate-400 w-5">{maxVisibleFlow + idx + 1}</span>
                           <span className="w-6 h-6 rounded-lg bg-pink-50 text-pink-500 flex items-center justify-center shrink-0">{getColumnIcon(col)}</span>
                           <span className="truncate">{col.titulo}</span>
                           <span className="ml-auto px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-400 text-[10px] font-black shrink-0">{count}</span>
