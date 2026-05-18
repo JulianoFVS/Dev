@@ -193,22 +193,23 @@ export default function KanbanProtesesInteligente() {
 
   // Calcula quantas etapas cabem dinamicamente no container
   const flowBarRef = useRef<HTMLDivElement>(null);
-  const [maxVisibleFlow, setMaxVisibleFlow] = useState(5);
+  const [maxVisibleFlow, setMaxVisibleFlow] = useState(99);
   useEffect(() => {
     const el = flowBarRef.current;
-    if (!el) return;
-    const BUTTON_WIDTH = 180; // ~px por botão compacto
-    const OVERFLOW_WIDTH = 120; // espaço reservado para "+N etapas"
+    if (!el || columns.length === 0) return;
+    const BUTTON_W = 175;
+    const OVERFLOW_W = 130;
     function calc() {
-      const available = el!.clientWidth;
-      const fits = Math.max(1, Math.floor((available - OVERFLOW_WIDTH) / BUTTON_WIDTH));
+      const w = el!.clientWidth;
+      if (w < 100) return; // DOM não renderizou ainda
+      const fits = Math.max(2, Math.floor((w - OVERFLOW_W) / BUTTON_W));
       setMaxVisibleFlow(columns.length <= fits ? columns.length : fits);
     }
-    calc();
+    const raf = requestAnimationFrame(calc);
     const ro = new ResizeObserver(calc);
     ro.observe(el);
-    return () => ro.disconnect();
-  }, [columns.length]);
+    return () => { cancelAnimationFrame(raf); ro.disconnect(); };
+  }, [columns.length, loading]);
 
   // Sincroniza clinicId com contexto global (reativo) — evita reload desnecessário
   const prevClinicRef = useRef<string | null | undefined>(undefined);
