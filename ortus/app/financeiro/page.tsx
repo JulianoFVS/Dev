@@ -7,37 +7,9 @@ import {
     Trash2, Ban, Clock as ClockIcon, RotateCcw, CheckCircle, Tag
 } from 'lucide-react';
 import { useClinica, getClinicLabel } from '@/app/context/ClinicaContext';
-
-// ===== Categorias persistidas em localStorage =====
-const KEY_CATS = 'ortus_categorias_financeiro';
-const KEY_META = 'ortus_lancamentos_meta';
+import { carregarConfig, salvarConfig } from '@/lib/configClinica';
 
 const CATS_PADRAO = ['Geral','Vendas','Aluguel','Fornecedores','Equipe','Impostos','Marketing','Procedimentos Extras'];
-
-function carregarCategorias(): string[] {
-    if (typeof window === 'undefined') return CATS_PADRAO;
-    try {
-        const raw = localStorage.getItem(KEY_CATS);
-        if (raw) {
-            const arr = JSON.parse(raw);
-            if (Array.isArray(arr) && arr.length) return arr;
-        }
-    } catch {}
-    localStorage.setItem(KEY_CATS, JSON.stringify(CATS_PADRAO));
-    return CATS_PADRAO;
-}
-function salvarCategorias(list: string[]) {
-    if (typeof window !== 'undefined') localStorage.setItem(KEY_CATS, JSON.stringify(list));
-}
-
-// Meta dos lançamentos (status & motivo) — funciona sem migração
-function carregarMeta(): Record<string, { status?: string; motivo?: string; cancelado_em?: string }> {
-    if (typeof window === 'undefined') return {};
-    try { return JSON.parse(localStorage.getItem(KEY_META) || '{}'); } catch { return {}; }
-}
-function salvarMeta(m: any) {
-    if (typeof window !== 'undefined') localStorage.setItem(KEY_META, JSON.stringify(m));
-}
 
 export default function Financeiro() {
   const { activeClinicId, activeClinic, loading: clinicLoading } = useClinica();
@@ -71,7 +43,8 @@ export default function Financeiro() {
   // Pacientes (vinculação opcional ao lançamento)
   const [pacientesOptions, setPacientesOptions] = useState<{ id: string; nome: string }[]>([]);
 
-  // Cancelamento
+  // Meta & Cancelamento (persisted in Supabase)
+  const [meta, setMeta] = useState<Record<string, any>>({});
   const [modalCancelar, setModalCancelar] = useState<any>(null);
   const [motivoCancelar, setMotivoCancelar] = useState('');
 
@@ -79,8 +52,15 @@ export default function Financeiro() {
       const hoje = new Date();
       setDataInicio(new Date(hoje.getFullYear(), hoje.getMonth(), 1).toISOString().slice(0, 10));
       setDataFim(new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0).toISOString().slice(0, 10));
-      setCategorias(carregarCategorias());
   }, []);
+
+  // Carregar categorias e meta do Supabase (com fallback localStorage)
+  useEffect(() => {
+      if (clinicLoading || !activeClinicId) return;
+      const cid = (activeClinicId && activeClinicId !== 'all' ? String(activeClinicId) : '0');
+      carregarConfig<string[]>(cid, 'categorias_financeiro', 'ortus_categorias_financeiro', CATS_PADRAO).then(c => setCategorias(c && c.length ? c : CATS_PADRAO));
+      carregarConfig<Record<string, any>>(cid, 'lancamentos_meta', 'ortus_lancamentos_meta', {}).then(m => setMeta(m || {}));
+  }, [clinicLoading, activeClinicId]);
 
   useEffect(() => { if (dataInicio && dataFim && !clinicLoading) carregarDados(); }, [mesSelecionado, dataInicio, dataFim, modoData, clinicLoading, activeClinicId]);
 
@@ -110,8 +90,6 @@ export default function Financeiro() {
         let qMan = supabase.from('despesas').select('*').gte('data', inicio).lte('data', fim);
         if (filtrarClinica) qMan = qMan.eq('clinica_id', clinicaId);
         const { data: manuais } = await qMan;
-
-        const meta = carregarMeta();
 
         const listaAg = (agendamentos || [])
             .filter((e: any) => e.status === 'concluido' || e.status === 'fiado')
@@ -179,7 +157,8 @@ export default function Financeiro() {
       }
       const novas = [...categorias, nome].sort();
       setCategorias(novas);
-      salvarCategorias(novas);
+      const cid = (activeClinicId && activeClinicId !== 'all' ? String(activeClinicId) : '0');
+      salvarConfig(cid, 'categorias_financeiro', novas);
       setNovoLancamento({ ...novoLancamento, categoria: nome });
       setNovaCatTemp('');
   }
@@ -224,9 +203,10 @@ export default function Financeiro() {
       if (!modalCancelar) return;
       if (!motivoCancelar.trim()) { alert('Informe o motivo do cancelamento.'); return; }
       const t = modalCancelar;
-      const meta = carregarMeta();
-      meta[t.id] = { status: 'cancelado', motivo: motivoCancelar.trim(), cancelado_em: new Date().toISOString() };
-      salvarMeta(meta);
+      const updMeta = { ...meta, [t.id]: { status: 'cancelado', motivo: motivoCancelar.trim(), cancelado_em: new Date().toISOString() } };
+      setMeta(updMeta);
+      const cid2 = (activeClinicId && activeClinicId !== 'all' ? String(activeClinicId) : '0');
+      salvarConfig(cid2, 'lancamentos_meta', updMeta);
       // Tenta também salvar no DB (caso colunas existam)
       try {
           await supabase.from('despesas').update({ status: 'cancelado', motivo_cancelamento: motivoCancelar.trim(), cancelado_em: new Date().toISOString() }).eq('id', t.refId);
@@ -238,27 +218,33 @@ export default function Financeiro() {
 
   async function restaurarCancelado(t: any) {
       if (!confirm('Restaurar este lançamento?')) return;
-      const meta = carregarMeta();
-      delete meta[t.id];
-      salvarMeta(meta);
+      const updMeta = { ...meta };
+      delete updMeta[t.id];
+      setMeta(updMeta);
+      const cid3 = (activeClinicId && activeClinicId !== 'all' ? String(activeClinicId) : '0');
+      salvarConfig(cid3, 'lancamentos_meta', updMeta);
       try { await supabase.from('despesas').update({ status: 'concluido', motivo_cancelamento: null, cancelado_em: null }).eq('id', t.refId); } catch {}
       carregarDados();
   }
 
   async function excluirDefinitivo(t: any) {
       if (!confirm('Excluir definitivamente? Esta ação não pode ser desfeita.')) return;
-      const meta = carregarMeta();
-      delete meta[t.id];
-      salvarMeta(meta);
+      const updMeta = { ...meta };
+      delete updMeta[t.id];
+      setMeta(updMeta);
+      const cid4 = (activeClinicId && activeClinicId !== 'all' ? String(activeClinicId) : '0');
+      salvarConfig(cid4, 'lancamentos_meta', updMeta);
       if (t.origem === 'manual') await supabase.from('despesas').delete().eq('id', t.refId);
       carregarDados();
   }
 
   async function concluirAndamento(t: any) {
       if (!confirm('Marcar como concluído?')) return;
-      const meta = carregarMeta();
-      delete meta[t.id];
-      salvarMeta(meta);
+      const updMeta = { ...meta };
+      delete updMeta[t.id];
+      setMeta(updMeta);
+      const cid5 = (activeClinicId && activeClinicId !== 'all' ? String(activeClinicId) : '0');
+      salvarConfig(cid5, 'lancamentos_meta', updMeta);
       try { await supabase.from('despesas').update({ status: 'concluido' }).eq('id', t.refId); } catch {}
       carregarDados();
   }

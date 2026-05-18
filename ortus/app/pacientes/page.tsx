@@ -1,7 +1,7 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Search, Plus, LayoutGrid, List as ListIcon, User, Phone, Edit, Trash2, Activity, Loader2, ChevronRight, Building2, Download } from 'lucide-react';
+import { Search, Plus, LayoutGrid, List as ListIcon, User, Phone, Edit, Trash2, Activity, Loader2, ChevronRight, Building2, Download, Filter, AlertCircle, Calendar, Clock, X } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { usePatientSlideOver } from '@/components/PatientSlideOver';
@@ -18,6 +18,11 @@ export default function Pacientes() {
   
   // Filtros
   const [filtroClinica, setFiltroClinica] = useState('todas');
+  const [filtroStatus, setFiltroStatus] = useState('todos');
+  const [filtroDebito, setFiltroDebito] = useState(false);
+  const [filtroSemConsulta, setFiltroSemConsulta] = useState<number | null>(null);
+  const [filtroProcedimento, setFiltroProcedimento] = useState('');
+  const [showFiltros, setShowFiltros] = useState(false);
 
   const router = useRouter();
   const { openPatient } = usePatientSlideOver();
@@ -29,9 +34,16 @@ export default function Pacientes() {
       if (activeClinicId) setFiltroClinica(activeClinicId === 'all' ? 'todas' : activeClinicId);
   }, [activeClinicId]);
 
+  const lastClinicRef = useRef<string | null>(null);
+
   useEffect(() => { 
-      if (!clinicLoading) carregarDados(); 
-  }, [clinicLoading]);
+      if (!clinicLoading && activeClinicId) {
+          // Só recarrega se a clínica realmente mudou
+          if (lastClinicRef.current === activeClinicId) return;
+          lastClinicRef.current = activeClinicId;
+          carregarDados();
+      }
+  }, [clinicLoading, activeClinicId]);
 
   // Atualiza a lista quando um paciente é criado/alterado em outro lugar (ex.: Quick Capture)
   useEffect(() => {
@@ -54,10 +66,12 @@ export default function Pacientes() {
         .select('*, agendamentos(data_hora, status), clinicas(nome)')
         .order('created_at', { ascending: false });
     if (idsPermitidos.length > 0) {
-        pacientesQuery = pacientesQuery.in('clinica_id', idsPermitidos as any);
+        // Inclui pacientes da clinica OU sem clinica vinculada (null)
+        const idsStr = idsPermitidos.join(',');
+        pacientesQuery = pacientesQuery.or(`clinica_id.in.(${idsStr}),clinica_id.is.null`);
     } else {
-        // Sem clínicas vinculadas: força lista vazia para não exibir lixo.
-        setPacientes([]); setLoading(false); return;
+        // Sessão pode não estar pronta ainda; aguarda próximo ciclo
+        setLoading(false); return;
     }
     const { data } = await pacientesQuery;
     
@@ -126,11 +140,45 @@ export default function Pacientes() {
       URL.revokeObjectURL(url);
   }
 
+  const filtrosAtivos = filtroStatus !== 'todos' || filtroDebito || filtroSemConsulta !== null || filtroProcedimento;
+
   const filtrados = pacientes.filter((p: any) => {
-      const bateBusca = p.nome.toLowerCase().includes(busca.toLowerCase()) || (p.telefone || '').includes(busca);
+      const bateBusca = !busca || p.nome.toLowerCase().includes(busca.toLowerCase()) || (p.telefone || '').includes(busca) || (p.cpf || '').replace(/\D/g, '').includes(busca.replace(/\D/g, ''));
       const bateClinica = filtroClinica === 'todas' ? true : p.clinica_id == filtroClinica;
-      return bateBusca && bateClinica;
+      if (!bateBusca || !bateClinica) return false;
+
+      // Status
+      if (filtroStatus !== 'todos' && p.status !== filtroStatus) return false;
+
+      // Débito
+      const temDebito = (p.agendamentos || []).some((a: any) => a.status === 'fiado');
+      if (filtroDebito && !temDebito) return false;
+
+      // Sem consulta há X dias
+      if (filtroSemConsulta !== null) {
+          const ags = (p.agendamentos || []).filter((a: any) => a.status === 'concluido');
+          if (ags.length === 0) {
+              // Nunca teve consulta — inclui
+          } else {
+              ags.sort((a: any, b: any) => new Date(b.data_hora).getTime() - new Date(a.data_hora).getTime());
+              const dias = Math.floor((Date.now() - new Date(ags[0].data_hora).getTime()) / 86400000);
+              if (dias < filtroSemConsulta) return false;
+          }
+      }
+
+      // Procedimento pendente
+      if (filtroProcedimento) {
+          const trts = (p.ficha_medica?.tratamentos || []);
+          const match = trts.some((t: any) => t.procedimento?.toLowerCase().includes(filtroProcedimento.toLowerCase()) && t.status !== 'concluido');
+          if (!match) return false;
+      }
+
+      return true;
   });
+
+  function limparFiltros() {
+      setFiltroStatus('todos'); setFiltroDebito(false); setFiltroSemConsulta(null); setFiltroProcedimento('');
+  }
 
   return (
     <div className="max-w-7xl mx-auto space-y-6 pb-20 animate-fade-in">
@@ -142,29 +190,67 @@ export default function Pacientes() {
           </div>
       </div>
 
-      <div className="bg-white p-2 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row gap-2">
-          <div className="flex-1 relative">
-              <Search className="absolute left-3 top-3 text-slate-400" size={20}/>
-              <input type="text" placeholder="Buscar..." className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-50 border-transparent focus:bg-white focus:ring-2 focus:ring-blue-100 outline-none font-medium" value={busca} onChange={e => setBusca(e.target.value)} />
-          </div>
-          
-          {/* FILTRO DE CLÍNICA */}
-          <div className="flex items-center gap-2 px-3 bg-slate-50 rounded-xl border border-slate-100">
-              <Building2 size={16} className="text-slate-400"/>
-              <select 
-                  value={filtroClinica} 
-                  onChange={(e) => setFiltroClinica(e.target.value)} 
-                  className="bg-transparent py-2.5 outline-none text-sm font-bold text-slate-600 cursor-pointer min-w-[150px]"
-              >
-                  <option value="todas">Todas as Clínicas</option>
-                  {clinicas.map((c:any) => <option key={c.id} value={c.id}>{c.nome}</option>)}
-              </select>
+      <div className="bg-white p-2 rounded-2xl border border-slate-200 shadow-sm flex flex-col gap-2">
+          <div className="flex flex-col md:flex-row gap-2">
+              <div className="flex-1 relative">
+                  <Search className="absolute left-3 top-3 text-slate-400" size={20}/>
+                  <input type="text" placeholder="Buscar por nome, telefone ou CPF..." className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-50 border-transparent focus:bg-white focus:ring-2 focus:ring-blue-100 outline-none font-medium" value={busca} onChange={e => setBusca(e.target.value)} />
+              </div>
+              
+              <div className="flex items-center gap-2 px-3 bg-slate-50 rounded-xl border border-slate-100">
+                  <Building2 size={16} className="text-slate-400"/>
+                  <select value={filtroClinica} onChange={(e) => setFiltroClinica(e.target.value)} className="bg-transparent py-2.5 outline-none text-sm font-bold text-slate-600 cursor-pointer min-w-[150px]">
+                      <option value="todas">Todas as Clínicas</option>
+                      {clinicas.map((c:any) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                  </select>
+              </div>
+
+              <button onClick={() => setShowFiltros(!showFiltros)} className={`px-3 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 transition-all ${showFiltros || filtrosAtivos ? 'bg-blue-50 text-blue-600 border border-blue-200' : 'bg-slate-50 text-slate-500 border border-slate-100 hover:border-blue-200'}`}>
+                  <Filter size={16}/> Filtros
+                  {filtrosAtivos && <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></span>}
+              </button>
+
+              <div className="flex bg-slate-100 p-1 rounded-xl">
+                  <button onClick={() => setVisualizacao('lista')} className={`p-2 rounded-lg ${visualizacao === 'lista' ? 'bg-white shadow text-blue-600' : 'text-slate-400'}`}><ListIcon size={20}/></button>
+                  <button onClick={() => setVisualizacao('cards')} className={`p-2 rounded-lg ${visualizacao === 'cards' ? 'bg-white shadow text-blue-600' : 'text-slate-400'}`}><LayoutGrid size={20}/></button>
+              </div>
           </div>
 
-          <div className="flex bg-slate-100 p-1 rounded-xl">
-              <button onClick={() => setVisualizacao('lista')} className={`p-2 rounded-lg ${visualizacao === 'lista' ? 'bg-white shadow text-blue-600' : 'text-slate-400'}`}><ListIcon size={20}/></button>
-              <button onClick={() => setVisualizacao('cards')} className={`p-2 rounded-lg ${visualizacao === 'cards' ? 'bg-white shadow text-blue-600' : 'text-slate-400'}`}><LayoutGrid size={20}/></button>
-          </div>
+          {showFiltros && (
+              <div className="px-3 pb-3 pt-1 border-t border-slate-100 flex flex-wrap items-center gap-3 animate-in fade-in slide-in-from-top-2 duration-200">
+                  <div className="flex items-center gap-2">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase">Status</label>
+                      <select value={filtroStatus} onChange={e => setFiltroStatus(e.target.value)} className="text-xs font-bold bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 outline-none focus:ring-2 focus:ring-blue-200">
+                          <option value="todos">Todos</option>
+                          <option value="ativo">Ativo</option>
+                          <option value="agendado">Agendado</option>
+                          <option value="novo">Novo</option>
+                      </select>
+                  </div>
+                  <label className="flex items-center gap-2 text-xs font-bold text-slate-600 cursor-pointer bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 hover:border-rose-300 transition-colors">
+                      <input type="checkbox" checked={filtroDebito} onChange={e => setFiltroDebito(e.target.checked)} className="rounded"/>
+                      <AlertCircle size={13} className="text-rose-500"/> Com débito
+                  </label>
+                  <div className="flex items-center gap-2">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase whitespace-nowrap">Sem consulta há</label>
+                      <select value={filtroSemConsulta ?? ''} onChange={e => setFiltroSemConsulta(e.target.value ? Number(e.target.value) : null)} className="text-xs font-bold bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 outline-none focus:ring-2 focus:ring-blue-200">
+                          <option value="">—</option>
+                          <option value="30">30 dias</option>
+                          <option value="60">60 dias</option>
+                          <option value="90">90 dias</option>
+                          <option value="180">6 meses</option>
+                          <option value="365">1 ano</option>
+                      </select>
+                  </div>
+                  <div className="flex items-center gap-2">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase">Procedimento pendente</label>
+                      <input placeholder="Ex: canal" value={filtroProcedimento} onChange={e => setFiltroProcedimento(e.target.value)} className="text-xs font-bold bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 w-36 outline-none focus:ring-2 focus:ring-blue-200"/>
+                  </div>
+                  {filtrosAtivos && (
+                      <button onClick={limparFiltros} className="ml-auto text-xs font-bold text-slate-400 hover:text-rose-600 flex items-center gap-1 transition-colors"><X size={13}/> Limpar filtros</button>
+                  )}
+              </div>
+          )}
       </div>
 
       {loading ? <div className="py-20 text-center text-slate-400"><Loader2 className="animate-spin mx-auto mb-2"/> Carregando...</div> : 

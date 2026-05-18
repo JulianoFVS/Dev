@@ -5,11 +5,7 @@ import { Building2, Users, Plus, Trash2, MapPin, Check, X, Loader2, Edit, UserPl
 import { carregarModelos, salvarModelos, novoIdModelo, novoIdPergunta, type ModeloAnamnese, type PerguntaAnamnese, type TipoPergunta } from '@/lib/anamnese';
 import { listarBackups, criarBackupAgora, baixarBackupComoJson, excluirBackup as deletarBackupServer, restaurarBackup } from '@/lib/backup';
 import { fetchUserClinicas, fetchUserEquipe } from '@/lib/clinicScoped';
-
-// ==== Helpers de localStorage para abas auxiliares ====
-const KEY_PREFS = 'ortus_preferencias';
-const KEY_CATS_FIN = 'ortus_categorias_financeiro';
-const KEY_DOCS = 'ortus_modelos_documentos';
+import { carregarConfig, salvarConfig } from '@/lib/configClinica';
 
 interface ModeloDocumento { id: string; tipo: 'contrato' | 'receita' | 'atestado' | 'outro'; nome: string; conteudo: string; }
 
@@ -34,14 +30,6 @@ const DOCS_PADRAO: ModeloDocumento[] = [
     { id: 'doc_termo_1', tipo: 'outro', nome: 'Termo de Consentimento Livre e Esclarecido', conteudo: 'TERMO DE CONSENTIMENTO LIVRE E ESCLARECIDO\n\nEu, {{paciente_nome}}, declaro que fui devidamente informado(a) pelo profissional sobre o tratamento odontológico a ser realizado, seus riscos, benefícios, alternativas e prognóstico.\n\nEstou ciente de que ____________________________.\n\nAutorizo a realização do procedimento.\n\n____, ___ de ________ de _____.\n\n____________________\nAssinatura do Paciente' },
 ];
 
-function carregarPrefs() { if (typeof window === 'undefined') return PREFS_PADRAO; try { const r = localStorage.getItem(KEY_PREFS); if (r) return { ...PREFS_PADRAO, ...JSON.parse(r) }; } catch {} return PREFS_PADRAO; }
-function salvarPrefs(p: any) { if (typeof window !== 'undefined') localStorage.setItem(KEY_PREFS, JSON.stringify(p)); }
-
-function carregarCatsFin(): string[] { if (typeof window === 'undefined') return []; try { return JSON.parse(localStorage.getItem(KEY_CATS_FIN) || '[]'); } catch { return []; } }
-function salvarCatsFin(c: string[]) { if (typeof window !== 'undefined') localStorage.setItem(KEY_CATS_FIN, JSON.stringify(c)); }
-
-function carregarDocs(): ModeloDocumento[] { if (typeof window === 'undefined') return DOCS_PADRAO; try { const r = localStorage.getItem(KEY_DOCS); if (r) { const arr = JSON.parse(r); if (Array.isArray(arr) && arr.length) return arr; } } catch {} localStorage.setItem(KEY_DOCS, JSON.stringify(DOCS_PADRAO)); return DOCS_PADRAO; }
-function salvarDocs(d: ModeloDocumento[]) { if (typeof window !== 'undefined') localStorage.setItem(KEY_DOCS, JSON.stringify(d)); }
 
 export default function Configuracoes() {
   const [abaAtiva, setAbaAtiva] = useState('clinicas');
@@ -105,11 +93,17 @@ export default function Configuracoes() {
       }
       carregarDados();
       setModelos(carregarModelos());
-      setPrefs(carregarPrefs());
-      setCatsFin(carregarCatsFin());
-      setDocs(carregarDocs());
       recarregarBackups();
   }, []);
+
+  // Carregar configs do Supabase após clinicas carregarem
+  useEffect(() => {
+      if (clinicas.length === 0) return;
+      const cid = clinicas[0]?.id || '0';
+      carregarConfig(cid, 'preferencias', 'ortus_preferencias', PREFS_PADRAO).then(p => setPrefs({ ...PREFS_PADRAO, ...(p || {}) }));
+      carregarConfig(cid, 'categorias_financeiro', 'ortus_categorias_financeiro', []).then(c => setCatsFin(c || []));
+      carregarConfig(cid, 'modelos_documentos', 'ortus_modelos_documentos', DOCS_PADRAO).then(d => setDocs(d && d.length ? d : DOCS_PADRAO));
+  }, [clinicas]);
 
   async function recarregarBackups() {
       const list = await listarBackups(50);
@@ -151,7 +145,7 @@ export default function Configuracoes() {
   }
 
   // ===== PREFERÊNCIAS =====
-  function atualizarPref(k: string, v: any) { const p = { ...prefs, [k]: v }; setPrefs(p); salvarPrefs(p); }
+  function atualizarPref(k: string, v: any) { const p = { ...prefs, [k]: v }; setPrefs(p); const cid = clinicas[0]?.id || '0'; salvarConfig(cid, 'preferencias', p); }
   function toggleDia(d: string) { const dias = { ...prefs.dias_atendimento, [d]: !prefs.dias_atendimento[d] }; atualizarPref('dias_atendimento', dias); }
 
   // ===== CATEGORIAS FINANCEIRAS =====
@@ -159,18 +153,18 @@ export default function Configuracoes() {
       const n = novaCatFin.trim(); if (!n) return;
       if (catsFin.find(c => c.toLowerCase() === n.toLowerCase())) { alert('Categoria já existe.'); return; }
       const novas = [...catsFin, n].sort();
-      setCatsFin(novas); salvarCatsFin(novas); setNovaCatFin('');
+      setCatsFin(novas); const cid = clinicas[0]?.id || '0'; salvarConfig(cid, 'categorias_financeiro', novas); setNovaCatFin('');
   }
   function removerCatFin(c: string) {
       if (!confirm(`Excluir categoria "${c}"?`)) return;
       const novas = catsFin.filter(x => x !== c);
-      setCatsFin(novas); salvarCatsFin(novas);
+      setCatsFin(novas); const cid = clinicas[0]?.id || '0'; salvarConfig(cid, 'categorias_financeiro', novas);
   }
   function renomearCatFin(antiga: string) {
       const nova = prompt('Novo nome:', antiga);
       if (!nova || nova.trim() === antiga) return;
       const novas = catsFin.map(c => c === antiga ? nova.trim() : c).sort();
-      setCatsFin(novas); salvarCatsFin(novas);
+      setCatsFin(novas); const cid = clinicas[0]?.id || '0'; salvarConfig(cid, 'categorias_financeiro', novas);
   }
 
   // ===== MODELOS DE DOCUMENTOS =====
@@ -184,13 +178,13 @@ export default function Configuracoes() {
       if (!docEdit.nome.trim() || !docEdit.conteudo.trim()) { alert('Preencha nome e conteúdo.'); return; }
       const idx = docs.findIndex(d => d.id === docEdit.id);
       const novos = idx >= 0 ? docs.map((d,i) => i === idx ? docEdit : d) : [...docs, docEdit];
-      setDocs(novos); salvarDocs(novos);
+      setDocs(novos); const cidD = clinicas[0]?.id || '0'; salvarConfig(cidD, 'modelos_documentos', novos);
       setModalDoc(false); setDocEdit(null);
   }
   function excluirDoc(id: string) {
       if (!confirm('Excluir este modelo?')) return;
       const novos = docs.filter(d => d.id !== id);
-      setDocs(novos); salvarDocs(novos);
+      setDocs(novos); const cidD2 = clinicas[0]?.id || '0'; salvarConfig(cidD2, 'modelos_documentos', novos);
   }
 
   // ===== BACKUP =====
@@ -202,8 +196,7 @@ export default function Configuracoes() {
           categorias_financeiro: catsFin,
           modelos_anamnese: modelos,
           modelos_documentos: docs,
-          // Snapshots de localStorage relevantes
-          lancamentos_meta: typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('ortus_lancamentos_meta') || '{}') : {},
+          lancamentos_meta: {},
       };
       const blob = new Blob([JSON.stringify(tudo, null, 2)], { type: 'application/json' });
       const a = document.createElement('a');
@@ -220,11 +213,12 @@ export default function Configuracoes() {
       reader.onload = () => {
           try {
               const obj = JSON.parse(reader.result as string);
-              if (obj.preferencias) { setPrefs(obj.preferencias); salvarPrefs(obj.preferencias); }
-              if (obj.categorias_financeiro) { setCatsFin(obj.categorias_financeiro); salvarCatsFin(obj.categorias_financeiro); }
+              const cidB = clinicas[0]?.id || '0';
+              if (obj.preferencias) { setPrefs(obj.preferencias); salvarConfig(cidB, 'preferencias', obj.preferencias); }
+              if (obj.categorias_financeiro) { setCatsFin(obj.categorias_financeiro); salvarConfig(cidB, 'categorias_financeiro', obj.categorias_financeiro); }
               if (obj.modelos_anamnese) { setModelos(obj.modelos_anamnese); salvarModelos(obj.modelos_anamnese); }
-              if (obj.modelos_documentos) { setDocs(obj.modelos_documentos); salvarDocs(obj.modelos_documentos); }
-              if (obj.lancamentos_meta && typeof window !== 'undefined') localStorage.setItem('ortus_lancamentos_meta', JSON.stringify(obj.lancamentos_meta));
+              if (obj.modelos_documentos) { setDocs(obj.modelos_documentos); salvarConfig(cidB, 'modelos_documentos', obj.modelos_documentos); }
+              if (obj.lancamentos_meta) { salvarConfig(cidB, 'lancamentos_meta', obj.lancamentos_meta); }
               alert('Backup importado com sucesso!');
           } catch (err: any) { alert('Arquivo inválido: ' + err.message); }
       };

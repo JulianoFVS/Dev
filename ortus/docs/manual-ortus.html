@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>ORTUS — Manual do Sistema</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @media print {
+            body { background: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .no-print { display: none !important; }
+            .page-break { page-break-before: always; }
+            .a4 { box-shadow: none !important; margin: 0 !important; max-width: 100% !important; }
+        }
+        @page { size: A4; margin: 12mm; }
+        body { font-family: 'Inter', 'Segoe UI', system-ui, sans-serif; }
+        .feature-card { break-inside: avoid; }
+    </style>
+</head>
+<body class="bg-slate-200 min-h-screen">
+
+    <!-- Barra de controle -->
+    <div class="no-print sticky top-0 z-50 bg-white/90 backdrop-blur border-b border-slate-200 shadow-sm">
+        <div class="max-w-[210mm] mx-auto flex items-center justify-between px-6 py-3">
+            <span class="text-sm font-bold text-slate-600">Manual do Sistema ORTUS</span>
+            <button onclick="window.print()" class="bg-blue-600 text-white px-6 py-2 rounded-lg font-bold text-sm hover:bg-blue-700 transition-colors shadow-sm">
+                Salvar como PDF / Imprimir
+            </button>
+        </div>
+    </div>
+
+    <!-- ==================== CAPA ==================== -->
+    <div class="a4 max-w-[210mm] min-h-[297mm] bg-white mx-auto my-8 shadow-2xl rounded-sm relative overflow-hidden">
+        <div class="absolute inset-0 bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-800"></div>
+        <div class="absolute top-0 right-0 w-96 h-96 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2"></div>
+        <div class="absolute bottom-0 left-0 w-64 h-64 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/2"></div>
+
+        <div class="relative z-10 h-full flex flex-col justify-center items-center text-center px-16" style="min-height: 297mm">
+            <div class="mb-8">
+                <div class="w-24 h-24 bg-white/20 backdrop-blur rounded-3xl flex items-center justify-center mx-auto mb-6">
+                    <span class="text-4xl font-black text-white">O</span>
+                </div>
+                <h1 class="text-5xl font-black text-white tracking-tight mb-3">ORTUS</h1>
+                <p class="text-lg text-blue-200 font-semibold">Sistema de Gestao Odontologica Inteligente</p>
+            </div>
+
+            <div class="w-16 h-0.5 bg-white/30 my-8"></div>
+
+            <h2 class="text-2xl font-bold text-white mb-2">Manual do Usuario</h2>
+            <p class="text-blue-200 text-sm">Guia completo de funcionalidades e navegacao</p>
+
+            <div class="absolute bottom-12 text-center">
+                <p class="text-xs text-blue-300 font-semibold">Versao 1.0 &bull; 2025</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== SUMÁRIO ==================== -->
+    <div class="a4 max-w-[210mm] bg-white mx-auto my-8 p-12 shadow-2xl rounded-sm page-break">
+        <h2 class="text-2xl font-black text-slate-800 mb-8 border-b-2 border-blue-600 pb-3">Sumario</h2>
+
+        <div class="space-y-3">
+            <a class="flex items-center justify-between py-2 border-b border-dotted border-slate-200 text-sm hover:text-blue-600 transition-colors">
+                <span class="font-bold text-slate-700">1. Visao Geral do Sistema</span>
+                <span class="text-slate-400 font-bold">3</span>
+            </a>
+            <a class="flex items-center justify-between py-2 border-b border-dotted border-slate-200 text-sm hover:text-blue-600 transition-colors">
+                <span class="font-bold text-slate-700">2. Dashboard</span>
+                <span class="text-slate-400 font-bold">3</span>
+            </a>
+            <a class="flex items-center justify-between py-2 border-b border-dotted border-slate-200 text-sm hover:text-blue-600 transition-colors">
+                <span class="font-bold text-slate-700">3. Agenda</span>
+                <span class="text-slate-400 font-bold">4</span>
+            </a>
+            <a class="flex items-center justify-between py-2 border-b border-dotted border-slate-200 text-sm hover:text-blue-600 transition-colors">
+                <span class="font-bold text-slate-700">4. Pacientes</span>
+                <span class="text-slate-400 font-bold">4</span>
+            </a>
+            <a class="flex items-center justify-between py-2 border-b border-dotted border-slate-200 text-sm hover:text-blue-600 transition-colors">
+                <span class="font-bold text-slate-700">5. Ficha do Paciente</span>
+                <span class="text-slate-400 font-bold">5</span>
+            </a>
+            <a class="flex items-center justify-between py-2 border-b border-dotted border-slate-200 text-sm hover:text-blue-600 transition-colors">
+                <span class="font-bold text-slate-700">6. Controle de Proteses</span>
+                <span class="text-slate-400 font-bold">7</span>
+            </a>
+            <a class="flex items-center justify-between py-2 border-b border-dotted border-slate-200 text-sm hover:text-blue-600 transition-colors">
+                <span class="font-bold text-slate-700">7. Financeiro</span>
+                <span class="text-slate-400 font-bold">8</span>
+            </a>
+            <a class="flex items-center justify-between py-2 border-b border-dotted border-slate-200 text-sm hover:text-blue-600 transition-colors">
+                <span class="font-bold text-slate-700">8. Relatorios</span>
+                <span class="text-slate-400 font-bold">8</span>
+            </a>
+            <a class="flex items-center justify-between py-2 border-b border-dotted border-slate-200 text-sm hover:text-blue-600 transition-colors">
+                <span class="font-bold text-slate-700">9. Notificacoes (Inbox)</span>
+                <span class="text-slate-400 font-bold">9</span>
+            </a>
+            <a class="flex items-center justify-between py-2 border-b border-dotted border-slate-200 text-sm hover:text-blue-600 transition-colors">
+                <span class="font-bold text-slate-700">10. Configuracoes</span>
+                <span class="text-slate-400 font-bold">9</span>
+            </a>
+            <a class="flex items-center justify-between py-2 border-b border-dotted border-slate-200 text-sm hover:text-blue-600 transition-colors">
+                <span class="font-bold text-slate-700">11. Atalhos e Produtividade</span>
+                <span class="text-slate-400 font-bold">10</span>
+            </a>
+        </div>
+    </div>
+
+    <!-- ==================== PÁG 3: VISÃO GERAL + DASHBOARD ==================== -->
+    <div class="a4 max-w-[210mm] bg-white mx-auto my-8 p-12 shadow-2xl rounded-sm page-break">
+
+        <!-- VISÃO GERAL -->
+        <div class="mb-10">
+            <h2 class="text-xl font-black text-slate-800 mb-4 flex items-center gap-3">
+                <span class="w-8 h-8 bg-blue-600 text-white rounded-lg flex items-center justify-center text-sm font-black">1</span>
+                Visao Geral do Sistema
+            </h2>
+            <p class="text-sm text-slate-600 leading-relaxed mb-4">
+                O <strong>ORTUS</strong> e um sistema completo de gestao para clinicas odontologicas. Ele cobre todo o fluxo de trabalho: 
+                desde o cadastro do paciente, passando pela agenda, tratamentos, documentos, financeiro, ate relatorios gerenciais.
+            </p>
+
+            <div class="bg-slate-50 border border-slate-200 rounded-xl p-5 mb-4">
+                <h3 class="text-xs font-black text-slate-500 uppercase mb-3">Modulos Disponiveis</h3>
+                <div class="grid grid-cols-2 gap-2 text-sm">
+                    <div class="flex items-center gap-2"><span class="w-2 h-2 bg-blue-500 rounded-full"></span> <strong>Dashboard</strong> &mdash; Visao geral e metricas</div>
+                    <div class="flex items-center gap-2"><span class="w-2 h-2 bg-emerald-500 rounded-full"></span> <strong>Agenda</strong> &mdash; Calendario de consultas</div>
+                    <div class="flex items-center gap-2"><span class="w-2 h-2 bg-indigo-500 rounded-full"></span> <strong>Pacientes</strong> &mdash; Cadastro e ficha clinica</div>
+                    <div class="flex items-center gap-2"><span class="w-2 h-2 bg-amber-500 rounded-full"></span> <strong>Proteses</strong> &mdash; Kanban de controle</div>
+                    <div class="flex items-center gap-2"><span class="w-2 h-2 bg-rose-500 rounded-full"></span> <strong>Financeiro</strong> &mdash; Receitas e despesas</div>
+                    <div class="flex items-center gap-2"><span class="w-2 h-2 bg-cyan-500 rounded-full"></span> <strong>Relatorios</strong> &mdash; Analises gerenciais</div>
+                    <div class="flex items-center gap-2"><span class="w-2 h-2 bg-purple-500 rounded-full"></span> <strong>Inbox</strong> &mdash; Notificacoes internas</div>
+                    <div class="flex items-center gap-2"><span class="w-2 h-2 bg-slate-500 rounded-full"></span> <strong>Configuracoes</strong> &mdash; Clinicas, equipe, modelos</div>
+                </div>
+            </div>
+
+            <div class="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                <h3 class="text-xs font-black text-blue-600 uppercase mb-2">Multi-Clinica</h3>
+                <p class="text-sm text-blue-800">O ORTUS suporta multiplas clinicas. Cada usuario pode estar vinculado a uma ou mais unidades. 
+                No topo da sidebar, voce pode alternar entre clinicas ou selecionar "Todas" para visao consolidada.</p>
+            </div>
+        </div>
+
+        <!-- DASHBOARD -->
+        <div>
+            <h2 class="text-xl font-black text-slate-800 mb-4 flex items-center gap-3">
+                <span class="w-8 h-8 bg-blue-600 text-white rounded-lg flex items-center justify-center text-sm font-black">2</span>
+                Dashboard
+            </h2>
+            <p class="text-sm text-slate-600 leading-relaxed mb-4">
+                <strong>Caminho:</strong> Sidebar &rarr; "Visao Geral"
+            </p>
+            <p class="text-sm text-slate-600 leading-relaxed mb-4">
+                A pagina inicial mostra um resumo da sua clinica:
+            </p>
+            <div class="grid grid-cols-2 gap-3 text-sm">
+                <div class="bg-slate-50 border border-slate-200 rounded-lg p-3">
+                    <div class="font-bold text-slate-700 mb-1">Cards de Estatisticas</div>
+                    <p class="text-slate-500 text-xs">Total de pacientes, agendamentos do dia, receita do mes, e proximas consultas.</p>
+                </div>
+                <div class="bg-slate-50 border border-slate-200 rounded-lg p-3">
+                    <div class="font-bold text-slate-700 mb-1">Aniversariantes da Semana</div>
+                    <p class="text-slate-500 text-xs">Mostra pacientes que fazem aniversario nos proximos 7 dias, com atalho para enviar mensagem via WhatsApp.</p>
+                </div>
+                <div class="bg-slate-50 border border-slate-200 rounded-lg p-3">
+                    <div class="font-bold text-slate-700 mb-1">Proximos Agendamentos</div>
+                    <p class="text-slate-500 text-xs">Lista dos agendamentos mais proximos com nome do paciente e procedimento.</p>
+                </div>
+                <div class="bg-slate-50 border border-slate-200 rounded-lg p-3">
+                    <div class="font-bold text-slate-700 mb-1">Acesso Rapido</div>
+                    <p class="text-slate-500 text-xs">Use Ctrl+K para acessar a busca global de qualquer pagina.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== PÁG 4: AGENDA + PACIENTES ==================== -->
+    <div class="a4 max-w-[210mm] bg-white mx-auto my-8 p-12 shadow-2xl rounded-sm page-break">
+
+        <!-- AGENDA -->
+        <div class="mb-10">
+            <h2 class="text-xl font-black text-slate-800 mb-4 flex items-center gap-3">
+                <span class="w-8 h-8 bg-emerald-600 text-white rounded-lg flex items-center justify-center text-sm font-black">3</span>
+                Agenda
+            </h2>
+            <p class="text-sm text-slate-600 mb-2"><strong>Caminho:</strong> Sidebar &rarr; "Agenda"</p>
+            <p class="text-sm text-slate-600 leading-relaxed mb-4">
+                Calendario completo para gerenciar consultas, com visualizacao por mes, semana e dia.
+            </p>
+
+            <div class="space-y-3 text-sm">
+                <div class="feature-card bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+                    <h3 class="font-bold text-emerald-800 mb-1">Criar Agendamento</h3>
+                    <p class="text-emerald-700 text-xs">Clique em um horario vazio ou no botao "Novo Agendamento". Selecione o paciente (ou crie um novo direto no modal), 
+                    escolha o procedimento, data, hora e profissional. Se o paciente nao existir, o sistema cria automaticamente.</p>
+                </div>
+                <div class="feature-card bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+                    <h3 class="font-bold text-emerald-800 mb-1">Status do Agendamento</h3>
+                    <p class="text-emerald-700 text-xs">Cada consulta tem um status visual por cor: <strong>Agendado</strong> (azul), <strong>Confirmado</strong> (verde), 
+                    <strong>Concluido</strong> (cinza), <strong>Cancelado</strong> (vermelho), <strong>Faltou</strong> (laranja), <strong>Fiado</strong> (amarelo).</p>
+                </div>
+                <div class="feature-card bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+                    <h3 class="font-bold text-emerald-800 mb-1">Confirmacao via WhatsApp</h3>
+                    <p class="text-emerald-700 text-xs">Ao abrir um agendamento, se o paciente tiver telefone cadastrado, aparece o botao 
+                    "Confirmar via WhatsApp". Ele abre o WhatsApp com mensagem pre-formatada incluindo nome, data, horario e procedimento.</p>
+                </div>
+                <div class="feature-card bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+                    <h3 class="font-bold text-emerald-800 mb-1">Clicar no Paciente</h3>
+                    <p class="text-emerald-700 text-xs">Clique no nome do paciente em qualquer evento do calendario para abrir o Slide-Over lateral com resumo, financeiro e proximo agendamento.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- PACIENTES -->
+        <div>
+            <h2 class="text-xl font-black text-slate-800 mb-4 flex items-center gap-3">
+                <span class="w-8 h-8 bg-indigo-600 text-white rounded-lg flex items-center justify-center text-sm font-black">4</span>
+                Pacientes
+            </h2>
+            <p class="text-sm text-slate-600 mb-2"><strong>Caminho:</strong> Sidebar &rarr; "Pacientes"</p>
+            <p class="text-sm text-slate-600 leading-relaxed mb-4">
+                Lista de todos os pacientes cadastrados, com visualizacao em lista ou cards.
+            </p>
+
+            <div class="space-y-3 text-sm">
+                <div class="feature-card bg-indigo-50 border border-indigo-200 rounded-lg p-4">
+                    <h3 class="font-bold text-indigo-800 mb-1">Busca e Filtros Avancados</h3>
+                    <p class="text-indigo-700 text-xs">Busque por nome, telefone ou CPF. Clique em "Filtros" para acessar: filtro por status (Ativo/Agendado/Novo), 
+                    pacientes com debito, sem consulta ha X dias, ou com procedimento pendente especifico.</p>
+                </div>
+                <div class="feature-card bg-indigo-50 border border-indigo-200 rounded-lg p-4">
+                    <h3 class="font-bold text-indigo-800 mb-1">Novo Paciente</h3>
+                    <p class="text-indigo-700 text-xs">Clique em "Novo Paciente" para abrir o cadastro rapido. Preencha nome, telefone/WhatsApp e data de nascimento. 
+                    Apos salvar, o sistema abre automaticamente o painel de acoes do paciente.</p>
+                </div>
+                <div class="feature-card bg-indigo-50 border border-indigo-200 rounded-lg p-4">
+                    <h3 class="font-bold text-indigo-800 mb-1">Exportar CSV</h3>
+                    <p class="text-indigo-700 text-xs">O botao "Exportar" gera um arquivo CSV com todos os pacientes filtrados, incluindo dados pessoais, 
+                    condicoes medicas, quantidade de tratamentos, documentos e debitos.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== PÁG 5-6: FICHA DO PACIENTE ==================== -->
+    <div class="a4 max-w-[210mm] bg-white mx-auto my-8 p-12 shadow-2xl rounded-sm page-break">
+
+        <h2 class="text-xl font-black text-slate-800 mb-4 flex items-center gap-3">
+            <span class="w-8 h-8 bg-indigo-600 text-white rounded-lg flex items-center justify-center text-sm font-black">5</span>
+            Ficha do Paciente
+        </h2>
+        <p class="text-sm text-slate-600 mb-2"><strong>Caminho:</strong> Pacientes &rarr; clicar no paciente &rarr; "Abrir Ficha Completa"</p>
+        <p class="text-sm text-slate-600 leading-relaxed mb-6">
+            A ficha do paciente e o coracao do sistema. Ela contem todas as informacoes clinicas organizadas em abas laterais.
+        </p>
+
+        <!-- Aba: Dados -->
+        <div class="feature-card mb-4 bg-slate-50 border border-slate-200 rounded-xl p-5">
+            <h3 class="text-sm font-black text-slate-700 mb-2 flex items-center gap-2">
+                <span class="w-5 h-5 bg-blue-500 text-white rounded flex items-center justify-center text-[10px] font-black">D</span>
+                Aba: Dados Pessoais
+            </h3>
+            <p class="text-xs text-slate-600">Nome, CPF, RG, telefone, email, data de nascimento, sexo, endereco e clinica vinculada. 
+            Clique em "Editar" para alterar. Todos os campos sao salvos automaticamente ao confirmar.</p>
+        </div>
+
+        <!-- Aba: Anamnese -->
+        <div class="feature-card mb-4 bg-slate-50 border border-slate-200 rounded-xl p-5">
+            <h3 class="text-sm font-black text-slate-700 mb-2 flex items-center gap-2">
+                <span class="w-5 h-5 bg-blue-500 text-white rounded flex items-center justify-center text-[10px] font-black">A</span>
+                Aba: Anamnese
+            </h3>
+            <p class="text-xs text-slate-600 mb-2">Questionario de saude do paciente. Suporta multiplos modelos de anamnese criados em Configuracoes.</p>
+            <ul class="text-xs text-slate-500 list-disc ml-4 space-y-0.5">
+                <li>Selecione um modelo, preencha as perguntas e salve</li>
+                <li>Historico de anamneses anteriores com data</li>
+                <li>Ficha medica rapida: checkboxes para condicoes comuns (Diabetes, Hipertensao, Gestante, etc.)</li>
+                <li>Campo de medicamentos em uso e observacoes clinicas</li>
+            </ul>
+        </div>
+
+        <!-- Aba: Tratamentos -->
+        <div class="feature-card mb-4 bg-slate-50 border border-slate-200 rounded-xl p-5">
+            <h3 class="text-sm font-black text-slate-700 mb-2 flex items-center gap-2">
+                <span class="w-5 h-5 bg-emerald-500 text-white rounded flex items-center justify-center text-[10px] font-black">T</span>
+                Aba: Tratamentos (Odontograma)
+            </h3>
+            <p class="text-xs text-slate-600 mb-2">Odontograma completo padrao Codental com 3 modos de visualizacao:</p>
+            <ul class="text-xs text-slate-500 list-disc ml-4 space-y-0.5">
+                <li><strong>Anatomica:</strong> Imagens realistas dos dentes</li>
+                <li><strong>Esquematica:</strong> Diagrama com faces (V, M, D, L, O)</li>
+                <li><strong>Texto Livre:</strong> Campo aberto para planejamento</li>
+            </ul>
+            <p class="text-xs text-slate-600 mt-2">Abaixo do odontograma: lista de tratamentos com dente, procedimento, status, valor e data. 
+            Botao "Imprimir Orcamento" gera documento A4 com diagnostico e valores.</p>
+        </div>
+
+        <!-- Aba: Documentos -->
+        <div class="feature-card mb-4 bg-slate-50 border border-slate-200 rounded-xl p-5">
+            <h3 class="text-sm font-black text-slate-700 mb-2 flex items-center gap-2">
+                <span class="w-5 h-5 bg-amber-500 text-white rounded flex items-center justify-center text-[10px] font-black">D</span>
+                Aba: Documentos
+            </h3>
+            <p class="text-xs text-slate-600">Upload de imagens e arquivos (ate 10MB). Imagens sao comprimidas automaticamente. 
+            Grid visual com preview, download e exclusao. Emissao de receitas, atestados e contratos via modelos pre-definidos.</p>
+        </div>
+
+        <!-- Aba: Evolução -->
+        <div class="feature-card mb-4 bg-teal-50 border border-teal-200 rounded-xl p-5">
+            <h3 class="text-sm font-black text-teal-700 mb-2 flex items-center gap-2">
+                <span class="w-5 h-5 bg-teal-500 text-white rounded flex items-center justify-center text-[10px] font-black">E</span>
+                Aba: Evolucao (Prontuario)
+            </h3>
+            <p class="text-xs text-teal-700 mb-2"><strong>Exigencia CRO:</strong> Registro narrativo de cada atendimento.</p>
+            <ul class="text-xs text-teal-600 list-disc ml-4 space-y-0.5">
+                <li>Preencha data, profissional e descricao do atendimento</li>
+                <li>Timeline cronologica visual de todos os registros</li>
+                <li>Botao "Imprimir Prontuario" gera documento A4 completo com campo de assinatura</li>
+            </ul>
+        </div>
+
+        <!-- Aba: Débitos -->
+        <div class="feature-card mb-4 bg-slate-50 border border-slate-200 rounded-xl p-5">
+            <h3 class="text-sm font-black text-slate-700 mb-2 flex items-center gap-2">
+                <span class="w-5 h-5 bg-rose-500 text-white rounded flex items-center justify-center text-[10px] font-black">$</span>
+                Aba: Debitos
+            </h3>
+            <p class="text-xs text-slate-600">Lista de atendimentos com status "fiado" (nao pago). Mostra valor total em aberto. 
+            Botao "Marcar como Pago" para quitar cada debito individualmente.</p>
+        </div>
+    </div>
+
+    <!-- ==================== PÁG 6 cont: HOF ==================== -->
+    <div class="a4 max-w-[210mm] bg-white mx-auto my-8 p-12 shadow-2xl rounded-sm page-break">
+
+        <!-- Aba: HOF -->
+        <div class="feature-card mb-8 bg-purple-50 border border-purple-200 rounded-xl p-5">
+            <h3 class="text-sm font-black text-purple-700 mb-2 flex items-center gap-2">
+                <span class="w-5 h-5 bg-purple-500 text-white rounded flex items-center justify-center text-[10px] font-black">H</span>
+                Aba: Harmonizacao Orofacial (HOF)
+            </h3>
+            <p class="text-xs text-purple-700 mb-2">Modulo completo para procedimentos esteticos faciais.</p>
+            <ul class="text-xs text-purple-600 list-disc ml-4 space-y-0.5">
+                <li><strong>Mapa Facial:</strong> Clique na face para marcar pontos de aplicacao (Toxina, AH, Bioestimulador, PMMA, Fios)</li>
+                <li><strong>Fotos:</strong> Upload por angulo (Frontal, Perfil D, Perfil E, Sorrindo) com compressao automatica</li>
+                <li><strong>Alertas:</strong> Aviso automatico quando toxina esta perto de vencer</li>
+                <li><strong>Protocolos:</strong> Aplicar marcacoes pre-definidas (Harmonizacao Completa, Olheiras, etc.)</li>
+                <li><strong>Termo de Consentimento:</strong> Modal com texto legal, aceite e impressao</li>
+                <li><strong>Imprimir Mapa:</strong> Documento A4 com todas as marcacoes e fotos</li>
+            </ul>
+        </div>
+
+        <!-- Aba: Histórico -->
+        <div class="feature-card mb-8 bg-slate-50 border border-slate-200 rounded-xl p-5">
+            <h3 class="text-sm font-black text-slate-700 mb-2 flex items-center gap-2">
+                <span class="w-5 h-5 bg-blue-500 text-white rounded flex items-center justify-center text-[10px] font-black">H</span>
+                Aba: Historico
+            </h3>
+            <p class="text-xs text-slate-600">Timeline de todos os agendamentos do paciente (vindos da Agenda), com data, hora, procedimento, profissional, 
+            status e observacoes. Funciona como auditoria automatica.</p>
+        </div>
+
+        <!-- PRÓTESES -->
+        <h2 class="text-xl font-black text-slate-800 mb-4 flex items-center gap-3">
+            <span class="w-8 h-8 bg-amber-600 text-white rounded-lg flex items-center justify-center text-sm font-black">6</span>
+            Controle de Proteses
+        </h2>
+        <p class="text-sm text-slate-600 mb-2"><strong>Caminho:</strong> Sidebar &rarr; "Controle de Proteses"</p>
+        <p class="text-sm text-slate-600 leading-relaxed mb-4">
+            Quadro Kanban para acompanhar o ciclo de vida de cada protese.
+        </p>
+
+        <div class="space-y-3 text-sm">
+            <div class="feature-card bg-amber-50 border border-amber-200 rounded-lg p-4">
+                <h3 class="font-bold text-amber-800 mb-1">Colunas Padrao</h3>
+                <p class="text-amber-700 text-xs">Solicitado &rarr; No Laboratorio &rarr; Em Prova Clinica &rarr; Aguardando Ajuste &rarr; Finalizado / Entregue. 
+                Arraste cartoes entre colunas.</p>
+            </div>
+            <div class="feature-card bg-amber-50 border border-amber-200 rounded-lg p-4">
+                <h3 class="font-bold text-amber-800 mb-1">Nova Ordem</h3>
+                <p class="text-amber-700 text-xs">Selecione paciente, categoria (Removivel/Fixa), tipo (PPR, PT, Protocolo, etc.), 
+                cor de dente, cor de gengiva e posicao. Cada tipo gera um checklist automatico.</p>
+            </div>
+            <div class="feature-card bg-amber-50 border border-amber-200 rounded-lg p-4">
+                <h3 class="font-bold text-amber-800 mb-1">Checklist de Qualidade</h3>
+                <p class="text-amber-700 text-xs">Na coluna "Em Prova Clinica", cada cartao expande para mostrar itens de verificacao 
+                (adaptacao, oclusal, estetica, etc.). Todos devem ser marcados antes de finalizar.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== PÁG 7-8: FINANCEIRO + RELATÓRIOS ==================== -->
+    <div class="a4 max-w-[210mm] bg-white mx-auto my-8 p-12 shadow-2xl rounded-sm page-break">
+
+        <!-- FINANCEIRO -->
+        <div class="mb-10">
+            <h2 class="text-xl font-black text-slate-800 mb-4 flex items-center gap-3">
+                <span class="w-8 h-8 bg-rose-600 text-white rounded-lg flex items-center justify-center text-sm font-black">7</span>
+                Financeiro
+            </h2>
+            <p class="text-sm text-slate-600 mb-2"><strong>Caminho:</strong> Sidebar &rarr; "Financeiro" (apenas administradores)</p>
+
+            <div class="space-y-3 text-sm">
+                <div class="feature-card bg-rose-50 border border-rose-200 rounded-lg p-4">
+                    <h3 class="font-bold text-rose-800 mb-1">Resumo Financeiro</h3>
+                    <p class="text-rose-700 text-xs">Cards com Receita Total, Despesa Total, Saldo e Valores em Andamento. 
+                    Filtro por mes ou periodo personalizado.</p>
+                </div>
+                <div class="feature-card bg-rose-50 border border-rose-200 rounded-lg p-4">
+                    <h3 class="font-bold text-rose-800 mb-1">Lancamentos</h3>
+                    <p class="text-rose-700 text-xs">Entradas automaticas dos agendamentos concluidos + lancamentos manuais (receitas e despesas). 
+                    Cada lancamento tem categoria, valor, data e vinculacao opcional a paciente.</p>
+                </div>
+                <div class="feature-card bg-rose-50 border border-rose-200 rounded-lg p-4">
+                    <h3 class="font-bold text-rose-800 mb-1">Abas: Ativos / Em Andamento / Cancelados</h3>
+                    <p class="text-rose-700 text-xs">Separe lancamentos por status. Cancele com motivo, restaure ou exclua definitivamente. 
+                    Imprima relatorio financeiro formatado.</p>
+                </div>
+                <div class="feature-card bg-rose-50 border border-rose-200 rounded-lg p-4">
+                    <h3 class="font-bold text-rose-800 mb-1">Categorias Personalizaveis</h3>
+                    <p class="text-rose-700 text-xs">Crie, renomeie e exclua categorias financeiras. Elas ficam salvas por clinica no Supabase.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- RELATÓRIOS -->
+        <div>
+            <h2 class="text-xl font-black text-slate-800 mb-4 flex items-center gap-3">
+                <span class="w-8 h-8 bg-cyan-600 text-white rounded-lg flex items-center justify-center text-sm font-black">8</span>
+                Relatorios
+            </h2>
+            <p class="text-sm text-slate-600 mb-2"><strong>Caminho:</strong> Sidebar &rarr; "Relatorios" (apenas administradores)</p>
+
+            <div class="space-y-3 text-sm">
+                <div class="feature-card bg-cyan-50 border border-cyan-200 rounded-lg p-4">
+                    <h3 class="font-bold text-cyan-800 mb-1">KPIs Principais</h3>
+                    <p class="text-cyan-700 text-xs">Receita Total, Despesas, Lucro Liquido e Pacientes Atendidos &mdash; com indicadores de tendencia.</p>
+                </div>
+                <div class="feature-card bg-cyan-50 border border-cyan-200 rounded-lg p-4">
+                    <h3 class="font-bold text-cyan-800 mb-1">Metricas Detalhadas</h3>
+                    <p class="text-cyan-700 text-xs">Taxa de comparecimento (grafico donut), fiados em aberto, ticket medio por consulta e receitas manuais.</p>
+                </div>
+                <div class="feature-card bg-cyan-50 border border-cyan-200 rounded-lg p-4">
+                    <h3 class="font-bold text-cyan-800 mb-1">Graficos</h3>
+                    <p class="text-cyan-700 text-xs">Faturamento mensal (grafico de barras) e ranking de procedimentos mais realizados (barras de progresso).</p>
+                </div>
+                <div class="feature-card bg-cyan-50 border border-cyan-200 rounded-lg p-4">
+                    <h3 class="font-bold text-cyan-800 mb-1">Filtros de Periodo</h3>
+                    <p class="text-cyan-700 text-xs">Este mes, 3 meses, 6 meses ou Este ano. Botao Imprimir para gerar relatorio impresso.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== PÁG 9-10: INBOX + CONFIG + ATALHOS ==================== -->
+    <div class="a4 max-w-[210mm] bg-white mx-auto my-8 p-12 shadow-2xl rounded-sm page-break">
+
+        <!-- INBOX -->
+        <div class="mb-8">
+            <h2 class="text-xl font-black text-slate-800 mb-4 flex items-center gap-3">
+                <span class="w-8 h-8 bg-purple-600 text-white rounded-lg flex items-center justify-center text-sm font-black">9</span>
+                Notificacoes (Inbox)
+            </h2>
+            <p class="text-sm text-slate-600 mb-2"><strong>Caminho:</strong> Sidebar &rarr; icone de sino / "Inbox"</p>
+            <p class="text-sm text-slate-600 leading-relaxed">
+                Central de notificacoes do sistema. Aqui aparecem alertas de agendamentos, lembretes e atualizacoes. 
+                Marque como lida, exclua ou filtre por status.
+            </p>
+        </div>
+
+        <!-- CONFIGURAÇÕES -->
+        <div class="mb-8">
+            <h2 class="text-xl font-black text-slate-800 mb-4 flex items-center gap-3">
+                <span class="w-8 h-8 bg-slate-600 text-white rounded-lg flex items-center justify-center text-sm font-black">10</span>
+                Configuracoes
+            </h2>
+            <p class="text-sm text-slate-600 mb-2"><strong>Caminho:</strong> Sidebar &rarr; "Ajustes" (apenas administradores)</p>
+
+            <div class="grid grid-cols-2 gap-3 text-sm">
+                <div class="bg-slate-50 border border-slate-200 rounded-lg p-3">
+                    <div class="font-bold text-slate-700 text-xs mb-1">Clinicas</div>
+                    <p class="text-slate-500 text-[11px]">Criar e gerenciar unidades. Nome, endereco, CNPJ.</p>
+                </div>
+                <div class="bg-slate-50 border border-slate-200 rounded-lg p-3">
+                    <div class="font-bold text-slate-700 text-xs mb-1">Equipe</div>
+                    <p class="text-slate-500 text-[11px]">Cadastrar profissionais, definir nivel de acesso (admin/comum), vincular a clinicas.</p>
+                </div>
+                <div class="bg-slate-50 border border-slate-200 rounded-lg p-3">
+                    <div class="font-bold text-slate-700 text-xs mb-1">Anamnese</div>
+                    <p class="text-slate-500 text-[11px]">Criar modelos de questionario com perguntas de diferentes tipos (texto, sim/nao, multipla escolha, etc.).</p>
+                </div>
+                <div class="bg-slate-50 border border-slate-200 rounded-lg p-3">
+                    <div class="font-bold text-slate-700 text-xs mb-1">Categorias Financeiras</div>
+                    <p class="text-slate-500 text-[11px]">Adicionar, renomear ou excluir categorias para lancamentos.</p>
+                </div>
+                <div class="bg-slate-50 border border-slate-200 rounded-lg p-3">
+                    <div class="font-bold text-slate-700 text-xs mb-1">Modelos de Documentos</div>
+                    <p class="text-slate-500 text-[11px]">Criar contratos, termos e receitas padronizados com variaveis (nome do paciente, CPF, etc.).</p>
+                </div>
+                <div class="bg-slate-50 border border-slate-200 rounded-lg p-3">
+                    <div class="font-bold text-slate-700 text-xs mb-1">Preferencias</div>
+                    <p class="text-slate-500 text-[11px]">Horario de atendimento, dias da semana, duracao padrao de consulta, notificacoes.</p>
+                </div>
+                <div class="bg-slate-50 border border-slate-200 rounded-lg p-3 col-span-2">
+                    <div class="font-bold text-slate-700 text-xs mb-1">Backup</div>
+                    <p class="text-slate-500 text-[11px]">Backup automatico e manual. Exportar tudo como JSON, importar configuracoes, restaurar backups anteriores. 
+                    Backups sao armazenados no Supabase com data e tipo.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ATALHOS -->
+        <div>
+            <h2 class="text-xl font-black text-slate-800 mb-4 flex items-center gap-3">
+                <span class="w-8 h-8 bg-blue-600 text-white rounded-lg flex items-center justify-center text-sm font-black">11</span>
+                Atalhos e Produtividade
+            </h2>
+
+            <div class="bg-blue-50 border border-blue-200 rounded-xl p-5">
+                <div class="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                        <div class="font-bold text-blue-800 mb-2">Teclado</div>
+                        <div class="space-y-2 text-xs text-blue-700">
+                            <div class="flex items-center gap-3"><kbd class="bg-white border border-blue-200 px-2 py-0.5 rounded font-mono text-[10px] font-bold">Ctrl+K</kbd> Busca global (Omnibar)</div>
+                            <div class="flex items-center gap-3"><kbd class="bg-white border border-blue-200 px-2 py-0.5 rounded font-mono text-[10px] font-bold">Esc</kbd> Fechar modal / busca</div>
+                            <div class="flex items-center gap-3"><kbd class="bg-white border border-blue-200 px-2 py-0.5 rounded font-mono text-[10px] font-bold">↑ ↓</kbd> Navegar resultados da busca</div>
+                            <div class="flex items-center gap-3"><kbd class="bg-white border border-blue-200 px-2 py-0.5 rounded font-mono text-[10px] font-bold">Enter</kbd> Selecionar resultado</div>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="font-bold text-blue-800 mb-2">Acoes Rapidas</div>
+                        <div class="space-y-2 text-xs text-blue-700">
+                            <div><strong>Slide-Over:</strong> Clique no nome de qualquer paciente na Agenda ou Kanban para ver resumo lateral</div>
+                            <div><strong>WhatsApp:</strong> Disponivel nos aniversariantes (Dashboard) e agendamentos (Agenda)</div>
+                            <div><strong>Imprimir:</strong> Orcamento, Prontuario, Mapa HOF e Relatorios tem botao de impressao/PDF</div>
+                            <div><strong>Multi-clinica:</strong> Alterne clinicas pelo seletor no topo da sidebar</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Rodapé -->
+        <div class="mt-10 pt-6 border-t-2 border-slate-200">
+            <div class="flex justify-between items-center text-[10px] text-slate-400">
+                <span>ORTUS &mdash; Sistema de Gestao Odontologica Inteligente</span>
+                <span>Manual do Usuario &bull; v1.0 &bull; 2025</span>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

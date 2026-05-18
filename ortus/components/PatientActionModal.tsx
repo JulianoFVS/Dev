@@ -3,7 +3,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import { AlertCircle, ArrowLeft, Calendar, CheckCircle2, DollarSign, FileText, FolderOpen, Loader2, Phone, Smile, Sparkles, User, X } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Building2, Calendar, CheckCircle2, DollarSign, FileText, FolderOpen, Loader2, Phone, Smile, Sparkles, User, X } from 'lucide-react';
+import { useClinica } from '@/app/context/ClinicaContext';
 import AppointmentForm from '@/components/forms/AppointmentForm';
 import ProsthesisForm from '@/components/forms/ProsthesisForm';
 import TreatmentForm from '@/components/forms/TreatmentForm';
@@ -62,6 +63,7 @@ const FLOW_META: Record<Exclude<ActiveFlow, 'idle'>, { title: string; subtitle: 
 
 export function PatientActionModalProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const { activeClinicId, clinics } = useClinica();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [receiving, setReceiving] = useState(false);
@@ -73,6 +75,7 @@ export function PatientActionModalProvider({ children }: { children: React.React
   // Quick Capture (Cadastro Rápido) state
   const [quickCapture, setQuickCapture] = useState(false);
   const [qcInitialClinicaId, setQcInitialClinicaId] = useState<string | null>(null);
+  const [qcClinicaId, setQcClinicaId] = useState<string>('');
   const [qcNome, setQcNome] = useState('');
   const [qcTelefone, setQcTelefone] = useState('');
   const [qcSaving, setQcSaving] = useState(false);
@@ -110,6 +113,8 @@ export function PatientActionModalProvider({ children }: { children: React.React
 
   const openQuickCapture = useCallback((initialClinicaId?: string | null) => {
     setQcInitialClinicaId(initialClinicaId || null);
+    const preselect = initialClinicaId || (activeClinicId && activeClinicId !== 'all' ? activeClinicId : '');
+    setQcClinicaId(preselect || '');
     setQcNome('');
     setQcTelefone('');
     setQcError(null);
@@ -119,7 +124,7 @@ export function PatientActionModalProvider({ children }: { children: React.React
     setActiveFlow('idle');
     setQuickCapture(true);
     setOpen(true);
-  }, []);
+  }, [activeClinicId]);
 
   async function submitQuickCapture() {
     const nome = qcNome.trim();
@@ -127,15 +132,19 @@ export function PatientActionModalProvider({ children }: { children: React.React
       setQcError('Informe o nome do paciente.');
       return;
     }
+    if (!qcClinicaId) {
+      setQcError('Selecione a clínica do paciente.');
+      return;
+    }
 
     setQcSaving(true);
     setQcError(null);
 
-    const payload: { nome: string; telefone: string; clinica_id?: string } = {
+    const payload: { nome: string; telefone: string; clinica_id: string } = {
       nome,
       telefone: qcTelefone.trim(),
+      clinica_id: qcClinicaId,
     };
-    if (qcInitialClinicaId) payload.clinica_id = qcInitialClinicaId;
 
     const { data, error } = await supabase
       .from('pacientes')
@@ -290,6 +299,20 @@ export function PatientActionModalProvider({ children }: { children: React.React
 
                 <div className="space-y-2">
                   <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                    <Building2 size={12} /> Clínica <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={qcClinicaId}
+                    onChange={(e) => setQcClinicaId(e.target.value)}
+                    className="w-full p-3 rounded-2xl bg-slate-50 border border-slate-200 font-bold text-slate-800 outline-none focus:bg-white focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition-all"
+                  >
+                    <option value="">Selecione a clínica...</option>
+                    {clinics.map((c: any) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
                     <Phone size={12} /> WhatsApp / Telefone
                   </label>
                   <input
@@ -316,7 +339,7 @@ export function PatientActionModalProvider({ children }: { children: React.React
 
                 <button
                   onClick={submitQuickCapture}
-                  disabled={qcSaving || !qcNome.trim()}
+                  disabled={qcSaving || !qcNome.trim() || !qcClinicaId}
                   className="w-full p-4 rounded-2xl bg-indigo-600 text-white font-black text-sm hover:bg-indigo-700 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed transition-all shadow-lg shadow-indigo-100 flex items-center justify-center gap-2"
                 >
                   {qcSaving ? (
