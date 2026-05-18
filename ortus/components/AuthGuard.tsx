@@ -225,22 +225,22 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
       </div>
 
       <main className={`flex-1 min-w-0 flex flex-col min-h-screen transition-all duration-300 pt-16 md:pt-0 ${menuRecolhido ? 'md:ml-20' : 'md:ml-64'}`}>
-        <header className="bg-white border-b border-slate-200 h-16 flex items-center justify-end px-6 gap-3 sticky top-16 md:top-0 z-20 shadow-sm/50 backdrop-blur-sm bg-white/90">
+        <header className="bg-white border-b border-slate-200 h-14 md:h-16 flex items-center justify-end px-3 md:px-6 gap-2 md:gap-3 sticky top-16 md:top-0 z-20 shadow-sm/50 backdrop-blur-sm bg-white/90">
             {/* SWITCH DE UNIDADE NO HEADER (multi-tenant) */}
-            <div className="mr-auto relative">
+            <div className="mr-auto relative min-w-0">
                 <button
                     onClick={() => setHeaderSwitchOpen((v) => !v)}
-                    className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 rounded-xl border border-slate-200 hover:border-blue-300 hover:bg-blue-50/40 transition-all group"
+                    className="flex items-center gap-1.5 md:gap-2 px-2 md:px-3 py-1.5 bg-slate-50 rounded-xl border border-slate-200 hover:border-blue-300 hover:bg-blue-50/40 transition-all group max-w-full"
                     title="Trocar unidade"
                 >
-                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${ctxActive?.id === 'all' ? 'bg-purple-100 text-purple-600' : 'bg-white text-blue-600 border border-slate-200'}`}>
+                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${ctxActive?.id === 'all' ? 'bg-purple-100 text-purple-600' : 'bg-white text-blue-600 border border-slate-200'}`}>
                         {ctxActive?.id === 'all' ? <Globe size={14}/> : <Building2 size={14}/>}
                     </div>
-                    <div className="text-left min-w-0">
+                    <div className="text-left min-w-0 hidden sm:block">
                         <p className="text-[9px] font-black uppercase tracking-wider text-slate-400 leading-none">Unidade</p>
-                        <p className="text-xs font-bold text-slate-700 max-w-[220px] truncate">{ctxActive ? getClinicLabel(ctxActive) : 'Selecione'}</p>
+                        <p className="text-xs font-bold text-slate-700 max-w-[140px] md:max-w-[220px] truncate">{ctxActive ? getClinicLabel(ctxActive) : 'Selecione'}</p>
                     </div>
-                    <ChevronsUpDown size={14} className="text-slate-400 group-hover:text-blue-500"/>
+                    <ChevronsUpDown size={14} className="text-slate-400 group-hover:text-blue-500 shrink-0"/>
                 </button>
                 {headerSwitchOpen && (
                     <>
@@ -274,7 +274,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
                     </>
                 )}
             </div>
-            <div className="flex items-center gap-1 border-r border-slate-100 pr-3 mr-1">
+            <div className="flex items-center gap-0.5 md:gap-1 border-r border-slate-100 pr-2 md:pr-3 mr-0.5 md:mr-1">
                 <Link href="/inbox?tab=mensagens" className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all relative" title="Mensagens"><Mail size={20}/></Link>
                 <Link href="/inbox?tab=alertas" className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all relative" title="Alertas"><Bell size={20}/>{notificacoesCount > 0 && <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>}</Link>
             </div>
@@ -282,7 +282,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
                 <div className="text-right hidden sm:block"><p className="text-sm font-bold text-slate-700 group-hover:text-blue-700 transition-colors">{perfil?.nome}</p><p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide text-right">{perfil?.nivel_acesso === 'admin' ? 'Admin' : 'Dr(a).'}</p></div>
                 <div className="w-9 h-9 bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-full flex items-center justify-center shadow-md shadow-blue-200 overflow-hidden border-2 border-white ring-1 ring-slate-100">{perfil?.foto_url ? <img src={perfil.foto_url} className="w-full h-full object-cover"/> : <User size={18}/>}</div>
             </Link>
-            <button onClick={handleLogout} className="ml-1 p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all border border-transparent hover:border-red-100 hidden md:block" title="Sair"><LogOut size={20}/></button>
+            <button onClick={handleLogout} className="ml-0.5 md:ml-1 p-1.5 md:p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all border border-transparent hover:border-red-100" title="Sair"><LogOut size={18}/></button>
         </header>
         <div className="p-4 md:p-8 min-w-0 max-w-full animate-in fade-in slide-in-from-bottom-2 duration-500">{children}</div>
       </main>

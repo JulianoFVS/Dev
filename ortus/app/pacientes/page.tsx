@@ -182,11 +182,11 @@ export default function Pacientes() {
 
   return (
     <div className="max-w-7xl mx-auto space-y-6 pb-20 animate-fade-in">
-      <div className="flex flex-wrap justify-between items-end gap-3">
-          <div><h1 className="text-3xl font-black text-slate-800">Pacientes</h1><p className="text-slate-500">Gerencie seus clientes.</p></div>
-          <div className="flex gap-2">
-              <button onClick={exportarCSV} className="bg-white text-slate-700 border border-slate-200 px-5 py-3 rounded-xl font-bold hover:bg-slate-50 hover:border-emerald-300 hover:text-emerald-700 shadow-sm flex items-center gap-2 transition-all" title="Exportar lista filtrada para CSV"><Download size={18}/> Exportar ({filtrados.length})</button>
-              <button onClick={novoPaciente} className="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-blue-700 shadow-lg flex items-center gap-2"><Plus size={20}/> Novo Paciente</button>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-3">
+          <div><h1 className="text-2xl sm:text-3xl font-black text-slate-800">Pacientes</h1><p className="text-sm text-slate-500">Gerencie seus clientes.</p></div>
+          <div className="flex gap-2 w-full sm:w-auto">
+              <button onClick={exportarCSV} className="flex-1 sm:flex-none bg-white text-slate-700 border border-slate-200 px-3 sm:px-5 py-2.5 sm:py-3 rounded-xl font-bold hover:bg-slate-50 hover:border-emerald-300 hover:text-emerald-700 shadow-sm flex items-center justify-center gap-2 transition-all text-sm" title="Exportar lista filtrada para CSV"><Download size={16}/> <span className="hidden sm:inline">Exportar</span> ({filtrados.length})</button>
+              <button onClick={novoPaciente} className="flex-1 sm:flex-none bg-blue-600 text-white px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl font-bold hover:bg-blue-700 shadow-lg flex items-center justify-center gap-2 text-sm"><Plus size={18}/> Novo Paciente</button>
           </div>
       </div>
 
@@ -255,22 +255,24 @@ export default function Pacientes() {
 
       {loading ? <div className="py-20 text-center text-slate-400"><Loader2 className="animate-spin mx-auto mb-2"/> Carregando...</div> : 
        visualizacao === 'lista' ? (
-        <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-            <table className="w-full text-left">
-                <thead className="bg-slate-50 border-b border-slate-100"><tr><th className="p-4 pl-6 text-xs font-bold text-slate-400 uppercase">Nome</th><th className="p-4 text-xs font-bold text-slate-400 uppercase">Clínica</th><th className="p-4 text-xs font-bold text-slate-400 uppercase">Telefone</th><th className="p-4 text-xs font-bold text-slate-400 uppercase">Status</th><th className="p-4 text-right"></th></tr></thead>
+        <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left min-w-[480px]">
+                <thead className="bg-slate-50 border-b border-slate-100"><tr><th className="p-3 sm:p-4 pl-4 sm:pl-6 text-xs font-bold text-slate-400 uppercase">Nome</th><th className="p-3 sm:p-4 text-xs font-bold text-slate-400 uppercase hidden sm:table-cell">Clínica</th><th className="p-3 sm:p-4 text-xs font-bold text-slate-400 uppercase">Telefone</th><th className="p-3 sm:p-4 text-xs font-bold text-slate-400 uppercase">Status</th><th className="p-3 sm:p-4 text-right"></th></tr></thead>
                 <tbody className="divide-y divide-slate-50">{filtrados.map((p: any) => (
                     <tr key={p.id} onClick={() => openPatientActions(p.id)} className="hover:bg-blue-50 cursor-pointer transition-colors group">
-                        <td className="p-4 pl-6 font-bold text-slate-700">{p.nome}</td>
-                        <td className="p-4 text-sm text-slate-500 flex items-center gap-2">{p.nome_clinica ? <span className="bg-slate-100 px-2 py-0.5 rounded text-xs font-bold text-slate-600">{p.nome_clinica}</span> : <span className="text-slate-300 italic">--</span>}</td>
-                        <td className="p-4 text-sm text-slate-500">{p.telefone}</td>
-                        <td className="p-4"><span className="text-[10px] font-bold uppercase bg-slate-100 text-slate-500 px-2 py-1 rounded">{p.status}</span></td>
-                        <td className="p-4 text-right pr-6 text-slate-300 group-hover:text-blue-500"><ChevronRight size={20}/></td>
+                        <td className="p-3 sm:p-4 pl-4 sm:pl-6 font-bold text-slate-700 text-sm">{p.nome}</td>
+                        <td className="p-3 sm:p-4 text-sm text-slate-500 hidden sm:table-cell">{p.nome_clinica ? <span className="bg-slate-100 px-2 py-0.5 rounded text-xs font-bold text-slate-600">{p.nome_clinica}</span> : <span className="text-slate-300 italic">--</span>}</td>
+                        <td className="p-3 sm:p-4 text-sm text-slate-500">{p.telefone}</td>
+                        <td className="p-3 sm:p-4"><span className="text-[10px] font-bold uppercase bg-slate-100 text-slate-500 px-2 py-1 rounded">{p.status}</span></td>
+                        <td className="p-3 sm:p-4 text-right pr-4 sm:pr-6 text-slate-300 group-hover:text-blue-500"><ChevronRight size={20}/></td>
                     </tr>
                 ))}</tbody>
             </table>
+          </div>
         </div>
        ) : (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">{filtrados.map((p: any) => (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">{filtrados.map((p: any) => (
             <div key={p.id} onClick={() => openPatientActions(p.id)} className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm hover:shadow-md cursor-pointer transition-all hover:border-blue-200 group">
                 <div className="flex items-center gap-4 mb-4"><div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center font-bold text-lg group-hover:bg-blue-600 group-hover:text-white transition-colors">{p.nome.charAt(0)}</div><div><h3 className="font-bold text-slate-800 truncate w-40">{p.nome}</h3><p className="text-xs text-slate-400 uppercase font-bold">{p.nome_clinica || 'Sem Clínica'}</p></div></div>
                 <div className="text-sm text-slate-500 flex items-center gap-2"><Phone size={14}/> {p.telefone || 'Sem telefone'}</div>

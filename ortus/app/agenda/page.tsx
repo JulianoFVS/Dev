@@ -434,11 +434,11 @@ export default function Agenda() {
       `}</style>
       
       <div className="space-y-3">
-        <div className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm border border-slate-200 gap-4">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-slate-200 gap-3 sm:gap-4">
             <div className="flex items-center gap-3 flex-1 min-w-0">
-                <div className="bg-gradient-to-br from-blue-500 to-blue-600 p-2.5 rounded-xl text-white shadow-md shrink-0"><CalIcon size={22}/></div>
+                <div className="bg-gradient-to-br from-blue-500 to-blue-600 p-2 sm:p-2.5 rounded-xl text-white shadow-md shrink-0"><CalIcon size={20}/></div>
                 <div className="flex-1 min-w-0">
-                    <h1 className="text-lg font-black text-slate-800 leading-tight">Agenda</h1>
+                    <h1 className="text-base sm:text-lg font-black text-slate-800 leading-tight">Agenda</h1>
                     {(() => {
                         const isTodas = clinicaFiltro === 'todas';
                         const cAtual = clinicas.find((c:any) => String(c.id) === String(clinicaFiltro));
@@ -464,14 +464,14 @@ export default function Agenda() {
                     })()}
                 </div>
             </div>
-            <div className="flex items-center gap-3 shrink-0">
+            <div className="flex items-center gap-2 sm:gap-3 shrink-0 w-full sm:w-auto">
                 <div className="hidden lg:flex items-center gap-3 text-[11px] font-bold uppercase tracking-wide pr-3 border-r border-slate-200">
                     <span className="flex items-center gap-1.5 text-slate-600"><span className="w-2.5 h-2.5 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 shadow-sm"></span> Agendado</span>
                     <span className="flex items-center gap-1.5 text-emerald-700"><CheckCircle size={12}/> Concluído</span>
                     <span className="flex items-center gap-1.5 text-amber-700"><DollarSign size={12}/> Fiado</span>
                     <span className="flex items-center gap-1.5 text-rose-600"><Ban size={12}/> Cancelado</span>
                 </div>
-                <button onClick={() => { setOpenModal(true); setFormData(prev => ({...prev, id: null, clinica_id: clinicaFiltro !== 'todas' ? clinicaFiltro : ''})); }} className="bg-gradient-to-br from-blue-600 to-blue-700 text-white px-5 py-2.5 rounded-lg font-bold hover:from-blue-700 hover:to-blue-800 flex items-center gap-2 text-sm shadow-md hover:shadow-lg transition-all"><Plus size={18}/> Novo Agendamento</button>
+                <button onClick={() => { setOpenModal(true); setFormData(prev => ({...prev, id: null, clinica_id: clinicaFiltro !== 'todas' ? clinicaFiltro : ''})); }} className="w-full sm:w-auto bg-gradient-to-br from-blue-600 to-blue-700 text-white px-4 sm:px-5 py-2.5 rounded-lg font-bold hover:from-blue-700 hover:to-blue-800 flex items-center justify-center gap-2 text-sm shadow-md hover:shadow-lg transition-all"><Plus size={18}/> <span className="hidden sm:inline">Novo</span> Agendamento</button>
             </div>
         </div>
 
@@ -492,7 +492,14 @@ export default function Agenda() {
         })()}
       </div>
 
-      <div className="flex-1 bg-white rounded-xl shadow-sm border border-slate-200 p-4 overflow-hidden"><FullCalendar ref={calendarRef} plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, listPlugin]} initialView="timeGridWeek" headerToolbar={{ left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,timeGridDay,listWeek' }} buttonText={{ today: 'Hoje', month: 'Mês', week: 'Semana', day: 'Dia', list: 'Lista' }} locale={ptBrLocale} slotMinTime="07:00:00" slotMaxTime="20:00:00" allDaySlot={false} events={events} eventContent={renderEventContent} dateClick={handleDateClick} eventClick={handleEventClick} height="100%" slotDuration="00:30:00" dayHeaderFormat={{ weekday: 'short', day: 'numeric' }} nowIndicator={true} navLinks={true} /></div>
+      <div className="flex-1 bg-white rounded-xl shadow-sm border border-slate-200 p-2 sm:p-4 overflow-hidden">
+        <div className="hidden sm:block h-full">
+          <FullCalendar ref={calendarRef} plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, listPlugin]} initialView="timeGridWeek" headerToolbar={{ left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,timeGridDay,listWeek' }} buttonText={{ today: 'Hoje', month: 'Mês', week: 'Semana', day: 'Dia', list: 'Lista' }} locale={ptBrLocale} slotMinTime="07:00:00" slotMaxTime="20:00:00" allDaySlot={false} events={events} eventContent={renderEventContent} dateClick={handleDateClick} eventClick={handleEventClick} height="100%" slotDuration="00:30:00" dayHeaderFormat={{ weekday: 'short', day: 'numeric' }} nowIndicator={true} navLinks={true} />
+        </div>
+        <div className="sm:hidden h-full">
+          <FullCalendar ref={calendarRef} plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, listPlugin]} initialView="listWeek" headerToolbar={{ left: 'prev,next', center: 'title', right: 'timeGridDay,listWeek' }} buttonText={{ today: 'Hoje', day: 'Dia', list: 'Lista' }} locale={ptBrLocale} slotMinTime="07:00:00" slotMaxTime="20:00:00" allDaySlot={false} events={events} eventContent={renderEventContent} dateClick={handleDateClick} eventClick={handleEventClick} height="100%" slotDuration="00:30:00" dayHeaderFormat={{ weekday: 'short', day: 'numeric' }} nowIndicator={true} navLinks={true} />
+        </div>
+      </div>
       
       {/* MODAL PRINCIPAL OMITIDO PARA BREVIDADE (Mantido Igual) */}
       {openModal && ( 
@@ -503,7 +510,7 @@ export default function Agenda() {
                       <button onClick={() => setOpenModal(false)} className="text-slate-400 hover:text-red-500 p-1"><X size={20}/></button>
                   </div>
                   <div className="p-6 space-y-5 overflow-y-auto">
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           <div>
                               <label className="text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-1">
                                   Clínica
@@ -529,7 +536,7 @@ export default function Agenda() {
                           </div>
                           <select value={formData.paciente_id} onChange={e => setFormData({...formData, paciente_id: e.target.value})} className="w-full p-2.5 border border-slate-200 rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none"><option value="">Selecione...</option>{pacientes.filter((p:any) => !formData.clinica_id || p.clinica_id == formData.clinica_id).map((p:any) => <option key={p.id} value={p.id}>{p.nome}</option>)}</select>
                       </div>
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           <div><label className="text-xs font-bold text-slate-500 uppercase mb-1">Data</label><input type="date" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} className="w-full p-2.5 border border-slate-200 rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none" /></div>
                           <div><label className="text-xs font-bold text-slate-500 uppercase mb-1">Hora</label><input type="time" value={formData.time} onChange={e => setFormData({...formData, time: e.target.value})} className="w-full p-2.5 border border-slate-200 rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none" /></div>
                       </div>
@@ -540,7 +547,7 @@ export default function Agenda() {
                           </div>
                           <select onChange={(e) => { const s = servicos.find((x:any) => x.id == e.target.value); if(s) setFormData(p => ({...p, title: s.nome, valor: s.valor, theme: s.cor || 'blue'})) }} className="w-full p-2.5 mb-2 bg-blue-50 border border-blue-100 text-blue-700 rounded-lg text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer"><option value="">✨ Selecionar Catálogo...</option>{servicos.map((s:any) => <option key={s.id} value={s.id}>{s.nome} - R$ {s.valor}</option>)}</select>
                       </div>
-                      <div className="grid grid-cols-3 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200/60">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200/60">
                           <div>
                               <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Valor (R$)</label>
                               <input type="number" step="0.01" value={formData.valor} onChange={e => setFormData({...formData, valor: e.target.value})} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500 placeholder-slate-300" placeholder="0.00" />
