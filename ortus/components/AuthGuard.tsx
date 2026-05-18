@@ -219,9 +219,9 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
         <div className="p-4 border-t border-slate-50">{!menuRecolhido ? (<p className="text-[10px] text-center text-slate-300 font-medium">v1.0 &copy; 2025</p>) : (<div className="w-1 h-1 bg-slate-300 rounded-full mx-auto"></div>)}</div>
       </aside>
 
-      <div className="md:hidden fixed top-0 w-full bg-white border-b border-slate-200 z-50 px-4 py-3 flex justify-between items-center shadow-sm h-16">
-        <Link href="/dashboard"><img src="/logo.png" alt="Logo" className="h-8 w-auto" /></Link>
+      <div className="md:hidden fixed top-0 w-full bg-white border-b border-slate-200 z-50 px-4 py-3 flex items-center shadow-sm h-16 gap-3">
         <button onClick={() => setMenuMobileAberto(!menuMobileAberto)} className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">{menuMobileAberto ? <X size={24} /> : <Menu size={24} />}</button>
+        <Link href="/dashboard" className="ml-auto"><img src="/logo.png" alt="Logo" className="h-8 w-auto" /></Link>
       </div>
 
       <main className={`flex-1 min-w-0 flex flex-col min-h-screen transition-all duration-300 pt-16 md:pt-0 ${menuRecolhido ? 'md:ml-20' : 'md:ml-64'}`}>
@@ -289,7 +289,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
 
       {menuMobileAberto && (
         <div className="md:hidden fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm animate-in fade-in" onClick={() => setMenuMobileAberto(false)}>
-            <div className="absolute right-0 top-0 h-full w-[280px] bg-white shadow-2xl flex flex-col animate-in slide-in-from-right duration-300" onClick={e => e.stopPropagation()}>
+            <div className="absolute left-0 top-0 h-full w-[280px] bg-white shadow-2xl flex flex-col animate-in slide-in-from-left duration-300" onClick={e => e.stopPropagation()}>
                 <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
                     <h3 className="font-black text-slate-800 text-lg">Menu</h3>
                     <button onClick={() => setMenuMobileAberto(false)} className="p-2 bg-white rounded-full text-slate-400 shadow-sm border"><X size={20}/></button>
