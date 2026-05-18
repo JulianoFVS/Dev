@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { ClipboardList, Clock, Calendar, User, Trash2, Save, Loader2, Printer } from 'lucide-react';
+import { useCustomAlert } from '@/components/ui/CustomAlert';
 
 type Props = {
     id: string;
@@ -15,15 +16,16 @@ type Props = {
 export default function TabEvolucao({ id, form, ficha, setFicha, evolucoes, setEvolucoes }: Props) {
     const [novaEvolucao, setNovaEvolucao] = useState({ texto: '', data: new Date().toISOString().split('T')[0], profissional: '' });
     const [savingEvo, setSavingEvo] = useState(false);
+    const { showAlert, showConfirm } = useCustomAlert();
 
     async function salvarEvolucao() {
-        if (!novaEvolucao.texto.trim()) return alert('Preencha o texto da evolução.');
+        if (!novaEvolucao.texto.trim()) { await showAlert('Preencha o texto da evolução.', { type: 'warning' }); return; }
         setSavingEvo(true);
         const nova = { id: Date.now().toString(), texto: novaEvolucao.texto.trim(), data: novaEvolucao.data, profissional: novaEvolucao.profissional || 'Dr(a).', criado_em: new Date().toISOString() };
         const novaLista = [nova, ...evolucoes];
         const fichaMerged = { ...ficha, evolucoes: novaLista };
         const { error } = await supabase.from('pacientes').update({ ficha_medica: fichaMerged }).eq('id', id);
-        if (error) { alert('Erro: ' + error.message); setSavingEvo(false); return; }
+        if (error) { await showAlert('Erro: ' + error.message, { type: 'error' }); setSavingEvo(false); return; }
         setEvolucoes(novaLista);
         setFicha(fichaMerged);
         setNovaEvolucao({ texto: '', data: new Date().toISOString().split('T')[0], profissional: novaEvolucao.profissional });
@@ -31,7 +33,7 @@ export default function TabEvolucao({ id, form, ficha, setFicha, evolucoes, setE
     }
 
     async function excluirEvolucao(eid: string) {
-        if (!confirm('Excluir esta evolução?')) return;
+        if (!(await showConfirm('Excluir esta evolução?', { title: 'Excluir', type: 'error', confirmLabel: 'Excluir' }))) return;
         const novaLista = evolucoes.filter((e: any) => e.id !== eid);
         const fichaMerged = { ...ficha, evolucoes: novaLista };
         await supabase.from('pacientes').update({ ficha_medica: fichaMerged }).eq('id', id);

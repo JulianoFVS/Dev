@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase';
 import { usePatientSlideOver } from '@/components/PatientSlideOver';
 import { useClinica } from '@/app/context/ClinicaContext';
 import { AlertTriangle, Check, CheckCircle2, ChevronRight, Edit3, Filter, GripVertical, Loader2, Plus, Search, Smile, Sparkles, Trash2, X } from 'lucide-react';
+import { useCustomAlert } from '@/components/ui/CustomAlert';
 
 type ColumnTitle = 'Solicitado' | 'No Laboratório' | 'Em Prova Clínica' | 'Aguardando Ajuste' | 'Finalizado / Entregue';
 type Category = 'Removível' | 'Fixa' | '';
@@ -136,6 +137,7 @@ export default function KanbanProtesesInteligente() {
   const pacientePreSelecionado = searchParams?.get('paciente');
   const { openPatient } = usePatientSlideOver();
   const { activeClinicId, loading: clinicLoading } = useClinica();
+  const { showConfirm } = useCustomAlert();
   const [columns, setColumns] = useState<Column[]>([]);
   const [cards, setCards] = useState<Card[]>([]);
   const [patients, setPatients] = useState<PatientOption[]>([]);
@@ -393,7 +395,7 @@ export default function KanbanProtesesInteligente() {
       ? `Remover o quadro "${column.titulo}" também removerá ${count} pedido(s). Continuar?`
       : `Remover o quadro "${column.titulo}"?`;
 
-    if (!confirm(message)) return;
+    if (!(await showConfirm(message, { title: 'Remover Quadro', type: 'warning', confirmLabel: 'Remover' }))) return;
 
     const { error } = await supabase.from('kanban_colunas').delete().eq('id', column.id);
     if (error) return showToast('warning', 'Não foi possível remover o quadro: ' + error.message);
@@ -485,7 +487,7 @@ export default function KanbanProtesesInteligente() {
   }
 
   async function deleteCard(cardId: number) {
-    if (!confirm('Excluir este pedido de prótese?')) return;
+    if (!(await showConfirm('Excluir este pedido de prótese?', { title: 'Excluir', type: 'error', confirmLabel: 'Excluir' }))) return;
     const previousCards = cards;
     setCards((current) => current.filter((card) => card.id !== cardId));
 
@@ -501,7 +503,7 @@ export default function KanbanProtesesInteligente() {
   }
 
   return (
-    <div className="sm:h-[calc(100vh-100px)] w-full max-w-full min-w-0 flex flex-col gap-4 sm:overflow-hidden pb-2 animate-in fade-in slide-in-from-bottom-2 duration-500">
+    <div className="h-[calc(100vh-7rem)] md:h-[calc(100vh-8rem)] w-full max-w-full min-w-0 flex flex-col gap-3 overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-500">
       <div className="sticky top-0 z-20 bg-white rounded-3xl border border-slate-200 shadow-sm p-5 grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center gap-4 shrink-0 w-full max-w-full min-w-0">
         <div>
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-pink-50 text-pink-700 text-[10px] font-black uppercase tracking-wider mb-2">
@@ -606,20 +608,44 @@ export default function KanbanProtesesInteligente() {
         </div>
       </div>
 
-      <div className="flex-1 bg-white rounded-2xl sm:rounded-3xl border border-slate-200 shadow-sm sm:overflow-hidden min-h-0 w-full max-w-full min-w-0">
+      {/* FLUXO DO PROCESSO - Navegação horizontal por etapa */}
+      {!loading && columns.length > 0 && (
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm shrink-0 w-full max-w-full min-w-0">
+          <div className="flex overflow-x-auto whitespace-nowrap px-4 py-3 gap-1 items-center custom-scrollbar">
+            {columns.map((col, idx) => {
+              const count = cardsByColumn(col.id).length;
+              return (
+                <div key={col.id} className="flex items-center shrink-0">
+                  <button
+                    onClick={() => document.getElementById(`coluna-${col.id}`)?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })}
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all hover:bg-pink-50 hover:text-pink-700 text-slate-600 border border-transparent hover:border-pink-200 active:scale-95"
+                  >
+                    <span className="w-6 h-6 rounded-lg bg-slate-100 text-slate-500 flex items-center justify-center text-[10px] font-black">{idx + 1}</span>
+                    {col.titulo}
+                    <span className="px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-400 text-[10px] font-black">{count}</span>
+                  </button>
+                  {idx < columns.length - 1 && <ChevronRight size={14} className="text-slate-300 mx-1 shrink-0" />}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <div className="flex-1 bg-white rounded-2xl sm:rounded-3xl border border-slate-200 shadow-sm overflow-hidden min-h-0 w-full max-w-full min-w-0">
         {loading ? (
           <div className="h-full flex items-center justify-center text-slate-400 font-bold gap-2">
             <Loader2 className="animate-spin text-pink-600" /> Carregando produção...
           </div>
         ) : (
-          <div className="h-full w-full max-w-full min-w-0 overflow-x-auto sm:overflow-y-hidden overflow-y-auto custom-scrollbar p-3 sm:p-4">
+          <div className="h-full w-full max-w-full min-w-0 flex-1 overflow-x-auto overflow-y-hidden custom-scrollbar p-3 sm:p-4">
             <div className="flex flex-col sm:flex-row gap-4 sm:h-full sm:min-w-max">
               {columns.map((column) => {
                 const columnCards = cardsByColumn(column.id);
                 const isTrialColumn = column.id === provaClinicaColumn?.id;
 
                 return (
-                  <section key={column.id} className={`w-full sm:w-80 sm:flex-none sm:h-full rounded-3xl border flex flex-col min-h-0 ${COLUMN_NEUTRAL}`}>
+                  <section key={column.id} id={`coluna-${column.id}`} className={`w-full sm:w-80 sm:flex-none sm:h-full rounded-3xl border flex flex-col min-h-0 ${COLUMN_NEUTRAL}`}>
                     <div className="p-4 border-b border-white/60 flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <h2 className="font-black text-xs uppercase tracking-wider text-slate-800 truncate">{column.titulo}</h2>
@@ -732,7 +758,7 @@ export default function KanbanProtesesInteligente() {
       </div>
 
       {modalOpen && (
-        <div className="fixed inset-0 z-[85] bg-slate-900/30 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[85] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white w-full max-w-3xl max-h-[92vh] overflow-hidden rounded-3xl shadow-2xl border border-slate-100 flex flex-col animate-in zoom-in-95 duration-200">
             <div className="p-5 border-b border-slate-100 flex items-start justify-between gap-4 bg-gradient-to-br from-pink-50 to-white">
               <div>
@@ -870,7 +896,7 @@ export default function KanbanProtesesInteligente() {
       )}
 
       {columnModalOpen && (
-        <div className="fixed inset-0 z-[86] bg-slate-900/30 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[86] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-200">
             <div className="p-5 border-b border-slate-100 flex items-start justify-between gap-4">
               <div>

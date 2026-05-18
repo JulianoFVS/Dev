@@ -3,9 +3,11 @@ import { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Loader2, ArrowLeft, Building2, User, Mail, Lock, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
+import { useCustomAlert } from '@/components/ui/CustomAlert';
 
 // Componente Interno (Lógica que precisa da URL)
 function CadastroContent() {
+  const { showAlert } = useCustomAlert();
   const searchParams = useSearchParams();
   const plano = searchParams.get('plano') || 'Básico';
   const status = searchParams.get('status');
@@ -32,11 +34,11 @@ function CadastroContent() {
 
           const json = await res.json();
           if (!res.ok) throw new Error(json.error);
-          alert('Conta criada com sucesso! Faça login para começar.');
+          await showAlert('Conta criada com sucesso! Faça login para começar.', { type: 'success' });
           router.push('/login');
 
       } catch (error: any) {
-          alert(error.message);
+          showAlert(error.message, { type: 'error' });
       }
       setLoading(false);
   }

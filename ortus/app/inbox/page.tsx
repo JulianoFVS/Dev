@@ -3,12 +3,14 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Bell, Mail, Calendar, AlertTriangle, Info, CheckSquare, Trash2 } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
+import { useCustomAlert } from '@/components/ui/CustomAlert';
 
 export default function Inbox() {
   const [todos, setTodos] = useState<any[]>([]); // FIX: any[]
   const [abaAtiva, setAbaAtiva] = useState('alertas');
   const [loading, setLoading] = useState(true);
   const searchParams = useSearchParams();
+  const { showConfirm } = useCustomAlert();
 
   useEffect(() => { 
       const tab = searchParams.get('tab');
@@ -32,7 +34,7 @@ export default function Inbox() {
   }
 
   async function excluir(id: any) {
-      if(!confirm('Apagar esta notificação?')) return;
+      if(!(await showConfirm('Apagar esta notificação?', { title: 'Excluir', type: 'warning', confirmLabel: 'Apagar' }))) return;
       setTodos(prev => prev.filter(n => n.id !== id));
       await supabase.from('notificacoes').delete().eq('id', id);
   }

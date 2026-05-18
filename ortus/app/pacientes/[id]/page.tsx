@@ -9,6 +9,8 @@ import { carregarModelos, type ModeloAnamnese } from '@/lib/anamnese';
 import { fetchUserClinicas } from '@/lib/clinicScoped';
 import { registrarAudit } from '@/lib/auditLog';
 import TabEvolucao from './TabEvolucao';
+import CustomSelect from '@/components/ui/CustomSelect';
+import { useCustomAlert } from '@/components/ui/CustomAlert';
 
 // =============== ODONTOGRAMA - Padrão Codental (Vista Lateral + Oclusal) ===============
 type Face = 'V' | 'M' | 'D' | 'L' | 'O'; // Vestibular, Mesial, Distal, Lingual/Palatal, Oclusal/Incisal
@@ -229,6 +231,7 @@ export default function PacienteDetalhe() {
   const searchParams = useSearchParams();
   const initialTab = searchParams?.get('tab') || 'dados';
   const [loading, setLoading] = useState(true);
+  const { showAlert, showConfirm } = useCustomAlert();
   
   const [abaAtiva, setAbaAtiva] = useState(initialTab);
 
@@ -374,7 +377,7 @@ export default function PacienteDetalhe() {
       setFicha(fichaMerged);
       setModoEdicao(false);
       registrarAudit({ acao: 'editou', entidade: 'paciente', entidade_id: String(id) });
-      alert('Dados salvos com sucesso!');
+      showAlert('Dados salvos com sucesso!', { type: 'success' });
   }
 
   function handleExportarDados() {
@@ -408,7 +411,7 @@ export default function PacienteDetalhe() {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
       registrarAudit({ acao: 'exportou', entidade: 'paciente', entidade_id: String(id), detalhes: { tipo: 'lgpd_portabilidade' } });
-      alert('Os dados foram exportados em formato estruturado conforme a LGPD.');
+      showAlert('Os dados foram exportados em formato estruturado conforme a LGPD.', { type: 'success' });
   }
 
   // ===== Odontograma helpers =====
@@ -448,7 +451,7 @@ export default function PacienteDetalhe() {
       const { error } = await supabase.from('pacientes').update({ ficha_medica: fichaMerged }).eq('id', id);
       setFicha(fichaMerged);
       setSavingOdo(false);
-      if (error) alert('Erro ao salvar: ' + error.message);
+      if (error) showAlert('Erro ao salvar: ' + error.message, { type: 'error' });
   }
 
   function abrirNovoTratamento() {
@@ -457,7 +460,7 @@ export default function PacienteDetalhe() {
   }
 
   async function salvarTratamento() {
-      if (!tratEdit.procedimento) return alert('Informe o procedimento');
+      if (!tratEdit.procedimento) { await showAlert('Informe o procedimento', { type: 'warning' }); return; }
       const { agendarNaAgenda, horaAgendamento, ...tratSemAgenda } = tratEdit;
       let novaLista;
       if (tratSemAgenda.id) {
@@ -469,7 +472,7 @@ export default function PacienteDetalhe() {
       const fichaMerged = { ...ficha, odontograma, tratamentos: novaLista };
       const { error } = await supabase.from('pacientes').update({ ficha_medica: fichaMerged }).eq('id', id);
       setFicha(fichaMerged);
-      if (error) return alert('Erro: ' + error.message);
+      if (error) { await showAlert('Erro: ' + error.message, { type: 'error' }); return; }
 
       // Agendar na agenda se solicitado
       let agendado = false;
@@ -500,16 +503,16 @@ export default function PacienteDetalhe() {
               if (agErr) throw agErr;
               agendado = true;
           } catch (e: any) {
-              alert('Tratamento salvo, mas erro ao agendar: ' + (e.message || e));
+              showAlert('Tratamento salvo, mas erro ao agendar: ' + (e.message || e), { type: 'warning' });
           }
       }
 
       setModalTrat(false);
-      alert(agendado ? 'Tratamento salvo e consulta marcada na agenda!' : 'Tratamento salvo com sucesso!');
+      showAlert(agendado ? 'Tratamento salvo e consulta marcada na agenda!' : 'Tratamento salvo com sucesso!', { type: 'success' });
   }
 
   async function excluirTratamento(tid: string) {
-      if (!confirm('Excluir este tratamento?')) return;
+      if (!(await showConfirm('Excluir este tratamento?', { title: 'Excluir', type: 'error', confirmLabel: 'Excluir' }))) return;
       const novaLista = tratamentos.filter(t => t.id !== tid);
       setTratamentos(novaLista);
       const fichaMerged = { ...ficha, odontograma, tratamentos: novaLista };
@@ -558,16 +561,39 @@ export default function PacienteDetalhe() {
           const blobComprimido = await comprimirImagem(file);
           const caminhoArquivo = `pacientes/${id}/hof/${Date.now()}_${angulo.replace(/[°\s]/g, '')}.jpg`;
           const { error: uploadErr } = await supabase.storage.from('arquivos_ortus').upload(caminhoArquivo, blobComprimido, { contentType: 'image/jpeg' });
-          if (uploadErr) { alert('Erro ao enviar foto: ' + uploadErr.message); setEnviandoFoto(null); return; }
+          if (uploadErr) {
+              console.error('[HOF Upload] Erro Supabase Storage:', uploadErr);
+              if (uploadErr.message?.includes('row-level security') || uploadErr.message?.includes('security policy')) {
+                  showAlert('Erro de permissão: Verifique as configurações de segurança (RLS) do bucket de fotos HOF no Supabase.', { type: 'error', title: 'Permissão Negada' });
+              } else {
+                  showAlert('Erro ao enviar foto: ' + uploadErr.message, { type: 'error' });
+              }
+              setEnviandoFoto(null); return;
+          }
           const { data: urlData } = supabase.storage.from('arquivos_ortus').getPublicUrl(caminhoArquivo);
           const nova: HofFoto = { id: Date.now().toString(), sessao: hofSessaoAtiva, angulo, dataUrl: urlData.publicUrl, storagePath: caminhoArquivo, criado_em: new Date().toISOString() };
           const novasFotos = [...hofFotos, nova];
           setHofFotos(novasFotos);
           const fichaMerged = { ...ficha, marcacoes_hof: marcacoesHof, hof_fotos: novasFotos };
-          await supabase.from('pacientes').update({ ficha_medica: fichaMerged }).eq('id', id);
+          const { error: updateErr } = await supabase.from('pacientes').update({ ficha_medica: fichaMerged }).eq('id', id);
+          if (updateErr) {
+              console.error('[HOF Update] Erro Supabase:', updateErr);
+              if (updateErr.message?.includes('row-level security') || updateErr.message?.includes('security policy')) {
+                  showAlert('Erro de permissão: Verifique as políticas RLS da tabela de pacientes no Supabase.', { type: 'error', title: 'Permissão Negada' });
+              } else {
+                  showAlert('Erro ao salvar foto no prontuário: ' + updateErr.message, { type: 'error' });
+              }
+              setEnviandoFoto(null); return;
+          }
           setFicha(fichaMerged);
       } catch (err: any) {
-          alert('Erro ao processar foto: ' + (err?.message || err));
+          console.error('[HOF] Erro inesperado:', err);
+          const msg = err?.message || String(err);
+          if (msg.includes('row-level security') || msg.includes('security policy')) {
+              showAlert('Erro de permissão: Verifique as configurações de segurança (RLS) no Supabase.', { type: 'error', title: 'Permissão Negada' });
+          } else {
+              showAlert('Erro ao processar foto: ' + msg, { type: 'error' });
+          }
       }
       setEnviandoFoto(null);
       e.target.value = '';
@@ -611,8 +637,8 @@ export default function PacienteDetalhe() {
       const { error } = await supabase.from('pacientes').update({ ficha_medica: fichaMerged }).eq('id', id);
       setFicha(fichaMerged);
       setSavingHof(false);
-      if (error) alert('Erro ao salvar HOF: ' + error.message);
-      else alert('Mapa facial salvo com sucesso!');
+      if (error) showAlert('Erro ao salvar HOF: ' + error.message, { type: 'error' });
+      else showAlert('Mapa facial salvo com sucesso!', { type: 'success' });
   }
 
   // ===== HOF Protocol Templates =====
@@ -998,7 +1024,7 @@ export default function PacienteDetalhe() {
   }
 
   function enviarOrcamentoWhatsapp() {
-      if (!form.telefone) return alert('Paciente sem telefone cadastrado.');
+      if (!form.telefone) { showAlert('Paciente sem telefone cadastrado.', { type: 'warning' }); return; }
       const linhas = tratamentos.map((t: any) => {
           const val = parseFloat(t.valor) || 0;
           return `▸ Dente ${t.dente || '-'}: ${t.procedimento} — ${formatarMoeda(val)}`;
@@ -1017,9 +1043,9 @@ export default function PacienteDetalhe() {
   }
 
   async function salvarAnamnese() {
-      if (!anamneseAtual.modelo_id) return alert('Selecione um modelo de anamnese.');
+      if (!anamneseAtual.modelo_id) { await showAlert('Selecione um modelo de anamnese.', { type: 'warning' }); return; }
       const modelo = modelosAnamnese.find(m => m.id === anamneseAtual.modelo_id);
-      if (!modelo) return alert('Modelo não encontrado.');
+      if (!modelo) { await showAlert('Modelo não encontrado.', { type: 'error' }); return; }
       const nova = {
           id: Date.now().toString(),
           modelo_id: anamneseAtual.modelo_id,
@@ -1033,16 +1059,16 @@ export default function PacienteDetalhe() {
       const novaLista = [...anamnesesAnteriores, nova];
       const fichaMerged = { ...ficha, odontograma, tratamentos, anamneses: novaLista };
       const { error } = await supabase.from('pacientes').update({ ficha_medica: fichaMerged }).eq('id', id);
-      if (error) return alert('Erro: ' + error.message);
+      if (error) { await showAlert('Erro: ' + error.message, { type: 'error' }); return; }
       setAnamnesesAnteriores(novaLista);
       setFicha(fichaMerged);
       setAnamneseAtual({ modelo_id: '', data: new Date().toISOString().split('T')[0], preenchido_por: 'profissional', respostas: {} });
-      alert('Anamnese salva com sucesso!');
+      showAlert('Anamnese salva com sucesso!', { type: 'success' });
   }
 
   function emitirAnamnese(anamnese?: any) {
       const a = anamnese || (() => {
-          if (!anamneseAtual.modelo_id) { alert('Selecione e preencha uma anamnese antes de emitir.'); return null; }
+          if (!anamneseAtual.modelo_id) { showAlert('Selecione e preencha uma anamnese antes de emitir.', { type: 'warning' }); return null; }
           const modelo = modelosAnamnese.find(m => m.id === anamneseAtual.modelo_id);
           return modelo ? { ...anamneseAtual, modelo_nome: modelo.nome, perguntas_snapshot: modelo.perguntas } : null;
       })();
@@ -1086,7 +1112,7 @@ export default function PacienteDetalhe() {
   }
 
   async function excluirAnamnese(aid: string) {
-      if (!confirm('Excluir esta anamnese?')) return;
+      if (!(await showConfirm('Excluir esta anamnese?', { title: 'Excluir', type: 'error', confirmLabel: 'Excluir' }))) return;
       const novaLista = anamnesesAnteriores.filter(a => a.id !== aid);
       const fichaMerged = { ...ficha, odontograma, tratamentos, anamneses: novaLista };
       await supabase.from('pacientes').update({ ficha_medica: fichaMerged }).eq('id', id);
@@ -1099,7 +1125,7 @@ export default function PacienteDetalhe() {
       const file: File = e.target.files?.[0];
       if (!file) return;
       const MAX = 10 * 1024 * 1024; // 10MB
-      if (file.size > MAX) { alert('Arquivo muito grande (máx. 10MB).'); e.target.value = ''; return; }
+      if (file.size > MAX) { showAlert('Arquivo muito grande (máx. 10MB).', { type: 'warning' }); e.target.value = ''; return; }
       setUploadingDoc(true);
       try {
           const isImg = file.type.startsWith('image/');
@@ -1117,25 +1143,25 @@ export default function PacienteDetalhe() {
 
           const caminhoArquivo = `pacientes/${id}/documentos/${timestamp}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_').substring(0, 60)}.${finalExt}`;
           const { error: uploadErr } = await supabase.storage.from('arquivos_ortus').upload(caminhoArquivo, blob, { contentType });
-          if (uploadErr) { alert('Erro ao enviar: ' + uploadErr.message); setUploadingDoc(false); e.target.value = ''; return; }
+          if (uploadErr) { showAlert('Erro ao enviar: ' + uploadErr.message, { type: 'error' }); setUploadingDoc(false); e.target.value = ''; return; }
 
           const { data: urlData } = supabase.storage.from('arquivos_ortus').getPublicUrl(caminhoArquivo);
           const novo = { id: timestamp.toString(), nome: file.name, tipo: file.type, isImg, dataUrl: urlData.publicUrl, storagePath: caminhoArquivo, tamanho: blob.size, criado_em: new Date().toISOString() };
           const novaLista = [...documentos, novo];
           const fichaMerged = { ...ficha, odontograma, tratamentos, documentos: novaLista };
           const { error } = await supabase.from('pacientes').update({ ficha_medica: fichaMerged }).eq('id', id);
-          if (error) { alert('Erro: ' + error.message); setUploadingDoc(false); e.target.value = ''; return; }
+          if (error) { showAlert('Erro: ' + error.message, { type: 'error' }); setUploadingDoc(false); e.target.value = ''; return; }
           setDocumentos(novaLista);
           setFicha(fichaMerged);
       } catch (err: any) {
-          alert('Erro ao processar arquivo: ' + (err?.message || err));
+          showAlert('Erro ao processar arquivo: ' + (err?.message || err), { type: 'error' });
       }
       setUploadingDoc(false);
       e.target.value = '';
   }
 
   async function excluirDocumento(did: string) {
-      if (!confirm('Excluir este documento?')) return;
+      if (!(await showConfirm('Excluir este documento?', { title: 'Excluir', type: 'error', confirmLabel: 'Excluir' }))) return;
       const doc = documentos.find(d => d.id === did);
       if (doc?.storagePath) {
           await supabase.storage.from('arquivos_ortus').remove([doc.storagePath]);
@@ -1157,9 +1183,9 @@ export default function PacienteDetalhe() {
 
   // ===== DEBITOS helpers =====
   async function marcarComoPago(agId: string) {
-      if (!confirm('Marcar este atendimento como pago?')) return;
+      if (!(await showConfirm('Marcar este atendimento como pago?', { title: 'Confirmar Pagamento', type: 'info', confirmLabel: 'Confirmar' }))) return;
       const { error } = await supabase.from('agendamentos').update({ status: 'concluido' }).eq('id', agId);
-      if (error) return alert('Erro: ' + error.message);
+      if (error) { await showAlert('Erro: ' + error.message, { type: 'error' }); return; }
       const novaLista = debitos.filter(d => d.id !== agId);
       setDebitos(novaLista);
       const histAtt = historico.map(h => h.id === agId ? { ...h, status: 'concluido' } : h);
@@ -1171,14 +1197,14 @@ export default function PacienteDetalhe() {
   };
 
   async function excluir() {
-      if(!confirm('Cuidado: Isso apagará o paciente e todo o histórico. Continuar?')) return;
+      if(!(await showConfirm('Cuidado: Isso apagará o paciente e todo o histórico. Continuar?', { title: 'Excluir Paciente', type: 'error', confirmLabel: 'Excluir' }))) return;
       await supabase.from('agendamentos').delete().eq('paciente_id', id);
       await supabase.from('pacientes').delete().eq('id', id);
       router.push('/pacientes');
   }
 
   function abrirWhatsapp() {
-      if (!form.telefone) return alert('Paciente sem telefone cadastrado.');
+      if (!form.telefone) { showAlert('Paciente sem telefone cadastrado.', { type: 'warning' }); return; }
       const numero = form.telefone.replace(/\D/g, '');
       window.open(`https://wa.me/55${numero}`, '_blank');
   }
@@ -1349,7 +1375,7 @@ export default function PacienteDetalhe() {
                     <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm animate-in fade-in">
                         <h3 className="text-lg font-black text-slate-800 mb-6 flex items-center gap-2"><User size={20} className="text-blue-500"/> Informações do Paciente</h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="col-span-2 md:col-span-1"><label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Clínica</label><div className="relative"><Building2 className="absolute left-3 top-3 text-slate-400" size={18}/><select disabled={!modoEdicao} className={`w-full pl-10 pr-4 py-3 rounded-xl border outline-none font-bold text-slate-700 appearance-none ${modoEdicao ? 'bg-white border-blue-300 ring-2 ring-blue-100 cursor-pointer' : 'bg-slate-50 border-slate-200'}`} value={form.clinica_id || ''} onChange={e => setForm({...form, clinica_id: e.target.value})}><option value="">Sem Clínica Definida</option>{clinicas.map((c:any) => <option key={c.id} value={c.id}>{c.nome}</option>)}</select></div></div>
+                            <div className="col-span-2 md:col-span-1"><label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Clínica</label><CustomSelect disabled={!modoEdicao} value={form.clinica_id || ''} onChange={v => setForm({...form, clinica_id: v})} options={[{value:'',label:'Sem Clínica Definida'}, ...clinicas.map((c:any) => ({value:String(c.id),label:c.nome}))]} size="lg"/></div>
                             <div><label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Nome Completo</label><input disabled={!modoEdicao} className={`w-full p-3 rounded-xl border outline-none font-bold text-slate-700 ${modoEdicao ? 'bg-white border-blue-300 ring-2 ring-blue-100' : 'bg-slate-50 border-slate-200'}`} value={form.nome || ''} onChange={e => setForm({...form, nome: e.target.value})} /></div>
                             <div><label className="text-xs font-bold text-slate-400 uppercase mb-1 block">CPF</label><input disabled={!modoEdicao} className={`w-full p-3 rounded-xl border outline-none ${modoEdicao ? 'bg-white border-blue-300' : 'bg-slate-50 border-slate-200'}`} value={form.cpf || ''} onChange={e => setForm({...form, cpf: e.target.value})} /></div>
                             <div><label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Telefone</label><input disabled={!modoEdicao} className={`w-full p-3 rounded-xl border outline-none ${modoEdicao ? 'bg-white border-blue-300' : 'bg-slate-50 border-slate-200'}`} value={form.telefone || ''} onChange={e => setForm({...form, telefone: e.target.value})} /></div>
@@ -1372,10 +1398,7 @@ export default function PacienteDetalhe() {
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
                                 <div className="md:col-span-1">
                                     <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Modelo</label>
-                                    <select value={anamneseAtual.modelo_id} onChange={e => selecionarModeloAnamnese(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500">
-                                        <option value="">Selecione...</option>
-                                        {modelosAnamnese.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
-                                    </select>
+                                    <CustomSelect value={anamneseAtual.modelo_id} onChange={v => selecionarModeloAnamnese(v)} options={modelosAnamnese.map(m => ({value:m.id,label:m.nome}))} placeholder="Selecione..." size="md"/>
                                 </div>
                                 <div>
                                     <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block flex items-center gap-1"><Calendar size={11}/> Data</label>
@@ -1481,7 +1504,7 @@ export default function PacienteDetalhe() {
                                             </button>
                                         ))}
                                     </div>
-                                    {visaoOdonto !== 'livre' && <button onClick={() => { if(confirm('Limpar todo o odontograma?')) setOdontograma({}); }} className="px-3 py-2 text-xs font-bold rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center gap-1.5"><Eraser size={14}/> Limpar</button>}
+                                    {visaoOdonto !== 'livre' && <button onClick={async () => { if(await showConfirm('Limpar todo o odontograma?', { title: 'Limpar', type: 'warning', confirmLabel: 'Limpar' })) setOdontograma({}); }} className="px-3 py-2 text-xs font-bold rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center gap-1.5"><Eraser size={14}/> Limpar</button>}
                                     <button onClick={imprimirOrcamento} className="px-3 py-2 text-xs font-bold rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center gap-1.5"><Printer size={14}/> PDF</button>
                                     <button onClick={enviarOrcamentoWhatsapp} className="px-3 py-2 text-xs font-bold rounded-lg bg-green-500 text-white hover:bg-green-600 flex items-center gap-1.5 shadow-sm"><MessageCircle size={14}/> WhatsApp</button>
                                     <button onClick={salvarOdontograma} disabled={savingOdo} className="px-4 py-2 text-xs font-bold rounded-lg bg-blue-600 text-white hover:bg-blue-700 flex items-center gap-1.5 shadow-sm disabled:opacity-50">{savingOdo ? <Loader2 size={14} className="animate-spin"/> : <Save size={14}/>} Salvar</button>
@@ -1730,13 +1753,16 @@ export default function PacienteDetalhe() {
 
                 {abaAtiva === 'hof' && (
                     <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-200 shadow-sm animate-in fade-in">
+                        {/* Preload face images for instant render */}
+                        <link rel="preload" as="image" href="/hof/imagem_feminina.png" />
+                        <link rel="preload" as="image" href="/hof/imagem_masculina.png" />
                         <div className="flex flex-wrap justify-between items-center gap-3 mb-5">
                             <h3 className="text-lg font-black text-slate-800 flex items-center gap-2"><Sparkles size={20} className="text-purple-500"/> Harmonização Orofacial (HOF)</h3>
                             <div className="flex gap-2 flex-wrap">
                                 <button onClick={() => setModalProtocolo(true)} className="px-3 py-2 text-xs font-bold rounded-lg bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 flex items-center gap-1.5"><Zap size={14}/> Protocolos</button>
                                 <button onClick={gerarTermoConsentimentoHof} className="px-3 py-2 text-xs font-bold rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 flex items-center gap-1.5"><ShieldCheck size={14}/> Consentimento</button>
                                 <button onClick={imprimirMapaHof} className="px-3 py-2 text-xs font-bold rounded-lg bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 flex items-center gap-1.5"><Printer size={14}/> Imprimir</button>
-                                <button onClick={() => { if(marcacoesHof.length && confirm('Limpar todas as marcações?')) setMarcacoesHof([]); }} className="px-3 py-2 text-xs font-bold rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center gap-1.5"><Eraser size={14}/> Limpar</button>
+                                <button onClick={async () => { if(marcacoesHof.length && await showConfirm('Limpar todas as marcações?', { title: 'Limpar', type: 'warning', confirmLabel: 'Limpar' })) setMarcacoesHof([]); }} className="px-3 py-2 text-xs font-bold rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center gap-1.5"><Eraser size={14}/> Limpar</button>
                                 <button onClick={salvarHof} disabled={savingHof} className="px-4 py-2 text-xs font-bold rounded-lg bg-purple-600 text-white hover:bg-purple-700 flex items-center gap-1.5 shadow-sm disabled:opacity-50">{savingHof ? <Loader2 size={14} className="animate-spin"/> : <Save size={14}/>} Salvar</button>
                             </div>
                         </div>
@@ -1912,18 +1938,12 @@ export default function PacienteDetalhe() {
                                 <div className="flex flex-wrap items-center gap-3 mb-3">
                                     <div className="flex items-center gap-2">
                                         <span className="text-[10px] font-bold text-slate-500">Antes:</span>
-                                        <select className="p-1.5 border border-slate-200 rounded-lg text-xs font-bold outline-none bg-white" value={hofCompararSessoes?.[0] || ''} onChange={e => setHofCompararSessoes([e.target.value, hofCompararSessoes?.[1] || hofSessoes[0]])}>
-                                            <option value="">Selecione</option>
-                                            {hofSessoes.map(s => <option key={s} value={s}>{new Date(s + 'T12:00:00').toLocaleDateString('pt-BR')}</option>)}
-                                        </select>
+                                        <CustomSelect value={hofCompararSessoes?.[0] || ''} onChange={v => setHofCompararSessoes([v, hofCompararSessoes?.[1] || hofSessoes[0]])} options={hofSessoes.map(s => ({value:s,label:new Date(s + 'T12:00:00').toLocaleDateString('pt-BR')}))} placeholder="Selecione" size="sm"/>
                                     </div>
                                     <ArrowLeftRight size={14} className="text-slate-300"/>
                                     <div className="flex items-center gap-2">
                                         <span className="text-[10px] font-bold text-slate-500">Depois:</span>
-                                        <select className="p-1.5 border border-slate-200 rounded-lg text-xs font-bold outline-none bg-white" value={hofCompararSessoes?.[1] || ''} onChange={e => setHofCompararSessoes([hofCompararSessoes?.[0] || hofSessoes[hofSessoes.length - 1], e.target.value])}>
-                                            <option value="">Selecione</option>
-                                            {hofSessoes.map(s => <option key={s} value={s}>{new Date(s + 'T12:00:00').toLocaleDateString('pt-BR')}</option>)}
-                                        </select>
+                                        <CustomSelect value={hofCompararSessoes?.[1] || ''} onChange={v => setHofCompararSessoes([hofCompararSessoes?.[0] || hofSessoes[hofSessoes.length - 1], v])} options={hofSessoes.map(s => ({value:s,label:new Date(s + 'T12:00:00').toLocaleDateString('pt-BR')}))} placeholder="Selecione" size="sm"/>
                                     </div>
                                 </div>
                                 {hofCompararSessoes?.[0] && hofCompararSessoes?.[1] && (() => {
@@ -2057,11 +2077,7 @@ export default function PacienteDetalhe() {
                         <div className="grid grid-cols-2 gap-3">
                             <div>
                                 <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Status</label>
-                                <select value={tratEdit.status} onChange={e => setTratEdit({...tratEdit, status: e.target.value})} className="w-full p-2.5 border border-slate-200 rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500">
-                                    <option value="planejado">Planejado</option>
-                                    <option value="andamento">Em Andamento</option>
-                                    <option value="concluido">Concluído</option>
-                                </select>
+                                <CustomSelect value={tratEdit.status} onChange={v => setTratEdit({...tratEdit, status: v})} options={[{value:'planejado',label:'Planejado'},{value:'andamento',label:'Em Andamento'},{value:'concluido',label:'Concluído'}]}/>
                             </div>
                             <div>
                                 <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Valor (R$)</label>

@@ -6,6 +6,8 @@ import { carregarModelos, salvarModelos, novoIdModelo, novoIdPergunta, type Mode
 import { listarBackups, criarBackupAgora, baixarBackupComoJson, excluirBackup as deletarBackupServer, restaurarBackup } from '@/lib/backup';
 import { fetchUserClinicas, fetchUserEquipe } from '@/lib/clinicScoped';
 import { carregarConfig, salvarConfig } from '@/lib/configClinica';
+import CustomSelect from '@/components/ui/CustomSelect';
+import { useCustomAlert } from '@/components/ui/CustomAlert';
 
 interface ModeloDocumento { id: string; tipo: 'contrato' | 'receita' | 'atestado' | 'outro'; nome: string; conteudo: string; }
 
@@ -34,6 +36,7 @@ const DOCS_PADRAO: ModeloDocumento[] = [
 export default function Configuracoes() {
   const [abaAtiva, setAbaAtiva] = useState('clinicas');
   const [loading, setLoading] = useState(true);
+  const { showAlert, showConfirm } = useCustomAlert();
   // Gate de acesso: só admin de tenant ou super admin podem entrar.
   const [perfilCaller, setPerfilCaller] = useState<any>(null);
 
@@ -114,12 +117,12 @@ export default function Configuracoes() {
       setCriandoBackup(true);
       const r = await criarBackupAgora('manual', 'Backup manual via interface');
       setCriandoBackup(false);
-      if (r.ok) { alert('Backup criado com sucesso!'); recarregarBackups(); }
-      else alert('Falha: ' + r.erro + '\n\nVerifique se o SQL de criação da tabela e função foi executado no Supabase.');
+      if (r.ok) { showAlert('Backup criado com sucesso!', { type: 'success' }); recarregarBackups(); }
+      else showAlert('Falha: ' + r.erro + '\n\nVerifique se o SQL de criação da tabela e função foi executado no Supabase.', { type: 'error' });
   }
 
   async function excluirBackupItem(id: number) {
-      if (!confirm('Excluir este backup permanentemente?')) return;
+      if (!(await showConfirm('Excluir este backup permanentemente?', { title: 'Excluir Backup', type: 'error', confirmLabel: 'Excluir' }))) return;
       const ok = await deletarBackupServer(id);
       if (ok) recarregarBackups();
   }
@@ -136,11 +139,11 @@ export default function Configuracoes() {
       const r = await restaurarBackup(modalRestaurar.id);
       setRestaurando(false);
       if (r.ok) {
-          alert('✅ ' + (r.msg || 'Backup restaurado com sucesso!') + '\n\nA página será recarregada.');
+          await showAlert((r.msg || 'Backup restaurado com sucesso!') + '\nA página será recarregada.', { type: 'success', title: 'Sucesso' });
           setModalRestaurar(null);
           window.location.reload();
       } else {
-          alert('❌ Falha ao restaurar:\n\n' + r.erro + '\n\nVerifique se a função restaurar_backup foi criada no Supabase.');
+          await showAlert('Falha ao restaurar:\n\n' + r.erro + '\n\nVerifique se a função restaurar_backup foi criada no Supabase.', { type: 'error', title: 'Erro' });
       }
   }
 
@@ -151,12 +154,12 @@ export default function Configuracoes() {
   // ===== CATEGORIAS FINANCEIRAS =====
   function adicionarCatFin() {
       const n = novaCatFin.trim(); if (!n) return;
-      if (catsFin.find(c => c.toLowerCase() === n.toLowerCase())) { alert('Categoria já existe.'); return; }
+      if (catsFin.find(c => c.toLowerCase() === n.toLowerCase())) { showAlert('Categoria já existe.', { type: 'warning' }); return; }
       const novas = [...catsFin, n].sort();
       setCatsFin(novas); const cid = clinicas[0]?.id || '0'; salvarConfig(cid, 'categorias_financeiro', novas); setNovaCatFin('');
   }
-  function removerCatFin(c: string) {
-      if (!confirm(`Excluir categoria "${c}"?`)) return;
+  async function removerCatFin(c: string) {
+      if (!(await showConfirm(`Excluir categoria "${c}"?`, { title: 'Excluir', type: 'error', confirmLabel: 'Excluir' }))) return;
       const novas = catsFin.filter(x => x !== c);
       setCatsFin(novas); const cid = clinicas[0]?.id || '0'; salvarConfig(cid, 'categorias_financeiro', novas);
   }
@@ -175,14 +178,14 @@ export default function Configuracoes() {
   function abrirEditarDoc(d: ModeloDocumento) { setDocEdit({ ...d }); setModalDoc(true); }
   function salvarDocEdit() {
       if (!docEdit) return;
-      if (!docEdit.nome.trim() || !docEdit.conteudo.trim()) { alert('Preencha nome e conteúdo.'); return; }
+      if (!docEdit.nome.trim() || !docEdit.conteudo.trim()) { showAlert('Preencha nome e conteúdo.', { type: 'warning' }); return; }
       const idx = docs.findIndex(d => d.id === docEdit.id);
       const novos = idx >= 0 ? docs.map((d,i) => i === idx ? docEdit : d) : [...docs, docEdit];
       setDocs(novos); const cidD = clinicas[0]?.id || '0'; salvarConfig(cidD, 'modelos_documentos', novos);
       setModalDoc(false); setDocEdit(null);
   }
-  function excluirDoc(id: string) {
-      if (!confirm('Excluir este modelo?')) return;
+  async function excluirDoc(id: string) {
+      if (!(await showConfirm('Excluir este modelo de documento?', { title: 'Excluir', type: 'error', confirmLabel: 'Excluir' }))) return;
       const novos = docs.filter(d => d.id !== id);
       setDocs(novos); const cidD2 = clinicas[0]?.id || '0'; salvarConfig(cidD2, 'modelos_documentos', novos);
   }
@@ -205,10 +208,11 @@ export default function Configuracoes() {
       a.click();
   }
 
-  function importarTudo(e: any) {
+  async function importarTudo(e: any) {
       const file = e.target.files?.[0];
       if (!file) return;
-      if (!confirm('Isso irá sobrescrever todas as configurações locais (preferências, categorias, modelos). Continuar?')) { e.target.value=''; return; }
+      const ok = await showConfirm('Isso irá sobrescrever todas as configurações locais (preferências, categorias, modelos). Continuar?', { title: 'Importar Backup', type: 'warning', confirmLabel: 'Importar' });
+      if (!ok) { e.target.value=''; return; }
       const reader = new FileReader();
       reader.onload = () => {
           try {
@@ -219,8 +223,8 @@ export default function Configuracoes() {
               if (obj.modelos_anamnese) { setModelos(obj.modelos_anamnese); salvarModelos(obj.modelos_anamnese); }
               if (obj.modelos_documentos) { setDocs(obj.modelos_documentos); salvarConfig(cidB, 'modelos_documentos', obj.modelos_documentos); }
               if (obj.lancamentos_meta) { salvarConfig(cidB, 'lancamentos_meta', obj.lancamentos_meta); }
-              alert('Backup importado com sucesso!');
-          } catch (err: any) { alert('Arquivo inválido: ' + err.message); }
+              showAlert('Backup importado com sucesso!', { type: 'success' });
+          } catch (err: any) { showAlert('Arquivo inválido: ' + err.message, { type: 'error' }); }
       };
       reader.readAsText(file);
       e.target.value='';
@@ -250,9 +254,9 @@ export default function Configuracoes() {
   }
   function salvarModelo() {
       if (!modeloEdit) return;
-      if (!modeloEdit.nome.trim()) return alert('Informe o nome do modelo.');
+      if (!modeloEdit.nome.trim()) { showAlert('Informe o nome do modelo.', { type: 'warning' }); return; }
       const perguntasValidas = modeloEdit.perguntas.filter(p => p.label.trim());
-      if (perguntasValidas.length === 0) return alert('Adicione pelo menos uma pergunta.');
+      if (perguntasValidas.length === 0) { showAlert('Adicione pelo menos uma pergunta.', { type: 'warning' }); return; }
       const limpo = { ...modeloEdit, perguntas: perguntasValidas, padrao: false };
       const existe = modelos.findIndex(m => m.id === limpo.id);
       const novos = existe >= 0 ? modelos.map((m, i) => i === existe ? limpo : m) : [...modelos, limpo];
@@ -261,10 +265,10 @@ export default function Configuracoes() {
       setModalModelo(false);
       setModeloEdit(null);
   }
-  function excluirModelo(id: string) {
+  async function excluirModelo(id: string) {
       const m = modelos.find(x => x.id === id);
-      if (m?.padrao) return alert('Modelos padrão não podem ser excluídos.');
-      if (!confirm('Excluir este modelo?')) return;
+      if (m?.padrao) { showAlert('Modelos padrão não podem ser excluídos.', { type: 'warning' }); return; }
+      if (!(await showConfirm('Excluir este modelo?', { title: 'Excluir', type: 'error', confirmLabel: 'Excluir' }))) return;
       const novos = modelos.filter(x => x.id !== id);
       setModelos(novos);
       salvarModelos(novos);
@@ -318,7 +322,7 @@ export default function Configuracoes() {
       if (!novaClinica) return;
       try {
           const { data: { session } } = await supabase.auth.getSession();
-          if (!session) { alert('Sessão expirada. Faça login novamente.'); return; }
+          if (!session) { await showAlert('Sessão expirada. Faça login novamente.', { type: 'error' }); return; }
 
           // 1) Profissional + rede_id atual do usuário (via primeiro vínculo)
           const { data: prof } = await supabase
@@ -328,7 +332,7 @@ export default function Configuracoes() {
               .maybeSingle();
 
           if (!prof?.id) {
-              alert('Não foi possível identificar seu perfil. Contate o suporte.');
+              await showAlert('Não foi possível identificar seu perfil. Contate o suporte.', { type: 'error' });
               return;
           }
 
@@ -342,7 +346,7 @@ export default function Configuracoes() {
           redeId = primeiroVinculo?.rede_id ?? null;
 
           if (!redeId && !prof.is_super_admin) {
-              alert('Sua conta não está vinculada a nenhuma rede. Contate o suporte para configurar sua rede antes de criar clínicas.');
+              await showAlert('Sua conta não está vinculada a nenhuma rede. Contate o suporte para configurar sua rede antes de criar clínicas.', { type: 'error' });
               return;
           }
 
@@ -356,7 +360,7 @@ export default function Configuracoes() {
               .select('id')
               .single();
           if (error || !novaC) {
-              alert('Erro ao criar clínica: ' + (error?.message || 'desconhecido'));
+              await showAlert('Erro ao criar clínica: ' + (error?.message || 'desconhecido'), { type: 'error' });
               return;
           }
 
@@ -366,7 +370,7 @@ export default function Configuracoes() {
               .insert([{ profissional_id: prof.id, clinica_id: novaC.id }]);
           if (vincErr) {
               console.error('Aviso: clínica criada mas vínculo falhou:', vincErr);
-              alert('Clínica criada, mas não foi possível vincular você automaticamente. Vincule manualmente em /ajustes/equipe.');
+              showAlert('Clínica criada, mas não foi possível vincular você automaticamente. Vincule manualmente em /ajustes/equipe.', { type: 'warning' });
           }
 
           setNovaClinica('');
@@ -374,20 +378,20 @@ export default function Configuracoes() {
           carregarDados();
       } catch (e: any) {
           console.error(e);
-          alert('Erro inesperado: ' + (e?.message || e));
+          showAlert('Erro inesperado: ' + (e?.message || e), { type: 'error' });
       }
   }
 
   async function excluirClinica(id: number) {
-      if (!confirm('⚠️ Tem certeza absoluta? \nIsso apagará a clínica e pode afetar dados vinculados.')) return;
+      if (!(await showConfirm('Tem certeza absoluta? Isso apagará a clínica e pode afetar dados vinculados.', { title: 'Excluir Clínica', type: 'error', confirmLabel: 'Excluir' }))) return;
       
       const { error } = await supabase.from('clinicas').delete().eq('id', id);
       
       if (error) {
           console.error(error);
-          alert('Não foi possível excluir: ' + error.message + '\n\nDica: Verifique se existem pacientes ou vínculos dependentes desta clínica.');
+          showAlert('Não foi possível excluir: ' + error.message + '\nDica: Verifique se existem pacientes ou vínculos dependentes desta clínica.', { type: 'error' });
       } else {
-          alert('Clínica excluída com sucesso!');
+          showAlert('Clínica excluída com sucesso!', { type: 'success' });
           carregarDados();
       }
   }
@@ -417,8 +421,8 @@ export default function Configuracoes() {
   }
 
   async function salvarProfissional() {
-      if (!profForm.nome) return alert('Nome é obrigatório');
-      if (!editandoProf && (!profForm.email || !profForm.senha)) return alert('Email e Senha são obrigatórios para novos usuários.');
+      if (!profForm.nome) { await showAlert('Nome é obrigatório', { type: 'warning' }); return; }
+      if (!editandoProf && (!profForm.email || !profForm.senha)) { await showAlert('Email e Senha são obrigatórios para novos usuários.', { type: 'warning' }); return; }
 
       setSalvandoProf(true);
 
@@ -453,10 +457,10 @@ export default function Configuracoes() {
 
           setModalProf(false);
           carregarDados();
-          alert(editandoProf ? 'Dados atualizados!' : 'Profissional cadastrado com acesso ao sistema!');
+          showAlert(editandoProf ? 'Dados atualizados!' : 'Profissional cadastrado com acesso ao sistema!', { type: 'success' });
 
       } catch (err: any) {
-          alert('Erro: ' + err.message);
+          showAlert('Erro: ' + err.message, { type: 'error' });
       } finally {
           setSalvandoProf(false);
       }
@@ -464,10 +468,10 @@ export default function Configuracoes() {
 
   async function excluirProfissional() {
       if (!editandoProf) return;
-      if (!confirm('ATENÇÃO: Isso removerá o acesso deste usuário ao sistema. Continuar?')) return;
+      if (!(await showConfirm('ATENÇÃO: Isso removerá o acesso deste usuário ao sistema. Continuar?', { title: 'Excluir Profissional', type: 'error', confirmLabel: 'Excluir' }))) return;
       
       const { error } = await supabase.from('profissionais').delete().eq('id', profForm.id);
-      if (error) alert('Erro ao excluir: ' + error.message);
+      if (error) showAlert('Erro ao excluir: ' + error.message, { type: 'error' });
       else {
           setModalProf(false);
           carregarDados();
@@ -915,12 +919,7 @@ export default function Configuracoes() {
                           </div>
                           <div>
                               <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Tipo</label>
-                              <select value={docEdit.tipo} onChange={e => setDocEdit({...docEdit, tipo: e.target.value as any})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-purple-500 font-bold">
-                                  <option value="contrato">Contrato</option>
-                                  <option value="receita">Receita</option>
-                                  <option value="atestado">Atestado</option>
-                                  <option value="outro">Outro</option>
-                              </select>
+                              <CustomSelect value={docEdit.tipo} onChange={v => setDocEdit({...docEdit, tipo: v as any})} options={[{value:'contrato',label:'Contrato'},{value:'receita',label:'Receita'},{value:'atestado',label:'Atestado'},{value:'outro',label:'Outro'}]} size="lg"/>
                           </div>
                       </div>
                       <div>
@@ -974,11 +973,7 @@ export default function Configuracoes() {
                                           <div className="flex-1 space-y-2">
                                               <input value={p.label} onChange={e => atualizarPergunta(idx, { label: e.target.value })} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700 text-sm" placeholder="Texto da pergunta..."/>
                                               <div className="flex gap-2 items-center">
-                                                  <select value={p.tipo} onChange={e => atualizarPergunta(idx, { tipo: e.target.value as TipoPergunta, opcoes: e.target.value === 'multipla' ? (p.opcoes || ['Opção 1']) : undefined })} className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg outline-none text-xs font-bold text-slate-600">
-                                                      <option value="texto">Texto livre</option>
-                                                      <option value="sim_nao">Sim / Não</option>
-                                                      <option value="multipla">Múltipla escolha</option>
-                                                  </select>
+                                                  <CustomSelect value={p.tipo} onChange={v => atualizarPergunta(idx, { tipo: v as TipoPergunta, opcoes: v === 'multipla' ? (p.opcoes || ['Opção 1']) : undefined })} options={[{value:'texto',label:'Texto livre'},{value:'sim_nao',label:'Sim / Não'},{value:'multipla',label:'Múltipla escolha'}]} size="sm"/>
                                                   {p.tipo === 'multipla' && (
                                                       <input value={(p.opcoes || []).join(', ')} onChange={e => atualizarPergunta(idx, { opcoes: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })} className="flex-1 px-3 py-1.5 bg-white border border-slate-200 rounded-lg outline-none text-xs font-medium text-slate-600" placeholder="Opções separadas por vírgula"/>
                                                   )}
@@ -1034,12 +1029,12 @@ export default function Configuracoes() {
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                               <div className="md:col-span-2"><label className="text-xs font-bold text-slate-400 uppercase ml-1">Nome Completo</label><div className="relative"><User className="absolute left-3 top-3.5 text-slate-300" size={18}/><input value={profForm.nome} onChange={e => setProfForm({...profForm, nome: e.target.value})} className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-700" placeholder="Dr. Nome Sobrenome"/></div></div>
                               <div><label className="text-xs font-bold text-slate-400 uppercase ml-1">CPF</label><input value={profForm.cpf} onChange={e => setProfForm({...profForm, cpf: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700" placeholder="000.000.000-00"/></div>
-                              <div><label className="text-xs font-bold text-slate-400 uppercase ml-1">Sexo</label><select value={profForm.sexo} onChange={e => setProfForm({...profForm, sexo: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700"><option value="">Selecione...</option><option value="Masculino">Masculino</option><option value="Feminino">Feminino</option><option value="Outro">Outro</option></select></div>
+                              <div><label className="text-xs font-bold text-slate-400 uppercase ml-1">Sexo</label><CustomSelect value={profForm.sexo} onChange={v => setProfForm({...profForm, sexo: v})} options={[{value:'Masculino',label:'Masculino'},{value:'Feminino',label:'Feminino'},{value:'Outro',label:'Outro'}]} placeholder="Selecione..." size="lg"/></div>
                               <div><label className="text-xs font-bold text-slate-400 uppercase ml-1">Contato / Telefone</label><div className="relative"><Phone className="absolute left-3 top-3.5 text-slate-300" size={18}/><input value={profForm.telefone} onChange={e => setProfForm({...profForm, telefone: e.target.value})} className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700" placeholder="(00) 00000-0000"/></div></div>
                               <div><label className="text-xs font-bold text-slate-400 uppercase ml-1">Cargo</label><input value={profForm.cargo} onChange={e => setProfForm({...profForm, cargo: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-700" placeholder="Ex: Ortodontista"/></div>
                           </div>
                           <div className="md:col-span-2"><label className="text-xs font-bold text-slate-400 uppercase ml-1">Endereço</label><input value={profForm.endereco} onChange={e => setProfForm({...profForm, endereco: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700" placeholder="Rua, Número, Bairro..."/></div>
-                          <div className="grid grid-cols-3 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-100"><div className="col-span-1"><label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Conselho</label><select value={profForm.conselho} onChange={e => setProfForm({...profForm, conselho: e.target.value})} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none text-sm font-bold"><option value="CRO">CRO</option><option value="CRM">CRM</option><option value="Outro">Outro</option></select></div><div className="col-span-1"><label className="text-[10px] font-bold text-slate-400 uppercase ml-1">UF</label><input value={profForm.uf} onChange={e => setProfForm({...profForm, uf: e.target.value})} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none text-sm font-medium" placeholder="UF"/></div><div className="col-span-1"><label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Nº Conselho</label><input value={profForm.cro} onChange={e => setProfForm({...profForm, cro: e.target.value})} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none text-sm font-medium" placeholder="12345"/></div></div>
+                          <div className="grid grid-cols-3 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-100"><div className="col-span-1"><label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Conselho</label><CustomSelect value={profForm.conselho} onChange={v => setProfForm({...profForm, conselho: v})} options={[{value:'CRO',label:'CRO'},{value:'CRM',label:'CRM'},{value:'Outro',label:'Outro'}]} size="sm"/></div><div className="col-span-1"><label className="text-[10px] font-bold text-slate-400 uppercase ml-1">UF</label><input value={profForm.uf} onChange={e => setProfForm({...profForm, uf: e.target.value})} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none text-sm font-medium" placeholder="UF"/></div><div className="col-span-1"><label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Nº Conselho</label><input value={profForm.cro} onChange={e => setProfForm({...profForm, cro: e.target.value})} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none text-sm font-medium" placeholder="12345"/></div></div>
                       </div>
                       <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4">
                           <div className="flex items-center gap-3"><div className={`p-3 rounded-xl ${profForm.nivel_acesso === 'admin' ? 'bg-purple-100 text-purple-600' : 'bg-white border border-slate-200 text-slate-400'}`}><Shield size={24}/></div><div><h4 className="font-bold text-slate-800 text-sm">Nível de Permissão</h4><p className="text-xs text-slate-500">Admins podem editar financeiro e ajustes.</p></div></div>

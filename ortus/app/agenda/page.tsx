@@ -18,6 +18,8 @@ import {
   UserPlus, FilePlus, DollarSign, Phone, Mail, FileText, Calendar, Trash2,
   Clock, Ban
 } from 'lucide-react';
+import CustomSelect from '@/components/ui/CustomSelect';
+import { useCustomAlert } from '@/components/ui/CustomAlert';
 
 // Paleta de cores por tema (gradiente + acento + texto)
 const TEMA_CORES: Record<string, { grad: string; accent: string; text: string; soft: string; ring: string; label: string }> = {
@@ -35,6 +37,7 @@ export default function Agenda() {
   const pacientePreSelecionado = searchParams?.get('paciente');
   const { openPatient } = usePatientSlideOver();
   const { activeClinicId, loading: clinicLoading } = useClinica();
+  const { showAlert, showConfirm } = useCustomAlert();
   const [events, setEvents] = useState<any[]>([]);
   const [usuarioAtual, setUsuarioAtual] = useState<any>(null);
   
@@ -200,7 +203,7 @@ export default function Agenda() {
   };
 
   async function saveOrUpdate(overrideStatus?: string) { 
-      if (!formData.title || !formData.paciente_id || !formData.clinica_id) return alert('Preencha campos obrigatórios.'); 
+      if (!formData.title || !formData.paciente_id || !formData.clinica_id) { await showAlert('Preencha campos obrigatórios.', { type: 'warning' }); return; } 
       setLoading(true); 
       
       const finalStatus = overrideStatus || formData.status; 
@@ -231,7 +234,7 @@ export default function Agenda() {
 
   async function excluirAgendamento() {
       if(!formData.id) return;
-      if(!confirm('Tem certeza que deseja excluir este agendamento?')) return;
+      if(!(await showConfirm('Tem certeza que deseja excluir este agendamento?', { title: 'Excluir', type: 'error', confirmLabel: 'Excluir' }))) return;
       await supabase.from('agendamentos').delete().eq('id', formData.id);
       setOpenModal(false);
       carregarEventos();
@@ -239,7 +242,7 @@ export default function Agenda() {
 
   async function salvarNovoPaciente(e: any) {
       e.preventDefault();
-      if (!formPaciente.nome) return alert('Nome é obrigatório');
+      if (!formPaciente.nome) { await showAlert('Nome é obrigatório', { type: 'warning' }); return; }
       
       const payload = { 
           ...formPaciente, 
@@ -249,7 +252,7 @@ export default function Agenda() {
 
       const { data, error } = await supabase.from('pacientes').insert([payload]).select().single();
       
-      if (error) alert('Erro: ' + error.message);
+      if (error) { await showAlert('Erro: ' + error.message, { type: 'error' }); }
       else {
           setPacientes([...pacientes, data]);
           setFormData({ ...formData, paciente_id: data.id });
@@ -260,11 +263,11 @@ export default function Agenda() {
 
   async function salvarNovoServico(e: any) {
       e.preventDefault();
-      if (!formServico.nome) return alert('Nome é obrigatório');
+      if (!formServico.nome) { await showAlert('Nome é obrigatório', { type: 'warning' }); return; }
       
       const { data, error } = await supabase.from('servicos').insert([{ nome: formServico.nome, valor: parseFloat(formServico.valor) }]).select().single();
       
-      if (error) alert('Erro: ' + error.message);
+      if (error) { await showAlert('Erro: ' + error.message, { type: 'error' }); }
       else {
           setServicos([...servicos, data]);
           setFormData({ ...formData, title: data.nome, valor: data.valor });
@@ -450,15 +453,16 @@ export default function Agenda() {
                                 ? 'bg-amber-50 border-amber-300 text-amber-800'
                                 : 'bg-blue-50 border-blue-200 text-blue-700';
                         return (
-                            <div className={`mt-1 inline-flex items-center gap-1.5 sm:gap-2 pl-2 sm:pl-2.5 pr-1 py-1 rounded-lg border text-xs font-bold ${wrap}`}>
-                                <Building2 size={12} className="hidden sm:inline"/>
-                                <span className="hidden sm:inline">Filtro:</span>
-                                <select value={clinicaFiltro} onChange={e => setClinicaFiltro(e.target.value)} className="bg-transparent outline-none font-black cursor-pointer text-xs border-none">
-                                    <option value="todas">Todas as Clínicas</option>
-                                    {clinicas.map((c:any) => <option key={c.id} value={c.id}>{c.nome}</option>)}
-                                </select>
-                                {divergente && <span className="text-[10px] font-black uppercase bg-rose-600 text-white px-1.5 py-0.5 rounded">≠ {cGlobal?.nome || 'global'}</span>}
-                                {isTodas && <span className="text-[10px] font-black uppercase bg-amber-600 text-white px-1.5 py-0.5 rounded">visão geral</span>}
+                            <div className="mt-1 flex items-center gap-1.5 sm:gap-2">
+                                <CustomSelect
+                                  value={clinicaFiltro}
+                                  onChange={setClinicaFiltro}
+                                  options={[{ value: 'todas', label: 'Todas as Clínicas' }, ...clinicas.map((c:any) => ({ value: String(c.id), label: c.nome }))]}
+                                  size="sm"
+                                  triggerClassName={`!rounded-lg !border ${wrap}`}
+                                />
+                                {divergente && <span className="text-[10px] font-black uppercase bg-rose-600 text-white px-1.5 py-0.5 rounded shrink-0">≠ {cGlobal?.nome || 'global'}</span>}
+                                {isTodas && <span className="text-[10px] font-black uppercase bg-amber-600 text-white px-1.5 py-0.5 rounded shrink-0">visão geral</span>}
                             </div>
                         );
                     })()}
@@ -516,25 +520,23 @@ export default function Agenda() {
                                   Clínica
                                   {clinicaFiltro !== 'todas' && <span className="text-[9px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded normal-case">Travada no filtro</span>}
                               </label>
-                              <select
+                              <CustomSelect
                                   value={formData.clinica_id}
-                                  onChange={e => setFormData({...formData, clinica_id: e.target.value})}
+                                  onChange={v => setFormData({...formData, clinica_id: v})}
                                   disabled={clinicaFiltro !== 'todas'}
-                                  className={`w-full p-2.5 border rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none ${clinicaFiltro !== 'todas' ? 'bg-slate-100 border-slate-200 text-slate-600 cursor-not-allowed' : 'bg-white border-slate-200'}`}
-                              >
-                                  <option value="">Selecione...</option>
-                                  {clinicas.map((c:any) => <option key={c.id} value={c.id}>{c.nome}</option>)}
-                              </select>
+                                  options={clinicas.map((c:any) => ({ value: String(c.id), label: c.nome }))}
+                                  placeholder="Selecione..."
+                              />
                               {clinicaFiltro !== 'todas' && <p className="text-[10px] text-slate-400 mt-1">Para escolher outra clínica, troque o filtro para "Todas as Clínicas".</p>}
                           </div>
-                          <div><label className="text-xs font-bold text-slate-500 uppercase mb-1">Profissional</label><select value={formData.profissional_id} onChange={e => setFormData({...formData,profissional_id: e.target.value})} className={`w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none ${usuarioAtual?.nivel !== 'admin' ? 'opacity-60' : ''}`} disabled={usuarioAtual?.nivel !== 'admin'}><option value="">Qualquer um...</option>{profissionaisFiltrados.map((p:any) => <option key={p.id} value={p.id}>{p.nome}</option>)}</select></div>
+                          <div><label className="text-xs font-bold text-slate-500 uppercase mb-1">Profissional</label><CustomSelect value={formData.profissional_id} onChange={v => setFormData({...formData,profissional_id: v})} disabled={usuarioAtual?.nivel !== 'admin'} options={profissionaisFiltrados.map((p:any) => ({ value: String(p.id), label: p.nome }))} placeholder="Qualquer um..."/></div>
                       </div>
                       <div>
                           <div className="flex justify-between items-center mb-1">
                               <label className="text-xs font-bold text-slate-500 uppercase">Paciente</label>
                               <button type="button" onClick={() => setModalNovoPaciente(true)} className="text-[10px] font-bold text-blue-600 hover:underline flex items-center gap-1 uppercase"><UserPlus size={12}/> Cadastrar Novo</button>
                           </div>
-                          <select value={formData.paciente_id} onChange={e => setFormData({...formData, paciente_id: e.target.value})} className="w-full p-2.5 border border-slate-200 rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none"><option value="">Selecione...</option>{pacientes.filter((p:any) => !formData.clinica_id || p.clinica_id == formData.clinica_id).map((p:any) => <option key={p.id} value={p.id}>{p.nome}</option>)}</select>
+                          <CustomSelect value={formData.paciente_id} onChange={v => setFormData({...formData, paciente_id: v})} options={pacientes.filter((p:any) => !formData.clinica_id || p.clinica_id == formData.clinica_id).map((p:any) => ({ value: String(p.id), label: p.nome }))} placeholder="Selecione..." searchable/>
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           <div><label className="text-xs font-bold text-slate-500 uppercase mb-1">Data</label><input type="date" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} className="w-full p-2.5 border border-slate-200 rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none" /></div>
@@ -545,7 +547,7 @@ export default function Agenda() {
                               <label className="text-xs font-bold text-slate-500 uppercase">Procedimento</label>
                               <button type="button" onClick={() => setModalNovoServico(true)} className="text-[10px] font-bold text-purple-600 hover:underline flex items-center gap-1 uppercase"><FilePlus size={12}/> Novo Serviço</button>
                           </div>
-                          <select onChange={(e) => { const s = servicos.find((x:any) => x.id == e.target.value); if(s) setFormData(p => ({...p, title: s.nome, valor: s.valor, theme: s.cor || 'blue'})) }} className="w-full p-2.5 mb-2 bg-blue-50 border border-blue-100 text-blue-700 rounded-lg text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer"><option value="">Selecionar Catálogo...</option>{servicos.map((s:any) => <option key={s.id} value={s.id}>{s.nome} - R$ {s.valor}</option>)}</select>
+                          <CustomSelect value="" onChange={v => { const s = servicos.find((x:any) => String(x.id) === v); if(s) setFormData(p => ({...p, title: s.nome, valor: s.valor, theme: s.cor || 'blue'})) }} options={servicos.map((s:any) => ({ value: String(s.id), label: `${s.nome} - R$ ${s.valor}` }))} placeholder="Selecionar Catálogo..." triggerClassName="!bg-blue-50 !border-blue-100 !text-blue-700" className="mb-2"/>
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200/60">
                           <div>
