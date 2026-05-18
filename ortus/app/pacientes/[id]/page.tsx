@@ -302,6 +302,7 @@ export default function PacienteDetalhe() {
   const [hofDosagem, setHofDosagem] = useState('');
   const [hofProduto, setHofProduto] = useState('');
   const [hofSessaoAtiva, setHofSessaoAtiva] = useState(new Date().toISOString().split('T')[0]);
+  const [faceHofAtiva, setFaceHofAtiva] = useState<'feminina' | 'masculina'>('feminina');
   const [hofCompararSessoes, setHofCompararSessoes] = useState<[string, string] | null>(null);
   const [savingHof, setSavingHof] = useState(false);
   const [enviandoFoto, setEnviandoFoto] = useState<string | null>(null);
@@ -1773,57 +1774,46 @@ export default function PacienteDetalhe() {
                             <span className="text-[10px] text-slate-400 font-semibold">Novas marcações serão vinculadas a esta sessão.</span>
                         </div>
 
-                        {/* Toolbar de procedimentos */}
-                        <div className="flex flex-wrap gap-2 mb-4">
+                        {/* Toolbar de procedimentos + Toggle Gênero */}
+                        <div className="flex flex-wrap items-center gap-2 mb-4">
                             {HOF_TIPOS.map(t => (
                                 <button key={t.key} onClick={() => setHofTipoAtivo(t.key)} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold border transition-all ${hofTipoAtivo === t.key ? 'border-slate-800 ring-2 ring-slate-300 bg-white shadow' : 'border-slate-200 bg-white hover:border-slate-400'}`}>
                                     <span className="w-3.5 h-3.5 rounded-full border border-slate-300 shrink-0" style={{ background: t.color }}/>
                                     <span>{t.label}</span>
                                 </button>
                             ))}
+                            <div className="ml-auto flex items-center bg-slate-100 rounded-lg p-0.5 border border-slate-200">
+                                <button onClick={() => setFaceHofAtiva('feminina')} className={`px-3 py-1.5 rounded-md text-[11px] font-bold transition-all ${faceHofAtiva === 'feminina' ? 'bg-white text-pink-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>♀ Feminino</button>
+                                <button onClick={() => setFaceHofAtiva('masculina')} className={`px-3 py-1.5 rounded-md text-[11px] font-bold transition-all ${faceHofAtiva === 'masculina' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>♂ Masculino</button>
+                            </div>
                         </div>
 
                         <p className="text-xs text-slate-500 font-semibold mb-4">Selecione o tipo de procedimento acima e clique no rosto para marcar. Hover nos pontos para detalhes.</p>
 
                         {/* Canvas Facial */}
                         <div className="flex justify-center">
-                            <div className="relative max-w-md w-full select-none cursor-crosshair bg-gradient-to-b from-purple-50/50 to-slate-50 border-2 border-slate-200 rounded-2xl overflow-hidden" style={{ aspectRatio: '3/4' }} onClick={handleFaceClick}>
-                                {/* SVG Rosto */}
-                                <svg viewBox="0 0 300 400" className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
-                                    <defs>
-                                        <linearGradient id="faceGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-                                            <stop offset="0%" stopColor="#e2e8f0" stopOpacity="0.3"/>
-                                            <stop offset="100%" stopColor="#cbd5e1" stopOpacity="0.15"/>
-                                        </linearGradient>
-                                    </defs>
-                                    <ellipse cx="150" cy="195" rx="105" ry="140" fill="url(#faceGrad)" stroke="#94a3b8" strokeWidth="1.5"/>
-                                    <ellipse cx="44" cy="185" rx="12" ry="24" fill="none" stroke="#94a3b8" strokeWidth="1.2"/>
-                                    <ellipse cx="256" cy="185" rx="12" ry="24" fill="none" stroke="#94a3b8" strokeWidth="1.2"/>
-                                    <path d="M95 145 Q115 135 135 143" fill="none" stroke="#94a3b8" strokeWidth="1.8" strokeLinecap="round"/>
-                                    <path d="M165 143 Q185 135 205 145" fill="none" stroke="#94a3b8" strokeWidth="1.8" strokeLinecap="round"/>
-                                    <ellipse cx="115" cy="165" rx="18" ry="10" fill="none" stroke="#94a3b8" strokeWidth="1.3"/>
-                                    <circle cx="115" cy="165" r="4" fill="#94a3b8"/>
-                                    <ellipse cx="185" cy="165" rx="18" ry="10" fill="none" stroke="#94a3b8" strokeWidth="1.3"/>
-                                    <circle cx="185" cy="165" r="4" fill="#94a3b8"/>
-                                    <path d="M150 175 L150 215 M140 222 Q150 230 160 222" fill="none" stroke="#94a3b8" strokeWidth="1.3" strokeLinecap="round"/>
-                                    <path d="M120 260 Q135 250 150 252 Q165 250 180 260" fill="none" stroke="#94a3b8" strokeWidth="1.3" strokeLinecap="round"/>
-                                    <path d="M120 260 Q150 278 180 260" fill="none" stroke="#94a3b8" strokeWidth="1.2" strokeLinecap="round"/>
-                                    <path d="M130 295 Q150 320 170 295" fill="none" stroke="#94a3b8" strokeWidth="1" strokeLinecap="round" opacity="0.4"/>
-                                    <path d="M125 230 Q120 248 120 260" fill="none" stroke="#cbd5e1" strokeWidth="0.8" opacity="0.5"/>
-                                    <path d="M175 230 Q180 248 180 260" fill="none" stroke="#cbd5e1" strokeWidth="0.8" opacity="0.5"/>
-                                    <line x1="90" y1="95" x2="210" y2="95" stroke="#e2e8f0" strokeWidth="0.5" strokeDasharray="4"/>
-                                    <text x="150" y="90" textAnchor="middle" fontSize="8" fill="#cbd5e1" fontWeight="600">TESTA</text>
-                                    <text x="55" y="170" textAnchor="middle" fontSize="7" fill="#cbd5e1" fontWeight="600" transform="rotate(-90 55 170)">TEMPORAL</text>
-                                    <text x="245" y="170" textAnchor="middle" fontSize="7" fill="#cbd5e1" fontWeight="600" transform="rotate(90 245 170)">TEMPORAL</text>
-                                    <text x="150" y="350" textAnchor="middle" fontSize="7" fill="#cbd5e1" fontWeight="600">MENTO</text>
-                                </svg>
+                            <div
+                                className="relative max-w-md w-full select-none cursor-crosshair rounded-2xl overflow-hidden border-2 border-slate-200 bg-cover bg-center bg-no-repeat transition-all duration-300"
+                                style={{
+                                    aspectRatio: '3/4',
+                                    backgroundImage: faceHofAtiva === 'feminina'
+                                        ? "url('/hof/imagem_feminina.png')"
+                                        : "url('/hof/imagem_masculina.png')",
+                                }}
+                                onClick={handleFaceClick}
+                            >
+                                {/* Labels anatômicos sobre a imagem */}
+                                <span className="absolute top-[10%] left-1/2 -translate-x-1/2 text-[9px] font-black uppercase tracking-[0.2em] text-white/80 pointer-events-none" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.7), 0 0 8px rgba(0,0,0,0.4)' }}>Testa</span>
+                                <span className="absolute top-[38%] left-[8%] text-[8px] font-black uppercase tracking-[0.15em] text-white/80 pointer-events-none -rotate-90 origin-center" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.7), 0 0 8px rgba(0,0,0,0.4)' }}>Temporal</span>
+                                <span className="absolute top-[38%] right-[8%] text-[8px] font-black uppercase tracking-[0.15em] text-white/80 pointer-events-none rotate-90 origin-center" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.7), 0 0 8px rgba(0,0,0,0.4)' }}>Temporal</span>
+                                <span className="absolute bottom-[8%] left-1/2 -translate-x-1/2 text-[8px] font-black uppercase tracking-[0.2em] text-white/80 pointer-events-none" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.7), 0 0 8px rgba(0,0,0,0.4)' }}>Mento</span>
 
                                 {/* Marcações renderizadas com cor do tipo */}
                                 {marcacoesHof.map(m => {
                                     const ti = hofTipoInfo(m.tipo);
                                     return (
                                     <div key={m.id} className="absolute group" style={{ left: `${m.x}%`, top: `${m.y}%`, transform: 'translate(-50%, -50%)' }}>
-                                        <div className={`w-4 h-4 rounded-full border-2 border-white shadow-lg cursor-pointer ring-2 ring-offset-1 transition-transform hover:scale-150 ${ti.ring}`} style={{ background: ti.color }}/>
+                                        <div className={`w-4 h-4 rounded-full border-2 border-white/90 shadow-lg cursor-pointer ring-2 ring-offset-1 transition-transform hover:scale-150 ${ti.ring}`} style={{ background: ti.color, boxShadow: `0 0 6px ${ti.color}88, 0 2px 8px rgba(0,0,0,0.3)` }}/>
                                         {/* Tooltip */}
                                         <div className="absolute z-30 bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block pointer-events-none">
                                             <div className="bg-slate-800 text-white text-[11px] rounded-lg px-3 py-2.5 shadow-xl max-w-[250px]">
