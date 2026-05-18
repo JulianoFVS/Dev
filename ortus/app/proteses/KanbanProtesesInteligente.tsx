@@ -1,11 +1,11 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { usePatientSlideOver } from '@/components/PatientSlideOver';
 import { useClinica } from '@/app/context/ClinicaContext';
-import { AlertTriangle, Check, CheckCircle2, ChevronRight, Edit3, Filter, GripVertical, Loader2, Plus, Search, Smile, Sparkles, Trash2, X } from 'lucide-react';
+import { AlertTriangle, Check, CheckCircle2, ChevronDown, ChevronRight, ClipboardList, Edit3, Filter, FlaskConical, GripVertical, Loader2, Package, Plus, Search, Smile, Sparkles, Trash2, Truck, Wrench, X } from 'lucide-react';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
 
 type ColumnTitle = 'Solicitado' | 'No Laboratório' | 'Em Prova Clínica' | 'Aguardando Ajuste' | 'Finalizado / Entregue';
@@ -158,11 +158,27 @@ export default function KanbanProtesesInteligente() {
   const [searchQuery, setSearchQuery] = useState('');
   const [periodFilter, setPeriodFilter] = useState<'all' | '7d' | '30d' | '90d'>('all');
   const [statusFilter, setStatusFilter] = useState<StatusKey[]>([]);
+  const [flowDropdownOpen, setFlowDropdownOpen] = useState(false);
 
-  // Sincroniza clinicId com contexto global (reativo)
+  // Ícones padrão para colunas conhecidas; genérico para customizadas
+  const FLOW_ICONS: Record<string, React.ReactNode> = {
+    'Solicitado': <ClipboardList size={14} />,
+    'No Laboratório': <FlaskConical size={14} />,
+    'Em Prova Clínica': <Smile size={14} />,
+    'Aguardando Ajuste': <Wrench size={14} />,
+    'Finalizado / Entregue': <Truck size={14} />,
+  };
+  function getFlowIcon(titulo: string) { return FLOW_ICONS[titulo] || <Package size={14} />; }
+
+  const MAX_VISIBLE_FLOW = 5;
+
+  // Sincroniza clinicId com contexto global (reativo) — evita reload desnecessário
+  const prevClinicRef = useRef<string | null | undefined>(undefined);
   useEffect(() => {
     if (clinicLoading) return;
     const nextClinicId = normalizeClinicId(activeClinicId === 'all' ? null : activeClinicId ?? null);
+    if (prevClinicRef.current === nextClinicId && columns.length > 0) return;
+    prevClinicRef.current = nextClinicId;
     setClinicId(nextClinicId);
     loadBoard(nextClinicId);
   }, [clinicLoading, activeClinicId]);
@@ -608,26 +624,60 @@ export default function KanbanProtesesInteligente() {
         </div>
       </div>
 
-      {/* FLUXO DO PROCESSO - Navegação horizontal por etapa */}
+      {/* FLUXO DO PROCESSO - Navegação por etapa */}
       {!loading && columns.length > 0 && (
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm shrink-0 w-full max-w-full min-w-0">
-          <div className="flex overflow-x-auto whitespace-nowrap px-4 py-3 gap-1 items-center custom-scrollbar">
-            {columns.map((col, idx) => {
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm shrink-0 w-full max-w-full min-w-0 px-5 py-3">
+          <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2">Fluxo do Processo</p>
+          <div className="flex items-center gap-1 flex-wrap">
+            {columns.slice(0, MAX_VISIBLE_FLOW).map((col, idx) => {
               const count = cardsByColumn(col.id).length;
               return (
-                <div key={col.id} className="flex items-center shrink-0">
+                <div key={col.id} className="flex items-center">
                   <button
                     onClick={() => document.getElementById(`coluna-${col.id}`)?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })}
-                    className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all hover:bg-pink-50 hover:text-pink-700 text-slate-600 border border-transparent hover:border-pink-200 active:scale-95"
+                    className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-black transition-all hover:bg-pink-50 hover:text-pink-700 text-slate-600 border border-transparent hover:border-pink-200 active:scale-95"
                   >
-                    <span className="w-6 h-6 rounded-lg bg-slate-100 text-slate-500 flex items-center justify-center text-[10px] font-black">{idx + 1}</span>
-                    {col.titulo}
+                    <span className="w-7 h-7 rounded-lg bg-pink-50 text-pink-500 flex items-center justify-center">{getFlowIcon(col.titulo)}</span>
+                    <span className="hidden sm:inline">{col.titulo}</span>
                     <span className="px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-400 text-[10px] font-black">{count}</span>
                   </button>
-                  {idx < columns.length - 1 && <ChevronRight size={14} className="text-slate-300 mx-1 shrink-0" />}
+                  {idx < Math.min(columns.length, MAX_VISIBLE_FLOW) - 1 && <ChevronRight size={14} className="text-slate-300 mx-0.5 shrink-0" />}
                 </div>
               );
             })}
+
+            {/* Overflow: +N etapas dropdown */}
+            {columns.length > MAX_VISIBLE_FLOW && (
+              <div className="relative ml-1">
+                <button
+                  onClick={() => setFlowDropdownOpen(!flowDropdownOpen)}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black bg-pink-50 text-pink-600 border border-pink-200 hover:bg-pink-100 transition-all active:scale-95"
+                >
+                  +{columns.length - MAX_VISIBLE_FLOW} etapas
+                  <ChevronDown size={13} className={`transition-transform ${flowDropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
+                {flowDropdownOpen && (
+                  <div className="absolute top-full left-0 mt-2 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 min-w-[220px] py-2 animate-in fade-in slide-in-from-top-2">
+                    <p className="px-4 py-1.5 text-[10px] font-black uppercase tracking-wider text-slate-400">Etapas do Fluxo ({columns.length} no total)</p>
+                    {columns.slice(MAX_VISIBLE_FLOW).map((col, idx) => {
+                      const count = cardsByColumn(col.id).length;
+                      return (
+                        <button
+                          key={col.id}
+                          onClick={() => { document.getElementById(`coluna-${col.id}`)?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' }); setFlowDropdownOpen(false); }}
+                          className="w-full text-left px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-pink-50 hover:text-pink-700 flex items-center gap-3 transition-colors"
+                        >
+                          <span className="text-[11px] font-black text-slate-400 w-5">{MAX_VISIBLE_FLOW + idx + 1}</span>
+                          <span className="w-6 h-6 rounded-lg bg-pink-50 text-pink-500 flex items-center justify-center shrink-0">{getFlowIcon(col.titulo)}</span>
+                          {col.titulo}
+                          <span className="ml-auto px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-400 text-[10px] font-black">{count}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -638,7 +688,7 @@ export default function KanbanProtesesInteligente() {
             <Loader2 className="animate-spin text-pink-600" /> Carregando produção...
           </div>
         ) : (
-          <div className="h-full w-full max-w-full min-w-0 flex-1 overflow-x-auto overflow-y-hidden custom-scrollbar p-3 sm:p-4">
+          <div className="h-full w-full max-w-full min-w-0 flex-1 overflow-x-auto overflow-y-hidden kanban-scrollbar p-3 sm:p-4">
             <div className="flex flex-col sm:flex-row gap-4 sm:h-full sm:min-w-max">
               {columns.map((column) => {
                 const columnCards = cardsByColumn(column.id);
