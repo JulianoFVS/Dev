@@ -8,11 +8,14 @@ import {
 } from 'lucide-react';
 import { useClinica, getClinicLabel } from '@/app/context/ClinicaContext';
 import { carregarConfig, salvarConfig } from '@/lib/configClinica';
+import CustomSelect from '@/components/ui/CustomSelect';
+import { useCustomAlert } from '@/components/ui/CustomAlert';
 
 const CATS_PADRAO = ['Geral','Vendas','Aluguel','Fornecedores','Equipe','Impostos','Marketing','Procedimentos Extras'];
 
 export default function Financeiro() {
   const { activeClinicId, activeClinic, loading: clinicLoading } = useClinica();
+  const { showAlert, showConfirm } = useCustomAlert();
   const [transacoes, setTransacoes] = useState<any[]>([]);
   const [resumo, setResumo] = useState({ entrada: 0, saida: 0, saldo: 0, andamento: 0 });
   const [loading, setLoading] = useState(true);
@@ -134,7 +137,7 @@ export default function Financeiro() {
 
   function abrirNovoLancamento() {
       if (!activeClinicId || activeClinicId === 'all') {
-          alert('Selecione uma Clínica específica no menu antes de lançar.');
+          showAlert('Selecione uma Clínica específica no menu antes de lançar.', { type: 'warning' });
           return;
       }
       setNovoLancamento({ tipo: 'saida', descricao: '', valor: '', data: new Date().toISOString().split('T')[0], categoria: 'Geral', status: 'concluido', paciente_id: '' });
@@ -167,7 +170,7 @@ export default function Financeiro() {
       e.preventDefault();
       setSalvando(true);
       if (!activeClinicId || activeClinicId === 'all') {
-          alert('Selecione uma clínica específica no menu.');
+          await showAlert('Selecione uma clínica específica no menu.', { type: 'warning' });
           setSalvando(false);
           return;
       }
@@ -185,7 +188,7 @@ export default function Financeiro() {
           paciente_id: novoLancamento.paciente_id || null,
       };
       const { data: ins, error } = await supabase.from('despesas').insert([payload]).select().single();
-      if (error) { alert('Erro: ' + error.message); setSalvando(false); return; }
+      if (error) { await showAlert('Erro: ' + error.message, { type: 'error' }); setSalvando(false); return; }
 
       setModalAberto(false);
       carregarDados();
@@ -194,14 +197,14 @@ export default function Financeiro() {
 
   // Cancelar lançamento (manual)
   function pedirCancelamento(t: any) {
-      if (t.origem !== 'manual') { alert('Apenas lançamentos manuais podem ser cancelados.'); return; }
+      if (t.origem !== 'manual') { showAlert('Apenas lançamentos manuais podem ser cancelados.', { type: 'warning' }); return; }
       setModalCancelar(t);
       setMotivoCancelar('');
   }
 
   async function confirmarCancelamento() {
       if (!modalCancelar) return;
-      if (!motivoCancelar.trim()) { alert('Informe o motivo do cancelamento.'); return; }
+      if (!motivoCancelar.trim()) { await showAlert('Informe o motivo do cancelamento.', { type: 'warning' }); return; }
       const t = modalCancelar;
       const updMeta = { ...meta, [t.id]: { status: 'cancelado', motivo: motivoCancelar.trim(), cancelado_em: new Date().toISOString() } };
       setMeta(updMeta);
@@ -217,7 +220,7 @@ export default function Financeiro() {
   }
 
   async function restaurarCancelado(t: any) {
-      if (!confirm('Restaurar este lançamento?')) return;
+      if (!(await showConfirm('Restaurar este lançamento?', { title: 'Restaurar', type: 'info', confirmLabel: 'Restaurar' }))) return;
       const updMeta = { ...meta };
       delete updMeta[t.id];
       setMeta(updMeta);
@@ -228,7 +231,7 @@ export default function Financeiro() {
   }
 
   async function excluirDefinitivo(t: any) {
-      if (!confirm('Excluir definitivamente? Esta ação não pode ser desfeita.')) return;
+      if (!(await showConfirm('Excluir definitivamente? Esta ação não pode ser desfeita.', { title: 'Excluir', type: 'error', confirmLabel: 'Excluir' }))) return;
       const updMeta = { ...meta };
       delete updMeta[t.id];
       setMeta(updMeta);
@@ -239,7 +242,7 @@ export default function Financeiro() {
   }
 
   async function concluirAndamento(t: any) {
-      if (!confirm('Marcar como concluído?')) return;
+      if (!(await showConfirm('Marcar como concluído?', { title: 'Concluir', type: 'info', confirmLabel: 'Concluir' }))) return;
       const updMeta = { ...meta };
       delete updMeta[t.id];
       setMeta(updMeta);
@@ -565,9 +568,7 @@ export default function Financeiro() {
                         </div>
                         {modoCategoria === 'lista' ? (
                             <>
-                                <select className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-600 cursor-pointer" value={novoLancamento.categoria} onChange={e => setNovoLancamento({...novoLancamento, categoria: e.target.value})}>
-                                    {categorias.map(c => <option key={c} value={c}>{c}</option>)}
-                                </select>
+                                <CustomSelect value={novoLancamento.categoria} onChange={v => setNovoLancamento({...novoLancamento, categoria: v})} options={categorias.map(c => ({ value: c, label: c }))} placeholder="Selecione a categoria" size="lg"/>
                                 <div className="flex gap-2 mt-2">
                                     <input value={novaCatTemp} onChange={e => setNovaCatTemp(e.target.value)} placeholder="+ Criar nova categoria..." className="flex-1 p-2 bg-white border border-slate-200 rounded-lg outline-none text-xs font-medium focus:ring-2 focus:ring-blue-500"/>
                                     <button type="button" onClick={adicionarNovaCategoria} disabled={!novaCatTemp.trim()} className="px-3 py-2 bg-blue-600 text-white rounded-lg text-xs font-bold hover:bg-blue-700 disabled:opacity-40 flex items-center gap-1"><Plus size={12}/> Salvar</button>
@@ -584,14 +585,14 @@ export default function Financeiro() {
                     {/* PACIENTE (vinculação opcional) */}
                     <div>
                         <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Paciente <span className="text-slate-300 normal-case font-medium">(opcional)</span></label>
-                        <select
+                        <CustomSelect
                             value={novoLancamento.paciente_id}
-                            onChange={e => setNovoLancamento({ ...novoLancamento, paciente_id: e.target.value })}
-                            className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-600 cursor-pointer"
-                        >
-                            <option value="">Sem vínculo (despesa operacional)</option>
-                            {pacientesOptions.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
-                        </select>
+                            onChange={v => setNovoLancamento({ ...novoLancamento, paciente_id: v })}
+                            options={[{ value: '', label: 'Sem vínculo (despesa operacional)' }, ...pacientesOptions.map(p => ({ value: p.id, label: p.nome }))]}
+                            placeholder="Selecione..."
+                            searchable
+                            size="lg"
+                        />
                         <p className="text-[10px] text-slate-400 mt-1">Se vinculado, este lançamento será excluído automaticamente caso o paciente seja removido.</p>
                     </div>
 

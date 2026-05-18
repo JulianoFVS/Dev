@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Building2, Calendar, Clock, DollarSign, Loader2, Save, User } from 'lucide-react';
 import { fetchUserClinicas } from '@/lib/clinicScoped';
+import CustomSelect from '@/components/ui/CustomSelect';
 
 export type AppointmentPatient = {
   id: string | number;
@@ -199,17 +200,11 @@ export default function AppointmentForm({ paciente, defaultDate, defaultTime, on
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="text-[11px] font-black uppercase tracking-wider text-slate-500 mb-1.5 flex items-center gap-1"><Building2 size={12} /> Clínica <span className="text-rose-500">*</span></label>
-            <select value={form.clinica_id} onChange={(e) => setForm({ ...form, clinica_id: e.target.value, profissional_id: '' })} className="w-full p-3 rounded-2xl bg-slate-50 border border-slate-200 font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500">
-              <option value="">Selecionar</option>
-              {clinicas.map((c) => <option key={c.id} value={String(c.id)}>{c.nome}</option>)}
-            </select>
+            <CustomSelect value={form.clinica_id} onChange={(v) => setForm({ ...form, clinica_id: v, profissional_id: '' })} options={clinicas.map((c) => ({ value: String(c.id), label: c.nome }))} placeholder="Selecionar" size="lg"/>
           </div>
           <div>
             <label className="text-[11px] font-black uppercase tracking-wider text-slate-500 mb-1.5 block">Profissional</label>
-            <select disabled={usuarioNivel !== 'admin' && !!meuProfissionalId} value={form.profissional_id} onChange={(e) => setForm({ ...form, profissional_id: e.target.value })} className="w-full p-3 rounded-2xl bg-slate-50 border border-slate-200 font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100">
-              <option value="">Selecionar</option>
-              {profissionaisFiltrados.map((p) => <option key={p.id} value={String(p.id)}>{p.nome}</option>)}
-            </select>
+            <CustomSelect disabled={usuarioNivel !== 'admin' && !!meuProfissionalId} value={form.profissional_id} onChange={(v) => setForm({ ...form, profissional_id: v })} options={profissionaisFiltrados.map((p) => ({ value: String(p.id), label: p.nome }))} placeholder="Selecionar" size="lg"/>
           </div>
         </div>
 

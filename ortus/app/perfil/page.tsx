@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { User, LogOut, Save, Loader2, Lock, Mail, Upload, Briefcase, Trash2, AlertTriangle, Download } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { useCustomAlert } from '@/components/ui/CustomAlert';
 
 export default function Perfil() {
   const [loading, setLoading] = useState(true);
@@ -12,6 +13,7 @@ export default function Perfil() {
   const [perfil, setPerfil] = useState<any>(null); // Guardar dados completos do perfil
   const [fotoUrl, setFotoUrl] = useState<string | null>(null);
   const router = useRouter();
+  const { showAlert } = useCustomAlert();
 
   useEffect(() => { carregar(); }, []);
 
@@ -46,9 +48,9 @@ export default function Perfil() {
 
           await supabase.from('profissionais').update({ foto_url: publicUrl }).eq('user_id', user.id);
           setFotoUrl(publicUrl);
-          alert('Foto atualizada!');
+          showAlert('Foto atualizada!', { type: 'success' });
       } catch (error: any) {
-          alert('Erro no upload: ' + error.message);
+          showAlert('Erro no upload: ' + error.message, { type: 'error' });
       }
       setSalvando(false);
   }
@@ -68,12 +70,12 @@ export default function Perfil() {
 
       if (form.novaSenha) {
           const { error } = await supabase.auth.updateUser({ password: form.novaSenha });
-          if (error) alert('Erro ao mudar senha: ' + error.message);
-          else alert('Senha atualizada com sucesso!');
+          if (error) showAlert('Erro ao mudar senha: ' + error.message, { type: 'error' });
+          else showAlert('Senha atualizada com sucesso!', { type: 'success' });
       }
 
       setSalvando(false);
-      alert('Perfil atualizado!');
+      showAlert('Perfil atualizado!', { type: 'success' });
   }
 
   async function sair() {
@@ -103,7 +105,7 @@ export default function Perfil() {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      alert('Seus dados foram exportados em formato JSON conforme a LGPD.');
+      showAlert('Seus dados foram exportados em formato JSON conforme a LGPD.', { type: 'success' });
   }
 
   async function handleSolicitarExclusao() {
@@ -113,7 +115,7 @@ export default function Perfil() {
           'Digite "EXCLUIR" para confirmar:'
       );
       if (confirmacao !== 'EXCLUIR') {
-          alert('Exclusão cancelada. O texto digitado não confere.');
+          showAlert('Exclusão cancelada. O texto digitado não confere.', { type: 'warning' });
           return;
       }
       try {
@@ -127,15 +129,13 @@ export default function Perfil() {
               .eq('user_id', user.id);
           if (error) throw error;
 
-          alert(
-              'Solicitação registrada com sucesso.\n\n' +
-              'Sua conta será desativada imediatamente e os dados serão excluídos permanentemente em 30 dias.\n\n' +
-              'Caso mude de ideia, entre em contato com o suporte dentro desse prazo.'
+          await showAlert(
+              'Solicitação registrada com sucesso.\n\nSua conta será desativada imediatamente e os dados serão excluídos permanentemente em 30 dias.\n\nCaso mude de ideia, entre em contato com o suporte dentro desse prazo.', { type: 'success', title: 'Solicitação Registrada' }
           );
           await supabase.auth.signOut();
           router.push('/login');
       } catch (err: any) {
-          alert('Erro ao processar solicitação: ' + (err?.message || 'Tente novamente.'));
+          showAlert('Erro ao processar solicitação: ' + (err?.message || 'Tente novamente.'), { type: 'error' });
       }
   }
 

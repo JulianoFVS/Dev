@@ -8,11 +8,14 @@ import { usePatientSlideOver } from '@/components/PatientSlideOver';
 import { usePatientActionModal } from '@/components/PatientActionModal';
 import { useClinica } from '@/app/context/ClinicaContext';
 import { fetchUserClinicas } from '@/lib/clinicScoped';
+import CustomSelect from '@/components/ui/CustomSelect';
+import { useCustomAlert } from '@/components/ui/CustomAlert';
 
 export default function Pacientes() {
   const [pacientes, setPacientes] = useState<any[]>([]);
   const [clinicas, setClinicas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const { showAlert } = useCustomAlert();
   const [visualizacao, setVisualizacao] = useState('lista');
   const [busca, setBusca] = useState('');
   
@@ -95,7 +98,7 @@ export default function Pacientes() {
   }
 
   function exportarCSV() {
-      if (filtrados.length === 0) return alert('Nenhum paciente para exportar com os filtros atuais.');
+      if (filtrados.length === 0) { showAlert('Nenhum paciente para exportar com os filtros atuais.', { type: 'warning' }); return; }
 
       const headers = [
           'ID', 'Nome', 'CPF', 'RG', 'Telefone', 'Email', 'Data Nascimento',
@@ -197,13 +200,7 @@ export default function Pacientes() {
                   <input type="text" placeholder="Buscar por nome, telefone ou CPF..." className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-50 border-transparent focus:bg-white focus:ring-2 focus:ring-blue-100 outline-none font-medium" value={busca} onChange={e => setBusca(e.target.value)} />
               </div>
               
-              <div className="flex items-center gap-2 px-3 bg-slate-50 rounded-xl border border-slate-100">
-                  <Building2 size={16} className="text-slate-400"/>
-                  <select value={filtroClinica} onChange={(e) => setFiltroClinica(e.target.value)} className="bg-transparent py-2.5 outline-none text-sm font-bold text-slate-600 cursor-pointer min-w-[150px]">
-                      <option value="todas">Todas as Clínicas</option>
-                      {clinicas.map((c:any) => <option key={c.id} value={c.id}>{c.nome}</option>)}
-                  </select>
-              </div>
+              <CustomSelect value={filtroClinica} onChange={setFiltroClinica} options={[{value:'todas',label:'Todas as Clínicas'}, ...clinicas.map((c:any) => ({value:String(c.id),label:c.nome}))]} size="sm" className="min-w-[180px]"/>
 
               <button onClick={() => setShowFiltros(!showFiltros)} className={`px-3 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 transition-all ${showFiltros || filtrosAtivos ? 'bg-blue-50 text-blue-600 border border-blue-200' : 'bg-slate-50 text-slate-500 border border-slate-100 hover:border-blue-200'}`}>
                   <Filter size={16}/> Filtros
@@ -220,12 +217,7 @@ export default function Pacientes() {
               <div className="px-3 pb-3 pt-1 border-t border-slate-100 flex flex-wrap items-center gap-3 animate-in fade-in slide-in-from-top-2 duration-200">
                   <div className="flex items-center gap-2">
                       <label className="text-[10px] font-bold text-slate-400 uppercase">Status</label>
-                      <select value={filtroStatus} onChange={e => setFiltroStatus(e.target.value)} className="text-xs font-bold bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 outline-none focus:ring-2 focus:ring-blue-200">
-                          <option value="todos">Todos</option>
-                          <option value="ativo">Ativo</option>
-                          <option value="agendado">Agendado</option>
-                          <option value="novo">Novo</option>
-                      </select>
+                      <CustomSelect value={filtroStatus} onChange={setFiltroStatus} options={[{value:'todos',label:'Todos'},{value:'ativo',label:'Ativo'},{value:'agendado',label:'Agendado'},{value:'novo',label:'Novo'}]} size="sm"/>
                   </div>
                   <label className="flex items-center gap-2 text-xs font-bold text-slate-600 cursor-pointer bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 hover:border-rose-300 transition-colors">
                       <input type="checkbox" checked={filtroDebito} onChange={e => setFiltroDebito(e.target.checked)} className="rounded"/>
@@ -233,14 +225,7 @@ export default function Pacientes() {
                   </label>
                   <div className="flex items-center gap-2">
                       <label className="text-[10px] font-bold text-slate-400 uppercase whitespace-nowrap">Sem consulta há</label>
-                      <select value={filtroSemConsulta ?? ''} onChange={e => setFiltroSemConsulta(e.target.value ? Number(e.target.value) : null)} className="text-xs font-bold bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 outline-none focus:ring-2 focus:ring-blue-200">
-                          <option value="">—</option>
-                          <option value="30">30 dias</option>
-                          <option value="60">60 dias</option>
-                          <option value="90">90 dias</option>
-                          <option value="180">6 meses</option>
-                          <option value="365">1 ano</option>
-                      </select>
+                      <CustomSelect value={String(filtroSemConsulta ?? '')} onChange={v => setFiltroSemConsulta(v ? Number(v) : null)} options={[{value:'',label:'—'},{value:'30',label:'30 dias'},{value:'60',label:'60 dias'},{value:'90',label:'90 dias'},{value:'180',label:'6 meses'},{value:'365',label:'1 ano'}]} size="sm"/>
                   </div>
                   <div className="flex items-center gap-2">
                       <label className="text-[10px] font-bold text-slate-400 uppercase">Procedimento pendente</label>

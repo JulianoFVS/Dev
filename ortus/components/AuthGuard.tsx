@@ -145,7 +145,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const NavItem = ({ href, icon, label }: { href: string, icon: any, label: string }) => {
       const active = pathname.includes(href) || (href === '/dashboard' && pathname === '/dashboard');
       return (
-        <Link href={href} onClick={() => setMenuMobileAberto(false)} className={`flex items-center gap-3 px-3 py-3 rounded-xl transition-all mb-1 group relative ${active ? 'bg-blue-50 text-blue-700 font-bold shadow-sm' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'} ${menuRecolhido ? 'justify-center' : ''}`}>
+        <Link href={href} onClick={() => setMenuMobileAberto(false)} className={`flex items-center gap-3 px-3 py-3 rounded-xl transition-all mb-1 group relative overflow-hidden ${active ? 'bg-blue-50 text-blue-700 font-bold shadow-sm' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'} ${menuRecolhido ? 'justify-center !px-0 w-12 mx-auto' : ''}`}>
             <span className={`transition-transform ${!menuRecolhido && 'group-hover:scale-110'}`}>{icon}</span>
             {!menuRecolhido && <span>{label}</span>}
             {menuRecolhido && (<div className="absolute left-full ml-2 bg-slate-800 text-white text-xs font-bold px-2 py-1 rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-50 shadow-lg">{label}</div>)}
@@ -157,12 +157,15 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     <PatientSlideOverProvider>
     <PatientActionModalProvider>
     <div className="flex min-h-screen bg-slate-50 font-sans">
-      <aside className={`bg-white border-r border-slate-200 fixed h-full hidden md:flex flex-col z-30 shadow-sm transition-all duration-300 ${menuRecolhido ? 'w-20' : 'w-64'}`}>
-        <div className={`h-20 flex items-center border-b border-slate-50 ${menuRecolhido ? 'justify-center' : 'px-6'}`}>
-            <Link href="/dashboard" className="cursor-pointer hover:opacity-80 transition-opacity"><img src="/logo.png" alt="Ortus Logo" className="h-10 w-auto object-contain"/></Link>
+      <aside className={`bg-white border-r border-slate-200 fixed h-full hidden md:flex flex-col z-30 shadow-sm transition-all duration-300 overflow-x-hidden ${menuRecolhido ? 'w-20 items-center' : 'w-64'}`}>
+        <div className={`h-20 flex items-center border-b border-slate-50 ${menuRecolhido ? 'justify-center px-0' : 'px-6 gap-3'}`}>
+            <Link href="/dashboard" className="cursor-pointer hover:opacity-80 transition-opacity flex items-center gap-3">
+                <img src="/logo.png" alt="Ortus Logo" className="h-10 w-auto object-contain"/>
+                {!menuRecolhido && <span className="text-2xl font-bold text-slate-800 tracking-tight">Ortus</span>}
+            </Link>
         </div>
         
-        <div className="px-3 mt-6 mb-2">
+        <div className={`mt-6 mb-2 ${menuRecolhido ? 'px-1 w-full flex justify-center' : 'px-3'}`}>
             <div className="relative">
                 <button onClick={() => !menuRecolhido && setMenuClinicaAberto(!menuClinicaAberto)} className={`w-full flex items-center p-2.5 bg-slate-50 border border-slate-200 rounded-xl hover:border-blue-300 transition-all group ${menuRecolhido ? 'justify-center bg-transparent border-transparent' : 'justify-between'}`}>
                     <div className="flex items-center gap-3 overflow-hidden">
@@ -196,14 +199,14 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
             </div>
         </div>
 
-        <nav className="flex-1 px-3 space-y-1 mt-4 overflow-y-auto custom-scrollbar">
+        <nav className={`flex-1 space-y-1 mt-4 overflow-y-auto overflow-x-hidden custom-scrollbar ${menuRecolhido ? 'px-1 flex flex-col items-center' : 'px-3'}`}>
             {!menuRecolhido ? (
                 <button onClick={() => { const e = new KeyboardEvent('keydown', { key: 'k', metaKey: true, ctrlKey: true, bubbles: true }); window.dispatchEvent(e); }} className="w-full flex items-center gap-3 px-3 py-2.5 mb-2 rounded-xl text-sm font-semibold text-slate-400 bg-slate-50 border border-slate-200 hover:border-blue-300 hover:text-blue-500 transition-all">
                     <Search size={16}/> Buscar...
                     <kbd className="ml-auto text-[9px] font-bold bg-white border border-slate-200 px-1.5 py-0.5 rounded">⌘K</kbd>
                 </button>
             ) : (
-                <button onClick={() => { const e = new KeyboardEvent('keydown', { key: 'k', metaKey: true, ctrlKey: true, bubbles: true }); window.dispatchEvent(e); }} className="flex items-center justify-center p-2.5 mb-2 rounded-xl text-slate-400 bg-slate-50 border border-slate-200 hover:border-blue-300 hover:text-blue-500 transition-all" title="Buscar (Ctrl+K)">
+                <button onClick={() => { const e = new KeyboardEvent('keydown', { key: 'k', metaKey: true, ctrlKey: true, bubbles: true }); window.dispatchEvent(e); }} className="flex items-center justify-center w-12 p-2.5 mb-2 rounded-xl text-slate-400 bg-slate-50 border border-slate-200 hover:border-blue-300 hover:text-blue-500 transition-all" title="Buscar (Ctrl+K)">
                     <Search size={18}/>
                 </button>
             )}
