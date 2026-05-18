@@ -383,16 +383,16 @@ export default function Financeiro() {
   return (
     <div className="max-w-6xl mx-auto space-y-6 animate-fade-in pb-20">
       {/* HEADER */}
-      <div className="flex flex-col md:flex-row justify-between items-end gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-          <div>
-            <h1 className="text-2xl font-black text-slate-800">Gestão Financeira</h1>
+      <div className="flex flex-col items-start gap-4 bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm">
+          <div className="w-full">
+            <h1 className="text-xl sm:text-2xl font-black text-slate-800">Gestão Financeira</h1>
             <div className="flex gap-2 mt-2">
                 <button onClick={() => setModoData('mes')} className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${modoData === 'mes' ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>Por Mês</button>
                 <button onClick={() => setModoData('periodo')} className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${modoData === 'periodo' ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>Personalizado</button>
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-3 items-center">
+          <div className="flex flex-wrap gap-3 items-center w-full">
               {modoData === 'mes' ? (
                   <div className="flex items-center gap-2 bg-slate-50 p-2 rounded-xl border border-slate-200">
                       <Calendar size={18} className="text-slate-400"/>
@@ -406,12 +406,12 @@ export default function Financeiro() {
                   </div>
               )}
               <button onClick={imprimirRelatorio} className="bg-white border border-slate-200 text-slate-600 p-2.5 rounded-xl hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-colors" title="Imprimir Relatório"><Printer size={20}/></button>
-              <button onClick={abrirNovoLancamento} className="bg-blue-600 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-blue-700 flex items-center gap-2 text-sm shadow-lg shadow-blue-200 transition-all active:scale-95"><Plus size={18}/> Novo Lançamento</button>
+              <button onClick={abrirNovoLancamento} className="bg-blue-600 text-white px-4 sm:px-5 py-2.5 rounded-xl font-bold hover:bg-blue-700 flex items-center gap-2 text-sm shadow-lg shadow-blue-200 transition-all active:scale-95"><Plus size={18}/> Novo Lançamento</button>
           </div>
       </div>
 
       {/* CARDS */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
           <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm">
               <div className="flex justify-between items-start mb-3"><div className="p-2 bg-green-50 text-green-600 rounded-xl"><TrendingUp size={20}/></div><span className="text-[10px] font-bold text-green-700 bg-green-50 px-2 py-1 rounded-lg border border-green-100">+ Entradas</span></div>
               <p className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">Faturamento</p>

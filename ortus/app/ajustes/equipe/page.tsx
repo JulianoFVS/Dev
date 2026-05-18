@@ -171,20 +171,20 @@ export default function EquipePage() {
     }
 
     return (
-        <div className="p-6 md:p-10 max-w-6xl mx-auto">
-            <div className="flex items-center justify-between mb-8">
+        <div className="p-4 sm:p-6 md:p-10 max-w-6xl mx-auto">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
                 <div>
                     <div className="flex items-center gap-2 text-[10px] font-black text-blue-500 uppercase tracking-wider mb-1">
                         <Users size={14} /> Ajustes
                     </div>
-                    <h1 className="text-3xl font-extrabold text-slate-800">Equipe</h1>
+                    <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-800">Equipe</h1>
                     <p className="text-sm text-slate-500 mt-1">
                         {totalAtivos} {totalAtivos === 1 ? 'profissional' : 'profissionais'} com acesso ao sistema
                     </p>
                 </div>
                 <button
                     onClick={abrirModal}
-                    className="flex items-center gap-2 px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-lg shadow-blue-200 active:scale-95 transition-all"
+                    className="flex items-center justify-center gap-2 px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-lg shadow-blue-200 active:scale-95 transition-all text-sm sm:text-base w-full sm:w-auto"
                 >
                     <UserPlus size={18} /> Adicionar funcionário
                 </button>
@@ -192,13 +192,14 @@ export default function EquipePage() {
 
             {/* Lista */}
             <div className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
-                <table className="w-full">
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[540px]">
                     <thead className="bg-slate-50">
                         <tr className="text-[10px] font-black uppercase tracking-wider text-slate-400">
-                            <th className="text-left px-5 py-3">Nome</th>
-                            <th className="text-left px-5 py-3">Cargo</th>
-                            <th className="text-left px-5 py-3">Unidades</th>
-                            <th className="text-left px-5 py-3">Status</th>
+                            <th className="text-left px-3 sm:px-5 py-3">Nome</th>
+                            <th className="text-left px-3 sm:px-5 py-3">Cargo</th>
+                            <th className="text-left px-3 sm:px-5 py-3">Unidades</th>
+                            <th className="text-left px-3 sm:px-5 py-3 whitespace-nowrap">Status</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -248,6 +249,7 @@ export default function EquipePage() {
                         )}
                     </tbody>
                 </table>
+              </div>
             </div>
 
             {/* Modal de criação */}
