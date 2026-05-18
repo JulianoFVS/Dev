@@ -501,7 +501,7 @@ export default function KanbanProtesesInteligente() {
   }
 
   return (
-    <div className="h-[calc(100vh-100px)] w-full max-w-full min-w-0 flex flex-col gap-4 overflow-hidden pb-2 animate-in fade-in slide-in-from-bottom-2 duration-500">
+    <div className="sm:h-[calc(100vh-100px)] w-full max-w-full min-w-0 flex flex-col gap-4 sm:overflow-hidden pb-2 animate-in fade-in slide-in-from-bottom-2 duration-500">
       <div className="sticky top-0 z-20 bg-white rounded-3xl border border-slate-200 shadow-sm p-5 grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center gap-4 shrink-0 w-full max-w-full min-w-0">
         <div>
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-pink-50 text-pink-700 text-[10px] font-black uppercase tracking-wider mb-2">
@@ -606,20 +606,20 @@ export default function KanbanProtesesInteligente() {
         </div>
       </div>
 
-      <div className="flex-1 bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden min-h-0 w-full max-w-full min-w-0">
+      <div className="flex-1 bg-white rounded-2xl sm:rounded-3xl border border-slate-200 shadow-sm sm:overflow-hidden min-h-0 w-full max-w-full min-w-0">
         {loading ? (
           <div className="h-full flex items-center justify-center text-slate-400 font-bold gap-2">
             <Loader2 className="animate-spin text-pink-600" /> Carregando produção...
           </div>
         ) : (
-          <div className="h-full w-full max-w-full min-w-0 overflow-x-auto overflow-y-hidden custom-scrollbar p-4">
-            <div className="flex gap-4 h-full min-w-max">
+          <div className="h-full w-full max-w-full min-w-0 overflow-x-auto sm:overflow-y-hidden overflow-y-auto custom-scrollbar p-3 sm:p-4">
+            <div className="flex flex-col sm:flex-row gap-4 sm:h-full sm:min-w-max">
               {columns.map((column) => {
                 const columnCards = cardsByColumn(column.id);
                 const isTrialColumn = column.id === provaClinicaColumn?.id;
 
                 return (
-                  <section key={column.id} className={`w-80 flex-none h-full rounded-3xl border flex flex-col min-h-0 ${COLUMN_NEUTRAL}`}>
+                  <section key={column.id} className={`w-full sm:w-80 sm:flex-none sm:h-full rounded-3xl border flex flex-col min-h-0 ${COLUMN_NEUTRAL}`}>
                     <div className="p-4 border-b border-white/60 flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <h2 className="font-black text-xs uppercase tracking-wider text-slate-800 truncate">{column.titulo}</h2>
