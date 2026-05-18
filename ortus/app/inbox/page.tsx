@@ -50,7 +50,16 @@ export default function Inbox() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6 animate-fade-in pb-20">
-      <div className="flex flex-col md:flex-row justify-between items-end gap-4 mb-2"><div><h2 className="text-2xl font-black text-slate-800 tracking-tight">Central de Avisos</h2><p className="text-slate-500 text-sm">Fique por dentro do que acontece na clínica.</p></div><div className="flex bg-white p-1 rounded-xl shadow-sm border border-slate-200"><button onClick={() => setAbaAtiva('alertas')} className={`px-6 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all ${abaAtiva === 'alertas' ? 'bg-blue-50 text-blue-700 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}><Bell size={16}/> Notificações</button><button onClick={() => setAbaAtiva('mensagens')} className={`px-6 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all ${abaAtiva === 'mensagens' ? 'bg-purple-50 text-purple-700 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}><Mail size={16}/> Mensagens</button></div></div>
+      <div className="flex flex-col items-center md:flex-row md:justify-between md:items-end gap-4 mb-2">
+        <div className="text-center md:text-left">
+          <h2 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight">Central de Avisos</h2>
+          <p className="text-slate-500 text-sm">Fique por dentro do que acontece na clínica.</p>
+        </div>
+        <div className="flex bg-white p-1 rounded-xl shadow-sm border border-slate-200">
+          <button onClick={() => setAbaAtiva('alertas')} className={`px-4 sm:px-6 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all ${abaAtiva === 'alertas' ? 'bg-blue-50 text-blue-700 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}><Bell size={16}/> Notificações</button>
+          <button onClick={() => setAbaAtiva('mensagens')} className={`px-4 sm:px-6 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all ${abaAtiva === 'mensagens' ? 'bg-purple-50 text-purple-700 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}><Mail size={16}/> Mensagens</button>
+        </div>
+      </div>
       <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden min-h-[400px]">
         {listaAtual.length === 0 && (<div className="h-full flex flex-col items-center justify-center py-20 text-center"><h3 className="text-slate-800 font-bold">Tudo limpo!</h3></div>)}
         <div className="divide-y divide-slate-100">{listaAtual.map((n:any) => (<div key={n.id} className="p-5 flex gap-4"><div className="mt-1 bg-white p-2 rounded-xl border">{getIcon(n.tipo)}</div><div className="flex-1"><h4>{n.titulo}</h4><p>{n.mensagem}</p></div><div className="flex gap-2"><button onClick={() => marcarLida(n.id)}><CheckSquare size={18}/></button><button onClick={() => excluir(n.id)}><Trash2 size={18}/></button></div></div>))}</div>

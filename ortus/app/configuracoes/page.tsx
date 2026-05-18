@@ -494,11 +494,11 @@ export default function Configuracoes() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto pb-20 space-y-8 animate-fade-in">
+    <div className="max-w-6xl mx-auto pb-20 space-y-6 sm:space-y-8 animate-fade-in">
       
       <div>
-          <h1 className="text-3xl font-black text-slate-800">Configurações</h1>
-          <p className="text-slate-500 font-medium">Gerencie suas unidades e equipe completa.</p>
+          <h1 className="text-2xl sm:text-3xl font-black text-slate-800">Configurações</h1>
+          <p className="text-slate-500 text-sm font-medium">Gerencie suas unidades e equipe completa.</p>
       </div>
 
       <div className="flex gap-4 border-b border-slate-200">
@@ -541,9 +541,9 @@ export default function Configuracoes() {
             {abaAtiva === 'equipe' && (perfilCaller?.nivel_acesso === 'admin' || perfilCaller?.is_super_admin) && (
                 <div className="space-y-6 animate-in slide-in-from-right-4">
                     <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
-                        <div className="flex justify-between items-center mb-6">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
                             <h3 className="font-bold text-slate-700 text-lg">Profissionais</h3>
-                            <button onClick={abrirNovoProf} className="bg-green-600 text-white px-4 py-2 rounded-xl font-bold text-sm hover:bg-green-700 flex items-center gap-2 shadow-lg shadow-green-200"><UserPlus size={16}/> Adicionar Profissional</button>
+                            <button onClick={abrirNovoProf} className="bg-green-600 text-white px-3 py-2 rounded-xl font-bold text-xs sm:text-sm hover:bg-green-700 flex items-center gap-2 shadow-sm"><UserPlus size={14}/> Adicionar</button>
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -731,8 +731,8 @@ export default function Configuracoes() {
                         <p className="text-xs text-slate-400 mb-4">Categorias usadas no módulo Financeiro. Você também pode criar novas direto na tela de novo lançamento.</p>
 
                         <div className="flex gap-2 mb-4">
-                            <input value={novaCatFin} onChange={e => setNovaCatFin(e.target.value)} onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), adicionarCatFin())} placeholder="Nome da nova categoria..." className="flex-1 p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium"/>
-                            <button onClick={adicionarCatFin} disabled={!novaCatFin.trim()} className="px-4 py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 disabled:opacity-40 flex items-center gap-2"><Plus size={16}/> Adicionar</button>
+                            <input value={novaCatFin} onChange={e => setNovaCatFin(e.target.value)} onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), adicionarCatFin())} placeholder="Nome da nova categoria..." className="flex-1 min-w-0 p-2.5 sm:p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-sm"/>
+                            <button onClick={adicionarCatFin} disabled={!novaCatFin.trim()} className="px-3 sm:px-4 py-2.5 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 disabled:opacity-40 flex items-center gap-1.5 text-xs sm:text-sm shrink-0"><Plus size={14}/> Adicionar</button>
                         </div>
 
                         <div className="grid grid-cols-2 md:grid-cols-3 gap-2">

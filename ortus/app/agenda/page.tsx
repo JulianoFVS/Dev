@@ -379,9 +379,9 @@ export default function Agenda() {
         .fc { font-family: inherit; }
         .fc-header-toolbar { margin-bottom: 1.25rem !important; }
         .fc-toolbar-title { font-size: 1.25rem !important; font-weight: 800 !important; color: #1e293b; text-transform: capitalize; }
-        .fc-button { background-color: white !important; color: #475569 !important; border: 1px solid #e2e8f0 !important; font-weight: 600 !important; font-size: 0.875rem !important; padding: 0.5rem 1rem !important; box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05); text-transform: capitalize; transition: all 0.2s; }
+        .fc-button { background-color: white !important; color: #475569 !important; border: 1px solid #e2e8f0 !important; font-weight: 600 !important; font-size: 0.875rem !important; padding: 0.5rem 1rem !important; box-shadow: none; text-transform: capitalize; transition: all 0.2s; }
         .fc-button:hover { background-color: #eff6ff !important; color: #1d4ed8 !important; border-color: #bfdbfe !important; }
-        .fc-button-active { background: linear-gradient(135deg, #3b82f6, #2563eb) !important; color: white !important; border-color: #2563eb !important; box-shadow: 0 2px 6px rgba(37, 99, 235, 0.35) !important; }
+        .fc-button-active { background: #2563eb !important; color: white !important; border-color: #2563eb !important; box-shadow: none !important; }
         .fc-today-button { background: linear-gradient(135deg, #f0fdf4, #dcfce7) !important; color: #15803d !important; border-color: #bbf7d0 !important; }
         .fc-today-button:hover:not(:disabled) { background: linear-gradient(135deg, #dcfce7, #bbf7d0) !important; }
         .fc-button-primary:focus { box-shadow: 0 0 0 3px rgba(59,130,246,0.35) !important; }
@@ -436,7 +436,7 @@ export default function Agenda() {
       <div className="space-y-3">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-slate-200 gap-3 sm:gap-4">
             <div className="flex items-center gap-3 flex-1 min-w-0">
-                <div className="bg-gradient-to-br from-blue-500 to-blue-600 p-2 sm:p-2.5 rounded-xl text-white shadow-md shrink-0"><CalIcon size={20}/></div>
+                <div className="hidden sm:flex bg-gradient-to-br from-blue-500 to-blue-600 p-2.5 rounded-xl text-white shadow-md shrink-0 items-center justify-center"><CalIcon size={20}/></div>
                 <div className="flex-1 min-w-0">
                     <h1 className="text-base sm:text-lg font-black text-slate-800 leading-tight">Agenda</h1>
                     {(() => {
@@ -450,11 +450,11 @@ export default function Agenda() {
                                 ? 'bg-amber-50 border-amber-300 text-amber-800'
                                 : 'bg-blue-50 border-blue-200 text-blue-700';
                         return (
-                            <div className={`mt-1 inline-flex items-center gap-2 pl-2.5 pr-1 py-1 rounded-lg border text-xs font-bold ${wrap}`}>
-                                <Building2 size={12}/>
+                            <div className={`mt-1 inline-flex items-center gap-1.5 sm:gap-2 pl-2 sm:pl-2.5 pr-1 py-1 rounded-lg border text-xs font-bold ${wrap}`}>
+                                <Building2 size={12} className="hidden sm:inline"/>
                                 <span className="hidden sm:inline">Filtro:</span>
-                                <select value={clinicaFiltro} onChange={e => setClinicaFiltro(e.target.value)} className="bg-transparent outline-none font-black cursor-pointer pr-2">
-                                    <option value="todas">🌐 Todas as Clínicas</option>
+                                <select value={clinicaFiltro} onChange={e => setClinicaFiltro(e.target.value)} className="bg-transparent outline-none font-black cursor-pointer text-xs border-none">
+                                    <option value="todas">Todas as Clínicas</option>
                                     {clinicas.map((c:any) => <option key={c.id} value={c.id}>{c.nome}</option>)}
                                 </select>
                                 {divergente && <span className="text-[10px] font-black uppercase bg-rose-600 text-white px-1.5 py-0.5 rounded">≠ {cGlobal?.nome || 'global'}</span>}
@@ -497,7 +497,7 @@ export default function Agenda() {
           <FullCalendar ref={calendarRef} plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, listPlugin]} initialView="timeGridWeek" headerToolbar={{ left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,timeGridDay,listWeek' }} buttonText={{ today: 'Hoje', month: 'Mês', week: 'Semana', day: 'Dia', list: 'Lista' }} locale={ptBrLocale} slotMinTime="07:00:00" slotMaxTime="20:00:00" allDaySlot={false} events={events} eventContent={renderEventContent} dateClick={handleDateClick} eventClick={handleEventClick} height="100%" slotDuration="00:30:00" dayHeaderFormat={{ weekday: 'short', day: 'numeric' }} nowIndicator={true} navLinks={true} />
         </div>
         <div className="sm:hidden h-full">
-          <FullCalendar ref={calendarRef} plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, listPlugin]} initialView="listWeek" headerToolbar={{ left: 'prev,next', center: 'title', right: 'timeGridDay,listWeek' }} buttonText={{ today: 'Hoje', day: 'Dia', list: 'Lista' }} locale={ptBrLocale} slotMinTime="07:00:00" slotMaxTime="20:00:00" allDaySlot={false} events={events} eventContent={renderEventContent} dateClick={handleDateClick} eventClick={handleEventClick} height="100%" slotDuration="00:30:00" dayHeaderFormat={{ weekday: 'short', day: 'numeric' }} nowIndicator={true} navLinks={true} />
+          <FullCalendar ref={calendarRef} plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, listPlugin]} initialView="listWeek" headerToolbar={{ left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridDay,listWeek' }} buttonText={{ today: 'Hoje', month: 'Mês', day: 'Dia', list: 'Lista' }} titleFormat={{ year: 'numeric', month: 'long' }} locale={ptBrLocale} slotMinTime="07:00:00" slotMaxTime="20:00:00" allDaySlot={false} events={events} eventContent={renderEventContent} dateClick={handleDateClick} eventClick={handleEventClick} height="100%" slotDuration="00:30:00" dayHeaderFormat={{ weekday: 'short', day: 'numeric' }} nowIndicator={true} navLinks={true} />
         </div>
       </div>
       
@@ -514,7 +514,7 @@ export default function Agenda() {
                           <div>
                               <label className="text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-1">
                                   Clínica
-                                  {clinicaFiltro !== 'todas' && <span className="text-[9px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded normal-case">🔒 Travada no filtro</span>}
+                                  {clinicaFiltro !== 'todas' && <span className="text-[9px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded normal-case">Travada no filtro</span>}
                               </label>
                               <select
                                   value={formData.clinica_id}
@@ -545,7 +545,7 @@ export default function Agenda() {
                               <label className="text-xs font-bold text-slate-500 uppercase">Procedimento</label>
                               <button type="button" onClick={() => setModalNovoServico(true)} className="text-[10px] font-bold text-purple-600 hover:underline flex items-center gap-1 uppercase"><FilePlus size={12}/> Novo Serviço</button>
                           </div>
-                          <select onChange={(e) => { const s = servicos.find((x:any) => x.id == e.target.value); if(s) setFormData(p => ({...p, title: s.nome, valor: s.valor, theme: s.cor || 'blue'})) }} className="w-full p-2.5 mb-2 bg-blue-50 border border-blue-100 text-blue-700 rounded-lg text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer"><option value="">✨ Selecionar Catálogo...</option>{servicos.map((s:any) => <option key={s.id} value={s.id}>{s.nome} - R$ {s.valor}</option>)}</select>
+                          <select onChange={(e) => { const s = servicos.find((x:any) => x.id == e.target.value); if(s) setFormData(p => ({...p, title: s.nome, valor: s.valor, theme: s.cor || 'blue'})) }} className="w-full p-2.5 mb-2 bg-blue-50 border border-blue-100 text-blue-700 rounded-lg text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer"><option value="">Selecionar Catálogo...</option>{servicos.map((s:any) => <option key={s.id} value={s.id}>{s.nome} - R$ {s.valor}</option>)}</select>
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200/60">
                           <div>
