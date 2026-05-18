@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { CheckCircle, Clock, DollarSign, Loader2, Save, Smile, User } from 'lucide-react';
+import { Calendar, CheckCircle, Clock, DollarSign, Loader2, Save, Smile, User } from 'lucide-react';
 
 export type TreatmentPatient = {
   id: string | number;
@@ -27,6 +27,8 @@ export default function TreatmentForm({ paciente, onSuccess, onCancel }: Treatme
     valor: '0',
     status: 'planejado' as 'planejado' | 'concluido',
     data: new Date().toISOString().split('T')[0],
+    horario: '',
+    agendar: false,
     observacoes: '',
   });
 
@@ -74,12 +76,30 @@ export default function TreatmentForm({ paciente, onSuccess, onCancel }: Treatme
       .update({ ficha_medica: novaFicha })
       .eq('id', paciente.id);
 
-    setSaving(false);
-
     if (updateError) {
+      setSaving(false);
       setError(updateError.message);
       return;
     }
+
+    // Auto-agendar na agenda se toggle ativo
+    if (form.agendar && form.horario) {
+      const dataHora = new Date(`${form.data}T${form.horario}:00`);
+      await supabase.from('agendamentos').insert([{
+        paciente_id: paciente.id,
+        data_hora: dataHora.toISOString(),
+        procedimento: form.procedimento.trim(),
+        valor: parseFloat(form.valor) || 0,
+        valor_final: parseFloat(form.valor) || 0,
+        status: 'agendado',
+        observacoes: form.observacoes.trim() || null,
+      }]);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('ortus:agenda-changed'));
+      }
+    }
+
+    setSaving(false);
 
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('ortus:tratamento-changed', { detail: { pacienteId: paciente.id } }));
@@ -146,6 +166,29 @@ export default function TreatmentForm({ paciente, onSuccess, onCancel }: Treatme
               <CheckCircle size={14} /> Concluído
             </button>
           </div>
+        </div>
+
+        <div className={`p-4 rounded-2xl border transition-all ${form.agendar ? 'border-blue-200 bg-blue-50/50' : 'border-slate-200 bg-slate-50'}`}>
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <Calendar size={14} className={form.agendar ? 'text-blue-600' : 'text-slate-400'} />
+              <p className="text-[11px] font-black uppercase tracking-wider text-slate-500">Agendar na Agenda</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setForm({ ...form, agendar: !form.agendar })}
+              className={`relative w-10 h-5 rounded-full transition-colors ${form.agendar ? 'bg-blue-600' : 'bg-slate-300'}`}
+            >
+              <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${form.agendar ? 'translate-x-5' : 'translate-x-0'}`} />
+            </button>
+          </div>
+          {form.agendar && (
+            <div className="mt-3 animate-in fade-in slide-in-from-top-1">
+              <label className="text-[11px] font-black uppercase tracking-wider text-slate-500 mb-1.5 flex items-center gap-1"><Clock size={12} /> Horário</label>
+              <input type="time" value={form.horario} onChange={(e) => setForm({ ...form, horario: e.target.value })} className="w-full p-3 rounded-2xl bg-white border border-blue-200 font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500" />
+              <p className="text-[10px] text-blue-600 font-medium mt-1.5">O tratamento será registrado e agendado automaticamente na data/hora escolhida.</p>
+            </div>
+          )}
         </div>
 
         <div>
