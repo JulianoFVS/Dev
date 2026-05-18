@@ -5,14 +5,14 @@ import { useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { usePatientSlideOver } from '@/components/PatientSlideOver';
 import { useClinica } from '@/app/context/ClinicaContext';
-import { AlertTriangle, Check, CheckCircle2, ChevronDown, ChevronRight, ClipboardList, Edit3, Filter, FlaskConical, GripVertical, Loader2, Package, Plus, Search, Smile, Sparkles, Trash2, Truck, Wrench, X } from 'lucide-react';
+import { AlertTriangle, Check, CheckCircle2, ChevronDown, ChevronRight, CircleDot, ClipboardList, Edit3, Eye, Filter, FlaskConical, Gem, GripVertical, Heart, Loader2, Package, Paintbrush, Plus, Scissors, Search, Shield, Smile, Sparkles, Star, Trash2, Truck, Wrench, X, Zap } from 'lucide-react';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
 
 type ColumnTitle = 'Solicitado' | 'No Laboratório' | 'Em Prova Clínica' | 'Aguardando Ajuste' | 'Finalizado / Entregue';
 type Category = 'Removível' | 'Fixa' | '';
 type Position = 'Superior' | 'Inferior' | 'Ambas' | '';
 type ChecklistItem = { tarefa: string; feito: boolean };
-type Column = { id: number; titulo: string; ordem: number; clinica_id?: string | null };
+type Column = { id: number; titulo: string; ordem: number; clinica_id?: string | null; icone?: string | null; checklist_ativo?: boolean };
 type PatientOption = { id: string | number; nome: string; telefone?: string | null; clinica_id?: string | null };
 type StatusKey = 'espera' | 'lab' | 'clinica' | 'feito';
 type Card = {
@@ -160,15 +160,36 @@ export default function KanbanProtesesInteligente() {
   const [statusFilter, setStatusFilter] = useState<StatusKey[]>([]);
   const [flowDropdownOpen, setFlowDropdownOpen] = useState(false);
 
-  // Ícones padrão para colunas conhecidas; genérico para customizadas
-  const FLOW_ICONS: Record<string, React.ReactNode> = {
-    'Solicitado': <ClipboardList size={14} />,
-    'No Laboratório': <FlaskConical size={14} />,
-    'Em Prova Clínica': <Smile size={14} />,
-    'Aguardando Ajuste': <Wrench size={14} />,
-    'Finalizado / Entregue': <Truck size={14} />,
+  // Mapa de ícones por slug (persiste no DB como string)
+  const ICON_MAP: Record<string, React.ReactNode> = {
+    'clipboard-list': <ClipboardList size={14} />,
+    'flask-conical': <FlaskConical size={14} />,
+    'smile': <Smile size={14} />,
+    'wrench': <Wrench size={14} />,
+    'truck': <Truck size={14} />,
+    'package': <Package size={14} />,
+    'sparkles': <Sparkles size={14} />,
+    'heart': <Heart size={14} />,
+    'star': <Star size={14} />,
+    'zap': <Zap size={14} />,
+    'shield': <Shield size={14} />,
+    'eye': <Eye size={14} />,
+    'paintbrush': <Paintbrush size={14} />,
+    'scissors': <Scissors size={14} />,
+    'gem': <Gem size={14} />,
+    'circle-dot': <CircleDot size={14} />,
   };
-  function getFlowIcon(titulo: string) { return FLOW_ICONS[titulo] || <Package size={14} />; }
+  const ICON_PICKER_OPTIONS = Object.keys(ICON_MAP);
+
+  // Fallback para colunas padrão sem icone no DB
+  const DEFAULT_ICONS: Record<string, string> = {
+    'Solicitado': 'clipboard-list',
+    'No Laboratório': 'flask-conical',
+    'Em Prova Clínica': 'smile',
+    'Aguardando Ajuste': 'wrench',
+    'Finalizado / Entregue': 'truck',
+  };
+  function getColumnIcon(col: Column) { return ICON_MAP[col.icone || DEFAULT_ICONS[col.titulo] || 'package'] || <Package size={14} />; }
 
   const MAX_VISIBLE_FLOW = 5;
 
@@ -204,6 +225,7 @@ export default function KanbanProtesesInteligente() {
   }, [clinicId]);
 
   const provaClinicaColumn = columns.find((column) => column.titulo === 'Em Prova Clínica');
+  function isChecklistColumn(column: Column) { return column.checklist_ativo || column.id === provaClinicaColumn?.id; }
   const visibleTypes = form.categoria === 'Removível' ? REMOVABLE_TYPES : form.categoria === 'Fixa' ? FIXED_TYPES : [];
 
   const filteredPatients = useMemo(() => {
@@ -374,15 +396,22 @@ export default function KanbanProtesesInteligente() {
     loadBoard(clinicId);
   }
 
+  const [columnIcon, setColumnIcon] = useState<string>('package');
+  const [columnChecklist, setColumnChecklist] = useState(false);
+
   function openNewColumn() {
     setEditingColumn(null);
     setColumnTitle('');
+    setColumnIcon('package');
+    setColumnChecklist(false);
     setColumnModalOpen(true);
   }
 
   function openEditColumn(column: Column) {
     setEditingColumn(column);
     setColumnTitle(column.titulo);
+    setColumnIcon(column.icone || DEFAULT_ICONS[column.titulo] || 'package');
+    setColumnChecklist(column.checklist_ativo ?? false);
     setColumnModalOpen(true);
   }
 
@@ -391,9 +420,10 @@ export default function KanbanProtesesInteligente() {
     if (!title) return showToast('warning', 'Informe o nome do quadro.');
 
     setSaving(true);
+    const payload = { titulo: title, icone: columnIcon, checklist_ativo: columnChecklist };
     const { error } = editingColumn
-      ? await supabase.from('kanban_colunas').update({ titulo: title }).eq('id', editingColumn.id)
-      : await supabase.from('kanban_colunas').insert([{ titulo: title, ordem: columns.length + 1, clinica_id: clinicId }]);
+      ? await supabase.from('kanban_colunas').update(payload).eq('id', editingColumn.id)
+      : await supabase.from('kanban_colunas').insert([{ ...payload, ordem: columns.length + 1, clinica_id: clinicId }]);
     setSaving(false);
 
     if (error) return showToast('warning', 'Não foi possível salvar o quadro: ' + error.message);
@@ -628,27 +658,27 @@ export default function KanbanProtesesInteligente() {
       {!loading && columns.length > 0 && (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm shrink-0 w-full max-w-full min-w-0 px-5 py-3">
           <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2">Fluxo do Processo</p>
-          <div className="flex items-center gap-1 flex-wrap">
+          <div className="flex items-center gap-0">
             {columns.slice(0, MAX_VISIBLE_FLOW).map((col, idx) => {
               const count = cardsByColumn(col.id).length;
               return (
-                <div key={col.id} className="flex items-center">
+                <div key={col.id} className="flex items-center flex-1 min-w-0">
                   <button
                     onClick={() => document.getElementById(`coluna-${col.id}`)?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })}
-                    className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-black transition-all hover:bg-pink-50 hover:text-pink-700 text-slate-600 border border-transparent hover:border-pink-200 active:scale-95"
+                    className="flex items-center gap-2 w-full px-3 py-2 rounded-xl text-xs font-black transition-all hover:bg-pink-50 hover:text-pink-700 text-slate-600 border border-transparent hover:border-pink-200 active:scale-95 justify-center"
                   >
-                    <span className="w-7 h-7 rounded-lg bg-pink-50 text-pink-500 flex items-center justify-center">{getFlowIcon(col.titulo)}</span>
-                    <span className="hidden sm:inline">{col.titulo}</span>
-                    <span className="px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-400 text-[10px] font-black">{count}</span>
+                    <span className="w-7 h-7 rounded-lg bg-pink-50 text-pink-500 flex items-center justify-center shrink-0">{getColumnIcon(col)}</span>
+                    <span className="hidden sm:inline truncate">{col.titulo}</span>
+                    <span className="px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-400 text-[10px] font-black shrink-0">{count}</span>
                   </button>
-                  {idx < Math.min(columns.length, MAX_VISIBLE_FLOW) - 1 && <ChevronRight size={14} className="text-slate-300 mx-0.5 shrink-0" />}
+                  {idx < Math.min(columns.length, MAX_VISIBLE_FLOW) - 1 && <ChevronRight size={14} className="text-slate-300 shrink-0" />}
                 </div>
               );
             })}
 
             {/* Overflow: +N etapas dropdown */}
             {columns.length > MAX_VISIBLE_FLOW && (
-              <div className="relative ml-1">
+              <div className="relative shrink-0 ml-1">
                 <button
                   onClick={() => setFlowDropdownOpen(!flowDropdownOpen)}
                   className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black bg-pink-50 text-pink-600 border border-pink-200 hover:bg-pink-100 transition-all active:scale-95"
@@ -657,7 +687,7 @@ export default function KanbanProtesesInteligente() {
                   <ChevronDown size={13} className={`transition-transform ${flowDropdownOpen ? 'rotate-180' : ''}`} />
                 </button>
                 {flowDropdownOpen && (
-                  <div className="absolute top-full left-0 mt-2 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 min-w-[220px] py-2 animate-in fade-in slide-in-from-top-2">
+                  <div className="absolute top-full right-0 mt-2 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 min-w-[240px] py-2 animate-in fade-in slide-in-from-top-2">
                     <p className="px-4 py-1.5 text-[10px] font-black uppercase tracking-wider text-slate-400">Etapas do Fluxo ({columns.length} no total)</p>
                     {columns.slice(MAX_VISIBLE_FLOW).map((col, idx) => {
                       const count = cardsByColumn(col.id).length;
@@ -668,9 +698,9 @@ export default function KanbanProtesesInteligente() {
                           className="w-full text-left px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-pink-50 hover:text-pink-700 flex items-center gap-3 transition-colors"
                         >
                           <span className="text-[11px] font-black text-slate-400 w-5">{MAX_VISIBLE_FLOW + idx + 1}</span>
-                          <span className="w-6 h-6 rounded-lg bg-pink-50 text-pink-500 flex items-center justify-center shrink-0">{getFlowIcon(col.titulo)}</span>
-                          {col.titulo}
-                          <span className="ml-auto px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-400 text-[10px] font-black">{count}</span>
+                          <span className="w-6 h-6 rounded-lg bg-pink-50 text-pink-500 flex items-center justify-center shrink-0">{getColumnIcon(col)}</span>
+                          <span className="truncate">{col.titulo}</span>
+                          <span className="ml-auto px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-400 text-[10px] font-black shrink-0">{count}</span>
                         </button>
                       );
                     })}
@@ -692,7 +722,7 @@ export default function KanbanProtesesInteligente() {
             <div className="flex flex-col sm:flex-row gap-4 sm:h-full sm:min-w-max">
               {columns.map((column) => {
                 const columnCards = cardsByColumn(column.id);
-                const isTrialColumn = column.id === provaClinicaColumn?.id;
+                const hasChecklist = isChecklistColumn(column);
 
                 return (
                   <section key={column.id} id={`coluna-${column.id}`} className={`w-full sm:w-80 sm:flex-none sm:h-full rounded-3xl border flex flex-col min-h-0 ${COLUMN_NEUTRAL}`}>
@@ -702,7 +732,7 @@ export default function KanbanProtesesInteligente() {
                         <p className="text-[11px] font-bold opacity-70 mt-1">{columnCards.length} pedido(s)</p>
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
-                        {isTrialColumn && <span className="text-[10px] font-black px-2 py-1 rounded-lg bg-white/80 text-violet-700">Checklist</span>}
+                        {hasChecklist && <span className="text-[10px] font-black px-2 py-1 rounded-lg bg-white/80 text-violet-700">Checklist</span>}
                         <button onClick={() => openEditColumn(column)} className="p-1.5 rounded-lg bg-white/60 text-slate-400 hover:text-blue-600 hover:bg-white transition-colors" title="Editar quadro">
                           <Edit3 size={13} />
                         </button>
@@ -734,7 +764,7 @@ export default function KanbanProtesesInteligente() {
                             setDragOverColumn(null);
                           }}
                           onClick={() => openEditOrder(card)}
-                          className={`bg-white border rounded-2xl shadow-sm hover:shadow-lg hover:ring-2 ${tokens.ring} transition-all cursor-pointer active:cursor-grabbing group ${tokens.cardBorder} ${draggedCard?.id === card.id ? 'opacity-50 scale-95 border-dashed border-slate-400' : 'border-slate-200'} ${isTrialColumn ? 'p-4' : 'p-3'}`}
+                          className={`bg-white border rounded-2xl shadow-sm hover:shadow-lg hover:ring-2 ${tokens.ring} transition-all cursor-pointer active:cursor-grabbing group ${tokens.cardBorder} ${draggedCard?.id === card.id ? 'opacity-50 scale-95 border-dashed border-slate-400' : 'border-slate-200'} ${hasChecklist ? 'p-4' : 'p-3'}`}
                           title="Clique para editar · Arraste para mover"
                         >
                           <div className="flex items-start justify-between gap-2 mb-3">
@@ -775,7 +805,7 @@ export default function KanbanProtesesInteligente() {
                             </div>
                           </div>
 
-                          {isTrialColumn ? (
+                          {hasChecklist ? (
                             <div className="space-y-2 rounded-2xl bg-violet-50/60 border border-violet-100 p-3" onClick={(e) => e.stopPropagation()}>
                               <p className="text-[10px] font-black uppercase tracking-wider text-violet-700">Provas clínicas</p>
                               {(Array.isArray(card.checklist) && card.checklist.length ? card.checklist : buildChecklist(card.tipo_protese || '')).map((item, index) => (
@@ -947,21 +977,54 @@ export default function KanbanProtesesInteligente() {
 
       {columnModalOpen && (
         <div className="fixed inset-0 z-[86] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-200">
-            <div className="p-5 border-b border-slate-100 flex items-start justify-between gap-4">
+          <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-200 flex flex-col max-h-[85vh]">
+            <div className="p-5 border-b border-slate-100 flex items-start justify-between gap-4 shrink-0">
               <div>
                 <p className="text-[10px] font-black uppercase tracking-wider text-pink-600">{editingColumn ? 'Editar quadro' : 'Novo quadro'}</p>
-                <h2 className="text-xl font-black text-slate-900">{editingColumn ? 'Renomear etapa' : 'Criar nova etapa'}</h2>
+                <h2 className="text-xl font-black text-slate-900">{editingColumn ? 'Configurar etapa' : 'Criar nova etapa'}</h2>
               </div>
               <button onClick={() => setColumnModalOpen(false)} className="p-2 rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"><X size={20} /></button>
             </div>
 
-            <div className="p-5">
-              <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Nome do quadro</label>
-              <input autoFocus value={columnTitle} onChange={(event) => setColumnTitle(event.target.value)} className="mt-2 w-full p-3 rounded-2xl bg-slate-50 border border-slate-200 font-bold outline-none focus:ring-2 focus:ring-pink-500" placeholder="Ex: Ajuste final, Polimento..." />
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-5 space-y-5">
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Nome do quadro</label>
+                <input autoFocus value={columnTitle} onChange={(event) => setColumnTitle(event.target.value)} className="mt-2 w-full p-3 rounded-2xl bg-slate-50 border border-slate-200 font-bold outline-none focus:ring-2 focus:ring-pink-500" placeholder="Ex: Ajuste final, Polimento..." />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2 block">Ícone do quadro</label>
+                <div className="grid grid-cols-8 gap-1.5">
+                  {ICON_PICKER_OPTIONS.map((slug) => (
+                    <button
+                      key={slug}
+                      type="button"
+                      onClick={() => setColumnIcon(slug)}
+                      className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${columnIcon === slug ? 'bg-pink-600 text-white shadow-lg shadow-pink-200 scale-110' : 'bg-slate-50 text-slate-500 hover:bg-pink-50 hover:text-pink-600 border border-slate-100'}`}
+                      title={slug}
+                    >
+                      {ICON_MAP[slug]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between p-4 rounded-2xl border border-slate-200 bg-slate-50">
+                <div>
+                  <p className="font-black text-sm text-slate-800">Checklist clínico</p>
+                  <p className="text-xs text-slate-500 font-medium mt-0.5">Exibir checklist nos cards desta coluna</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setColumnChecklist(!columnChecklist)}
+                  className={`relative w-11 h-6 rounded-full transition-colors ${columnChecklist ? 'bg-violet-600' : 'bg-slate-300'}`}
+                >
+                  <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${columnChecklist ? 'translate-x-5' : 'translate-x-0'}`} />
+                </button>
+              </div>
             </div>
 
-            <div className="p-5 border-t border-slate-100 flex gap-3">
+            <div className="p-5 border-t border-slate-100 flex gap-3 shrink-0">
               <button onClick={() => setColumnModalOpen(false)} className="px-5 py-3 rounded-2xl bg-slate-100 text-slate-500 font-black hover:bg-slate-200 transition-colors">Cancelar</button>
               <button onClick={saveColumn} disabled={saving || !columnTitle.trim()} className="flex-1 px-5 py-3 rounded-2xl bg-slate-900 text-white font-black hover:bg-slate-800 disabled:bg-slate-100 disabled:text-slate-400 transition-colors">
                 {editingColumn ? 'Salvar Quadro' : 'Criar Quadro'}
