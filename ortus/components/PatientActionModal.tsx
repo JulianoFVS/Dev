@@ -33,7 +33,7 @@ type PatientData = {
   agendamentos?: Appointment[] | null;
 };
 
-type ActiveFlow = 'idle' | 'agendamento' | 'protese' | 'tratamento';
+type ActiveFlow = 'idle' | 'agendamento' | 'protese' | 'tratamento' | 'harmonizacao';
 
 const PatientActionModalContext = createContext<PatientActionModalContextValue | null>(null);
 
@@ -59,6 +59,7 @@ const FLOW_META: Record<Exclude<ActiveFlow, 'idle'>, { title: string; subtitle: 
   agendamento: { title: 'Novo Agendamento', subtitle: 'Reserve um horário sem sair da página.', gradient: 'from-blue-50 to-white' },
   protese: { title: 'Nova Prótese', subtitle: 'Pedido com checklist automático.', gradient: 'from-pink-50 to-white' },
   tratamento: { title: 'Novo Tratamento', subtitle: 'Registro rápido na ficha do paciente.', gradient: 'from-emerald-50 to-white' },
+  harmonizacao: { title: 'Nova Harmonização', subtitle: 'Abrir mapa facial HOF do paciente.', gradient: 'from-purple-50 to-white' },
 };
 
 export function PatientActionModalProvider({ children }: { children: React.ReactNode }) {
@@ -413,17 +414,25 @@ export function PatientActionModalProvider({ children }: { children: React.React
                     <button
                       onClick={() => setActiveFlow('protese')}
                       disabled={loading || !patient}
-                      className="p-4 rounded-3xl border-2 border-pink-100 bg-pink-50/40 text-pink-800 text-left hover:bg-pink-50 hover:border-pink-300 transition-all disabled:opacity-40 disabled:cursor-not-allowed sm:col-span-2"
+                      className="p-4 rounded-3xl border-2 border-pink-100 bg-pink-50/40 text-pink-800 text-left hover:bg-pink-50 hover:border-pink-300 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                     >
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-2xl bg-pink-600 text-white flex items-center justify-center shrink-0">
-                          <FileText size={18} />
-                        </div>
-                        <div>
-                          <p className="font-black text-sm">Nova Prótese</p>
-                          <p className="text-xs font-medium opacity-80 mt-0.5">Pedido em até 30 segundos.</p>
-                        </div>
+                      <div className="w-10 h-10 rounded-2xl bg-pink-600 text-white flex items-center justify-center mb-3">
+                        <FileText size={18} />
                       </div>
+                      <p className="font-black text-sm">Nova Prótese</p>
+                      <p className="text-xs font-medium opacity-80 mt-0.5">Pedido em 30 segundos.</p>
+                    </button>
+
+                    <button
+                      onClick={() => { if (patient) { router.push(`/pacientes/${patient.id}?tab=hof`); closePatientActions(); } }}
+                      disabled={loading || !patient}
+                      className="p-4 rounded-3xl border-2 border-purple-100 bg-purple-50/40 text-purple-800 text-left hover:bg-purple-50 hover:border-purple-300 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      <div className="w-10 h-10 rounded-2xl bg-purple-600 text-white flex items-center justify-center mb-3">
+                        <Sparkles size={18} />
+                      </div>
+                      <p className="font-black text-sm">Nova Harmonização</p>
+                      <p className="text-xs font-medium opacity-80 mt-0.5">Mapa facial HOF.</p>
                     </button>
                   </div>
                 </div>

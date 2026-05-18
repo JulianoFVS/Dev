@@ -174,3 +174,19 @@ input[type="time"] {
     appearance: none;
     -webkit-appearance: none;
 }
+
+/* ===== CUSTOM SCROLLBAR - Global (thin, slate) ===== */
+.custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: transparent; border-radius: 100px; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 100px; }
+.custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+/* ===== KANBAN SCROLLBAR - Rosa/Pink minimalista ===== */
+.kanban-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+.kanban-scrollbar::-webkit-scrollbar-track { background: #fdf2f8; border-radius: 100px; margin: 0 12px; }
+.kanban-scrollbar::-webkit-scrollbar-thumb { background: linear-gradient(135deg, #ec4899, #f472b6); border-radius: 100px; }
+.kanban-scrollbar::-webkit-scrollbar-thumb:hover { background: linear-gradient(135deg, #db2777, #ec4899); }
+
+/* Firefox scrollbar support */
+.custom-scrollbar { scrollbar-width: thin; scrollbar-color: #cbd5e1 transparent; }
+.kanban-scrollbar { scrollbar-width: thin; scrollbar-color: #ec4899 #fdf2f8; }
