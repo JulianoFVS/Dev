@@ -37,14 +37,14 @@ export default function TreatmentForm({ paciente, onSuccess, onCancel }: Treatme
     (async () => {
       const { data, error: fetchError } = await supabase
         .from('pacientes')
-        .select('ficha_medica')
+        .select('ficha_medica, clinica_id')
         .eq('id', paciente.id)
         .single();
       if (!mounted) return;
       if (fetchError) {
         setError(fetchError.message);
       } else {
-        setFichaMedica(data?.ficha_medica || {});
+        setFichaMedica({ ...(data?.ficha_medica || {}), _clinica_id: data?.clinica_id });
       }
       setLoadingDeps(false);
     })();
@@ -87,6 +87,7 @@ export default function TreatmentForm({ paciente, onSuccess, onCancel }: Treatme
       const dataHora = new Date(`${form.data}T${form.horario}:00`);
       await supabase.from('agendamentos').insert([{
         paciente_id: paciente.id,
+        clinica_id: fichaMedica?._clinica_id || null,
         data_hora: dataHora.toISOString(),
         procedimento: form.procedimento.trim(),
         valor: parseFloat(form.valor) || 0,
