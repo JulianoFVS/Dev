@@ -254,6 +254,19 @@ export default function Tarefas() {
         }
     }
 
+    function getStatusCor(status: string) {
+        switch (status) {
+            case 'a_fazer':
+                return 'bg-slate-100 text-slate-700 border-slate-200';
+            case 'em_andamento':
+                return 'bg-blue-50 text-blue-700 border-blue-200';
+            case 'concluido':
+                return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+            default:
+                return 'bg-slate-100 text-slate-600 border-slate-200';
+        }
+    }
+
     return (
         <div className="max-w-7xl mx-auto space-y-6 pb-20 animate-fade-in">
             {/* Header */}
@@ -403,9 +416,14 @@ export default function Tarefas() {
                                         <h3 className={`font-bold text-slate-800 ${t.status === 'concluido' ? 'line-through text-slate-400' : ''}`}>
                                             {t.titulo}
                                         </h3>
-                                        <span className={`text-[10px] font-black uppercase px-2 py-1 rounded-full border ${getPrioridadeCor(t.prioridade)}`}>
-                                            {t.prioridade}
-                                        </span>
+                                        <div className="flex items-center gap-2">
+                                            <span className={`text-[10px] font-black uppercase px-2 py-1 rounded-full border ${getPrioridadeCor(t.prioridade)}`}>
+                                                {t.prioridade}
+                                            </span>
+                                            <span className={`text-[10px] font-black uppercase px-2 py-1 rounded-full border ${getStatusCor(t.status)}`}>
+                                                {getStatusLabel(t.status)}
+                                            </span>
+                                        </div>
                                     </div>
                                     
                                     {t.descricao && (

@@ -108,7 +108,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
                 setMinhasClinicas(listaCompleta);
                 const salva = localStorage.getItem('ortus_clinica_id');
                 const atual = listaCompleta.find((c: any) => c.id.toString() === salva) || todasOption;
-                setClinicaAtual(atual);
+                persistirClinicaSelecionada(atual);
                 
                 // Só salva se não tiver nada (para respeitar a escolha do usuário na tela de seleção)
                 if (!salva) localStorage.setItem('ortus_clinica_id', atual.id.toString());
@@ -151,11 +151,22 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
       }
   }
 
+  function persistirClinicaSelecionada(clinica: any) {
+      const normalizedId = clinica?.id === 'todas' || clinica?.id === 'all'
+          ? 'all'
+          : String(clinica.id);
+      const normalizedInfo = normalizedId === 'all'
+          ? { id: 'todas', nome: 'Todas as Clínicas' }
+          : clinica;
+
+      setClinicaAtual(normalizedInfo);
+      localStorage.setItem('ortus_clinica_id', normalizedId);
+      setActiveClinicById(normalizedId);
+  }
+
   function trocarClinica(clinica: any) {
-      setClinicaAtual(clinica);
-      localStorage.setItem('ortus_clinica_id', clinica.id.toString());
+      persistirClinicaSelecionada(clinica);
       setMenuClinicaAberto(false);
-      window.location.reload();
   }
 
   async function handleLogout() {
@@ -300,7 +311,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
                         <div className="absolute top-full left-0 mt-2 w-72 bg-white border border-slate-100 rounded-2xl shadow-2xl z-40 overflow-hidden animate-in fade-in slide-in-from-top-2">
                             <p className="px-4 py-2 text-[10px] font-bold text-slate-400 uppercase bg-slate-50 border-b border-slate-100">Trocar Unidade</p>
                             <button
-                                onClick={() => { setActiveClinicById('all'); setHeaderSwitchOpen(false); window.location.reload(); }}
+                                onClick={() => { persistirClinicaSelecionada({ id: 'todas', nome: 'Todas as Clínicas' }); setHeaderSwitchOpen(false); }}
                                 className="w-full text-left px-4 py-3 text-sm font-bold text-slate-700 hover:bg-purple-50 hover:text-purple-700 flex items-center justify-between border-b border-slate-50"
                             >
                                 <div className="flex items-center gap-2"><Globe size={16}/> Todas as Clínicas</div>
@@ -312,7 +323,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
                             {ctxClinics.map((c: any) => (
                                 <button
                                     key={c.id}
-                                    onClick={() => { setActiveClinicById(String(c.id)); setHeaderSwitchOpen(false); window.location.reload(); }}
+                                    onClick={() => { persistirClinicaSelecionada(c); setHeaderSwitchOpen(false); }}
                                     className="w-full text-left px-4 py-3 text-sm font-bold text-slate-700 hover:bg-blue-50 hover:text-blue-700 flex items-center justify-between"
                                 >
                                     <div className="min-w-0">
