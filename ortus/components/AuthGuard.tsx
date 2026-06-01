@@ -10,7 +10,8 @@ import Omnibar from '@/components/Omnibar';
 import { 
     LayoutDashboard, Users, LogOut, Calendar, Menu, X, DollarSign, 
     Settings, Building2, Bell, Mail, User, ChevronRight, ChevronsUpDown, 
-    Check, Smile, ChevronLeft, Globe, ShieldCheck, ShieldAlert, Search, BarChart3
+    Check, Smile, ChevronLeft, Globe, ShieldCheck, ShieldAlert, Search, BarChart3,
+    CheckSquare
 } from 'lucide-react';
 import { useClinica, getClinicLabel } from '@/app/context/ClinicaContext';
 
@@ -25,6 +26,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const [clinicaAtual, setClinicaAtual] = useState<any>(null);
   const [menuClinicaAberto, setMenuClinicaAberto] = useState(false);
   const [notificacoesCount, setNotificacoesCount] = useState(0);
+  const [tarefasPendentes, setTarefasPendentes] = useState(0);
   
   const router = useRouter();
   const pathname = usePathname();
@@ -110,12 +112,43 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
                 
                 // Só salva se não tiver nada (para respeitar a escolha do usuário na tela de seleção)
                 if (!salva) localStorage.setItem('ortus_clinica_id', atual.id.toString());
+
+                const clinicasIds = lista
+                    .map((c: any) => c.id)
+                    .filter((id: any) => id !== undefined && id !== null && id !== 'todas' && id !== 'all');
+                await atualizarBadgeTarefas(clinicasIds);
+            } else {
+                setTarefasPendentes(0);
             }
         }
         const { count } = await supabase.from('notificacoes').select('*', { count: 'exact', head: true }).eq('user_id', session.user.id).eq('lida', false);
         setNotificacoesCount(count || 0);
     }
     setLoading(false);
+  }
+
+  async function atualizarBadgeTarefas(clinicasIds: (string | number)[]) {
+      if (!clinicasIds || clinicasIds.length === 0) {
+          setTarefasPendentes(0);
+          return;
+      }
+      const hoje = new Date();
+      const tresDiasDepois = new Date(hoje.getTime() + 3 * 24 * 60 * 60 * 1000)
+          .toISOString()
+          .split('T')[0];
+      try {
+          const { count, error } = await supabase
+              .from('tarefas')
+              .select('*', { count: 'exact', head: true })
+              .in('clinica_id', clinicasIds as any)
+              .neq('status', 'concluido')
+              .lte('data_limite', tresDiasDepois);
+          if (error) throw error;
+          setTarefasPendentes(count || 0);
+      } catch (err) {
+          console.error('[AuthGuard] badge de tarefas', err);
+          setTarefasPendentes(0);
+      }
   }
 
   function trocarClinica(clinica: any) {
@@ -142,12 +175,27 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
 
   const isAdmin = perfil?.nivel_acesso === 'admin';
 
-  const NavItem = ({ href, icon, label }: { href: string, icon: any, label: string }) => {
+  const NavItem = ({ href, icon, label, badge }: { href: string, icon: any, label: string, badge?: number }) => {
       const active = pathname.includes(href) || (href === '/dashboard' && pathname === '/dashboard');
+      const showBadge = typeof badge === 'number' && badge > 0;
       return (
         <Link href={href} onClick={() => setMenuMobileAberto(false)} className={`flex items-center gap-3 px-3 py-3 rounded-xl transition-all mb-1 group relative overflow-hidden ${active ? 'bg-blue-50 text-blue-700 font-bold shadow-sm' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'} ${menuRecolhido ? 'justify-center !px-0 w-12 mx-auto' : ''}`}>
             <span className={`transition-transform ${!menuRecolhido && 'group-hover:scale-110'}`}>{icon}</span>
-            {!menuRecolhido && <span>{label}</span>}
+            {!menuRecolhido && (
+                <span className="flex-1 flex items-center justify-between">
+                    {label}
+                    {showBadge && (
+                        <span className="bg-red-500 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
+                            {badge! > 99 ? '99+' : badge}
+                        </span>
+                    )}
+                </span>
+            )}
+            {menuRecolhido && showBadge && (
+                <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 text-white text-[8px] font-black rounded-full flex items-center justify-center">
+                    {badge! > 9 ? '9+' : badge}
+                </span>
+            )}
             {menuRecolhido && (<div className="absolute left-full ml-2 bg-slate-800 text-white text-xs font-bold px-2 py-1 rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-50 shadow-lg">{label}</div>)}
         </Link>
       );
@@ -214,6 +262,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
             <NavItem href="/agenda" icon={<Calendar size={22}/>} label="Agenda" />
             <NavItem href="/pacientes" icon={<Users size={22}/>} label="Pacientes" />
             <NavItem href="/proteses" icon={<Smile size={22}/>} label="Controle de Próteses" />
+            <NavItem href="/tarefas" icon={<CheckSquare size={22}/>} label="Tarefas" badge={tarefasPendentes} />
             {isAdmin && (<><div className="my-2 border-t border-slate-100 mx-2"></div><NavItem href="/financeiro" icon={<DollarSign size={22}/>} label="Financeiro" /><NavItem href="/relatorios" icon={<BarChart3 size={22}/>} label="Relatórios" /><NavItem href="/ajustes/equipe" icon={<ShieldCheck size={22}/>} label="Equipe" /><NavItem href="/configuracoes" icon={<Settings size={22}/>} label="Ajustes" /></>)}
             {perfil?.is_super_admin && (<><div className="my-2 border-t border-slate-100 mx-2"></div><NavItem href="/super-admin" icon={<ShieldAlert size={22}/>} label="Painel SaaS" /></>)}
         </nav>
@@ -311,6 +360,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
                     <NavItem href="/agenda" icon={<Calendar size={20}/>} label="Agenda" />
                     <NavItem href="/pacientes" icon={<Users size={20}/>} label="Pacientes" />
                     <NavItem href="/proteses" icon={<Smile size={20}/>} label="Controle de Próteses" />
+                    <NavItem href="/tarefas" icon={<CheckSquare size={20}/>} label="Tarefas" badge={tarefasPendentes} />
                     {isAdmin && <><NavItem href="/financeiro" icon={<DollarSign size={20}/>} label="Financeiro" /><NavItem href="/relatorios" icon={<BarChart3 size={20}/>} label="Relatórios" /><NavItem href="/ajustes/equipe" icon={<ShieldCheck size={20}/>} label="Equipe" /><NavItem href="/configuracoes" icon={<Settings size={20}/>} label="Ajustes" /></>}
                     {perfil?.is_super_admin && <NavItem href="/super-admin" icon={<ShieldAlert size={20}/>} label="Painel SaaS" />}
                 </div>
