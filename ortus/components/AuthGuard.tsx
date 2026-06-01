@@ -78,8 +78,8 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     return () => { cancelado = true; };
   }, [perfil?.id, perfil?.nivel_acesso, perfil?.is_super_admin, ctxActive?.id]);
 
-  // Backup automÃ¡tico: dispara em background a cada vez que um usuÃ¡rio autenticado
-  // usa o sistema, se faz mais de 12h desde o Ãºltimo backup. Throttle de 1h/sessÃ£o.
+  // Backup automático: dispara em background a cada vez que um usuário autenticado
+  // usa o sistema, se faz mais de 12h desde o último backup. Throttle de 1h/sessão.
   useEffect(() => {
       if (session) verificarBackupAutomatico().catch(() => {});
   }, [session]);
@@ -98,8 +98,8 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
             setPerfil(prof);
 
             // ===== Temporary Password Flow =====
-            // Se o profissional ainda tem senha temporÃ¡ria, bloqueia tudo
-            // exceto a tela /primeiro-acesso atÃ© que ele troque a senha.
+            // Se o profissional ainda tem senha temporária, bloqueia tudo
+            // exceto a tela /primeiro-acesso até que ele troque a senha.
             if (prof.precisa_trocar_senha && pathname !== '/primeiro-acesso') {
                 router.replace('/primeiro-acesso');
                 setLoading(false);
@@ -115,11 +115,11 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
             }
             
             // ===== Multi-Tenant Hard Boundary =====
-            // 3 etapas (compatÃ­vel com RLS sem embeds aninhados):
-            //   1. profissionais (jÃ¡ estÃ¡ em `prof` acima)
-            //   2. profissionais_clinicas â†’ clinica_ids
+            // 3 etapas (compatível com RLS sem embeds aninhados):
+            //   1. profissionais (já está em `prof` acima)
+            //   2. profissionais_clinicas → clinica_ids
             //   3. clinicas (in ids)
-            // Super admins recebem visÃ£o global (intencional).
+            // Super admins recebem visão global (intencional).
             let lista: any[] = [];
             if (prof.is_super_admin) {
                 const { data: todas, error } = await supabase.from('clinicas').select('id, nome').order('nome');
@@ -144,14 +144,14 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
             }
 
             if (lista.length > 0) {
-                const todasOption = { id: 'todas', nome: 'Todas as ClÃ­nicas' };
+                const todasOption = { id: 'todas', nome: 'Todas as Clínicas' };
                 const listaCompleta = [todasOption, ...lista];
                 setMinhasClinicas(listaCompleta);
                 const salva = localStorage.getItem('ortus_clinica_id');
                 const atual = listaCompleta.find((c: any) => c.id.toString() === salva) || todasOption;
                 persistirClinicaSelecionada(atual);
                 
-                // SÃ³ salva se nÃ£o tiver nada (para respeitar a escolha do usuÃ¡rio na tela de seleÃ§Ã£o)
+                // Só salva se não tiver nada (para respeitar a escolha do usuário na tela de seleção)
                 if (!salva) localStorage.setItem('ortus_clinica_id', atual.id.toString());
 
                 const clinicasIds = lista
@@ -197,7 +197,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
           ? 'all'
           : String(clinica.id);
       const normalizedInfo = normalizedId === 'all'
-          ? { id: 'todas', nome: 'Todas as ClÃ­nicas' }
+          ? { id: 'todas', nome: 'Todas as Clínicas' }
           : clinica;
 
       setClinicaAtual(normalizedInfo);
@@ -220,7 +220,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   if (loading) return <div className="h-screen w-screen bg-slate-50 flex items-center justify-center text-blue-600 animate-pulse"><Building2 size={40}/></div>;
   if (!session) return null;
 
-  // LAYOUT LIMPO PARA SELEÃ‡ÃƒO, PRIMEIRO ACESSO E SUPER ADMIN
+  // LAYOUT LIMPO PARA SELEÇÃO, PRIMEIRO ACESSO E SUPER ADMIN
   if (pathname === '/selecao' || pathname === '/primeiro-acesso' || pathname.startsWith('/super-admin')) {
       return <>{children}</>;
   }
@@ -268,13 +268,13 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   };
 
   const navLinks: NavLink[] = [
-      { href: '/dashboard', label: 'VisÃ£o Geral', module: 'inteligencia', icon: (size) => <LayoutDashboard size={size}/> },
+      { href: '/dashboard', label: 'Visão Geral', module: 'inteligencia', icon: (size) => <LayoutDashboard size={size}/> },
       { href: '/agenda', label: 'Agenda', module: 'agenda', icon: (size) => <Calendar size={size}/> },
       { href: '/pacientes', label: 'Pacientes', module: 'ficha_paciente', icon: (size) => <Users size={size}/> },
-      { href: '/proteses', label: 'Controle de PrÃ³teses', module: 'controle_protese', icon: (size) => <Smile size={size}/> },
+      { href: '/proteses', label: 'Controle de Próteses', module: 'controle_protese', icon: (size) => <Smile size={size}/> },
       { href: '/tarefas', label: 'Tarefas', module: 'agenda', icon: (size) => <CheckSquare size={size}/>, badge: tarefasPendentes > 0 ? tarefasPendentes : undefined },
       { href: '/financeiro', label: 'Financeiro', module: 'financeiro', icon: (size) => <DollarSign size={size}/> },
-      { href: '/relatorios', label: 'RelatÃ³rios', module: 'inteligencia', icon: (size) => <BarChart3 size={size}/> },
+      { href: '/relatorios', label: 'Relatórios', module: 'inteligencia', icon: (size) => <BarChart3 size={size}/> },
       { href: '/ajustes/equipe', label: 'Equipe', module: 'configuracoes', icon: (size) => <ShieldCheck size={size}/> },
       { href: '/ajustes/tratamentos', label: 'Tratamentos Base', module: 'configuracoes', icon: (size) => <ClipboardList size={size}/> },
       { href: '/configuracoes', label: 'Ajustes', module: 'configuracoes', icon: (size) => <Settings size={size}/> },
@@ -303,7 +303,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
                         </div>
                         {!menuRecolhido && (
                             <div className="text-left truncate">
-                                <p className="text-[10px] font-bold text-slate-400 uppercase leading-none mb-0.5">ClÃ­nica Atual</p>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase leading-none mb-0.5">Clínica Atual</p>
                                 <p className="text-sm font-bold text-slate-800 truncate w-28">{clinicaAtual?.nome || 'Selecione'}</p>
                             </div>
                         )}
@@ -332,7 +332,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
             {!menuRecolhido ? (
                 <button onClick={() => { const e = new KeyboardEvent('keydown', { key: 'k', metaKey: true, ctrlKey: true, bubbles: true }); window.dispatchEvent(e); }} className="w-full flex items-center gap-3 px-3 py-2.5 mb-2 rounded-xl text-sm font-semibold text-slate-400 bg-slate-50 border border-slate-200 hover:border-blue-300 hover:text-blue-500 transition-all">
                     <Search size={16}/> Buscar...
-                    <kbd className="ml-auto text-[9px] font-bold bg-white border border-slate-200 px-1.5 py-0.5 rounded">âŒ˜K</kbd>
+                    <kbd className="ml-auto text-[9px] font-bold bg-white border border-slate-200 px-1.5 py-0.5 rounded">⌘K</kbd>
                 </button>
             ) : (
                 <button onClick={() => { const e = new KeyboardEvent('keydown', { key: 'k', metaKey: true, ctrlKey: true, bubbles: true }); window.dispatchEvent(e); }} className="flex items-center justify-center w-12 p-2.5 mb-2 rounded-xl text-slate-400 bg-slate-50 border border-slate-200 hover:border-blue-300 hover:text-blue-500 transition-all" title="Buscar (Ctrl+K)">
@@ -378,14 +378,14 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
                         <div className="absolute top-full left-0 mt-2 w-72 bg-white border border-slate-100 rounded-2xl shadow-2xl z-40 overflow-hidden animate-in fade-in slide-in-from-top-2">
                             <p className="px-4 py-2 text-[10px] font-bold text-slate-400 uppercase bg-slate-50 border-b border-slate-100">Trocar Unidade</p>
                             <button
-                                onClick={() => { persistirClinicaSelecionada({ id: 'todas', nome: 'Todas as ClÃ­nicas' }); setHeaderSwitchOpen(false); }}
+                                onClick={() => { persistirClinicaSelecionada({ id: 'todas', nome: 'Todas as Clínicas' }); setHeaderSwitchOpen(false); }}
                                 className="w-full text-left px-4 py-3 text-sm font-bold text-slate-700 hover:bg-purple-50 hover:text-purple-700 flex items-center justify-between border-b border-slate-50"
                             >
-                                <div className="flex items-center gap-2"><Globe size={16}/> Todas as ClÃ­nicas</div>
+                                <div className="flex items-center gap-2"><Globe size={16}/> Todas as Clínicas</div>
                                 {ctxActive?.id === 'all' && <Check size={16} className="text-purple-600"/>}
                             </button>
                             {ctxClinics.length === 0 && (
-                                <p className="px-4 py-4 text-xs text-slate-400 italic">Nenhuma unidade vinculada ao seu usuÃ¡rio.</p>
+                                <p className="px-4 py-4 text-xs text-slate-400 italic">Nenhuma unidade vinculada ao seu usuário.</p>
                             )}
                             {ctxClinics.map((c: any) => (
                                 <button
