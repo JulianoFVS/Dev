@@ -2,14 +2,13 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { 
-    Plus, Search, Filter, Calendar, Clock, AlertCircle, CheckCircle, 
-    MoreVertical, User, Building2, ArrowLeft, Loader2, X, Save, Trash2,
-    ChevronDown, ChevronUp, Phone
+    Plus, Search, Filter, Calendar, AlertCircle, CheckCircle, 
+    User, Loader2, X, Save, Trash2, CheckSquare, ArrowRight, ArrowLeft
 } from 'lucide-react';
 import { useClinica } from '@/app/context/ClinicaContext';
 import { fetchUserClinicas } from '@/lib/clinicScoped';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
-import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 interface Tarefa {
     id: string;
@@ -19,7 +18,7 @@ interface Tarefa {
     prioridade: 'baixa' | 'media' | 'alta';
     status: 'a_fazer' | 'em_andamento' | 'concluido';
     data_limite: string | null;
-    paciente_id: string | null;  // UUID
+    paciente_id: string | null;
     created_at: string;
     responsavel_nome?: string;
     paciente_nome?: string;
@@ -33,7 +32,7 @@ interface Profissional {
 }
 
 interface Paciente {
-    id: number;
+    id: string;
     nome: string;
     telefone: string | null;
 }
@@ -41,13 +40,14 @@ interface Paciente {
 export default function Tarefas() {
     const { activeClinicId } = useClinica();
     const { showAlert, showConfirm } = useCustomAlert();
+    const router = useRouter();
     
     const [tarefas, setTarefas] = useState<Tarefa[]>([]);
     const [profissionais, setProfissionais] = useState<Profissional[]>([]);
     const [pacientes, setPacientes] = useState<Paciente[]>([]);
     const [loading, setLoading] = useState(true);
     const [clinicas, setClinicas] = useState<any[]>([]);
-    
+
     // Filtros
     const [filtroStatus, setFiltroStatus] = useState<string>('todos');
     const [filtroPrioridade, setFiltroPrioridade] = useState<string>('todos');

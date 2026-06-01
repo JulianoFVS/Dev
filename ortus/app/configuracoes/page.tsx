@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Building2, Users, Plus, Trash2, MapPin, Check, X, Loader2, Edit, UserPlus, Shield, User, FileText, Phone, Mail, Save, Lock, ClipboardList, HelpCircle, FileSignature, Tag, SlidersHorizontal, Database, Download, Upload, Bell, Palette, RotateCcw, AlertTriangle, Clock } from 'lucide-react';
+import { Building2, Users, Plus, Trash2, MapPin, Check, X, Loader2, Edit, UserPlus, Shield, User, FileText, Phone, Mail, Save, Lock, ClipboardList, HelpCircle, FileSignature, Tag, SlidersHorizontal, Database, Download, Upload, Bell, Palette, RotateCcw, AlertTriangle, Clock, DollarSign } from 'lucide-react';
 import { carregarModelos, salvarModelos, novoIdModelo, novoIdPergunta, type ModeloAnamnese, type PerguntaAnamnese, type TipoPergunta } from '@/lib/anamnese';
 import { listarBackups, criarBackupAgora, baixarBackupComoJson, excluirBackup as deletarBackupServer, restaurarBackup } from '@/lib/backup';
 import { fetchUserClinicas, fetchUserEquipe } from '@/lib/clinicScoped';
@@ -70,6 +70,24 @@ export default function Configuracoes() {
       conselho: 'CRO', uf: '', sexo: '', endereco: '' 
   });
   const [editandoProf, setEditandoProf] = useState(false);
+
+  // PERMISSÕES
+  const [permissoes, setPermissoes] = useState<Record<number, any>>({});
+  const [salvandoPermissao, setSalvandoPermissao] = useState<number | null>(null);
+
+  // COMISSÕES
+  const [comissoesRegras, setComissoesRegras] = useState<any[]>([]);
+  const [modalComissao, setModalComissao] = useState(false);
+  const [editandoComissao, setEditandoComissao] = useState(false);
+  const [salvandoComissao, setSalvandoComissao] = useState(false);
+  const [comissaoForm, setComissaoForm] = useState({
+      id: '',
+      profissional_id: '',
+      gatilho: 'debito_recebido',
+      tipo: 'percentual',
+      valor: '0',
+      ativo: true
+  });
 
   // MODAL VINCULOS
   const [modalVinculo, setModalVinculo] = useState(false);
@@ -350,6 +368,195 @@ export default function Configuracoes() {
           setProfissionais([]);
       }
       setLoading(false);
+  }
+
+  // Carregar permissões quando a aba é aberta
+  useEffect(() => {
+      if (abaAtiva === 'permissoes' && profissionais.length > 0) {
+          carregarPermissoes();
+      }
+  }, [abaAtiva, profissionais]);
+
+  // Carregar comissões quando a aba é aberta
+  useEffect(() => {
+      if (abaAtiva === 'comissoes') {
+          carregarComissoes();
+      }
+  }, [abaAtiva]);
+
+  // --- PERMISSÕES ---
+  async function carregarPermissoes() {
+      if (profissionais.length === 0) return;
+      
+      const { data } = await supabase
+          .from('permissoes_modulos')
+          .select('*')
+          .in('profissional_id', profissionais.map(p => p.id));
+      
+      if (data) {
+          const permMap: Record<number, any> = {};
+          data.forEach(p => {
+              permMap[p.profissional_id] = p;
+          });
+          setPermissoes(permMap);
+      }
+  }
+
+  async function salvarPermissao(profId: number, modulo: string, valor: boolean) {
+      setSalvandoPermissao(profId);
+      try {
+          const permissaoAtual = permissoes[profId];
+          
+          if (permissaoAtual) {
+              // Update existing
+              const { error } = await supabase
+                  .from('permissoes_modulos')
+                  .update({ [modulo]: valor, updated_at: new Date().toISOString() })
+                  .eq('id', permissaoAtual.id);
+              
+              if (error) throw error;
+              
+              setPermissoes(prev => ({
+                  ...prev,
+                  [profId]: { ...permissaoAtual, [modulo]: valor }
+              }));
+          } else {
+              // Insert new - use first clinic as default
+              const clinicaId = clinicas[0]?.id;
+              if (!clinicaId) {
+                  await showAlert('Nenhuma clínica disponível para vincular permissão.', { type: 'error' });
+                  return;
+              }
+              
+              const novaPermissao = {
+                  profissional_id: profId,
+                  clinica_id: clinicaId,
+                  [modulo]: valor
+              };
+              
+              const { data, error } = await supabase
+                  .from('permissoes_modulos')
+                  .insert(novaPermissao)
+                  .select()
+                  .single();
+              
+              if (error) throw error;
+              
+              setPermissoes(prev => ({
+                  ...prev,
+                  [profId]: data
+              }));
+          }
+          
+          await showAlert(`Permissão ${valor ? 'concedida' : 'revogada'} com sucesso!`, { type: 'success' });
+      } catch (error) {
+          await showAlert('Erro ao salvar permissão.', { type: 'error' });
+      } finally {
+          setSalvandoPermissao(null);
+      }
+  }
+
+  // --- COMISSÕES ---
+  async function carregarComissoes() {
+      const { data } = await supabase
+          .from('comissoes_regras')
+          .select('*, profissionais(nome)')
+          .order('created_at', { ascending: false });
+      
+      if (data) {
+          setComissoesRegras(data);
+      }
+  }
+
+  function abrirModalComissao(regra?: any) {
+      if (regra) {
+          setComissaoForm({
+              id: regra.id,
+              profissional_id: regra.profissional_id.toString(),
+              gatilho: regra.gatilho,
+              tipo: regra.tipo,
+              valor: regra.valor.toString(),
+              ativo: regra.ativo
+          });
+          setEditandoComissao(true);
+      } else {
+          setComissaoForm({
+              id: '',
+              profissional_id: '',
+              gatilho: 'debito_recebido',
+              tipo: 'percentual',
+              valor: '0',
+              ativo: true
+          });
+          setEditandoComissao(false);
+      }
+      setModalComissao(true);
+  }
+
+  async function salvarComissao() {
+      if (!comissaoForm.profissional_id || !comissaoForm.valor) {
+          await showAlert('Preencha todos os campos obrigatórios.', { type: 'error' });
+          return;
+      }
+
+      setSalvandoComissao(true);
+      try {
+          const clinicaId = clinicas[0]?.id;
+          if (!clinicaId) {
+              await showAlert('Nenhuma clínica disponível.', { type: 'error' });
+              return;
+          }
+
+          const dados = {
+              profissional_id: parseInt(comissaoForm.profissional_id),
+              clinica_id: clinicaId,
+              gatilho: comissaoForm.gatilho,
+              tipo: comissaoForm.tipo,
+              valor: parseFloat(comissaoForm.valor),
+              ativo: comissaoForm.ativo
+          };
+
+          if (editandoComissao && comissaoForm.id) {
+              const { error } = await supabase
+                  .from('comissoes_regras')
+                  .update({ ...dados, updated_at: new Date().toISOString() })
+                  .eq('id', comissaoForm.id);
+              
+              if (error) throw error;
+              await showAlert('Regra de comissão atualizada!', { type: 'success' });
+          } else {
+              const { error } = await supabase
+                  .from('comissoes_regras')
+                  .insert(dados);
+              
+              if (error) throw error;
+              await showAlert('Regra de comissão criada!', { type: 'success' });
+          }
+
+          await carregarComissoes();
+          setModalComissao(false);
+      } catch (error) {
+          await showAlert('Erro ao salvar regra de comissão.', { type: 'error' });
+      } finally {
+          setSalvandoComissao(false);
+      }
+  }
+
+  async function excluirComissao(id: string) {
+      const confirmed = await showConfirm('Tem certeza que deseja excluir esta regra de comissão?');
+      if (!confirmed) return;
+
+      const { error } = await supabase
+          .from('comissoes_regras')
+          .delete()
+          .eq('id', id);
+
+      if (error) {
+          await showAlert('Erro ao excluir regra.', { type: 'error' });
+      } else {
+          await showAlert('Regra excluída com sucesso!', { type: 'success' });
+          await carregarComissoes();
+      }
   }
 
   // --- CLÍNICAS ---
@@ -656,6 +863,12 @@ export default function Configuracoes() {
               {(perfilCaller?.nivel_acesso === 'admin' || perfilCaller?.is_super_admin) && (
                 <button onClick={() => setAbaAtiva('equipe')} className={`pb-4 px-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${abaAtiva === 'equipe' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><Users size={16}/> Equipe</button>
               )}
+              {(perfilCaller?.nivel_acesso === 'admin' || perfilCaller?.is_super_admin) && (
+                <button onClick={() => setAbaAtiva('permissoes')} className={`pb-4 px-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${abaAtiva === 'permissoes' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><Shield size={16}/> Permissões</button>
+              )}
+              {(perfilCaller?.nivel_acesso === 'admin' || perfilCaller?.is_super_admin) && (
+                <button onClick={() => setAbaAtiva('comissoes')} className={`pb-4 px-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${abaAtiva === 'comissoes' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><DollarSign size={16}/> Comissões</button>
+              )}
               <button onClick={() => setAbaAtiva('geral')} className={`pb-4 px-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${abaAtiva === 'geral' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><SlidersHorizontal size={16}/> Geral</button>
               <button onClick={() => setAbaAtiva('anamnese')} className={`pb-4 px-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${abaAtiva === 'anamnese' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><ClipboardList size={16}/> Anamnese</button>
               <button onClick={() => setAbaAtiva('documentos')} className={`pb-4 px-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${abaAtiva === 'documentos' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><FileSignature size={16}/> Contratos & Docs</button>
@@ -737,6 +950,151 @@ export default function Configuracoes() {
                                     </button>
                                 </div>
                             ))}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ABA PERMISSÕES */}
+            {abaAtiva === 'permissoes' && (perfilCaller?.nivel_acesso === 'admin' || perfilCaller?.is_super_admin) && (
+                <div className="space-y-6 animate-in slide-in-from-right-4">
+                    <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
+                            <div>
+                                <h3 className="font-bold text-slate-700 text-lg flex items-center gap-2"><Shield size={20} className="text-blue-500"/> Permissões de Acesso</h3>
+                                <p className="text-xs text-slate-400 font-medium mt-1">Gerencie quais módulos cada profissional pode acessar.</p>
+                            </div>
+                            <button 
+                                onClick={carregarPermissoes}
+                                className="text-blue-600 hover:text-blue-700 text-sm font-medium"
+                            >
+                                Recarregar
+                            </button>
+                        </div>
+                        
+                        <div className="space-y-4">
+                            {profissionais.length === 0 ? (
+                                <p className="text-slate-400 text-center py-8">Nenhum profissional cadastrado. Adicione profissionais na aba Equipe primeiro.</p>
+                            ) : (
+                                profissionais.map(prof => {
+                                    const perm = permissoes[prof.id] || {};
+                                    return (
+                                        <div key={prof.id} className="p-4 border border-slate-100 rounded-2xl bg-slate-50">
+                                            <div className="flex items-center justify-between mb-3">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
+                                                        <User size={20} className="text-blue-600" />
+                                                    </div>
+                                                    <div>
+                                                        <p className="font-bold text-slate-700">{prof.nome}</p>
+                                                        <p className="text-xs text-slate-400">{prof.nivel_acesso === 'admin' ? 'Administrador' : 'Profissional'}</p>
+                                                    </div>
+                                                </div>
+                                                {prof.nivel_acesso === 'admin' ? (
+                                                    <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full font-medium">Acesso Total</span>
+                                                ) : salvandoPermissao === prof.id ? (
+                                                    <Loader2 size={16} className="animate-spin text-blue-500" />
+                                                ) : null}
+                                            </div>
+                                            
+                                            {prof.nivel_acesso !== 'admin' && (
+                                                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-3">
+                                                    {['agenda', 'pacientes', 'financeiro', 'proteses', 'documentos', 'configuracoes'].map(modulo => (
+                                                        <label key={modulo} className="flex items-center gap-2 p-2 rounded-lg hover:bg-white cursor-pointer">
+                                                            <input 
+                                                                type="checkbox" 
+                                                                className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                                                checked={perm[modulo] || false}
+                                                                onChange={(e) => salvarPermissao(prof.id, modulo, e.target.checked)}
+                                                            />
+                                                            <span className="text-sm text-slate-600 capitalize">{modulo}</span>
+                                                        </label>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ABA COMISSÕES */}
+            {abaAtiva === 'comissoes' && (perfilCaller?.nivel_acesso === 'admin' || perfilCaller?.is_super_admin) && (
+                <div className="space-y-6 animate-in slide-in-from-right-4">
+                    <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
+                            <div>
+                                <h3 className="font-bold text-slate-700 text-lg flex items-center gap-2"><DollarSign size={20} className="text-emerald-500"/> Regras de Comissão</h3>
+                                <p className="text-xs text-slate-400 font-medium mt-1">Configure comissões por profissional e tipo de serviço.</p>
+                            </div>
+                            <div className="flex gap-2">
+                                <button 
+                                    onClick={carregarComissoes}
+                                    className="text-emerald-600 hover:text-emerald-700 text-sm font-medium px-3 py-2"
+                                >
+                                    Recarregar
+                                </button>
+                                <button 
+                                    onClick={() => abrirModalComissao()}
+                                    className="bg-emerald-600 text-white px-4 py-2 rounded-xl font-bold text-sm hover:bg-emerald-700 flex items-center gap-2 shadow-lg shadow-emerald-200"
+                                >
+                                    <Plus size={16}/> Nova Regra
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div className="space-y-4">
+                            {comissoesRegras.length === 0 ? (
+                                <div className="p-8 border border-slate-100 rounded-2xl bg-slate-50 text-center">
+                                    <DollarSign size={48} className="text-slate-300 mx-auto mb-4"/>
+                                    <p className="text-slate-500 font-medium">Nenhuma regra de comissão cadastrada</p>
+                                    <p className="text-slate-400 text-sm mt-1">Clique em "Nova Regra" para começar</p>
+                                </div>
+                            ) : (
+                                comissoesRegras.map(regra => (
+                                    <div key={regra.id} className={`p-4 border rounded-2xl bg-white ${regra.ativo ? 'border-slate-200' : 'border-slate-100 opacity-60'}`}>
+                                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                                            <div className="flex items-center gap-3">
+                                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${regra.ativo ? 'bg-emerald-100' : 'bg-slate-100'}`}>
+                                                    <DollarSign size={20} className={regra.ativo ? 'text-emerald-600' : 'text-slate-400'} />
+                                                </div>
+                                                <div>
+                                                    <p className="font-bold text-slate-700">{regra.profissionais?.nome || 'Profissional'}</p>
+                                                    <div className="flex items-center gap-2 text-xs text-slate-500">
+                                                        <span className="capitalize">{regra.gatilho.replace('_', ' ')}</span>
+                                                        <span>•</span>
+                                                        <span className="font-medium text-emerald-600">
+                                                            {regra.tipo === 'percentual' ? `${regra.valor}%` : `R$ ${regra.valor}`}
+                                                        </span>
+                                                        {regra.ativo ? (
+                                                            <span className="text-emerald-600 font-medium">• Ativa</span>
+                                                        ) : (
+                                                            <span className="text-slate-400">• Inativa</span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <button 
+                                                    onClick={() => abrirModalComissao(regra)}
+                                                    className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                                >
+                                                    <Edit size={16}/>
+                                                </button>
+                                                <button 
+                                                    onClick={() => excluirComissao(regra.id)}
+                                                    className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                                >
+                                                    <Trash2 size={16}/>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))
+                            )}
                         </div>
                     </div>
                 </div>
@@ -1389,6 +1747,100 @@ export default function Configuracoes() {
                       </button>
                       <button onClick={salvarClinicaCompleta} className="flex-1 py-4 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all active:scale-95 flex items-center justify-center gap-2">
                           <Save size={18}/> Salvar Alterações
+                      </button>
+                  </div>
+              </div>
+          </div>
+      )}
+
+      {/* MODAL COMISSÃO */}
+      {modalComissao && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+                  <div className="p-6 border-b border-slate-100">
+                      <h3 className="text-xl font-bold text-slate-800">
+                          {editandoComissao ? 'Editar Regra de Comissão' : 'Nova Regra de Comissão'}
+                      </h3>
+                  </div>
+                  
+                  <div className="p-6 space-y-4">
+                      <div>
+                          <label className="text-sm font-bold text-slate-700">Profissional</label>
+                          <select 
+                              value={comissaoForm.profissional_id}
+                              onChange={e => setComissaoForm({...comissaoForm, profissional_id: e.target.value})}
+                              className="w-full mt-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500"
+                          >
+                              <option value="">Selecione...</option>
+                              {profissionais.filter(p => p.nivel_acesso !== 'admin').map(p => (
+                                  <option key={p.id} value={p.id}>{p.nome}</option>
+                              ))}
+                          </select>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-4">
+                          <div>
+                              <label className="text-sm font-bold text-slate-700">Gatilho</label>
+                              <select 
+                                  value={comissaoForm.gatilho}
+                                  onChange={e => setComissaoForm({...comissaoForm, gatilho: e.target.value})}
+                                  className="w-full mt-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500"
+                              >
+                                  <option value="debito_recebido">Débito Recebido</option>
+                                  <option value="tratamento_finalizado">Tratamento Finalizado</option>
+                                  <option value="orcamento_aprovado">Orçamento Aprovado</option>
+                              </select>
+                          </div>
+                          <div>
+                              <label className="text-sm font-bold text-slate-700">Tipo</label>
+                              <select 
+                                  value={comissaoForm.tipo}
+                                  onChange={e => setComissaoForm({...comissaoForm, tipo: e.target.value})}
+                                  className="w-full mt-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500"
+                              >
+                                  <option value="percentual">Percentual (%)</option>
+                                  <option value="valor_fixo">Valor Fixo (R$)</option>
+                              </select>
+                          </div>
+                      </div>
+                      
+                      <div>
+                          <label className="text-sm font-bold text-slate-700">Valor</label>
+                          <input 
+                              type="number"
+                              value={comissaoForm.valor}
+                              onChange={e => setComissaoForm({...comissaoForm, valor: e.target.value})}
+                              className="w-full mt-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500"
+                              placeholder={comissaoForm.tipo === 'percentual' ? 'Ex: 10' : 'Ex: 50.00'}
+                              step="0.01"
+                          />
+                      </div>
+                      
+                      <label className="flex items-center gap-2 cursor-pointer">
+                          <input 
+                              type="checkbox"
+                              checked={comissaoForm.ativo}
+                              onChange={e => setComissaoForm({...comissaoForm, ativo: e.target.checked})}
+                              className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                          />
+                          <span className="text-sm text-slate-700">Regra ativa</span>
+                      </label>
+                  </div>
+                  
+                  <div className="p-6 border-t border-slate-100 bg-slate-50 flex gap-3">
+                      <button 
+                          onClick={() => setModalComissao(false)}
+                          className="flex-1 py-3 text-slate-500 font-bold hover:bg-slate-200 rounded-xl transition-colors"
+                      >
+                          Cancelar
+                      </button>
+                      <button 
+                          onClick={salvarComissao}
+                          disabled={salvandoComissao}
+                          className="flex-1 py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                      >
+                          {salvandoComissao ? <Loader2 size={18} className="animate-spin"/> : <Save size={18}/>}
+                          {salvandoComissao ? 'Salvando...' : 'Salvar'}
                       </button>
                   </div>
               </div>
