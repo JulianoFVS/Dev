@@ -3,12 +3,14 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { 
     Plus, Search, Filter, Calendar, AlertCircle, CheckCircle, 
-    User, Loader2, X, Save, Trash2, CheckSquare, ArrowRight, ArrowLeft
+    User, Loader2, X, Save, Trash2, CheckSquare, ArrowRight, ArrowLeft,
+    Clock, ChevronUp, ChevronDown, Building2, MoreVertical
 } from 'lucide-react';
 import { useClinica } from '@/app/context/ClinicaContext';
 import { fetchUserClinicas } from '@/lib/clinicScoped';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
 interface Tarefa {
     id: string;
