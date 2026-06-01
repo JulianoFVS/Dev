@@ -46,6 +46,18 @@ export default function Configuracoes() {
   // MODAL CLÍNICA
   const [modalClinica, setModalClinica] = useState(false);
   const [novaClinica, setNovaClinica] = useState('');
+  
+  // MODAL EDIÇÃO COMPLETA CLÍNICA
+  const [modalClinicaCompleto, setModalClinicaCompleto] = useState(false);
+  const [clinicaEditando, setClinicaEditando] = useState<any>(null);
+  const [clinicaForm, setClinicaForm] = useState({
+      id: '', nome: '', cnpj: '', responsavel_nome: '', email: '', telefone: '',
+      horario_inicio: '08:00', horario_fim: '18:00', fuso_horario: 'America/Sao_Paulo',
+      emitir_notas_em_nome: 'clinica', logo_url: '',
+      cep: '', rua: '', numero: '', complemento: '', bairro: '', cidade: '', uf: ''
+  });
+  const [buscandoCepClinica, setBuscandoCepClinica] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
 
   // MODAL PROFISSIONAL
   const [modalProf, setModalProf] = useState(false);
@@ -286,6 +298,32 @@ export default function Configuracoes() {
       salvarModelos(novos);
   }
 
+  // Buscar endereço ViaCEP para clínica
+  async function buscarCepClinica(cep: string) {
+      const cleanCep = cep.replace(/\D/g, '');
+      if (cleanCep.length !== 8) return;
+      
+      setBuscandoCepClinica(true);
+      try {
+          const response = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`);
+          const data = await response.json();
+          
+          if (!data.erro) {
+              setClinicaForm(prev => ({
+                  ...prev,
+                  rua: data.logradouro || prev.rua,
+                  bairro: data.bairro || prev.bairro,
+                  cidade: data.localidade || prev.cidade,
+                  uf: data.uf || prev.uf
+              }));
+          }
+      } catch (err) {
+          console.error('Erro ao buscar CEP:', err);
+      } finally {
+          setBuscandoCepClinica(false);
+      }
+  }
+
   async function carregarDados() {
       setLoading(true);
       // 1) Identifica o usuário logado e checa permissão antes de
@@ -393,6 +431,113 @@ export default function Configuracoes() {
       } else {
           showAlert('Clínica excluída com sucesso!', { type: 'success' });
           carregarDados();
+      }
+  }
+
+  // Abrir modal de edição completa da clínica
+  function abrirEdicaoClinica(c: any) {
+      setClinicaEditando(c);
+      setClinicaForm({
+          id: c.id,
+          nome: c.nome || '',
+          cnpj: c.cnpj || '',
+          responsavel_nome: c.responsavel_nome || '',
+          email: c.email || '',
+          telefone: c.telefone || '',
+          horario_inicio: c.horario_inicio || '08:00',
+          horario_fim: c.horario_fim || '18:00',
+          fuso_horario: c.fuso_horario || 'America/Sao_Paulo',
+          emitir_notas_em_nome: c.emitir_notas_em_nome || 'clinica',
+          logo_url: c.logo_url || '',
+          cep: c.cep || '',
+          rua: c.rua || '',
+          numero: c.numero || '',
+          complemento: c.complemento || '',
+          bairro: c.bairro || '',
+          cidade: c.cidade || '',
+          uf: c.uf || ''
+      });
+      setModalClinicaCompleto(true);
+  }
+
+  // Salvar clínica completa (edição)
+  async function salvarClinicaCompleta() {
+      if (!clinicaForm.nome.trim()) {
+          showAlert('Nome da clínica é obrigatório', { type: 'warning' });
+          return;
+      }
+
+      const payload = {
+          nome: clinicaForm.nome.trim(),
+          cnpj: clinicaForm.cnpj.trim() || null,
+          responsavel_nome: clinicaForm.responsavel_nome.trim() || null,
+          email: clinicaForm.email.trim() || null,
+          telefone: clinicaForm.telefone.trim() || null,
+          horario_inicio: clinicaForm.horario_inicio || null,
+          horario_fim: clinicaForm.horario_fim || null,
+          fuso_horario: clinicaForm.fuso_horario || 'America/Sao_Paulo',
+          emitir_notas_em_nome: clinicaForm.emitir_notas_em_nome || 'clinica',
+          logo_url: clinicaForm.logo_url || null,
+          cep: clinicaForm.cep.trim() || null,
+          rua: clinicaForm.rua.trim() || null,
+          numero: clinicaForm.numero.trim() || null,
+          complemento: clinicaForm.complemento.trim() || null,
+          bairro: clinicaForm.bairro.trim() || null,
+          cidade: clinicaForm.cidade.trim() || null,
+          uf: clinicaForm.uf || null
+      };
+
+      const { error } = await supabase
+          .from('clinicas')
+          .update(payload)
+          .eq('id', clinicaEditando.id);
+
+      if (error) {
+          showAlert('Erro ao salvar: ' + error.message, { type: 'error' });
+      } else {
+          showAlert('Clínica atualizada com sucesso!', { type: 'success' });
+          setModalClinicaCompleto(false);
+          setClinicaEditando(null);
+          carregarDados();
+      }
+  }
+
+  // Upload de logo
+  async function uploadLogo(e: React.ChangeEvent<HTMLInputElement>) {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      if (!file.type.startsWith('image/')) {
+          showAlert('Selecione uma imagem válida', { type: 'warning' });
+          return;
+      }
+      if (file.size > 2 * 1024 * 1024) {
+          showAlert('Imagem deve ter no máximo 2MB', { type: 'warning' });
+          return;
+      }
+
+      setUploadingLogo(true);
+      try {
+          const fileExt = file.name.split('.').pop();
+          const fileName = `clinica-${clinicaEditando.id}-${Date.now()}.${fileExt}`;
+          const filePath = `${fileName}`;
+
+          const { error: uploadError } = await supabase.storage
+              .from('clinicas-logos')
+              .upload(filePath, file, { upsert: true });
+
+          if (uploadError) throw uploadError;
+
+          const { data: { publicUrl } } = supabase.storage
+              .from('clinicas-logos')
+              .getPublicUrl(filePath);
+
+          setClinicaForm(prev => ({ ...prev, logo_url: publicUrl }));
+          showAlert('Logo enviada com sucesso!', { type: 'success' });
+      } catch (err: any) {
+          showAlert('Erro ao enviar logo: ' + err.message, { type: 'error' });
+      } finally {
+          setUploadingLogo(false);
       }
   }
 
@@ -532,8 +677,19 @@ export default function Configuracoes() {
                         <div className="space-y-3">
                             {clinicas.map(c => (
                                 <div key={c.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100 hover:border-blue-200 transition-colors">
-                                    <div className="flex items-center gap-4"><div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center text-blue-600 border border-slate-200 font-bold"><Building2 size={20}/></div><span className="font-bold text-slate-700">{c.nome}</span></div>
-                                    <button onClick={() => excluirClinica(c.id)} className="p-2 text-slate-300 hover:text-red-500 hover:bg-white rounded-lg transition-all" title="Excluir"><Trash2 size={18}/></button>
+                                    <div className="flex items-center gap-4">
+                                        <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center text-blue-600 border border-slate-200 font-bold overflow-hidden">
+                                            {c.logo_url ? <img src={c.logo_url} className="w-full h-full object-cover"/> : <Building2 size={20}/>}
+                                        </div>
+                                        <div>
+                                            <span className="font-bold text-slate-700 block">{c.nome}</span>
+                                            {c.cnpj && <span className="text-xs text-slate-400">CNPJ: {c.cnpj}</span>}
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                        <button onClick={() => abrirEdicaoClinica(c)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-white rounded-lg transition-all" title="Editar"><Edit size={18}/></button>
+                                        <button onClick={() => excluirClinica(c.id)} className="p-2 text-slate-400 hover:text-red-500 hover:bg-white rounded-lg transition-all" title="Excluir"><Trash2 size={18}/></button>
+                                    </div>
                                 </div>
                             ))}
                         </div>
@@ -1060,6 +1216,181 @@ export default function Configuracoes() {
                       })}
                   </div>
                   <button onClick={() => setModalVinculo(false)} className="w-full py-3 bg-slate-900 text-white font-bold rounded-xl">Concluir</button>
+              </div>
+          </div>
+      )}
+
+      {/* MODAL EDIÇÃO COMPLETA CLÍNICA */}
+      {modalClinicaCompleto && clinicaEditando && (
+          <div className="fixed inset-0 z-[60] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+              <div className="bg-white w-full max-w-3xl rounded-3xl shadow-2xl flex flex-col max-h-[90vh] animate-in zoom-in-95 border border-slate-100">
+                  <div className="p-6 border-b border-slate-100 flex justify-between items-start bg-gradient-to-r from-blue-50 to-white rounded-t-3xl flex-none">
+                      <div>
+                          <h3 className="font-black text-2xl text-slate-800">Editar Clínica</h3>
+                          <p className="text-slate-500 font-medium text-sm">Complete os dados da unidade.</p>
+                      </div>
+                      <button onClick={() => setModalClinicaCompleto(false)} className="p-2 text-slate-400 hover:bg-slate-100 rounded-xl transition-colors"><X size={24}/></button>
+                  </div>
+                  
+                  <div className="p-8 overflow-y-auto custom-scrollbar space-y-8 flex-1">
+                      {/* Logo */}
+                      <div className="flex items-center gap-6">
+                          <div className="w-24 h-24 bg-slate-50 border-2 border-dashed border-slate-300 rounded-2xl flex items-center justify-center overflow-hidden">
+                              {clinicaForm.logo_url ? (
+                                  <img src={clinicaForm.logo_url} alt="Logo" className="w-full h-full object-cover"/>
+                              ) : (
+                                  <Building2 size={40} className="text-slate-300"/>
+                              )}
+                          </div>
+                          <div className="flex-1">
+                              <label className="block text-sm font-bold text-slate-700 mb-2">Logomarca</label>
+                              <input type="file" accept="image/*" onChange={uploadLogo} className="hidden" id="logo-upload"/>
+                              <label htmlFor="logo-upload" className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-sm cursor-pointer transition-colors">
+                                  {uploadingLogo ? <Loader2 size={16} className="animate-spin"/> : <Upload size={16}/>}
+                                  {uploadingLogo ? 'Enviando...' : 'Selecionar Imagem'}
+                              </label>
+                              <p className="text-xs text-slate-400 mt-1">Max. 2MB • PNG, JPG</p>
+                          </div>
+                      </div>
+
+                      {/* Dados Básicos */}
+                      <div className="space-y-4">
+                          <h4 className="text-sm font-black text-slate-800 uppercase tracking-wider flex items-center gap-2"><Building2 size={16} className="text-blue-500"/> Dados da Clínica</h4>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div className="md:col-span-2">
+                                  <label className="text-xs font-bold text-slate-400 uppercase ml-1">Nome da Clínica *</label>
+                                  <input value={clinicaForm.nome} onChange={e => setClinicaForm({...clinicaForm, nome: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-700" placeholder="Ex: Clínica Ortus Centro"/>
+                              </div>
+                              <div>
+                                  <label className="text-xs font-bold text-slate-400 uppercase ml-1">CNPJ</label>
+                                  <input value={clinicaForm.cnpj} onChange={e => setClinicaForm({...clinicaForm, cnpj: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700" placeholder="00.000.000/0000-00"/>
+                              </div>
+                              <div>
+                                  <label className="text-xs font-bold text-slate-400 uppercase ml-1">Responsável</label>
+                                  <input value={clinicaForm.responsavel_nome} onChange={e => setClinicaForm({...clinicaForm, responsavel_nome: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700" placeholder="Nome do responsável técnico"/>
+                              </div>
+                              <div>
+                                  <label className="text-xs font-bold text-slate-400 uppercase ml-1">E-mail</label>
+                                  <input value={clinicaForm.email} onChange={e => setClinicaForm({...clinicaForm, email: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700" placeholder="clinica@email.com"/>
+                              </div>
+                              <div>
+                                  <label className="text-xs font-bold text-slate-400 uppercase ml-1">Telefone</label>
+                                  <input value={clinicaForm.telefone} onChange={e => setClinicaForm({...clinicaForm, telefone: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700" placeholder="(00) 0000-0000"/>
+                              </div>
+                          </div>
+                      </div>
+
+                      {/* Horários */}
+                      <div className="space-y-4">
+                          <h4 className="text-sm font-black text-slate-800 uppercase tracking-wider flex items-center gap-2"><Clock size={16} className="text-blue-500"/> Horário de Funcionamento</h4>
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                              <div>
+                                  <label className="text-xs font-bold text-slate-400 uppercase ml-1">Início</label>
+                                  <input type="time" value={clinicaForm.horario_inicio} onChange={e => setClinicaForm({...clinicaForm, horario_inicio: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700"/>
+                              </div>
+                              <div>
+                                  <label className="text-xs font-bold text-slate-400 uppercase ml-1">Término</label>
+                                  <input type="time" value={clinicaForm.horario_fim} onChange={e => setClinicaForm({...clinicaForm, horario_fim: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700"/>
+                              </div>
+                              <div>
+                                  <label className="text-xs font-bold text-slate-400 uppercase ml-1">Fuso Horário</label>
+                                  <select value={clinicaForm.fuso_horario} onChange={e => setClinicaForm({...clinicaForm, fuso_horario: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700">
+                                      <option value="America/Sao_Paulo">São Paulo (GMT-3)</option>
+                                      <option value="America/Manaus">Manaus (GMT-4)</option>
+                                      <option value="America/Rio_Branco">Rio Branco (GMT-5)</option>
+                                      <option value="America/Fortaleza">Fortaleza (GMT-3)</option>
+                                      <option value="America/Recife">Recife (GMT-3)</option>
+                                      <option value="America/Bahia">Salvador (GMT-3)</option>
+                                  </select>
+                              </div>
+                          </div>
+                      </div>
+
+                      {/* Fiscal */}
+                      <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100">
+                          <h4 className="text-sm font-black text-slate-800 uppercase tracking-wider flex items-center gap-2 mb-4"><FileText size={16} className="text-blue-500"/> Configuração Fiscal</h4>
+                          <div>
+                              <label className="text-xs font-bold text-slate-400 uppercase ml-1">Emitir notas fiscais em nome de:</label>
+                              <div className="flex gap-4 mt-2">
+                                  <label className="flex items-center gap-2 cursor-pointer">
+                                      <input type="radio" name="emitir_notas" checked={clinicaForm.emitir_notas_em_nome === 'clinica'} onChange={() => setClinicaForm({...clinicaForm, emitir_notas_em_nome: 'clinica'})} className="w-4 h-4 text-blue-600"/>
+                                      <span className="text-sm font-medium text-slate-700">Clínica (CNPJ da clínica)</span>
+                                  </label>
+                                  <label className="flex items-center gap-2 cursor-pointer">
+                                      <input type="radio" name="emitir_notas" checked={clinicaForm.emitir_notas_em_nome === 'profissional'} onChange={() => setClinicaForm({...clinicaForm, emitir_notas_em_nome: 'profissional'})} className="w-4 h-4 text-blue-600"/>
+                                      <span className="text-sm font-medium text-slate-700">Profissional (CPF do dentista)</span>
+                                  </label>
+                              </div>
+                          </div>
+                      </div>
+
+                      {/* Endereço com ViaCEP */}
+                      <div className="space-y-4">
+                          <h4 className="text-sm font-black text-slate-800 uppercase tracking-wider flex items-center gap-2"><MapPin size={16} className="text-blue-500"/> Endereço (ViaCEP)</h4>
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                              <div className="relative">
+                                  <label className="text-xs font-bold text-slate-400 uppercase ml-1">CEP</label>
+                                  <div className="flex gap-2">
+                                      <input 
+                                          value={clinicaForm.cep} 
+                                          onChange={e => {
+                                              setClinicaForm({...clinicaForm, cep: e.target.value});
+                                              if (e.target.value.replace(/\D/g, '').length === 8) {
+                                                  buscarCepClinica(e.target.value);
+                                              }
+                                          }}
+                                          onBlur={() => buscarCepClinica(clinicaForm.cep)}
+                                          className="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700" 
+                                          placeholder="00000-000"
+                                      />
+                                      {buscandoCepClinica && <Loader2 size={20} className="animate-spin text-blue-500 absolute right-3 top-10"/>}
+                                  </div>
+                              </div>
+                              <div className="md:col-span-2">
+                                  <label className="text-xs font-bold text-slate-400 uppercase ml-1">Rua / Avenida</label>
+                                  <input value={clinicaForm.rua} onChange={e => setClinicaForm({...clinicaForm, rua: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700" placeholder="Logradouro"/>
+                              </div>
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                              <div>
+                                  <label className="text-xs font-bold text-slate-400 uppercase ml-1">Número</label>
+                                  <input value={clinicaForm.numero} onChange={e => setClinicaForm({...clinicaForm, numero: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700" placeholder="123"/>
+                              </div>
+                              <div className="md:col-span-3">
+                                  <label className="text-xs font-bold text-slate-400 uppercase ml-1">Complemento</label>
+                                  <input value={clinicaForm.complemento} onChange={e => setClinicaForm({...clinicaForm, complemento: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700" placeholder="Sala, Bloco, Andar..."/>
+                              </div>
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                              <div>
+                                  <label className="text-xs font-bold text-slate-400 uppercase ml-1">Bairro</label>
+                                  <input value={clinicaForm.bairro} onChange={e => setClinicaForm({...clinicaForm, bairro: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700" placeholder="Bairro"/>
+                              </div>
+                              <div>
+                                  <label className="text-xs font-bold text-slate-400 uppercase ml-1">Cidade</label>
+                                  <input value={clinicaForm.cidade} onChange={e => setClinicaForm({...clinicaForm, cidade: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700" placeholder="Cidade"/>
+                              </div>
+                              <div>
+                                  <label className="text-xs font-bold text-slate-400 uppercase ml-1">UF</label>
+                                  <select value={clinicaForm.uf} onChange={e => setClinicaForm({...clinicaForm, uf: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700">
+                                      <option value="">Selecione...</option>
+                                      {['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'].map(uf => (
+                                          <option key={uf} value={uf}>{uf}</option>
+                                      ))}
+                                  </select>
+                              </div>
+                          </div>
+                      </div>
+                  </div>
+                  
+                  <div className="p-6 border-t border-slate-100 bg-slate-50 flex gap-3 rounded-b-3xl flex-none">
+                      <button onClick={() => setModalClinicaCompleto(false)} className="flex-1 py-4 text-slate-500 font-bold hover:bg-slate-200 rounded-xl transition-colors">
+                          Cancelar
+                      </button>
+                      <button onClick={salvarClinicaCompleta} className="flex-1 py-4 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all active:scale-95 flex items-center justify-center gap-2">
+                          <Save size={18}/> Salvar Alterações
+                      </button>
+                  </div>
               </div>
           </div>
       )}
