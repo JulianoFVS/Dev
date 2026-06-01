@@ -12,7 +12,7 @@ import {
     LayoutDashboard, Users, LogOut, Calendar, Menu, X, DollarSign, 
     Settings, Building2, Bell, Mail, User, ChevronRight, ChevronsUpDown, 
     Check, Smile, ChevronLeft, Globe, ShieldCheck, ShieldAlert, Search, BarChart3,
-    CheckSquare
+    CheckSquare, ClipboardList
 } from 'lucide-react';
 import { useClinica, getClinicLabel } from '@/app/context/ClinicaContext';
 import type { ModuleName } from '@/lib/types/permissions';
@@ -276,6 +276,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
       { href: '/financeiro', label: 'Financeiro', module: 'financeiro', icon: (size) => <DollarSign size={size}/> },
       { href: '/relatorios', label: 'RelatÃ³rios', module: 'inteligencia', icon: (size) => <BarChart3 size={size}/> },
       { href: '/ajustes/equipe', label: 'Equipe', module: 'configuracoes', icon: (size) => <ShieldCheck size={size}/> },
+      { href: '/ajustes/tratamentos', label: 'Tratamentos Base', module: 'configuracoes', icon: (size) => <ClipboardList size={size}/> },
       { href: '/configuracoes', label: 'Ajustes', module: 'configuracoes', icon: (size) => <Settings size={size}/> },
   ];
 

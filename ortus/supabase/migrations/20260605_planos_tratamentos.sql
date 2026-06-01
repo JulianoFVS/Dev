@@ -73,12 +73,16 @@ CREATE TABLE IF NOT EXISTS tratamentos_base (
     descricao TEXT,
     aceita_faces BOOLEAN DEFAULT FALSE,
     valor_sugerido NUMERIC(12,2),
+    custo_padrao NUMERIC(12,2),
     codigo_tuss_padrao VARCHAR(30),
     ativo BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     CONSTRAINT tratamentos_base_nome_unique UNIQUE (clinica_id, nome)
 );
+
+ALTER TABLE tratamentos_base
+    ADD COLUMN IF NOT EXISTS custo_padrao NUMERIC(12,2);
 
 CREATE TABLE IF NOT EXISTS planos_tratamentos (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

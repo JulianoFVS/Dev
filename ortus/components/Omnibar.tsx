@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase';
 import { usePatientSlideOver } from '@/components/PatientSlideOver';
 import {
     Search, User, Calendar, DollarSign, Settings, LayoutDashboard,
-    Smile, FolderOpen, Bell, BarChart3, X, ArrowRight, Command,
+    Smile, FolderOpen, Bell, BarChart3, X, ArrowRight, Command, ClipboardList,
 } from 'lucide-react';
 import type { ModuleName } from '@/lib/types/permissions';
 
@@ -51,6 +51,7 @@ export default function Omnibar({ moduleAccess, isAdmin }: OmnibarProps) {
             { id: 'nav_fin', label: 'Financeiro', sublabel: 'Entradas e saídas', icon: <DollarSign size={16} className="text-amber-500"/>, action: () => router.push('/financeiro'), category: 'navegacao', module: 'financeiro' },
             { id: 'nav_prot', label: 'Próteses', sublabel: 'Kanban de próteses', icon: <Smile size={16} className="text-pink-500"/>, action: () => router.push('/proteses'), category: 'navegacao', module: 'controle_protese' },
             { id: 'nav_inbox', label: 'Notificações', sublabel: 'Central de avisos', icon: <Bell size={16} className="text-purple-500"/>, action: () => router.push('/inbox'), category: 'navegacao' },
+            { id: 'nav_trat_base', label: 'Tratamentos Base', sublabel: 'Catálogo de especialidades e procedimentos', icon: <ClipboardList size={16} className="text-emerald-500"/>, action: () => router.push('/ajustes/tratamentos'), category: 'navegacao', module: 'configuracoes' },
             { id: 'nav_config', label: 'Configurações', sublabel: 'Clínicas, equipe, preferências', icon: <Settings size={16} className="text-slate-500"/>, action: () => router.push('/configuracoes'), category: 'navegacao', module: 'configuracoes' },
             { id: 'nav_relat', label: 'Relatórios', sublabel: 'Faturamento e estatísticas', icon: <BarChart3 size={16} className="text-cyan-500"/>, action: () => router.push('/relatorios'), category: 'navegacao', module: 'inteligencia' },
         ];
