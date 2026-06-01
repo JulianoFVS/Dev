@@ -1,12 +1,18 @@
 'use client';
-import { useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useClinica, getClinicLabel } from '@/app/context/ClinicaContext';
 import { fetchUserEquipe } from '@/lib/clinicScoped';
+import { useCustomAlert } from '@/components/ui/CustomAlert';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/Tabs';
 import {
     Users, UserPlus, Loader2, X, Mail, Building2, ShieldCheck, Copy, Check,
-    KeyRound, AlertTriangle, User, Briefcase,
+    KeyRound, AlertTriangle, User, Briefcase, ToggleLeft, ToggleRight, Clock,
+    DollarSign, Trash2, Plus, Settings,
 } from 'lucide-react';
+import type { ComissaoRegra, ModuleName } from '@/lib/types/permissions';
+import { MODULES, buildModuleAccessMap } from '@/lib/modules';
+import { carregarConfig, salvarConfig } from '@/lib/configClinica';
 
 type Profissional = {
     id: number | string;
@@ -22,8 +28,65 @@ const CARGOS = [
     'Dentista', 'Auxiliar', 'Recepcionista', 'Protético', 'Gestor', 'Outro',
 ];
 
+type HorarioDia = 'seg' | 'ter' | 'qua' | 'qui' | 'sex' | 'sab' | 'dom';
+
+type HorarioAtendimento = {
+    inicio: string;
+    fim: string;
+    intervalo: number;
+    limiteSimultaneo: number;
+    dias: Record<HorarioDia, boolean>;
+    observacoes: string;
+};
+
+const HORARIO_PADRAO: HorarioAtendimento = {
+    inicio: '08:00',
+    fim: '18:00',
+    intervalo: 30,
+    limiteSimultaneo: 1,
+    dias: { seg: true, ter: true, qua: true, qui: true, sex: true, sab: false, dom: false },
+    observacoes: '',
+};
+
+const GATILHOS_COMISSAO = [
+    { value: 'debito_recebido', label: 'Débito Recebido' },
+    { value: 'tratamento_finalizado', label: 'Tratamento Finalizado' },
+    { value: 'orcamento_aprovado', label: 'Orçamento Aprovado' },
+];
+
+const TIPOS_COMISSAO = [
+    { value: 'percentual', label: 'Percentual (%)' },
+    { value: 'valor_fixo', label: 'Valor Fixo (R$)' },
+];
+
+const DIAS_SEMANA: { id: HorarioDia; label: string }[] = [
+    { id: 'seg', label: 'Seg' },
+    { id: 'ter', label: 'Ter' },
+    { id: 'qua', label: 'Qua' },
+    { id: 'qui', label: 'Qui' },
+    { id: 'sex', label: 'Sex' },
+    { id: 'sab', label: 'Sáb' },
+    { id: 'dom', label: 'Dom' },
+];
+
+const cloneHorarioPadrao = (): HorarioAtendimento => ({
+    ...HORARIO_PADRAO,
+    dias: { ...HORARIO_PADRAO.dias },
+});
+
+const novaPermissaoMap = () => buildModuleAccessMap(false);
+
+const getGatilhoLabel = (valor: string) => GATILHOS_COMISSAO.find((g) => g.value === valor)?.label || valor;
+
+const formatValorComissao = (tipo: string, valor: number) => (
+    tipo === 'percentual'
+        ? `${Number(valor).toFixed(2).replace('.', ',')}%`
+        : `R$ ${Number(valor).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+);
+
 export default function EquipePage() {
-    const { clinics, loading: clinicLoading } = useClinica();
+    const { clinics, loading: clinicLoading, activeClinicId } = useClinica();
+    const { showAlert, showConfirm } = useCustomAlert();
 
     const [profissionais, setProfissionais] = useState<Profissional[]>([]);
     const [loading, setLoading] = useState(true);
@@ -40,6 +103,37 @@ export default function EquipePage() {
     // Modal final com credenciais
     const [credenciais, setCredenciais] = useState<{ email: string; senha: string; nome: string } | null>(null);
     const [copiado, setCopiado] = useState<'email' | 'senha' | 'tudo' | null>(null);
+
+    // Modal edição avançada
+    const [editorAberto, setEditorAberto] = useState(false);
+    const [profissionalSelecionado, setProfissionalSelecionado] = useState<Profissional | null>(null);
+    const [abaEditor, setAbaEditor] = useState<'permissoes' | 'horarios' | 'comissao'>('permissoes');
+
+    const [permissoesMapa, setPermissoesMapa] = useState<Record<ModuleName, boolean>>(novaPermissaoMap);
+    const [permissoesLoading, setPermissoesLoading] = useState(false);
+    const [permissoesLoaded, setPermissoesLoaded] = useState(false);
+    const [permissoesDirty, setPermissoesDirty] = useState(false);
+    const [permissoesSaving, setPermissoesSaving] = useState(false);
+
+    const [horarioState, setHorarioState] = useState<HorarioAtendimento>(cloneHorarioPadrao);
+    const [horarioLoaded, setHorarioLoaded] = useState(false);
+    const [horarioLoading, setHorarioLoading] = useState(false);
+    const [horarioDirty, setHorarioDirty] = useState(false);
+    const [horarioSaving, setHorarioSaving] = useState(false);
+
+    const [comissaoForm, setComissaoForm] = useState({ gatilho: GATILHOS_COMISSAO[0].value, tipo: TIPOS_COMISSAO[0].value, valor: '' });
+    const [comissoes, setComissoes] = useState<ComissaoRegra[]>([]);
+    const [comissoesLoaded, setComissoesLoaded] = useState(false);
+    const [comissoesLoading, setComissoesLoading] = useState(false);
+    const [comissaoSaving, setComissaoSaving] = useState(false);
+    const [comissaoExcluindo, setComissaoExcluindo] = useState<string | null>(null);
+
+    const clinicaIdNumerica = useMemo(() => (activeClinicId && activeClinicId !== 'all' ? Number(activeClinicId) : null), [activeClinicId]);
+    const clinicaNomeAtiva = useMemo(() => {
+        if (!activeClinicId || activeClinicId === 'all') return 'Todas as Clínicas';
+        const registro = clinics.find((c) => String(c.id) === String(activeClinicId));
+        return registro?.nome || 'Clínica selecionada';
+    }, [activeClinicId, clinics]);
 
     useEffect(() => { carregar(); }, []);
 
@@ -146,6 +240,425 @@ export default function EquipePage() {
         } catch {}
     }
 
+    function abrirEditorAvancado(prof: Profissional) {
+        setProfissionalSelecionado(prof);
+        setEditorAberto(true);
+        setAbaEditor('permissoes');
+        setPermissoesMapa(novaPermissaoMap());
+        setPermissoesLoaded(false);
+        setPermissoesDirty(false);
+        setHorarioState(cloneHorarioPadrao());
+        setHorarioLoaded(false);
+        setHorarioDirty(false);
+        setComissoes([]);
+        setComissoesLoaded(false);
+        setComissaoForm({ gatilho: GATILHOS_COMISSAO[0].value, tipo: TIPOS_COMISSAO[0].value, valor: '' });
+    }
+
+    function fecharEditorAvancado() {
+        setEditorAberto(false);
+        setProfissionalSelecionado(null);
+    }
+
+    useEffect(() => {
+        if (!editorAberto || !profissionalSelecionado) return;
+        if (abaEditor === 'permissoes' && !permissoesLoaded) carregarPermissoesProfissional();
+        if (abaEditor === 'horarios' && !horarioLoaded) carregarHorarioProfissional();
+        if (abaEditor === 'comissao' && !comissoesLoaded) carregarComissoesProfissional();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [editorAberto, profissionalSelecionado, abaEditor, permissoesLoaded, horarioLoaded, comissoesLoaded]);
+
+    useEffect(() => {
+        if (!editorAberto) return;
+        setPermissoesLoaded(false);
+        setHorarioLoaded(false);
+        setComissoesLoaded(false);
+    }, [editorAberto, activeClinicId]);
+
+    async function carregarPermissoesProfissional() {
+        if (!profissionalSelecionado) return;
+        if (!clinicaIdNumerica) {
+            setPermissoesMapa(novaPermissaoMap());
+            setPermissoesLoaded(true);
+            return;
+        }
+        setPermissoesLoading(true);
+        try {
+            const { data, error } = await supabase
+                .from('permissoes_modulos')
+                .select('modulo, pode_acessar')
+                .eq('profissional_id', profissionalSelecionado.id)
+                .eq('clinica_id', clinicaIdNumerica);
+            if (error) throw error;
+            const mapa = novaPermissaoMap();
+            (data || []).forEach((row: any) => {
+                const modulo = row.modulo as ModuleName;
+                if (mapa[modulo] !== undefined) mapa[modulo] = !!row.pode_acessar;
+            });
+            setPermissoesMapa(mapa);
+            setPermissoesDirty(false);
+            setPermissoesLoaded(true);
+        } catch (err: any) {
+            console.error(err);
+            showAlert('Erro ao carregar permissões.', { type: 'error' });
+        } finally {
+            setPermissoesLoading(false);
+        }
+    }
+
+    function toggleModulo(modulo: ModuleName) {
+        setPermissoesMapa((prev) => {
+            const next = { ...prev, [modulo]: !prev[modulo] };
+            setPermissoesDirty(true);
+            return next;
+        });
+    }
+
+    async function salvarPermissoesAtual() {
+        if (!profissionalSelecionado) return;
+        if (!clinicaIdNumerica) {
+            showAlert('Selecione uma clínica específica no topo para editar permissões.', { type: 'warning' });
+            return;
+        }
+        setPermissoesSaving(true);
+        try {
+            const payload = MODULES.map((modulo) => ({
+                profissional_id: Number(profissionalSelecionado.id),
+                clinica_id: clinicaIdNumerica,
+                modulo: modulo.id,
+                pode_acessar: permissoesMapa[modulo.id],
+            }));
+            const { error } = await supabase
+                .from('permissoes_modulos')
+                .upsert(payload, { onConflict: 'profissional_id,clinica_id,modulo' });
+            if (error) throw error;
+            await showAlert('Permissões atualizadas!', { type: 'success' });
+            setPermissoesDirty(false);
+        } catch (err: any) {
+            console.error(err);
+            await showAlert('Erro ao salvar permissões.', { type: 'error' });
+        } finally {
+            setPermissoesSaving(false);
+        }
+    }
+
+    async function carregarHorarioProfissional() {
+        if (!profissionalSelecionado) return;
+        if (!clinicaIdNumerica) {
+            setHorarioState(cloneHorarioPadrao());
+            setHorarioLoaded(true);
+            return;
+        }
+        setHorarioLoading(true);
+        try {
+            const valor = await carregarConfig<HorarioAtendimento | null>(clinicaIdNumerica, `horario_profissional_${profissionalSelecionado.id}`);
+            if (valor) {
+                setHorarioState({
+                    ...valor,
+                    dias: { ...HORARIO_PADRAO.dias, ...valor.dias },
+                });
+            } else {
+                setHorarioState(cloneHorarioPadrao());
+            }
+            setHorarioDirty(false);
+            setHorarioLoaded(true);
+        } catch (err: any) {
+            console.error(err);
+            await showAlert('Erro ao carregar horário.', { type: 'error' });
+        } finally {
+            setHorarioLoading(false);
+        }
+    }
+
+    function atualizarHorario<K extends keyof HorarioAtendimento>(campo: K, valor: HorarioAtendimento[K]) {
+        setHorarioState((prev) => ({ ...prev, [campo]: valor }));
+        setHorarioDirty(true);
+    }
+
+    function toggleDiaHorario(dia: HorarioDia) {
+        setHorarioState((prev) => ({
+            ...prev,
+            dias: { ...prev.dias, [dia]: !prev.dias[dia] },
+        }));
+        setHorarioDirty(true);
+    }
+
+    async function salvarHorario() {
+        if (!profissionalSelecionado) return;
+        if (!clinicaIdNumerica) {
+            showAlert('Selecione uma clínica específica no topo para salvar o horário.', { type: 'warning' });
+            return;
+        }
+        setHorarioSaving(true);
+        try {
+            await salvarConfig(clinicaIdNumerica, `horario_profissional_${profissionalSelecionado.id}`, horarioState);
+            setHorarioDirty(false);
+            await showAlert('Horário salvo com sucesso!', { type: 'success' });
+        } catch (err: any) {
+            console.error(err);
+            await showAlert('Erro ao salvar horário.', { type: 'error' });
+        } finally {
+            setHorarioSaving(false);
+        }
+    }
+
+    async function carregarComissoesProfissional() {
+        if (!profissionalSelecionado) return;
+        if (!clinicaIdNumerica) {
+            setComissoes([]);
+            setComissoesLoaded(true);
+            return;
+        }
+        setComissoesLoading(true);
+        try {
+            const { data, error } = await supabase
+                .from('comissoes_regras')
+                .select('*')
+                .eq('profissional_id', profissionalSelecionado.id)
+                .eq('clinica_id', clinicaIdNumerica)
+                .order('created_at', { ascending: false });
+            if (error) throw error;
+            setComissoes((data || []) as ComissaoRegra[]);
+            setComissoesLoaded(true);
+        } catch (err: any) {
+            console.error(err);
+            await showAlert('Erro ao carregar regras de comissão.', { type: 'error' });
+        } finally {
+            setComissoesLoading(false);
+        }
+    }
+
+    async function salvarComissaoRapida(e: FormEvent<HTMLFormElement>) {
+        e.preventDefault();
+        if (!profissionalSelecionado) return;
+        if (!clinicaIdNumerica) {
+            showAlert('Selecione uma clínica específica para adicionar regras.', { type: 'warning' });
+            return;
+        }
+        const valorNumber = Number(comissaoForm.valor);
+        if (Number.isNaN(valorNumber) || valorNumber < 0) {
+            showAlert('Informe um valor válido para a comissão.', { type: 'warning' });
+            return;
+        }
+        setComissaoSaving(true);
+        try {
+            const { data, error } = await supabase
+                .from('comissoes_regras')
+                .insert({
+                    profissional_id: Number(profissionalSelecionado.id),
+                    clinica_id: clinicaIdNumerica,
+                    gatilho: comissaoForm.gatilho,
+                    tipo: comissaoForm.tipo,
+                    valor: valorNumber,
+                    ativo: true,
+                })
+                .select()
+                .single();
+            if (error) throw error;
+            setComissoes((prev) => [data as ComissaoRegra, ...prev]);
+            setComissaoForm((prev) => ({ ...prev, valor: '' }));
+            await showAlert('Regra adicionada!', { type: 'success' });
+        } catch (err: any) {
+            console.error(err);
+            await showAlert('Erro ao salvar regra de comissão.', { type: 'error' });
+        } finally {
+            setComissaoSaving(false);
+        }
+    }
+
+    async function excluirComissaoRegra(id: string) {
+        if (!(await showConfirm('Deseja remover esta regra de comissão?', { type: 'warning', confirmLabel: 'Excluir' }))) return;
+        setComissaoExcluindo(id);
+        try {
+            const { error } = await supabase.from('comissoes_regras').delete().eq('id', id);
+            if (error) throw error;
+            setComissoes((prev) => prev.filter((regra) => regra.id !== id));
+            await showAlert('Regra removida.', { type: 'success' });
+        } catch (err: any) {
+            console.error(err);
+            await showAlert('Erro ao excluir regra de comissão.', { type: 'error' });
+        } finally {
+            setComissaoExcluindo(null);
+        }
+    }
+
+    const renderClinicaObrigatoria = () => (
+        <div className="p-6 bg-amber-50 border border-amber-200 rounded-2xl text-sm text-amber-800">
+            Selecione uma clínica específica no topo da tela para gerenciar este recurso.
+        </div>
+    );
+
+    const renderPermissoesTab = () => {
+        if (!profissionalSelecionado) return null;
+        if (!clinicaIdNumerica) return renderClinicaObrigatoria();
+        if (profissionalSelecionado.nivel_acesso === 'admin') {
+            return (
+                <div className="p-6 bg-emerald-50 border border-emerald-200 rounded-2xl text-sm text-emerald-700">
+                    Administradores possuem acesso completo a todos os módulos.
+                </div>
+            );
+        }
+        return (
+            <div className="space-y-4">
+                <p className="text-xs text-slate-500 font-medium">
+                    Ajuste o acesso por módulo para <span className="font-bold text-slate-700">{profissionalSelecionado.nome}</span>.
+                </p>
+                <div className="space-y-3">
+                    {MODULES.map((modulo) => (
+                        <div key={modulo.id} className="flex items-center gap-4 p-4 rounded-2xl border border-slate-100 bg-slate-50">
+                            <div className="flex-1 min-w-0">
+                                <p className="text-sm font-bold text-slate-800">{modulo.label}</p>
+                                <p className="text-xs text-slate-500">{modulo.description}</p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => toggleModulo(modulo.id)}
+                                disabled={permissoesLoading}
+                                className={`p-1 rounded-full transition-colors ${permissoesMapa[modulo.id] ? 'text-blue-600' : 'text-slate-400'}`}
+                            >
+                                {permissoesMapa[modulo.id] ? <ToggleRight size={32}/> : <ToggleLeft size={32}/>}
+                            </button>
+                        </div>
+                    ))}
+                </div>
+                <div className="flex justify-end">
+                    <button
+                        type="button"
+                        onClick={salvarPermissoesAtual}
+                        disabled={!permissoesDirty || permissoesSaving}
+                        className="px-5 py-2 rounded-xl text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+                    >
+                        {permissoesSaving ? <Loader2 size={14} className="animate-spin"/> : <Check size={14}/>}Salvar permissões
+                    </button>
+                </div>
+            </div>
+        );
+    };
+
+    const renderHorariosTab = () => {
+        if (!profissionalSelecionado) return null;
+        if (!clinicaIdNumerica) return renderClinicaObrigatoria();
+        return (
+            <div className="space-y-5">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Início</label>
+                        <input type="time" value={horarioState.inicio} onChange={(e) => atualizarHorario('inicio', e.target.value)} className="mt-1 w-full px-4 py-3 rounded-2xl border border-slate-200 bg-slate-50 text-sm font-bold text-slate-700 focus:border-blue-400 focus:bg-white outline-none" />
+                    </div>
+                    <div>
+                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Término</label>
+                        <input type="time" value={horarioState.fim} onChange={(e) => atualizarHorario('fim', e.target.value)} className="mt-1 w-full px-4 py-3 rounded-2xl border border-slate-200 bg-slate-50 text-sm font-bold text-slate-700 focus:border-blue-400 focus:bg-white outline-none" />
+                    </div>
+                    <div>
+                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Intervalo (min)</label>
+                        <input type="number" min={5} value={horarioState.intervalo} onChange={(e) => atualizarHorario('intervalo', Number(e.target.value))} className="mt-1 w-full px-4 py-3 rounded-2xl border border-slate-200 bg-slate-50 text-sm font-bold text-slate-700 focus:border-blue-400 focus:bg-white outline-none" />
+                    </div>
+                    <div>
+                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Limite Simultâneo</label>
+                        <input type="number" min={1} value={horarioState.limiteSimultaneo} onChange={(e) => atualizarHorario('limiteSimultaneo', Number(e.target.value) || 1)} className="mt-1 w-full px-4 py-3 rounded-2xl border border-slate-200 bg-slate-50 text-sm font-bold text-slate-700 focus:border-blue-400 focus:bg-white outline-none" />
+                    </div>
+                </div>
+                <div>
+                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2">Dias de atendimento</p>
+                    <div className="flex flex-wrap gap-2">
+                        {DIAS_SEMANA.map((dia) => {
+                            const ativo = horarioState.dias[dia.id];
+                            return (
+                                <button
+                                    key={dia.id}
+                                    type="button"
+                                    onClick={() => toggleDiaHorario(dia.id)}
+                                    className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wide border transition-all ${ativo ? 'bg-blue-600 text-white border-blue-600 shadow' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-400'}`}
+                                >
+                                    {dia.label}
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+                <div>
+                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Observações / Regras</label>
+                    <textarea
+                        rows={3}
+                        value={horarioState.observacoes}
+                        onChange={(e) => atualizarHorario('observacoes', e.target.value)}
+                        className="mt-1 w-full px-4 py-3 rounded-2xl border border-slate-200 bg-slate-50 text-sm text-slate-700 focus:border-blue-400 focus:bg-white outline-none"
+                        placeholder="Ex.: Pausa para almoço das 12h às 13h"
+                    />
+                </div>
+                <div className="flex justify-end">
+                    <button
+                        type="button"
+                        onClick={salvarHorario}
+                        disabled={!horarioDirty || horarioSaving}
+                        className="px-5 py-2 rounded-xl text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+                    >
+                        {horarioSaving ? <Loader2 size={14} className="animate-spin"/> : <Check size={14}/>}Salvar horário
+                    </button>
+                </div>
+            </div>
+        );
+    };
+
+    const renderComissoesTab = () => {
+        if (!profissionalSelecionado) return null;
+        if (!clinicaIdNumerica) return renderClinicaObrigatoria();
+        return (
+            <div className="space-y-6">
+                <form onSubmit={salvarComissaoRapida} className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-slate-50 border border-slate-100 p-4 rounded-2xl">
+                    <div className="md:col-span-2">
+                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Gatilho</label>
+                        <select value={comissaoForm.gatilho} onChange={(e) => setComissaoForm((prev) => ({ ...prev, gatilho: e.target.value }))} className="mt-1 w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-white text-sm font-bold text-slate-700">
+                            {GATILHOS_COMISSAO.map((g) => <option key={g.value} value={g.value}>{g.label}</option>)}
+                        </select>
+                    </div>
+                    <div>
+                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Tipo</label>
+                        <select value={comissaoForm.tipo} onChange={(e) => setComissaoForm((prev) => ({ ...prev, tipo: e.target.value }))} className="mt-1 w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-white text-sm font-bold text-slate-700">
+                            {TIPOS_COMISSAO.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                        </select>
+                    </div>
+                    <div>
+                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Valor</label>
+                        <input type="number" step="0.01" min={0} value={comissaoForm.valor} onChange={(e) => setComissaoForm((prev) => ({ ...prev, valor: e.target.value }))} className="mt-1 w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-white text-sm font-bold text-slate-700" placeholder={comissaoForm.tipo === 'percentual' ? '0 a 100%' : 'Valor em R$'} />
+                    </div>
+                    <div className="md:col-span-4 flex justify-end">
+                        <button type="submit" disabled={comissaoSaving} className="px-4 py-2 rounded-xl bg-green-600 text-white text-sm font-bold flex items-center gap-2 disabled:opacity-50">
+                            {comissaoSaving ? <Loader2 size={14} className="animate-spin"/> : <Plus size={14}/>}Adicionar regra
+                        </button>
+                    </div>
+                </form>
+                <div className="space-y-3">
+                    {comissoesLoading ? (
+                        <div className="flex items-center gap-2 text-slate-500 text-sm"><Loader2 size={16} className="animate-spin"/>Carregando regras...</div>
+                    ) : comissoes.length === 0 ? (
+                        <div className="p-6 text-center text-sm text-slate-500 border border-dashed border-slate-200 rounded-2xl">
+                            Nenhuma regra cadastrada para esta clínica.
+                        </div>
+                    ) : (
+                        comissoes.map((regra) => (
+                            <div key={regra.id} className="p-4 border border-slate-100 rounded-2xl bg-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                                <div>
+                                    <p className="text-sm font-bold text-slate-700">{getGatilhoLabel(regra.gatilho)}</p>
+                                    <p className="text-xs text-slate-500">{regra.tipo === 'percentual' ? 'Percentual' : 'Valor fixo'} • <span className="font-bold text-slate-700">{formatValorComissao(regra.tipo, regra.valor)}</span></p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => excluirComissaoRegra(regra.id)}
+                                    disabled={comissaoExcluindo === regra.id}
+                                    className="self-start sm:self-auto px-3 py-2 rounded-lg border border-red-200 text-red-600 text-xs font-bold hover:bg-red-50 disabled:opacity-50 flex items-center gap-2"
+                                >
+                                    {comissaoExcluindo === regra.id ? <Loader2 size={14} className="animate-spin"/> : <Trash2 size={14}/>}
+                                    Remover
+                                </button>
+                            </div>
+                        ))
+                    )}
+                </div>
+            </div>
+        );
+    };
+
     const isAdmin = perfilCaller?.nivel_acesso === 'admin' || perfilCaller?.is_super_admin;
 
     const totalAtivos = useMemo(() => profissionais.length, [profissionais]);
@@ -200,6 +713,7 @@ export default function EquipePage() {
                             <th className="text-left px-3 sm:px-5 py-3">Cargo</th>
                             <th className="text-left px-3 sm:px-5 py-3">Unidades</th>
                             <th className="text-left px-3 sm:px-5 py-3 whitespace-nowrap">Status</th>
+                            <th className="text-right px-3 sm:px-5 py-3">Ações</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -242,15 +756,60 @@ export default function EquipePage() {
                                         </span>
                                     )}
                                 </td>
+                                <td className="px-5 py-4 text-right">
+                                    <button
+                                        onClick={() => abrirEditorAvancado(p)}
+                                        className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-wider px-3 py-2 rounded-lg border border-slate-200 text-slate-500 hover:text-blue-600 hover:border-blue-300 transition-colors"
+                                    >
+                                        <Settings size={12}/> Editar
+                                    </button>
+                                </td>
                             </tr>
                         ))}
                         {profissionais.length === 0 && (
-                            <tr><td colSpan={4} className="px-5 py-10 text-center text-sm text-slate-400 italic">Nenhum profissional cadastrado.</td></tr>
+                            <tr><td colSpan={5} className="px-5 py-10 text-center text-sm text-slate-400 italic">Nenhum profissional cadastrado.</td></tr>
                         )}
                     </tbody>
                 </table>
               </div>
             </div>
+
+            {/* Editor avançado */}
+            {editorAberto && profissionalSelecionado && (
+                <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
+                    <div className="bg-white w-full max-w-4xl rounded-3xl shadow-2xl border border-slate-100 max-h-[92vh] flex flex-col overflow-hidden">
+                        <div className="px-6 py-4 border-b border-slate-100 flex items-start justify-between gap-4">
+                            <div>
+                                <p className="text-[10px] font-black uppercase tracking-wider text-blue-500">Edição avançada</p>
+                                <h3 className="text-xl font-bold text-slate-800">{profissionalSelecionado.nome}</h3>
+                                <p className="text-xs font-semibold text-slate-500">{clinicaNomeAtiva}</p>
+                            </div>
+                            <button onClick={fecharEditorAvancado} className="p-2 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-50">
+                                <X size={18}/>
+                            </button>
+                        </div>
+                        {(!activeClinicId || activeClinicId === 'all') && (
+                            <div className="px-6 py-3 bg-amber-50 text-amber-800 text-sm font-bold border-b border-amber-100 flex items-center gap-2">
+                                <AlertTriangle size={16}/>Selecione uma clínica específica para aplicar as alterações.
+                            </div>
+                        )}
+                        <Tabs value={abaEditor} onValueChange={(value) => setAbaEditor(value as 'permissoes' | 'horarios' | 'comissao')} className="flex-1 flex flex-col">
+                            <div className="px-6 pt-4">
+                                <TabsList className="bg-slate-100 rounded-2xl p-1 w-full grid grid-cols-3">
+                                    <TabsTrigger value="permissoes" className="text-xs font-bold">Permissões</TabsTrigger>
+                                    <TabsTrigger value="horarios" className="text-xs font-bold">Horários</TabsTrigger>
+                                    <TabsTrigger value="comissao" className="text-xs font-bold">Comissão</TabsTrigger>
+                                </TabsList>
+                            </div>
+                            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                                <TabsContent value="permissoes" className="m-0">{permissoesLoading && clinicaIdNumerica ? <div className="text-sm text-slate-500 flex items-center gap-2"><Loader2 size={16} className="animate-spin"/>Carregando permissões...</div> : renderPermissoesTab()}</TabsContent>
+                                <TabsContent value="horarios" className="m-0">{horarioLoading && clinicaIdNumerica ? <div className="text-sm text-slate-500 flex items-center gap-2"><Loader2 size={16} className="animate-spin"/>Carregando horários...</div> : renderHorariosTab()}</TabsContent>
+                                <TabsContent value="comissao" className="m-0">{renderComissoesTab()}</TabsContent>
+                            </div>
+                        </Tabs>
+                    </div>
+                </div>
+            )}
 
             {/* Modal de criação */}
             {modalOpen && (

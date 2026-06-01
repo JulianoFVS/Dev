@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import type { ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { usePatientSlideOver } from '@/components/PatientSlideOver';
@@ -7,19 +8,26 @@ import {
     Search, User, Calendar, DollarSign, Settings, LayoutDashboard,
     Smile, FolderOpen, Bell, BarChart3, X, ArrowRight, Command,
 } from 'lucide-react';
+import type { ModuleName } from '@/lib/types/permissions';
 
 type OmniResult = {
     id: string;
     label: string;
     sublabel?: string;
-    icon: React.ReactNode;
+    icon: ReactNode;
     action: () => void;
     category: 'paciente' | 'navegacao' | 'comando';
+    module?: ModuleName;
 };
 
 const PAGINAS: OmniResult[] = [];
 
-export default function Omnibar() {
+type OmnibarProps = {
+    moduleAccess: Record<ModuleName, boolean>;
+    isAdmin: boolean;
+};
+
+export default function Omnibar({ moduleAccess, isAdmin }: OmnibarProps) {
     const [open, setOpen] = useState(false);
     const [query, setQuery] = useState('');
     const [results, setResults] = useState<OmniResult[]>([]);
@@ -29,16 +37,25 @@ export default function Omnibar() {
     const router = useRouter();
     const { openPatient } = usePatientSlideOver();
 
-    const navItems = useMemo<OmniResult[]>(() => [
-        { id: 'nav_dash', label: 'Dashboard', sublabel: 'Visão geral da clínica', icon: <LayoutDashboard size={16} className="text-blue-500"/>, action: () => router.push('/dashboard'), category: 'navegacao' },
-        { id: 'nav_agenda', label: 'Agenda', sublabel: 'Calendário de consultas', icon: <Calendar size={16} className="text-emerald-500"/>, action: () => router.push('/agenda'), category: 'navegacao' },
-        { id: 'nav_pac', label: 'Pacientes', sublabel: 'Lista de pacientes', icon: <User size={16} className="text-indigo-500"/>, action: () => router.push('/pacientes'), category: 'navegacao' },
-        { id: 'nav_fin', label: 'Financeiro', sublabel: 'Entradas e saídas', icon: <DollarSign size={16} className="text-amber-500"/>, action: () => router.push('/financeiro'), category: 'navegacao' },
-        { id: 'nav_prot', label: 'Próteses', sublabel: 'Kanban de próteses', icon: <Smile size={16} className="text-pink-500"/>, action: () => router.push('/proteses'), category: 'navegacao' },
-        { id: 'nav_inbox', label: 'Notificações', sublabel: 'Central de avisos', icon: <Bell size={16} className="text-purple-500"/>, action: () => router.push('/inbox'), category: 'navegacao' },
-        { id: 'nav_config', label: 'Configurações', sublabel: 'Clínicas, equipe, preferências', icon: <Settings size={16} className="text-slate-500"/>, action: () => router.push('/configuracoes'), category: 'navegacao' },
-        { id: 'nav_relat', label: 'Relatórios', sublabel: 'Faturamento e estatísticas', icon: <BarChart3 size={16} className="text-cyan-500"/>, action: () => router.push('/relatorios'), category: 'navegacao' },
-    ], [router]);
+    const canAccessModule = useCallback((module?: ModuleName) => {
+        if (!module) return true;
+        if (isAdmin) return true;
+        return !!moduleAccess[module];
+    }, [isAdmin, moduleAccess]);
+
+    const navItems = useMemo<OmniResult[]>(() => {
+        const base: OmniResult[] = [
+            { id: 'nav_dash', label: 'Dashboard', sublabel: 'Visão geral da clínica', icon: <LayoutDashboard size={16} className="text-blue-500"/>, action: () => router.push('/dashboard'), category: 'navegacao', module: 'inteligencia' },
+            { id: 'nav_agenda', label: 'Agenda', sublabel: 'Calendário de consultas', icon: <Calendar size={16} className="text-emerald-500"/>, action: () => router.push('/agenda'), category: 'navegacao', module: 'agenda' },
+            { id: 'nav_pac', label: 'Pacientes', sublabel: 'Lista de pacientes', icon: <User size={16} className="text-indigo-500"/>, action: () => router.push('/pacientes'), category: 'navegacao', module: 'ficha_paciente' },
+            { id: 'nav_fin', label: 'Financeiro', sublabel: 'Entradas e saídas', icon: <DollarSign size={16} className="text-amber-500"/>, action: () => router.push('/financeiro'), category: 'navegacao', module: 'financeiro' },
+            { id: 'nav_prot', label: 'Próteses', sublabel: 'Kanban de próteses', icon: <Smile size={16} className="text-pink-500"/>, action: () => router.push('/proteses'), category: 'navegacao', module: 'controle_protese' },
+            { id: 'nav_inbox', label: 'Notificações', sublabel: 'Central de avisos', icon: <Bell size={16} className="text-purple-500"/>, action: () => router.push('/inbox'), category: 'navegacao' },
+            { id: 'nav_config', label: 'Configurações', sublabel: 'Clínicas, equipe, preferências', icon: <Settings size={16} className="text-slate-500"/>, action: () => router.push('/configuracoes'), category: 'navegacao', module: 'configuracoes' },
+            { id: 'nav_relat', label: 'Relatórios', sublabel: 'Faturamento e estatísticas', icon: <BarChart3 size={16} className="text-cyan-500"/>, action: () => router.push('/relatorios'), category: 'navegacao', module: 'inteligencia' },
+        ];
+        return base.filter((item) => canAccessModule(item.module));
+    }, [router, canAccessModule]);
 
     useEffect(() => {
         function handleKeyDown(e: KeyboardEvent) {

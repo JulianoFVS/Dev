@@ -1,5 +1,6 @@
-'use client';
+﻿'use client';
 import { useEffect, useState } from 'react';
+import type { ReactNode } from 'react';
 import { supabase } from '@/lib/supabase';
 import { verificarBackupAutomatico } from '@/lib/backup';
 import { useRouter, usePathname } from 'next/navigation';
@@ -14,6 +15,8 @@ import {
     CheckSquare
 } from 'lucide-react';
 import { useClinica, getClinicLabel } from '@/app/context/ClinicaContext';
+import type { ModuleName } from '@/lib/types/permissions';
+import { buildModuleAccessMap } from '@/lib/modules';
 
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<any>(null);
@@ -27,6 +30,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const [menuClinicaAberto, setMenuClinicaAberto] = useState(false);
   const [notificacoesCount, setNotificacoesCount] = useState(0);
   const [tarefasPendentes, setTarefasPendentes] = useState(0);
+  const [moduleAccess, setModuleAccess] = useState<Record<ModuleName, boolean>>(() => buildModuleAccessMap(false));
   
   const router = useRouter();
   const pathname = usePathname();
@@ -37,8 +41,45 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
 
   useEffect(() => { validarSessao(); }, [pathname]);
 
-  // Backup automático: dispara em background a cada vez que um usuário autenticado
-  // usa o sistema, se faz mais de 12h desde o último backup. Throttle de 1h/sessão.
+  useEffect(() => {
+    if (!perfil?.id) return;
+    let cancelado = false;
+
+    async function sincronizarPermissoes() {
+      if (perfil.nivel_acesso === 'admin' || perfil.is_super_admin) {
+        setModuleAccess(buildModuleAccessMap(true));
+        return;
+      }
+      const clinicId = ctxActive?.id && ctxActive.id !== 'all' ? Number(ctxActive.id) : null;
+      if (!clinicId) {
+        setModuleAccess(buildModuleAccessMap(false));
+        return;
+      }
+      const { data, error } = await supabase
+        .from('permissoes_modulos')
+        .select('modulo, pode_acessar')
+        .eq('profissional_id', perfil.id)
+        .eq('clinica_id', clinicId);
+      if (cancelado) return;
+      if (error) {
+        console.error('[AuthGuard] permissoes_modulos:', error);
+        setModuleAccess(buildModuleAccessMap(false));
+        return;
+      }
+      const mapa = buildModuleAccessMap(false);
+      (data || []).forEach((row: any) => {
+        const modulo = row.modulo as ModuleName;
+        if (mapa[modulo] !== undefined) mapa[modulo] = !!row.pode_acessar;
+      });
+      setModuleAccess(mapa);
+    }
+
+    sincronizarPermissoes();
+    return () => { cancelado = true; };
+  }, [perfil?.id, perfil?.nivel_acesso, perfil?.is_super_admin, ctxActive?.id]);
+
+  // Backup automÃ¡tico: dispara em background a cada vez que um usuÃ¡rio autenticado
+  // usa o sistema, se faz mais de 12h desde o Ãºltimo backup. Throttle de 1h/sessÃ£o.
   useEffect(() => {
       if (session) verificarBackupAutomatico().catch(() => {});
   }, [session]);
@@ -57,8 +98,8 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
             setPerfil(prof);
 
             // ===== Temporary Password Flow =====
-            // Se o profissional ainda tem senha temporária, bloqueia tudo
-            // exceto a tela /primeiro-acesso até que ele troque a senha.
+            // Se o profissional ainda tem senha temporÃ¡ria, bloqueia tudo
+            // exceto a tela /primeiro-acesso atÃ© que ele troque a senha.
             if (prof.precisa_trocar_senha && pathname !== '/primeiro-acesso') {
                 router.replace('/primeiro-acesso');
                 setLoading(false);
@@ -74,11 +115,11 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
             }
             
             // ===== Multi-Tenant Hard Boundary =====
-            // 3 etapas (compatível com RLS sem embeds aninhados):
-            //   1. profissionais (já está em `prof` acima)
-            //   2. profissionais_clinicas → clinica_ids
+            // 3 etapas (compatÃ­vel com RLS sem embeds aninhados):
+            //   1. profissionais (jÃ¡ estÃ¡ em `prof` acima)
+            //   2. profissionais_clinicas â†’ clinica_ids
             //   3. clinicas (in ids)
-            // Super admins recebem visão global (intencional).
+            // Super admins recebem visÃ£o global (intencional).
             let lista: any[] = [];
             if (prof.is_super_admin) {
                 const { data: todas, error } = await supabase.from('clinicas').select('id, nome').order('nome');
@@ -103,14 +144,14 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
             }
 
             if (lista.length > 0) {
-                const todasOption = { id: 'todas', nome: 'Todas as Clínicas' };
+                const todasOption = { id: 'todas', nome: 'Todas as ClÃ­nicas' };
                 const listaCompleta = [todasOption, ...lista];
                 setMinhasClinicas(listaCompleta);
                 const salva = localStorage.getItem('ortus_clinica_id');
                 const atual = listaCompleta.find((c: any) => c.id.toString() === salva) || todasOption;
                 persistirClinicaSelecionada(atual);
                 
-                // Só salva se não tiver nada (para respeitar a escolha do usuário na tela de seleção)
+                // SÃ³ salva se nÃ£o tiver nada (para respeitar a escolha do usuÃ¡rio na tela de seleÃ§Ã£o)
                 if (!salva) localStorage.setItem('ortus_clinica_id', atual.id.toString());
 
                 const clinicasIds = lista
@@ -156,7 +197,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
           ? 'all'
           : String(clinica.id);
       const normalizedInfo = normalizedId === 'all'
-          ? { id: 'todas', nome: 'Todas as Clínicas' }
+          ? { id: 'todas', nome: 'Todas as ClÃ­nicas' }
           : clinica;
 
       setClinicaAtual(normalizedInfo);
@@ -179,12 +220,18 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   if (loading) return <div className="h-screen w-screen bg-slate-50 flex items-center justify-center text-blue-600 animate-pulse"><Building2 size={40}/></div>;
   if (!session) return null;
 
-  // LAYOUT LIMPO PARA SELEÇÃO, PRIMEIRO ACESSO E SUPER ADMIN
+  // LAYOUT LIMPO PARA SELEÃ‡ÃƒO, PRIMEIRO ACESSO E SUPER ADMIN
   if (pathname === '/selecao' || pathname === '/primeiro-acesso' || pathname.startsWith('/super-admin')) {
       return <>{children}</>;
   }
 
-  const isAdmin = perfil?.nivel_acesso === 'admin';
+  const isPerfilAdmin = perfil?.nivel_acesso === 'admin' || perfil?.is_super_admin;
+
+  const canAccessModule = (module?: ModuleName) => {
+      if (!module) return true;
+      if (isPerfilAdmin) return true;
+      return moduleAccess[module];
+  };
 
   const NavItem = ({ href, icon, label, badge }: { href: string, icon: any, label: string, badge?: number }) => {
       const active = pathname.includes(href) || (href === '/dashboard' && pathname === '/dashboard');
@@ -212,6 +259,28 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
       );
   };
 
+  type NavLink = {
+      href: string;
+      label: string;
+      module?: ModuleName;
+      badge?: number;
+      icon: (size: number) => ReactNode;
+  };
+
+  const navLinks: NavLink[] = [
+      { href: '/dashboard', label: 'VisÃ£o Geral', module: 'inteligencia', icon: (size) => <LayoutDashboard size={size}/> },
+      { href: '/agenda', label: 'Agenda', module: 'agenda', icon: (size) => <Calendar size={size}/> },
+      { href: '/pacientes', label: 'Pacientes', module: 'ficha_paciente', icon: (size) => <Users size={size}/> },
+      { href: '/proteses', label: 'Controle de PrÃ³teses', module: 'controle_protese', icon: (size) => <Smile size={size}/> },
+      { href: '/tarefas', label: 'Tarefas', module: 'agenda', icon: (size) => <CheckSquare size={size}/>, badge: tarefasPendentes > 0 ? tarefasPendentes : undefined },
+      { href: '/financeiro', label: 'Financeiro', module: 'financeiro', icon: (size) => <DollarSign size={size}/> },
+      { href: '/relatorios', label: 'RelatÃ³rios', module: 'inteligencia', icon: (size) => <BarChart3 size={size}/> },
+      { href: '/ajustes/equipe', label: 'Equipe', module: 'configuracoes', icon: (size) => <ShieldCheck size={size}/> },
+      { href: '/configuracoes', label: 'Ajustes', module: 'configuracoes', icon: (size) => <Settings size={size}/> },
+  ];
+
+  const filteredNavLinks = navLinks.filter((link) => canAccessModule(link.module));
+
   return (
     <PatientSlideOverProvider>
     <PatientActionModalProvider>
@@ -233,7 +302,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
                         </div>
                         {!menuRecolhido && (
                             <div className="text-left truncate">
-                                <p className="text-[10px] font-bold text-slate-400 uppercase leading-none mb-0.5">Clínica Atual</p>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase leading-none mb-0.5">ClÃ­nica Atual</p>
                                 <p className="text-sm font-bold text-slate-800 truncate w-28">{clinicaAtual?.nome || 'Selecione'}</p>
                             </div>
                         )}
@@ -262,19 +331,16 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
             {!menuRecolhido ? (
                 <button onClick={() => { const e = new KeyboardEvent('keydown', { key: 'k', metaKey: true, ctrlKey: true, bubbles: true }); window.dispatchEvent(e); }} className="w-full flex items-center gap-3 px-3 py-2.5 mb-2 rounded-xl text-sm font-semibold text-slate-400 bg-slate-50 border border-slate-200 hover:border-blue-300 hover:text-blue-500 transition-all">
                     <Search size={16}/> Buscar...
-                    <kbd className="ml-auto text-[9px] font-bold bg-white border border-slate-200 px-1.5 py-0.5 rounded">⌘K</kbd>
+                    <kbd className="ml-auto text-[9px] font-bold bg-white border border-slate-200 px-1.5 py-0.5 rounded">âŒ˜K</kbd>
                 </button>
             ) : (
                 <button onClick={() => { const e = new KeyboardEvent('keydown', { key: 'k', metaKey: true, ctrlKey: true, bubbles: true }); window.dispatchEvent(e); }} className="flex items-center justify-center w-12 p-2.5 mb-2 rounded-xl text-slate-400 bg-slate-50 border border-slate-200 hover:border-blue-300 hover:text-blue-500 transition-all" title="Buscar (Ctrl+K)">
                     <Search size={18}/>
                 </button>
             )}
-            <NavItem href="/dashboard" icon={<LayoutDashboard size={22}/>} label="Visão Geral" />
-            <NavItem href="/agenda" icon={<Calendar size={22}/>} label="Agenda" />
-            <NavItem href="/pacientes" icon={<Users size={22}/>} label="Pacientes" />
-            <NavItem href="/proteses" icon={<Smile size={22}/>} label="Controle de Próteses" />
-            <NavItem href="/tarefas" icon={<CheckSquare size={22}/>} label="Tarefas" badge={tarefasPendentes} />
-            {isAdmin && (<><div className="my-2 border-t border-slate-100 mx-2"></div><NavItem href="/financeiro" icon={<DollarSign size={22}/>} label="Financeiro" /><NavItem href="/relatorios" icon={<BarChart3 size={22}/>} label="Relatórios" /><NavItem href="/ajustes/equipe" icon={<ShieldCheck size={22}/>} label="Equipe" /><NavItem href="/configuracoes" icon={<Settings size={22}/>} label="Ajustes" /></>)}
+            {filteredNavLinks.map((link) => (
+                <NavItem key={link.href} href={link.href} icon={link.icon(22)} label={link.label} badge={link.badge}/>
+            ))}
             {perfil?.is_super_admin && (<><div className="my-2 border-t border-slate-100 mx-2"></div><NavItem href="/super-admin" icon={<ShieldAlert size={22}/>} label="Painel SaaS" /></>)}
         </nav>
 
@@ -311,14 +377,14 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
                         <div className="absolute top-full left-0 mt-2 w-72 bg-white border border-slate-100 rounded-2xl shadow-2xl z-40 overflow-hidden animate-in fade-in slide-in-from-top-2">
                             <p className="px-4 py-2 text-[10px] font-bold text-slate-400 uppercase bg-slate-50 border-b border-slate-100">Trocar Unidade</p>
                             <button
-                                onClick={() => { persistirClinicaSelecionada({ id: 'todas', nome: 'Todas as Clínicas' }); setHeaderSwitchOpen(false); }}
+                                onClick={() => { persistirClinicaSelecionada({ id: 'todas', nome: 'Todas as ClÃ­nicas' }); setHeaderSwitchOpen(false); }}
                                 className="w-full text-left px-4 py-3 text-sm font-bold text-slate-700 hover:bg-purple-50 hover:text-purple-700 flex items-center justify-between border-b border-slate-50"
                             >
-                                <div className="flex items-center gap-2"><Globe size={16}/> Todas as Clínicas</div>
+                                <div className="flex items-center gap-2"><Globe size={16}/> Todas as ClÃ­nicas</div>
                                 {ctxActive?.id === 'all' && <Check size={16} className="text-purple-600"/>}
                             </button>
                             {ctxClinics.length === 0 && (
-                                <p className="px-4 py-4 text-xs text-slate-400 italic">Nenhuma unidade vinculada ao seu usuário.</p>
+                                <p className="px-4 py-4 text-xs text-slate-400 italic">Nenhuma unidade vinculada ao seu usuÃ¡rio.</p>
                             )}
                             {ctxClinics.map((c: any) => (
                                 <button
@@ -367,12 +433,9 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
                     ))}
                 </div>
                 <div className="p-4 space-y-1 flex-1 overflow-y-auto">
-                    <NavItem href="/dashboard" icon={<LayoutDashboard size={20}/>} label="Dashboard" />
-                    <NavItem href="/agenda" icon={<Calendar size={20}/>} label="Agenda" />
-                    <NavItem href="/pacientes" icon={<Users size={20}/>} label="Pacientes" />
-                    <NavItem href="/proteses" icon={<Smile size={20}/>} label="Controle de Próteses" />
-                    <NavItem href="/tarefas" icon={<CheckSquare size={20}/>} label="Tarefas" badge={tarefasPendentes} />
-                    {isAdmin && <><NavItem href="/financeiro" icon={<DollarSign size={20}/>} label="Financeiro" /><NavItem href="/relatorios" icon={<BarChart3 size={20}/>} label="Relatórios" /><NavItem href="/ajustes/equipe" icon={<ShieldCheck size={20}/>} label="Equipe" /><NavItem href="/configuracoes" icon={<Settings size={20}/>} label="Ajustes" /></>}
+                    {filteredNavLinks.map((link) => (
+                        <NavItem key={`mobile-${link.href}`} href={link.href} icon={link.icon(20)} label={link.label} badge={link.badge}/>
+                    ))}
                     {perfil?.is_super_admin && <NavItem href="/super-admin" icon={<ShieldAlert size={20}/>} label="Painel SaaS" />}
                 </div>
                 <div className="p-5 border-t border-slate-100 bg-slate-50"><button onClick={handleLogout} className="flex w-full items-center justify-center gap-3 px-4 py-3 text-red-500 hover:bg-red-50 rounded-xl font-bold bg-white border border-slate-200 shadow-sm transition-all active:scale-95"><LogOut size={18} /> Sair do Sistema</button></div>
@@ -380,7 +443,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
         </div>
       )}
     </div>
-    <Omnibar />
+    <Omnibar moduleAccess={moduleAccess} isAdmin={isPerfilAdmin} />
     </PatientActionModalProvider>
     </PatientSlideOverProvider>
   );
