@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { 
     LayoutDashboard, Users, LogOut, Calendar, Menu, X, DollarSign, 
     Settings, Building2, Bell, Mail, User, ChevronRight, ChevronsUpDown, 
-    Check, Smile, ChevronLeft, Globe
+    Check, Smile, ChevronLeft, Globe, CheckSquare
 } from 'lucide-react';
 import { useClinica, getClinicLabel } from '@/app/context/ClinicaContext';
 
@@ -16,6 +16,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [menuMobileAberto, setMenuMobileAberto] = useState(false);
   const [notificacoesCount, setNotificacoesCount] = useState(0);
+  const [tarefasPendentes, setTarefasPendentes] = useState(0);
   
   // ESTADO DO MENU LATERAL (EXPANDIDO/RECOLHIDO)
   const [menuRecolhido, setMenuRecolhido] = useState(false);
@@ -68,6 +69,22 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
         }
         const { count } = await supabase.from('notificacoes').select('*', { count: 'exact', head: true }).eq('user_id', session.user.id).eq('lida', false);
         setNotificacoesCount(count || 0);
+        
+        // Buscar tarefas pendentes (atrasadas ou próximas)
+        const clinicasIds = minhasClinicas.map(c => c.id);
+        if (clinicasIds.length > 0) {
+            const hoje = new Date().toISOString().split('T')[0];
+            const tresDiasDepois = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+            
+            const { count: tarefasCount } = await supabase
+                .from('tarefas')
+                .select('*', { count: 'exact', head: true })
+                .in('clinica_id', clinicasIds)
+                .neq('status', 'concluido')
+                .lte('data_limite', tresDiasDepois);
+            
+            setTarefasPendentes(tarefasCount || 0);
+        }
     }
     setLoading(false);
   }
@@ -94,12 +111,26 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
 
   const isAdmin = perfil?.nivel_acesso === 'admin';
 
-  const NavItem = ({ href, icon, label }: { href: string, icon: any, label: string }) => {
+  const NavItem = ({ href, icon, label, badge }: { href: string, icon: any, label: string, badge?: number }) => {
       const active = pathname.includes(href) || (href === '/dashboard' && pathname === '/dashboard');
       return (
         <Link href={href} onClick={() => setMenuMobileAberto(false)} className={`flex items-center gap-3 px-3 py-3 rounded-xl transition-all mb-1 group relative ${active ? 'bg-blue-50 text-blue-700 font-bold shadow-sm' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'} ${menuRecolhido ? 'justify-center' : ''}`}>
             <span className={`transition-transform ${!menuRecolhido && 'group-hover:scale-110'}`}>{icon}</span>
-            {!menuRecolhido && <span>{label}</span>}
+            {!menuRecolhido && (
+                <span className="flex-1 flex items-center justify-between">
+                    {label}
+                    {badge && badge > 0 && (
+                        <span className="bg-red-500 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
+                            {badge > 99 ? '99+' : badge}
+                        </span>
+                    )}
+                </span>
+            )}
+            {menuRecolhido && badge && badge > 0 && (
+                <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 text-white text-[8px] font-black rounded-full flex items-center justify-center">
+                    {badge > 9 ? '9+' : badge}
+                </span>
+            )}
             {menuRecolhido && (
                 <div className="absolute left-full ml-2 bg-slate-800 text-white text-xs font-bold px-2 py-1 rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-50 shadow-lg">
                     {label}
@@ -165,6 +196,12 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
             <NavItem href="/agenda" icon={<Calendar size={22}/>} label="Agenda" />
             <NavItem href="/pacientes" icon={<Users size={22}/>} label="Pacientes" />
             <NavItem href="/proteses" icon={<Smile size={22}/>} label="Próteses" />
+            <NavItem 
+                href="/tarefas" 
+                icon={<CheckSquare size={22}/>} 
+                label="Tarefas"
+                badge={tarefasPendentes > 0 ? tarefasPendentes : undefined}
+            />
             {isAdmin && (
                 <>
                     <div className="my-2 border-t border-slate-100 mx-2"></div>
