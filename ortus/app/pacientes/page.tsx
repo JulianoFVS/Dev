@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Search, Plus, LayoutGrid, List as ListIcon, User, Phone, Edit, Trash2, Activity, Loader2, ChevronRight, Building2, Download, Filter, AlertCircle, Calendar, Clock, X } from 'lucide-react';
+import { Search, Plus, LayoutGrid, List as ListIcon, User, Phone, Edit, Trash2, Activity, Loader2, ChevronRight, Building2, Download, Filter, AlertCircle, Calendar, Clock, X, MessageCircle } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { usePatientSlideOver } from '@/components/PatientSlideOver';
@@ -183,6 +183,13 @@ export default function Pacientes() {
       setFiltroStatus('todos'); setFiltroDebito(false); setFiltroSemConsulta(null); setFiltroProcedimento('');
   }
 
+  function abrirWhatsapp(telefone: string, e: React.MouseEvent) {
+      e.stopPropagation();
+      if (!telefone) return;
+      const numero = telefone.replace(/\D/g, '');
+      window.open(`https://wa.me/55${numero}`, '_blank');
+  }
+
   return (
     <div className="max-w-7xl mx-auto space-y-6 pb-20 animate-fade-in">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-3">
@@ -250,7 +257,20 @@ export default function Pacientes() {
                         <td className="p-3 sm:p-4 text-sm text-slate-500 hidden sm:table-cell">{p.nome_clinica ? <span className="bg-slate-100 px-2 py-0.5 rounded text-xs font-bold text-slate-600">{p.nome_clinica}</span> : <span className="text-slate-300 italic">--</span>}</td>
                         <td className="p-3 sm:p-4 text-sm text-slate-500">{p.telefone}</td>
                         <td className="p-3 sm:p-4"><span className="text-[10px] font-bold uppercase bg-slate-100 text-slate-500 px-2 py-1 rounded">{p.status}</span></td>
-                        <td className="p-3 sm:p-4 text-right pr-4 sm:pr-6 text-slate-300 group-hover:text-blue-500"><ChevronRight size={20}/></td>
+                        <td className="p-3 sm:p-4 text-right pr-4 sm:pr-6">
+                            <div className="flex items-center justify-end gap-2">
+                                {p.telefone && (
+                                    <button
+                                        onClick={(e) => abrirWhatsapp(p.telefone, e)}
+                                        className="p-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors shadow-sm"
+                                        title="Conversar no WhatsApp"
+                                    >
+                                        <MessageCircle size={16}/>
+                                    </button>
+                                )}
+                                <span className="text-slate-300 group-hover:text-blue-500"><ChevronRight size={20}/></span>
+                            </div>
+                        </td>
                     </tr>
                 ))}</tbody>
             </table>
@@ -259,12 +279,19 @@ export default function Pacientes() {
        ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">{filtrados.map((p: any) => (
             <div key={p.id} onClick={() => openPatientActions(p.id)} className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm hover:shadow-md cursor-pointer transition-all hover:border-blue-200 group">
-                <div className="flex items-center gap-4 mb-4"><div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center font-bold text-lg group-hover:bg-blue-600 group-hover:text-white transition-colors">{p.nome.charAt(0)}</div><div><h3 className="font-bold text-slate-800 truncate w-40">{p.nome}</h3><p className="text-xs text-slate-400 uppercase font-bold">{p.nome_clinica || 'Sem Clínica'}</p></div></div>
+                <div className="flex items-center gap-4 mb-4"><div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center font-bold text-lg group-hover:bg-blue-600 group-hover:text-white transition-colors">{p.nome.charAt(0)}</div><div className="flex-1 min-w-0"><h3 className="font-bold text-slate-800 truncate">{p.nome}</h3><p className="text-xs text-slate-400 uppercase font-bold">{p.nome_clinica || 'Sem Clínica'}</p></div>{p.telefone && (
+                    <button
+                        onClick={(e) => abrirWhatsapp(p.telefone, e)}
+                        className="p-2 bg-green-500 text-white rounded-xl hover:bg-green-600 transition-colors shadow-sm"
+                        title="Conversar no WhatsApp"
+                    >
+                        <MessageCircle size={18}/>
+                    </button>
+                )}</div>
                 <div className="text-sm text-slate-500 flex items-center gap-2"><Phone size={14}/> {p.telefone || 'Sem telefone'}</div>
             </div>
         ))}</div>
-       )
-      }
+       )}
     </div>
   );
 }

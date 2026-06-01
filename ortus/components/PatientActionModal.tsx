@@ -79,6 +79,30 @@ export function PatientActionModalProvider({ children }: { children: React.React
   const [qcClinicaId, setQcClinicaId] = useState<string>('');
   const [qcNome, setQcNome] = useState('');
   const [qcTelefone, setQcTelefone] = useState('');
+  const [qcSexo, setQcSexo] = useState('');
+  const [qcDataNascimento, setQcDataNascimento] = useState('');
+  const [qcCpf, setQcCpf] = useState('');
+  
+  // Endereço com ViaCEP
+  const [qcCep, setQcCep] = useState('');
+  const [qcRua, setQcRua] = useState('');
+  const [qcNumero, setQcNumero] = useState('');
+  const [qcComplemento, setQcComplemento] = useState('');
+  const [qcBairro, setQcBairro] = useState('');
+  const [qcCidade, setQcCidade] = useState('');
+  const [qcUf, setQcUf] = useState('');
+  const [qcBuscandoCep, setQcBuscandoCep] = useState(false);
+  
+  // Responsável (para menores)
+  const [qcResponsavelNome, setQcResponsavelNome] = useState('');
+  const [qcResponsavelParentesco, setQcResponsavelParentesco] = useState('');
+  const [qcResponsavelTelefone, setQcResponsavelTelefone] = useState('');
+  const [qcMostrarResponsavel, setQcMostrarResponsavel] = useState(false);
+  
+  // Plano/Convênio
+  const [qcPlanoId, setQcPlanoId] = useState<string>('');
+  const [planos, setPlanos] = useState<{id: string, nome: string}[]>([]);
+  
   const [qcSaving, setQcSaving] = useState(false);
   const [qcError, setQcError] = useState<string | null>(null);
 
@@ -112,12 +136,27 @@ export function PatientActionModalProvider({ children }: { children: React.React
     setLoading(false);
   }, []);
 
-  const openQuickCapture = useCallback((initialClinicaId?: string | null) => {
+  const openQuickCapture = useCallback(async (initialClinicaId?: string | null) => {
     setQcInitialClinicaId(initialClinicaId || null);
     const preselect = initialClinicaId || (activeClinicId && activeClinicId !== 'all' ? activeClinicId : '');
     setQcClinicaId(preselect || '');
     setQcNome('');
     setQcTelefone('');
+    setQcSexo('');
+    setQcDataNascimento('');
+    setQcCpf('');
+    setQcCep('');
+    setQcRua('');
+    setQcNumero('');
+    setQcComplemento('');
+    setQcBairro('');
+    setQcCidade('');
+    setQcUf('');
+    setQcResponsavelNome('');
+    setQcResponsavelParentesco('');
+    setQcResponsavelTelefone('');
+    setQcMostrarResponsavel(false);
+    setQcPlanoId('');
     setQcError(null);
     setQcSaving(false);
     setPatient(null);
@@ -125,6 +164,12 @@ export function PatientActionModalProvider({ children }: { children: React.React
     setActiveFlow('idle');
     setQuickCapture(true);
     setOpen(true);
+    
+    // Carregar planos da clínica selecionada
+    if (preselect) {
+      const { data } = await supabase.from('planos').select('id, nome').eq('clinica_id', preselect).eq('ativo', true).order('nome');
+      if (data) setPlanos(data);
+    }
   }, [activeClinicId]);
 
   async function submitQuickCapture() {
@@ -141,11 +186,29 @@ export function PatientActionModalProvider({ children }: { children: React.React
     setQcSaving(true);
     setQcError(null);
 
-    const payload: { nome: string; telefone: string; clinica_id: string } = {
+    const payload: any = {
       nome,
       telefone: qcTelefone.trim(),
       clinica_id: qcClinicaId,
+      sexo: qcSexo || null,
+      data_nascimento: qcDataNascimento || null,
+      cpf: qcCpf.trim() || null,
+      cep: qcCep.trim() || null,
+      rua: qcRua.trim() || null,
+      numero: qcNumero.trim() || null,
+      complemento: qcComplemento.trim() || null,
+      bairro: qcBairro.trim() || null,
+      cidade: qcCidade.trim() || null,
+      uf: qcUf.trim() || null,
+      plano_id: qcPlanoId || null,
     };
+    
+    // Adiciona responsável apenas se preenchido
+    if (qcResponsavelNome.trim()) {
+      payload.responsavel_nome = qcResponsavelNome.trim();
+      payload.responsavel_parentesco = qcResponsavelParentesco.trim() || null;
+      payload.responsavel_telefone = qcResponsavelTelefone.trim() || null;
+    }
 
     const { data, error } = await supabase
       .from('pacientes')
@@ -236,6 +299,29 @@ export function PatientActionModalProvider({ children }: { children: React.React
 
   const flowMeta = activeFlow !== 'idle' ? FLOW_META[activeFlow] : null;
 
+  // Buscar endereço via ViaCEP
+  async function buscarCep(cep: string) {
+    const cleanCep = cep.replace(/\D/g, '');
+    if (cleanCep.length !== 8) return;
+    
+    setQcBuscandoCep(true);
+    try {
+      const response = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`);
+      const data = await response.json();
+      
+      if (!data.erro) {
+        setQcRua(data.logradouro || '');
+        setQcBairro(data.bairro || '');
+        setQcCidade(data.localidade || '');
+        setQcUf(data.uf || '');
+      }
+    } catch (err) {
+      console.error('Erro ao buscar CEP:', err);
+    } finally {
+      setQcBuscandoCep(false);
+    }
+  }
+
   return (
     <PatientActionModalContext.Provider value={value}>
       {children}
@@ -278,6 +364,7 @@ export function PatientActionModalProvider({ children }: { children: React.React
 
             {quickCapture && (
               <div className="flex-1 overflow-y-auto custom-scrollbar p-5 space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                {/* Dados Básicos */}
                 <div className="space-y-2">
                   <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
                     <User size={12} /> Nome <span className="text-red-500">*</span>
@@ -287,15 +374,60 @@ export function PatientActionModalProvider({ children }: { children: React.React
                     type="text"
                     value={qcNome}
                     onChange={(event) => setQcNome(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter' && !qcSaving) {
-                        event.preventDefault();
-                        submitQuickCapture();
-                      }
-                    }}
                     placeholder="Nome completo do paciente"
                     className="w-full p-3 rounded-2xl bg-slate-50 border border-slate-200 font-bold text-slate-800 outline-none focus:bg-white focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition-all"
                   />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-500">Sexo</label>
+                    <select
+                      value={qcSexo}
+                      onChange={(e) => setQcSexo(e.target.value)}
+                      className="w-full p-3 rounded-2xl bg-slate-50 border border-slate-200 font-bold text-slate-800 outline-none focus:bg-white focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition-all"
+                    >
+                      <option value="">Selecione...</option>
+                      <option value="masculino">Masculino</option>
+                      <option value="feminino">Feminino</option>
+                      <option value="outro">Outro</option>
+                      <option value="nao_informar">Prefiro não informar</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-500">Data Nascimento</label>
+                    <input
+                      type="date"
+                      value={qcDataNascimento}
+                      onChange={(e) => setQcDataNascimento(e.target.value)}
+                      className="w-full p-3 rounded-2xl bg-slate-50 border border-slate-200 font-bold text-slate-800 outline-none focus:bg-white focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition-all"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-500">CPF</label>
+                    <input
+                      type="text"
+                      value={qcCpf}
+                      onChange={(e) => setQcCpf(e.target.value)}
+                      placeholder="000.000.000-00"
+                      className="w-full p-3 rounded-2xl bg-slate-50 border border-slate-200 font-bold text-slate-800 outline-none focus:bg-white focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition-all"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                      <Phone size={12} /> WhatsApp
+                    </label>
+                    <input
+                      type="tel"
+                      value={qcTelefone}
+                      onChange={(event) => setQcTelefone(event.target.value)}
+                      placeholder="(00) 00000-0000"
+                      className="w-full p-3 rounded-2xl bg-slate-50 border border-slate-200 font-bold text-slate-800 outline-none focus:bg-white focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition-all"
+                    />
+                  </div>
                 </div>
 
                 <div className="space-y-2">
@@ -304,7 +436,15 @@ export function PatientActionModalProvider({ children }: { children: React.React
                   </label>
                   <select
                     value={qcClinicaId}
-                    onChange={(e) => setQcClinicaId(e.target.value)}
+                    onChange={(e) => {
+                      setQcClinicaId(e.target.value);
+                      // Recarregar planos quando mudar clínica
+                      if (e.target.value) {
+                        supabase.from('planos').select('id, nome').eq('clinica_id', e.target.value).eq('ativo', true).order('nome').then(({ data }) => {
+                          if (data) setPlanos(data);
+                        });
+                      }
+                    }}
                     className="w-full p-3 rounded-2xl bg-slate-50 border border-slate-200 font-bold text-slate-800 outline-none focus:bg-white focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition-all"
                   >
                     <option value="">Selecione a clínica...</option>
@@ -312,23 +452,143 @@ export function PatientActionModalProvider({ children }: { children: React.React
                   </select>
                 </div>
 
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-                    <Phone size={12} /> WhatsApp / Telefone
-                  </label>
+                {/* Plano/Convênio */}
+                {planos.length > 0 && (
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-500">Plano / Convênio</label>
+                    <select
+                      value={qcPlanoId}
+                      onChange={(e) => setQcPlanoId(e.target.value)}
+                      className="w-full p-3 rounded-2xl bg-slate-50 border border-slate-200 font-bold text-slate-800 outline-none focus:bg-white focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition-all"
+                    >
+                      <option value="">Particular (sem convênio)</option>
+                      {planos.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}
+                    </select>
+                  </div>
+                )}
+
+                {/* Endereço com ViaCEP */}
+                <div className="pt-2 border-t border-slate-100">
+                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-3">Endereço (ViaCEP)</p>
+                  
+                  <div className="space-y-2">
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={qcCep}
+                        onChange={(e) => {
+                          setQcCep(e.target.value);
+                          if (e.target.value.replace(/\D/g, '').length === 8) {
+                            buscarCep(e.target.value);
+                          }
+                        }}
+                        onBlur={(e) => buscarCep(e.target.value)}
+                        placeholder="00000-000"
+                        className="flex-1 p-3 rounded-2xl bg-slate-50 border border-slate-200 font-bold text-slate-800 outline-none focus:bg-white focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition-all"
+                      />
+                      {qcBuscandoCep && <Loader2 size={20} className="animate-spin text-indigo-500 self-center" />}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2 mt-2">
+                    <div className="col-span-2 space-y-1">
+                      <input
+                        type="text"
+                        value={qcRua}
+                        onChange={(e) => setQcRua(e.target.value)}
+                        placeholder="Rua / Avenida"
+                        className="w-full p-2.5 rounded-xl bg-slate-50 border border-slate-200 font-bold text-slate-700 text-sm outline-none focus:bg-white focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition-all"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <input
+                        type="text"
+                        value={qcNumero}
+                        onChange={(e) => setQcNumero(e.target.value)}
+                        placeholder="Nº"
+                        className="w-full p-2.5 rounded-xl bg-slate-50 border border-slate-200 font-bold text-slate-700 text-sm outline-none focus:bg-white focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition-all"
+                      />
+                    </div>
+                  </div>
+
                   <input
-                    type="tel"
-                    value={qcTelefone}
-                    onChange={(event) => setQcTelefone(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter' && !qcSaving) {
-                        event.preventDefault();
-                        submitQuickCapture();
-                      }
-                    }}
-                    placeholder="(00) 00000-0000"
-                    className="w-full p-3 rounded-2xl bg-slate-50 border border-slate-200 font-bold text-slate-800 outline-none focus:bg-white focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition-all"
+                    type="text"
+                    value={qcComplemento}
+                    onChange={(e) => setQcComplemento(e.target.value)}
+                    placeholder="Complemento (Apto, Bloco, Sala...)"
+                    className="w-full mt-2 p-2.5 rounded-xl bg-slate-50 border border-slate-200 font-bold text-slate-700 text-sm outline-none focus:bg-white focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition-all"
                   />
+
+                  <div className="grid grid-cols-2 gap-2 mt-2">
+                    <input
+                      type="text"
+                      value={qcBairro}
+                      onChange={(e) => setQcBairro(e.target.value)}
+                      placeholder="Bairro"
+                      className="w-full p-2.5 rounded-xl bg-slate-50 border border-slate-200 font-bold text-slate-700 text-sm outline-none focus:bg-white focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition-all"
+                    />
+                    <input
+                      type="text"
+                      value={qcCidade}
+                      onChange={(e) => setQcCidade(e.target.value)}
+                      placeholder="Cidade"
+                      className="w-full p-2.5 rounded-xl bg-slate-50 border border-slate-200 font-bold text-slate-700 text-sm outline-none focus:bg-white focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition-all"
+                    />
+                  </div>
+
+                  <select
+                    value={qcUf}
+                    onChange={(e) => setQcUf(e.target.value)}
+                    className="w-full mt-2 p-2.5 rounded-xl bg-slate-50 border border-slate-200 font-bold text-slate-700 text-sm outline-none focus:bg-white focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition-all"
+                  >
+                    <option value="">UF</option>
+                    {['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'].map(uf => (
+                      <option key={uf} value={uf}>{uf}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Responsável (para menores) */}
+                <div className="pt-2 border-t border-slate-100">
+                  <button
+                    onClick={() => setQcMostrarResponsavel(!qcMostrarResponsavel)}
+                    className="text-[10px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-2 hover:text-indigo-600 transition-colors"
+                  >
+                    {qcMostrarResponsavel ? '▼' : '▶'} Adicionar Responsável (para menores)
+                  </button>
+                  
+                  {qcMostrarResponsavel && (
+                    <div className="mt-3 space-y-3 animate-in fade-in slide-in-from-top-2">
+                      <input
+                        type="text"
+                        value={qcResponsavelNome}
+                        onChange={(e) => setQcResponsavelNome(e.target.value)}
+                        placeholder="Nome do responsável"
+                        className="w-full p-3 rounded-2xl bg-slate-50 border border-slate-200 font-bold text-slate-800 outline-none focus:bg-white focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition-all"
+                      />
+                      <div className="grid grid-cols-2 gap-2">
+                        <select
+                          value={qcResponsavelParentesco}
+                          onChange={(e) => setQcResponsavelParentesco(e.target.value)}
+                          className="w-full p-3 rounded-2xl bg-slate-50 border border-slate-200 font-bold text-slate-800 outline-none focus:bg-white focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition-all"
+                        >
+                          <option value="">Parentesco...</option>
+                          <option value="pai">Pai</option>
+                          <option value="mae">Mãe</option>
+                          <option value="tutor">Tutor</option>
+                          <option value="avo">Avô/Avó</option>
+                          <option value="outro">Outro</option>
+                        </select>
+                        <input
+                          type="tel"
+                          value={qcResponsavelTelefone}
+                          onChange={(e) => setQcResponsavelTelefone(e.target.value)}
+                          placeholder="Telefone do responsável"
+                          className="w-full p-3 rounded-2xl bg-slate-50 border border-slate-200 font-bold text-slate-800 outline-none focus:bg-white focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition-all"
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {qcError && (
