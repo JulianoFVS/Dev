@@ -13,6 +13,8 @@ import {
     DollarSign,
     AlertTriangle,
     Check,
+    Download,
+    SlidersHorizontal,
 } from 'lucide-react';
 
 interface Plano {
@@ -77,6 +79,13 @@ export default function PlanosPage() {
     const [opcaoCopia, setOpcaoCopia] = useState<'copiar' | 'vazio'>('copiar');
     const [criandoPlano, setCriandoPlano] = useState(false);
 
+    // Reajuste em massa
+    const [reajusteAberto, setReajusteAberto] = useState(false);
+    const [reajusteTipo, setReajusteTipo] = useState<'percent' | 'fixo' | 'zerar'>('percent');
+    const [reajusteValor, setReajusteValor] = useState<string>('0');
+    const [reajusteEscopo, setReajusteEscopo] = useState<'todos' | 'especialidade'>('todos');
+    const [aplicandoReajuste, setAplicandoReajuste] = useState(false);
+
     const possuiPlanoPadrao = useMemo(() => planos.some((p) => p.tipo === 'particular'), [planos]);
 
     useEffect(() => {
@@ -128,6 +137,85 @@ export default function PlanosPage() {
             showAlert('Não foi possível carregar os planos.', { type: 'error' });
         } finally {
             setPlanosLoading(false);
+        }
+    }
+
+    function exportarPlanoCsv() {
+        if (!selectedPlanoId) return;
+        const header = ['Especialidade','Tratamento','Valor','Custo','Código TUSS','Aceita faces','Ativo'];
+        const espNomePorId: Record<string, string> = {};
+        especialidades.forEach(e => { espNomePorId[e.id] = e.nome; });
+        const rows = tratamentosBase.map((t) => {
+            const f = tratamentoForms[t.id] || buildDefaultForm(t);
+            const esp = t.especialidade_id ? (espNomePorId[t.especialidade_id] || '-') : '-';
+            return [
+                esp,
+                t.nome,
+                f.valor || '',
+                f.custo || '',
+                f.codigo_tuss || '',
+                f.aceita_faces ? 'sim' : 'não',
+                f.ativo ? 'sim' : 'não',
+            ].map((v) => `"${String(v).replace(/"/g, '""')}"`).join(',');
+        });
+        const bom = '\uFEFF';
+        const csv = bom + header.join(',') + '\n' + rows.join('\n');
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `tabela_plano_${selectedPlanoId}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+
+    async function aplicarReajusteSalvar() {
+        if (!selectedPlanoId || !clinicaId) return;
+        setAplicandoReajuste(true);
+        try {
+            const alvo = reajusteEscopo === 'especialidade' && especialidadeAtiva && especialidadeAtiva !== 'all'
+                ? tratamentosBase.filter(t => t.especialidade_id === especialidadeAtiva)
+                : tratamentosBase;
+            const fator = Number(reajusteValor || '0');
+            const arred2 = (n: number) => Math.round(n * 100) / 100;
+            // Atualiza estado local e prepara payloads
+            const novosForms: Record<number, PlanoTratamentoForm> = { ...tratamentoForms };
+            const payloads: any[] = [];
+            alvo.forEach((t) => {
+                const atual = novosForms[t.id] || buildDefaultForm(t);
+                const base = atual.valor !== '' ? Number(atual.valor) : (t.valor_sugerido || 0);
+                let nv = base;
+                if (reajusteTipo === 'percent') nv = base * (1 + fator / 100);
+                else if (reajusteTipo === 'fixo') nv = base + fator;
+                else if (reajusteTipo === 'zerar') nv = 0;
+                nv = arred2(nv);
+                novosForms[t.id] = { ...atual, valor: String(nv) };
+                payloads.push({
+                    plano_id: selectedPlanoId,
+                    clinica_id: clinicaId,
+                    tratamento_id: t.id,
+                    valor: nv,
+                    custo: atual.custo !== '' ? Number(atual.custo) : null,
+                    codigo_tuss: atual.codigo_tuss || null,
+                    aceita_faces: atual.aceita_faces,
+                    ativo: atual.ativo,
+                });
+            });
+            setTratamentoForms(novosForms);
+            if (payloads.length > 0) {
+                const { error } = await supabase.from('planos_tratamentos').upsert(payloads, { onConflict: 'plano_id,tratamento_id' });
+                if (error) throw error;
+            }
+            setReajusteAberto(false);
+            setReajusteValor('0');
+            setReajusteTipo('percent');
+            setReajusteEscopo('todos');
+            showAlert('Reajuste aplicado e salvo com sucesso!', { type: 'success' });
+        } catch (err) {
+            console.error(err);
+            showAlert('Erro ao aplicar o reajuste.', { type: 'error' });
+        } finally {
+            setAplicandoReajuste(false);
         }
     }
 
@@ -356,12 +444,30 @@ export default function PlanosPage() {
                     <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-800">Gestão de Planos</h1>
                     <p className="text-sm text-slate-500">Configure os valores de cada tratamento por plano ou convênio.</p>
                 </div>
-                <button
-                    onClick={() => setModalPlanoAberto(true)}
-                    className="flex items-center justify-center gap-2 px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-lg shadow-blue-200 text-sm"
-                >
-                    <Plus size={16} /> Novo Plano
-                </button>
+                <div className="flex items-center gap-2">
+                    {selectedPlanoId && (
+                        <>
+                            <button
+                                onClick={() => exportarPlanoCsv()}
+                                className="hidden sm:inline-flex items-center justify-center gap-2 px-4 py-2 border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold rounded-xl text-sm"
+                            >
+                                <Download size={14} /> Exportar
+                            </button>
+                            <button
+                                onClick={() => setReajusteAberto(true)}
+                                className="inline-flex items-center justify-center gap-2 px-4 py-2 border border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold rounded-xl text-sm"
+                            >
+                                <SlidersHorizontal size={14} /> Reajustar
+                            </button>
+                        </>
+                    )}
+                    <button
+                        onClick={() => setModalPlanoAberto(true)}
+                        className="flex items-center justify-center gap-2 px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-lg shadow-blue-200 text-sm"
+                    >
+                        <Plus size={16} /> Novo Plano
+                    </button>
+                </div>
             </header>
 
             {planosLoading && planos.length === 0 ? (
@@ -584,6 +690,67 @@ export default function PlanosPage() {
                                 </button>
                             </div>
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {reajusteAberto && (
+                <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-white w-full max-w-lg rounded-3xl border border-slate-100 shadow-2xl overflow-hidden">
+                        <div className="px-6 py-4 border-b border-slate-100">
+                            <h2 className="text-lg font-bold text-slate-800">Reajustar valores do plano</h2>
+                            <p className="text-xs text-slate-500">Aplique um reajuste em massa e salve automaticamente.</p>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            <div className="space-y-2">
+                                <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Tipo de reajuste</p>
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                    <label className={`flex items-center gap-2 p-2 rounded-xl border cursor-pointer ${reajusteTipo === 'percent' ? 'border-blue-300 bg-blue-50' : 'border-slate-200 bg-white'}`}>
+                                        <input type="radio" name="tipo" checked={reajusteTipo==='percent'} onChange={() => setReajusteTipo('percent')} />
+                                        <span className="text-sm font-bold">Percentual (%)</span>
+                                    </label>
+                                    <label className={`flex items-center gap-2 p-2 rounded-xl border cursor-pointer ${reajusteTipo === 'fixo' ? 'border-blue-300 bg-blue-50' : 'border-slate-200 bg-white'}`}>
+                                        <input type="radio" name="tipo" checked={reajusteTipo==='fixo'} onChange={() => setReajusteTipo('fixo')} />
+                                        <span className="text-sm font-bold">Valor fixo (R$)</span>
+                                    </label>
+                                    <label className={`flex items-center gap-2 p-2 rounded-xl border cursor-pointer ${reajusteTipo === 'zerar' ? 'border-blue-300 bg-blue-50' : 'border-slate-200 bg-white'}`}>
+                                        <input type="radio" name="tipo" checked={reajusteTipo==='zerar'} onChange={() => setReajusteTipo('zerar')} />
+                                        <span className="text-sm font-bold">Zerar</span>
+                                    </label>
+                                </div>
+                            </div>
+                            {reajusteTipo !== 'zerar' && (
+                                <div>
+                                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Valor</label>
+                                    <input
+                                        type="number"
+                                        step="0.01"
+                                        value={reajusteValor}
+                                        onChange={(e)=>setReajusteValor(e.target.value)}
+                                        className="w-full mt-1 px-3 py-2.5 rounded-2xl border border-slate-200 bg-slate-50 text-sm font-bold text-slate-700 focus:bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                                        placeholder={reajusteTipo==='percent' ? 'Ex.: 10 para +10%' : 'Ex.: 5.00 para +R$5,00'}
+                                    />
+                                </div>
+                            )}
+                            <div className="space-y-2">
+                                <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Escopo</p>
+                                <label className={`flex items-center gap-2 p-2 rounded-xl border cursor-pointer ${reajusteEscopo === 'todos' ? 'border-blue-300 bg-blue-50' : 'border-slate-200 bg-white'}`}>
+                                    <input type="radio" name="escopo" checked={reajusteEscopo==='todos'} onChange={()=>setReajusteEscopo('todos')} />
+                                    <span className="text-sm font-bold">Todos os tratamentos do plano</span>
+                                </label>
+                                <label className={`flex items-center gap-2 p-2 rounded-xl border cursor-pointer ${reajusteEscopo === 'especialidade' ? 'border-blue-300 bg-blue-50' : 'border-slate-200 bg-white'}`}>
+                                    <input type="radio" name="escopo" checked={reajusteEscopo==='especialidade'} onChange={()=>setReajusteEscopo('especialidade')} />
+                                    <span className="text-sm font-bold">Apenas a especialidade atual</span>
+                                </label>
+                            </div>
+                            <div className="flex items-center justify-end gap-2 pt-2">
+                                <button type="button" onClick={()=>setReajusteAberto(false)} className="px-4 py-2 rounded-xl text-sm font-bold text-slate-500 hover:bg-slate-50">Cancelar</button>
+                                <button type="button" onClick={aplicarReajusteSalvar} disabled={aplicandoReajuste || (reajusteTipo!=='zerar' && !reajusteValor)} className="px-5 py-2 rounded-xl text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2">
+                                    {aplicandoReajuste ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+                                    Aplicar e salvar
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             )}

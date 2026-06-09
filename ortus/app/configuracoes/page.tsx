@@ -1,7 +1,8 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Building2, Users, Plus, Trash2, MapPin, Check, X, Loader2, Edit, UserPlus, Shield, User, FileText, Phone, Mail, Save, Lock, ClipboardList, HelpCircle, FileSignature, Tag, SlidersHorizontal, Database, Download, Upload, Bell, Palette, RotateCcw, AlertTriangle, Clock, DollarSign } from 'lucide-react';
+import { Building2, Users, Plus, Trash2, MapPin, Check, X, Loader2, Edit, UserPlus, Shield, User, FileText, Phone, Mail, Save, Lock, ClipboardList, HelpCircle, FileSignature, Tag, SlidersHorizontal, Database, Download, Upload, Bell, Palette, RotateCcw, AlertTriangle, Clock, DollarSign, Layers3 } from 'lucide-react';
+import PlanosEmbedded from '@/app/planos/page';
 import { carregarModelos, salvarModelos, novoIdModelo, novoIdPergunta, type ModeloAnamnese, type PerguntaAnamnese, type TipoPergunta } from '@/lib/anamnese';
 import { listarBackups, criarBackupAgora, baixarBackupComoJson, excluirBackup as deletarBackupServer, restaurarBackup } from '@/lib/backup';
 import { fetchUserClinicas, fetchUserEquipe } from '@/lib/clinicScoped';
@@ -863,8 +864,12 @@ export default function Configuracoes() {
               {(perfilCaller?.nivel_acesso === 'admin' || perfilCaller?.is_super_admin) && (
                 <button onClick={() => setAbaAtiva('equipe')} className={`pb-4 px-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${abaAtiva === 'equipe' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><Users size={16}/> Equipe</button>
               )}
+ 
               {(perfilCaller?.nivel_acesso === 'admin' || perfilCaller?.is_super_admin) && (
                 <button onClick={() => setAbaAtiva('permissoes')} className={`pb-4 px-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${abaAtiva === 'permissoes' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><Shield size={16}/> Permissões</button>
+              )}
+              {(perfilCaller?.nivel_acesso === 'admin' || perfilCaller?.is_super_admin) && (
+                <button onClick={() => setAbaAtiva('planos')} className={`pb-4 px-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${abaAtiva === 'planos' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><Layers3 size={16}/> Planos</button>
               )}
               {(perfilCaller?.nivel_acesso === 'admin' || perfilCaller?.is_super_admin) && (
                 <button onClick={() => setAbaAtiva('comissoes')} className={`pb-4 px-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${abaAtiva === 'comissoes' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><DollarSign size={16}/> Comissões</button>
@@ -907,6 +912,13 @@ export default function Configuracoes() {
                             ))}
                         </div>
                     </div>
+                </div>
+            )}
+
+            {/* ABA PLANOS */}
+            {abaAtiva === 'planos' && (perfilCaller?.nivel_acesso === 'admin' || perfilCaller?.is_super_admin) && (
+                <div className="space-y-6 animate-in fade-in">
+                    <PlanosEmbedded />
                 </div>
             )}
 

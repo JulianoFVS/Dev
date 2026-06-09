@@ -66,7 +66,7 @@ export default function Pacientes() {
     // 2. Carregar Pacientes restritos às clínicas do usuário
     let pacientesQuery = supabase
         .from('pacientes')
-        .select('*, agendamentos(data_hora, status), clinicas(nome)')
+        .select('*, agendamentos(data_hora, status), clinicas(nome), planos(nome, tipo)')
         .order('created_at', { ascending: false });
     if (idsPermitidos.length > 0) {
         // Inclui pacientes da clinica OU sem clinica vinculada (null)
@@ -250,13 +250,15 @@ export default function Pacientes() {
         <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left min-w-[480px]">
-                <thead className="bg-slate-50 border-b border-slate-100"><tr><th className="p-3 sm:p-4 pl-4 sm:pl-6 text-xs font-bold text-slate-400 uppercase">Nome</th><th className="p-3 sm:p-4 text-xs font-bold text-slate-400 uppercase hidden sm:table-cell">Clínica</th><th className="p-3 sm:p-4 text-xs font-bold text-slate-400 uppercase">Telefone</th><th className="p-3 sm:p-4 text-xs font-bold text-slate-400 uppercase">Status</th><th className="p-3 sm:p-4 text-right"></th></tr></thead>
+                <thead className="bg-slate-50 border-b border-slate-100"><tr><th className="p-3 sm:p-4 pl-4 sm:pl-6 text-xs font-bold text-slate-400 uppercase">Nome</th><th className="p-3 sm:p-4 text-xs font-bold text-slate-400 uppercase hidden sm:table-cell">Clínica</th><th className="p-3 sm:p-4 text-xs font-bold text-slate-400 uppercase">Plano</th><th className="p-3 sm:p-4 text-xs font-bold text-slate-400 uppercase hidden md:table-cell">Responsável</th><th className="p-3 sm:p-4 text-xs font-bold text-slate-400 uppercase">Telefone</th><th className="p-3 sm:p-4 text-xs font-bold text-slate-400 uppercase hidden sm:table-cell">Status</th><th className="p-3 sm:p-4 text-right"></th></tr></thead>
                 <tbody className="divide-y divide-slate-50">{filtrados.map((p: any) => (
                     <tr key={p.id} onClick={() => openPatientActions(p.id)} className="hover:bg-blue-50 cursor-pointer transition-colors group">
                         <td className="p-3 sm:p-4 pl-4 sm:pl-6 font-bold text-slate-700 text-sm">{p.nome}</td>
                         <td className="p-3 sm:p-4 text-sm text-slate-500 hidden sm:table-cell">{p.nome_clinica ? <span className="bg-slate-100 px-2 py-0.5 rounded text-xs font-bold text-slate-600">{p.nome_clinica}</span> : <span className="text-slate-300 italic">--</span>}</td>
+                        <td className="p-3 sm:p-4 text-sm text-slate-500">{p.planos ? <span className={`text-[10px] font-bold uppercase px-2 py-1 rounded ${p.planos.tipo === 'particular' ? 'bg-slate-100 text-slate-600' : 'bg-blue-50 text-blue-600'}`}>{p.planos.tipo === 'particular' ? 'Particular' : p.planos.nome}</span> : <span className="text-[10px] font-bold uppercase bg-slate-100 text-slate-500 px-2 py-1 rounded">Particular</span>}</td>
+                        <td className="p-3 sm:p-4 text-sm text-slate-500 hidden md:table-cell">{p.responsavel_nome ? <span className="text-xs font-medium text-slate-600">{p.responsavel_nome} <span className="text-slate-400">({p.responsavel_parentesco || '—'})</span></span> : <span className="text-slate-300 italic">--</span>}</td>
                         <td className="p-3 sm:p-4 text-sm text-slate-500">{p.telefone}</td>
-                        <td className="p-3 sm:p-4"><span className="text-[10px] font-bold uppercase bg-slate-100 text-slate-500 px-2 py-1 rounded">{p.status}</span></td>
+                        <td className="p-3 sm:p-4 hidden sm:table-cell"><span className="text-[10px] font-bold uppercase bg-slate-100 text-slate-500 px-2 py-1 rounded">{p.status}</span></td>
                         <td className="p-3 sm:p-4 text-right pr-4 sm:pr-6">
                             <div className="flex items-center justify-end gap-2">
                                 {p.telefone && (
@@ -288,7 +290,18 @@ export default function Pacientes() {
                         <MessageCircle size={18}/>
                     </button>
                 )}</div>
-                <div className="text-sm text-slate-500 flex items-center gap-2"><Phone size={14}/> {p.telefone || 'Sem telefone'}</div>
+                <div className="space-y-2">
+                    <div className="text-sm text-slate-500 flex items-center gap-2"><Phone size={14}/> {p.telefone || 'Sem telefone'}</div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                        {p.planos ? <span className={`text-[10px] font-bold uppercase px-2 py-1 rounded ${p.planos.tipo === 'particular' ? 'bg-slate-100 text-slate-600' : 'bg-blue-50 text-blue-600'}`}>{p.planos.tipo === 'particular' ? 'Particular' : p.planos.nome}</span> : <span className="text-[10px] font-bold uppercase bg-slate-100 text-slate-500 px-2 py-1 rounded">Particular</span>}
+                    </div>
+                    {p.responsavel_nome && (
+                        <div className="text-xs text-slate-500 flex items-center gap-1">
+                            <span className="font-medium">{p.responsavel_nome}</span>
+                            <span className="text-slate-400">({p.responsavel_parentesco || '—'})</span>
+                        </div>
+                    )}
+                </div>
             </div>
         ))}</div>
        )}
