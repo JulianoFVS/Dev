@@ -59,15 +59,30 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
                     // Se estiver salvo como 'all', setamos um objeto especial
                     setClinicaAtual({ id: 'all', nome: 'Todas as Clínicas' });
                 } else {
-                    // Senão, tenta achar a clínica pelo ID, ou pega a primeira
-                    const atual = listaClinicas.find((c: any) => c.id.toString() === salva) || listaClinicas[0];
-                    setClinicaAtual(atual);
-                    // Se não tinha nada salvo, salva a primeira
-                    if (!salva) localStorage.setItem('ortus_clinica_id', atual.id.toString());
+                    // Tenta achar a clínica pelo ID salvo
+                    const atualSalva = listaClinicas.find((c: any) => c.id.toString() === salva);
+                    if (atualSalva) {
+                        setClinicaAtual(atualSalva);
+                    } else if (listaClinicas.length === 1) {
+                        // Auto-seleciona somente se o usuário possuir APENAS uma clínica
+                        const unica = listaClinicas[0];
+                        setClinicaAtual(unica);
+                        localStorage.setItem('ortus_clinica_id', unica.id.toString());
+                    } else {
+                        // Deixa sem seleção para o usuário escolher manualmente
+                        setClinicaAtual(null);
+                    }
                 }
             }
         }
-        const { count } = await supabase.from('notificacoes').select('*', { count: 'exact', head: true }).eq('user_id', session.user.id).eq('lida', false);
+        // Contar apenas não lidas e não expiradas
+        const agoraIso = new Date().toISOString();
+        const { count } = await supabase
+            .from('notificacoes')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', session.user.id)
+            .eq('lida', false)
+            .or(`expires_at.is.null,expires_at.gt.${agoraIso}`);
         setNotificacoesCount(count || 0);
         
         // Buscar tarefas pendentes (atrasadas ou próximas)
@@ -300,6 +315,35 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
         
         <div className="p-4 md:p-8 animate-in fade-in slide-in-from-bottom-2 duration-500">{children}</div>
       </main>
+
+      {/* Seleção de clínica obrigatória quando múltiplas e nenhuma escolhida */}
+      {ctxClinics.length > 1 && !ctxActive && (
+        <div className="fixed inset-0 z-[60] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl border border-slate-100 shadow-2xl w-full max-w-lg overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-100">
+              <h3 className="text-lg font-bold text-slate-800">Selecione a clínica</h3>
+              <p className="text-xs text-slate-500">Escolha a unidade para continuar usando o sistema.</p>
+            </div>
+            <div className="p-4 space-y-2 max-h-[60vh] overflow-auto">
+              <button
+                onClick={() => { setActiveClinicById('all'); window.location.reload(); }}
+                className="w-full text-left px-4 py-3 rounded-2xl border border-slate-200 hover:border-purple-300 hover:bg-purple-50 text-sm font-bold text-slate-700 flex items-center justify-between"
+              >
+                <span className="flex items-center gap-2"><Globe size={16}/> Todas as Clínicas</span>
+              </button>
+              {ctxClinics.map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() => { setActiveClinicById(String(c.id)); window.location.reload(); }}
+                  className="w-full text-left px-4 py-3 rounded-2xl border border-slate-200 hover:border-blue-300 hover:bg-blue-50 text-sm font-bold text-slate-700 flex items-center justify-between"
+                >
+                  <span className="truncate">{getClinicLabel(c)}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {menuMobileAberto && (
         <div className="md:hidden fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm animate-in fade-in" onClick={() => setMenuMobileAberto(false)}>

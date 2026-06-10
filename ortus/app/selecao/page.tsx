@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
+import { useClinica } from '@/app/context/ClinicaContext';
 import { Building2, Globe, LogOut, ChevronRight, Loader2, PlusCircle } from 'lucide-react';
 
 function nomeRede(c: any): string | null {
@@ -16,6 +17,7 @@ export default function SelecaoClinica() {
   const [loading, setLoading] = useState(true);
   const [usuario, setUsuario] = useState<any>(null);
   const router = useRouter();
+  const { setActiveClinicById } = useClinica();
 
   useEffect(() => {
     carregar();
@@ -95,8 +97,10 @@ export default function SelecaoClinica() {
 
   function selecionar(id: string) {
       if (typeof window !== 'undefined') {
-          localStorage.setItem('ortus_clinica_id', id);
-          window.location.href = '/dashboard';
+          const normalized = id === 'todas' ? 'all' : id;
+          localStorage.setItem('ortus_clinica_id', normalized);
+          try { setActiveClinicById(normalized as any); } catch {}
+          router.replace('/dashboard');
       }
   }
 

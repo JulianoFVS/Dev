@@ -117,20 +117,23 @@ export function ClinicaProvider({ children }: { children: ReactNode }) {
 
       setClinics(lista);
 
-      // Resolve a clínica ativa
+      // Resolve a clínica ativa — cada início de sessão deve escolher novamente se houver múltiplas
       const stored = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null;
       let nextId: string | 'all' | null = null;
 
-      if (stored === 'all' || stored === 'todas') {
-        nextId = 'all';
-      } else if (stored && lista.some((c) => String(c.id) === stored)) {
-        nextId = stored;
-      } else if (lista.length === 1) {
+      if (lista.length === 1) {
         nextId = String(lista[0].id);
-        localStorage.setItem(STORAGE_KEY, nextId);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem(STORAGE_KEY, nextId);
+        }
       } else if (lista.length > 1) {
-        // Ambíguo: usuário precisa escolher na tela /selecao
-        nextId = null;
+        if (stored === 'all' || stored === 'todas') {
+          nextId = 'all';
+        } else if (stored && lista.some((c) => String(c.id) === stored)) {
+          nextId = stored; // respeita escolha feita durante a sessão
+        } else {
+          nextId = null; // sem seleção válida → tela /selecao
+        }
       } else {
         nextId = null;
       }
@@ -144,6 +147,11 @@ export function ClinicaProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     loadClinics();
     const { data: sub } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_IN') {
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem(STORAGE_KEY);
+        }
+      }
       if (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'TOKEN_REFRESHED') {
         loadClinics();
       }

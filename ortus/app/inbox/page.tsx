@@ -1,13 +1,14 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Bell, Mail, Calendar, AlertTriangle, Info, CheckSquare, Trash2 } from 'lucide-react';
+import { Bell, Mail, Calendar, AlertTriangle, Info, CheckSquare, Trash2, History } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
 
 export default function Inbox() {
   const [todos, setTodos] = useState<any[]>([]); // FIX: any[]
   const [abaAtiva, setAbaAtiva] = useState('alertas');
+  const [escopo, setEscopo] = useState<'ativas' | 'historico'>('ativas');
   const [loading, setLoading] = useState(true);
   const searchParams = useSearchParams();
   const { showConfirm } = useCustomAlert();
@@ -17,12 +18,21 @@ export default function Inbox() {
       if (tab === 'mensagens') setAbaAtiva('mensagens');
       else setAbaAtiva('alertas');
       carregar(); 
-  }, [searchParams]);
+  }, [searchParams, escopo]);
 
   async function carregar() {
     const { data: { user } } = await supabase.auth.getUser();
     if(user) {
-        const { data } = await supabase.from('notificacoes').select('*').eq('user_id', user.id).order('created_at', { ascending: false });
+        const agoraIso = new Date().toISOString();
+        let query = supabase.from('notificacoes').select('*').eq('user_id', user.id);
+        if (escopo === 'ativas') {
+            // Mostrar apenas não expiradas (lidas ou não), mantendo limpeza automática por validade
+            query = query.or(`expires_at.is.null,expires_at.gt.${agoraIso}`);
+        } else {
+            // Histórico: expiradas OU lidas, limitado
+            query = query.or(`lida.eq.true,expires_at.lte.${agoraIso}`).limit(200);
+        }
+        const { data } = await query.order('created_at', { ascending: false });
         setTodos(data || []);
     }
     setLoading(false);
@@ -57,9 +67,15 @@ export default function Inbox() {
           <h2 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight">Central de Avisos</h2>
           <p className="text-slate-500 text-sm">Fique por dentro do que acontece na clínica.</p>
         </div>
-        <div className="flex bg-white p-1 rounded-xl shadow-sm border border-slate-200">
-          <button onClick={() => setAbaAtiva('alertas')} className={`px-4 sm:px-6 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all ${abaAtiva === 'alertas' ? 'bg-blue-50 text-blue-700 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}><Bell size={16}/> Notificações</button>
-          <button onClick={() => setAbaAtiva('mensagens')} className={`px-4 sm:px-6 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all ${abaAtiva === 'mensagens' ? 'bg-purple-50 text-purple-700 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}><Mail size={16}/> Mensagens</button>
+        <div className="flex items-center gap-3">
+          <div className="flex bg-white p-1 rounded-xl shadow-sm border border-slate-200">
+            <button onClick={() => setAbaAtiva('alertas')} className={`px-4 sm:px-6 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all ${abaAtiva === 'alertas' ? 'bg-blue-50 text-blue-700 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}><Bell size={16}/> Notificações</button>
+            <button onClick={() => setAbaAtiva('mensagens')} className={`px-4 sm:px-6 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all ${abaAtiva === 'mensagens' ? 'bg-purple-50 text-purple-700 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}><Mail size={16}/> Mensagens</button>
+          </div>
+          <div className="flex bg-white p-1 rounded-xl shadow-sm border border-slate-200">
+            <button onClick={() => setEscopo('ativas')} className={`px-3 py-2 rounded-lg text-xs font-black uppercase tracking-wider flex items-center gap-2 transition-all ${escopo === 'ativas' ? 'bg-emerald-50 text-emerald-700 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>Ativas</button>
+            <button onClick={() => setEscopo('historico')} className={`px-3 py-2 rounded-lg text-xs font-black uppercase tracking-wider flex items-center gap-2 transition-all ${escopo === 'historico' ? 'bg-slate-100 text-slate-700 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}><History size={14}/> Histórico</button>
+          </div>
         </div>
       </div>
       <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden min-h-[400px]">

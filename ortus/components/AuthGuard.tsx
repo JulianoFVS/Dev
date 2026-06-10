@@ -36,8 +36,19 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
   // Header switcher (consome o ClinicaProvider global multi-tenant)
-  const { clinics: ctxClinics, activeClinic: ctxActive, setActiveClinicById } = useClinica();
+  const { clinics: ctxClinics, activeClinic: ctxActive, activeClinicId: ctxActiveId, setActiveClinicById } = useClinica();
   const [headerSwitchOpen, setHeaderSwitchOpen] = useState(false);
+
+  // Mantém o estado local de UI sincronizado com a clínica ativa do contexto
+  useEffect(() => {
+    if (ctxActive) {
+      if (ctxActive.id === 'all') {
+        setClinicaAtual({ id: 'todas', nome: 'Todas as Clínicas' });
+      } else {
+        setClinicaAtual(ctxActive as any);
+      }
+    }
+  }, [ctxActiveId]);
 
   useEffect(() => { validarSessao(); }, [pathname]);
 
@@ -147,12 +158,36 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
                 const todasOption = { id: 'todas', nome: 'Todas as Clínicas' };
                 const listaCompleta = [todasOption, ...lista];
                 setMinhasClinicas(listaCompleta);
-                const salva = localStorage.getItem('ortus_clinica_id');
-                const atual = listaCompleta.find((c: any) => c.id.toString() === salva) || todasOption;
-                persistirClinicaSelecionada(atual);
-                
-                // Só salva se não tiver nada (para respeitar a escolha do usuário na tela de seleção)
-                if (!salva) localStorage.setItem('ortus_clinica_id', atual.id.toString());
+
+                if (lista.length > 1) {
+                    if (!ctxActiveId) {
+                        // Se ainda não temos ativo no contexto, tenta recuperar do localStorage imediatamente
+                        const salvo = typeof window !== 'undefined' ? localStorage.getItem('ortus_clinica_id') : null;
+                        if (salvo === 'all' || salvo === 'todas') {
+                            persistirClinicaSelecionada(todasOption);
+                        } else if (salvo) {
+                            const encontrada = lista.find((c:any) => String(c.id) === String(salvo));
+                            if (encontrada) {
+                                persistirClinicaSelecionada(encontrada);
+                            } else if (pathname !== '/selecao') {
+                                router.replace('/selecao');
+                                setLoading(false);
+                                return;
+                            }
+                        } else if (pathname !== '/selecao') {
+                            // Nenhuma clínica escolhida ainda → redireciona
+                            router.replace('/selecao');
+                            setLoading(false);
+                            return;
+                        }
+                        // Se já estamos em /selecao, permanecemos até escolha
+                    }
+                } else if (lista.length === 1) {
+                    // Auto-seleção quando há somente uma clínica
+                    persistirClinicaSelecionada(lista[0]);
+                } else {
+                    setClinicaAtual(null);
+                }
 
                 const clinicasIds = lista
                     .map((c: any) => c.id)
@@ -162,7 +197,13 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
                 setTarefasPendentes(0);
             }
         }
-        const { count } = await supabase.from('notificacoes').select('*', { count: 'exact', head: true }).eq('user_id', session.user.id).eq('lida', false);
+        const agoraIso = new Date().toISOString();
+        const { count } = await supabase
+            .from('notificacoes')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', session.user.id)
+            .eq('lida', false)
+            .or(`expires_at.is.null,expires_at.gt.${agoraIso}`);
         setNotificacoesCount(count || 0);
     }
     setLoading(false);
@@ -416,6 +457,8 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
         </header>
         <div className="p-4 md:p-8 min-w-0 max-w-full animate-in fade-in slide-in-from-bottom-2 duration-500">{children}</div>
       </main>
+
+      
 
       {menuMobileAberto && (
         <div className="md:hidden fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm animate-in fade-in" onClick={() => setMenuMobileAberto(false)}>
