@@ -567,7 +567,7 @@ export default function KanbanProtesesInteligente() {
   }
 
   return (
-    <div className="h-[calc(100vh-7rem)] md:h-[calc(100vh-8rem)] w-full max-w-full min-w-0 flex flex-col gap-3 overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-500">
+    <div className="w-full max-w-6xl mx-auto px-3 sm:px-5 flex flex-col gap-4 pb-16 min-h-screen animate-in fade-in slide-in-from-bottom-2 duration-500">
       <div className="sticky top-0 z-20 bg-white rounded-3xl border border-slate-200 shadow-sm p-5 grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center gap-4 shrink-0 w-full max-w-full min-w-0">
         <div>
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-pink-50 text-pink-700 text-[10px] font-black uppercase tracking-wider mb-2">

@@ -662,6 +662,13 @@ export default function EquipePage() {
     const isAdmin = perfilCaller?.nivel_acesso === 'admin' || perfilCaller?.is_super_admin;
 
     const totalAtivos = useMemo(() => profissionais.length, [profissionais]);
+    const totalAdmins = useMemo(() => profissionais.filter((p) => p.nivel_acesso === 'admin').length, [profissionais]);
+    const pendentesSenha = useMemo(() => profissionais.filter((p) => p.precisa_trocar_senha).length, [profissionais]);
+    const totalClinicasCobertas = useMemo(() => {
+        const set = new Set<string>();
+        profissionais.forEach((p) => (p.clinicas || []).forEach((c) => set.add(String(c.id))));
+        return set.size;
+    }, [profissionais]);
 
     if (loading || clinicLoading) {
         return (
@@ -684,7 +691,7 @@ export default function EquipePage() {
     }
 
     return (
-        <div className="p-4 sm:p-6 md:p-10 max-w-6xl mx-auto">
+        <div className="p-4 sm:p-6 md:p-10 max-w-6xl mx-auto space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
                 <div>
                     <div className="flex items-center gap-2 text-[10px] font-black text-blue-500 uppercase tracking-wider mb-1">
@@ -697,16 +704,45 @@ export default function EquipePage() {
                 </div>
                 <button
                     onClick={abrirModal}
-                    className="flex items-center justify-center gap-2 px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-lg shadow-blue-200 active:scale-95 transition-all text-sm sm:text-base w-full sm:w-auto"
+                    className="touch-target flex items-center justify-center gap-2 px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-lg shadow-blue-200 active:scale-95 transition-all text-sm sm:text-base w-full sm:w-auto"
                 >
                     <UserPlus size={18} /> Adicionar funcionário
                 </button>
             </div>
 
-            {/* Lista */}
-            <div className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[540px]">
+            <div className="grid grid-cols-1 md:grid-cols-[280px,1fr] gap-6">
+                <aside className="space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-1 gap-4">
+                        <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm">
+                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Total de usuários</p>
+                            <p className="text-3xl font-extrabold text-slate-800 mt-1">{totalAtivos}</p>
+                            <p className="text-xs text-slate-500">Equipe ativa na plataforma</p>
+                        </div>
+                        <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm">
+                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Admins e gestores</p>
+                            <p className="text-3xl font-extrabold text-blue-600 mt-1">{totalAdmins}</p>
+                            <p className="text-xs text-slate-500">Com acesso administrativo</p>
+                        </div>
+                        <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm">
+                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Pendentes de senha</p>
+                            <p className="text-3xl font-extrabold text-amber-600 mt-1">{pendentesSenha}</p>
+                            <p className="text-xs text-slate-500">Devem trocar a senha provisória</p>
+                        </div>
+                        <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm">
+                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Clínicas cobertas</p>
+                            <p className="text-3xl font-extrabold text-emerald-600 mt-1">{totalClinicasCobertas}</p>
+                            <p className="text-xs text-slate-500">Com pelo menos um colaborador</p>
+                        </div>
+                    </div>
+                    <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm">
+                        <p className="text-[11px] font-black uppercase tracking-wider text-slate-400 mb-2">Dica rápida</p>
+                        <p className="text-sm text-slate-600">Use o botão "Adicionar funcionário" acima para convidar novos membros e definir permissões personalizadas.</p>
+                    </div>
+                </aside>
+
+                <section className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[540px]">
                     <thead className="bg-slate-50">
                         <tr className="text-[10px] font-black uppercase tracking-wider text-slate-400">
                             <th className="text-left px-3 sm:px-5 py-3">Nome</th>
@@ -759,7 +795,7 @@ export default function EquipePage() {
                                 <td className="px-5 py-4 text-right">
                                     <button
                                         onClick={() => abrirEditorAvancado(p)}
-                                        className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-wider px-3 py-2 rounded-lg border border-slate-200 text-slate-500 hover:text-blue-600 hover:border-blue-300 transition-colors"
+                                        className="touch-target inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-wider px-3 py-2 rounded-lg border border-slate-200 text-slate-500 hover:text-blue-600 hover:border-blue-300 transition-colors"
                                     >
                                         <Settings size={12}/> Editar
                                     </button>
@@ -771,7 +807,8 @@ export default function EquipePage() {
                         )}
                     </tbody>
                 </table>
-              </div>
+                  </div>
+                </section>
             </div>
 
             {/* Editor avançado */}
@@ -796,9 +833,9 @@ export default function EquipePage() {
                         <Tabs value={abaEditor} onValueChange={(value) => setAbaEditor(value as 'permissoes' | 'horarios' | 'comissao')} className="flex-1 flex flex-col">
                             <div className="px-6 pt-4">
                                 <TabsList className="bg-slate-100 rounded-2xl p-1 w-full grid grid-cols-3">
-                                    <TabsTrigger value="permissoes" className="text-xs font-bold">Permissões</TabsTrigger>
-                                    <TabsTrigger value="horarios" className="text-xs font-bold">Horários</TabsTrigger>
-                                    <TabsTrigger value="comissao" className="text-xs font-bold">Comissão</TabsTrigger>
+                                    <TabsTrigger value="permissoes" className="touch-target text-xs font-bold">Permissões</TabsTrigger>
+                                    <TabsTrigger value="horarios" className="touch-target text-xs font-bold">Horários</TabsTrigger>
+                                    <TabsTrigger value="comissao" className="touch-target text-xs font-bold">Comissão</TabsTrigger>
                                 </TabsList>
                             </div>
                             <div className="flex-1 overflow-y-auto p-6 space-y-4">
@@ -817,7 +854,7 @@ export default function EquipePage() {
                     <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl border border-slate-100 max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200">
                         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
                             <h2 className="font-bold text-slate-800 flex items-center gap-2"><UserPlus size={18} className="text-blue-600" /> Novo funcionário</h2>
-                            <button onClick={() => setModalOpen(false)} className="text-slate-400 hover:text-slate-700 p-1 rounded-lg hover:bg-slate-50"><X size={18} /></button>
+                            <button onClick={() => setModalOpen(false)} className="touch-target text-slate-400 hover:text-slate-700 p-1 rounded-lg hover:bg-slate-50"><X size={18} /></button>
                         </div>
                         <form onSubmit={salvar} className="p-6 space-y-4">
                             {erro && (
@@ -888,8 +925,8 @@ export default function EquipePage() {
                             </div>
 
                             <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-50">
-                                <button type="button" onClick={() => setModalOpen(false)} className="px-4 py-2 text-sm font-bold text-slate-500 hover:bg-slate-50 rounded-lg">Cancelar</button>
-                                <button type="submit" disabled={salvando} className="px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-bold rounded-lg flex items-center gap-2 shadow-md shadow-blue-200">
+                                <button type="button" onClick={() => setModalOpen(false)} className="touch-target px-4 py-2 text-sm font-bold text-slate-500 hover:bg-slate-50 rounded-lg">Cancelar</button>
+                                <button type="submit" disabled={salvando} className="touch-target px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-bold rounded-lg flex items-center gap-2 shadow-md shadow-blue-200">
                                     {salvando ? <Loader2 size={14} className="animate-spin"/> : <UserPlus size={14}/>}
                                     Criar funcionário
                                 </button>
@@ -938,13 +975,13 @@ export default function EquipePage() {
                             </div>
                             <button
                                 onClick={() => copiar('tudo')}
-                                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-bold rounded-lg"
+                                className="touch-target w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-bold rounded-lg"
                             >
                                 {copiado === 'tudo' ? <><Check size={14} className="text-emerald-600"/> Copiado!</> : <><Copy size={14}/> Copiar tudo</>}
                             </button>
                             <button
                                 onClick={() => setCredenciais(null)}
-                                className="w-full px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-lg shadow-md shadow-blue-200"
+                                className="touch-target w-full px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-lg shadow-md shadow-blue-200"
                             >
                                 Concluir
                             </button>

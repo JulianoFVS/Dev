@@ -1,5 +1,6 @@
 ﻿'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import type { MouseEvent, PointerEvent } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { User, Phone, Edit, ArrowLeft, Save, Loader2, FileText, Clock, Trash2, Calendar, CalendarPlus, Pill, AlertTriangle, Stethoscope, X, Check, Building2, Printer, MessageCircle, Smile, Plus, Eraser, CheckCircle, ClipboardList, FolderOpen, AlertCircle, Upload, Download, Image as ImageIcon, DollarSign, Settings, Sparkles, Camera, Bell, ArrowLeftRight, ShieldCheck, Zap } from 'lucide-react';
@@ -269,6 +270,10 @@ export default function PacienteDetalhe() {
   const [textoOdontogramaLivre, setTextoOdontogramaLivre] = useState('');
   const [modalTrat, setModalTrat] = useState(false);
   const [tratEdit, setTratEdit] = useState<any>({ id: null, dente: '', procedimento: '', data: new Date().toISOString().split('T')[0], status: 'concluido', valor: '', observacoes: '', agendarNaAgenda: false, horaAgendamento: '09:00' });
+  const [odontogramaZoom, setOdontogramaZoom] = useState(1);
+  const [odontogramaPan, setOdontogramaPan] = useState({ x: 0, y: 0 });
+  const odontogramaSurfaceRef = useRef<HTMLDivElement | null>(null);
+  const odontogramaPanSession = useRef<{ active: boolean; lastX: number; lastY: number }>({ active: false, lastX: 0, lastY: 0 });
 
   // ANAMNESE
   const [modelosAnamnese, setModelosAnamnese] = useState<ModeloAnamnese[]>([]);
@@ -297,6 +302,11 @@ export default function PacienteDetalhe() {
       bioestimulador: { meses: 18, label: '18-24 meses' }, fios: { meses: 12, label: '12 meses' },
       peeling: { meses: 2, label: '1-3 meses' },
   };
+  const clampValue = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+  const ODONTO_ZOOM_RANGE = { min: 0.85, max: 1.4 } as const;
+  const HOF_ZOOM_RANGE = { min: 0.9, max: 1.5 } as const;
+  const PAN_LIMIT_FACTOR = 160;
+  const getPanLimit = (zoom: number) => (zoom - 1) * PAN_LIMIT_FACTOR;
   type HofFoto = { id: string; sessao: string; angulo: string; dataUrl: string; storagePath?: string; criado_em: string };
   const [marcacoesHof, setMarcacoesHof] = useState<HofMarcacao[]>([]);
   const [hofFotos, setHofFotos] = useState<HofFoto[]>([]);
@@ -310,6 +320,8 @@ export default function PacienteDetalhe() {
   const [hofCompararSessoes, setHofCompararSessoes] = useState<[string, string] | null>(null);
   const [savingHof, setSavingHof] = useState(false);
   const [enviandoFoto, setEnviandoFoto] = useState<string | null>(null);
+  const [hofModo, setHofModo] = useState<'visualizar' | 'alterar'>('visualizar');
+  const hofSurfaceRef = useRef<HTMLDivElement | null>(null);
 
   async function comprimirImagem(file: File, maxDim = 1200, qualidade = 0.8): Promise<Blob> {
       return new Promise((resolve, reject) => {
@@ -462,6 +474,50 @@ export default function PacienteDetalhe() {
       if (error) showAlert('Erro ao salvar: ' + error.message, { type: 'error' });
   }
 
+  function updateOdontogramaZoom(value: number) {
+      const normalized = Number(clampValue(value, ODONTO_ZOOM_RANGE.min, ODONTO_ZOOM_RANGE.max).toFixed(2));
+      setOdontogramaZoom(normalized);
+      if (normalized === 1) setOdontogramaPan({ x: 0, y: 0 });
+  }
+
+  function nudgeOdontogramaZoom(delta: number) {
+      updateOdontogramaZoom(odontogramaZoom + delta);
+  }
+
+  function resetOdontogramaView() {
+      odontogramaPanSession.current.active = false;
+      setOdontogramaPan({ x: 0, y: 0 });
+      updateOdontogramaZoom(1);
+  }
+
+  function handleOdontoPanStart(e: PointerEvent<HTMLDivElement>) {
+      if (odontogramaZoom <= 1) return;
+      odontogramaPanSession.current.active = true;
+      odontogramaPanSession.current.lastX = e.clientX;
+      odontogramaPanSession.current.lastY = e.clientY;
+      e.currentTarget.setPointerCapture?.(e.pointerId);
+  }
+
+  function handleOdontoPanMove(e: PointerEvent<HTMLDivElement>) {
+      if (!odontogramaPanSession.current.active) return;
+      const dx = e.clientX - odontogramaPanSession.current.lastX;
+      const dy = e.clientY - odontogramaPanSession.current.lastY;
+      if (dx === 0 && dy === 0) return;
+      odontogramaPanSession.current.lastX = e.clientX;
+      odontogramaPanSession.current.lastY = e.clientY;
+      const limit = getPanLimit(odontogramaZoom);
+      setOdontogramaPan(prev => ({
+          x: clampValue(prev.x + dx, -limit, limit),
+          y: clampValue(prev.y + dy, -limit, limit),
+      }));
+  }
+
+  function handleOdontoPanEnd(e: PointerEvent<HTMLDivElement>) {
+      if (!odontogramaPanSession.current.active) return;
+      odontogramaPanSession.current.active = false;
+      e.currentTarget.releasePointerCapture?.(e.pointerId);
+  }
+
   function abrirNovoTratamento() {
       setTratEdit({ id: null, dente: '', procedimento: '', data: new Date().toISOString().split('T')[0], status: 'concluido', valor: '', observacoes: '', agendarNaAgenda: false, horaAgendamento: '09:00' });
       setModalTrat(true);
@@ -531,7 +587,8 @@ export default function PacienteDetalhe() {
   // ===== HOF helpers =====
   function hofTipoInfo(key: string) { return HOF_TIPOS.find(t => t.key === key) || HOF_TIPOS[HOF_TIPOS.length - 1]; }
 
-  function handleFaceClick(e: React.MouseEvent<HTMLDivElement>) {
+  function handleFaceClick(e: MouseEvent<HTMLDivElement>) {
+      if (hofModo !== 'alterar') return;
       const rect = e.currentTarget.getBoundingClientRect();
       const x = ((e.clientX - rect.left) / rect.width) * 100;
       const y = ((e.clientY - rect.top) / rect.height) * 100;
@@ -1652,20 +1709,36 @@ export default function PacienteDetalhe() {
                     <div className="space-y-6 animate-in fade-in">
                         {/* ODONTOGRAMA */}
                         <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-200 shadow-sm">
-                            <div className="flex flex-wrap justify-between items-center gap-3 mb-5">
+                            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 mb-5">
                                 <h3 className="text-lg font-black text-slate-800 flex items-center gap-2"><Smile size={20} className="text-blue-500"/> Odontograma</h3>
                                 <div className="flex gap-2 flex-wrap">
                                     <div className="flex bg-slate-100 border border-slate-200 rounded-lg p-0.5">
                                         {(['anatomica', 'esquematica', 'livre'] as const).map(v => (
-                                            <button key={v} onClick={() => setVisaoOdonto(v)} className={`px-2.5 py-1.5 text-[10px] font-bold rounded-md transition-all ${visaoOdonto === v ? 'bg-white text-blue-600 shadow' : 'text-slate-500 hover:text-slate-700'}`}>
+                                            <button
+                                                key={v}
+                                                onClick={() => setVisaoOdonto(v)}
+                                                className={`px-4 py-2 text-xs font-bold rounded-md min-h-[44px] transition-all ${visaoOdonto === v ? 'bg-white text-blue-600 shadow' : 'text-slate-500 hover:text-slate-700'}`}
+                                            >
                                                 {v === 'anatomica' ? 'Anatômica' : v === 'esquematica' ? 'Esquemática' : 'Texto Livre'}
                                             </button>
                                         ))}
                                     </div>
-                                    {visaoOdonto !== 'livre' && <button onClick={async () => { if(await showConfirm('Limpar todo o odontograma?', { title: 'Limpar', type: 'warning', confirmLabel: 'Limpar' })) setOdontograma({}); }} className="px-3 py-2 text-xs font-bold rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center gap-1.5"><Eraser size={14}/> Limpar</button>}
-                                    <button onClick={imprimirOrcamento} className="px-3 py-2 text-xs font-bold rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center gap-1.5"><Printer size={14}/> PDF</button>
-                                    <button onClick={enviarOrcamentoWhatsapp} className="px-3 py-2 text-xs font-bold rounded-lg bg-green-500 text-white hover:bg-green-600 flex items-center gap-1.5 shadow-sm"><MessageCircle size={14}/> WhatsApp</button>
-                                    <button onClick={salvarOdontograma} disabled={savingOdo} className="px-4 py-2 text-xs font-bold rounded-lg bg-blue-600 text-white hover:bg-blue-700 flex items-center gap-1.5 shadow-sm disabled:opacity-50">{savingOdo ? <Loader2 size={14} className="animate-spin"/> : <Save size={14}/>} Salvar</button>
+                                    {visaoOdonto !== 'livre' && (
+                                        <button
+                                            onClick={async () => {
+                                                if (await showConfirm('Limpar todo o odontograma?', { title: 'Limpar', type: 'warning', confirmLabel: 'Limpar' })) setOdontograma({});
+                                            }}
+                                            className="px-4 py-2 text-sm font-semibold rounded-lg min-h-[44px] bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center gap-1.5"
+                                        >
+                                            <Eraser size={16}/> Limpar
+                                        </button>
+                                    )}
+                                    <button onClick={imprimirOrcamento} className="px-4 py-2 text-sm font-semibold rounded-lg min-h-[44px] bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center gap-1.5"><Printer size={16}/> PDF</button>
+                                    <button onClick={enviarOrcamentoWhatsapp} className="px-4 py-2 text-sm font-bold rounded-lg min-h-[44px] bg-green-500 text-white hover:bg-green-600 flex items-center gap-1.5 shadow-sm"><MessageCircle size={16}/> WhatsApp</button>
+                                    <button onClick={salvarOdontograma} disabled={savingOdo} className="px-5 py-2 text-sm font-bold rounded-lg min-h-[44px] bg-blue-600 text-white hover:bg-blue-700 flex items-center gap-1.5 shadow-sm disabled:opacity-50">
+                                        {savingOdo ? <Loader2 size={16} className="animate-spin"/> : <Save size={16}/>}
+                                        Salvar
+                                    </button>
                                 </div>
                             </div>
 
@@ -1682,8 +1755,8 @@ export default function PacienteDetalhe() {
                             ) : (
                             <>
                             {/* Legenda + Tabs Permanente/Leite */}
-                            <div className="mb-4 p-3 bg-gradient-to-br from-slate-50 to-blue-50/30 rounded-xl border border-slate-200">
-                                <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+                            <div className="mb-4 p-4 bg-gradient-to-br from-slate-50 to-blue-50/30 rounded-xl border border-slate-200">
+                                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                                     <div className="flex items-center gap-2">
                                         <span className="text-[10px] uppercase font-black text-slate-500 tracking-wider">Legendas:</span>
                                         {TOOLS.filter(t => t.tipo === 'face').map(t => (
@@ -1694,8 +1767,8 @@ export default function PacienteDetalhe() {
                                         ))}
                                     </div>
                                     <div className="flex bg-white border border-slate-200 rounded-lg p-0.5">
-                                        <button onClick={() => setTipoArcada('permanente')} className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${tipoArcada === 'permanente' ? 'bg-blue-600 text-white shadow' : 'text-slate-600 hover:bg-slate-50'}`}>Dentes Permanentes</button>
-                                        <button onClick={() => setTipoArcada('leite')} className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${tipoArcada === 'leite' ? 'bg-blue-600 text-white shadow' : 'text-slate-600 hover:bg-slate-50'}`}>Dentes de Leite</button>
+                                        <button onClick={() => setTipoArcada('permanente')} className={`px-4 py-2 text-xs font-bold rounded-md min-h-[44px] transition-all ${tipoArcada === 'permanente' ? 'bg-blue-600 text-white shadow' : 'text-slate-600 hover:bg-slate-50'}`}>Dentes Permanentes</button>
+                                        <button onClick={() => setTipoArcada('leite')} className={`px-4 py-2 text-xs font-bold rounded-md min-h-[44px] transition-all ${tipoArcada === 'leite' ? 'bg-blue-600 text-white shadow' : 'text-slate-600 hover:bg-slate-50'}`}>Dentes de Leite</button>
                                     </div>
                                 </div>
                             </div>
@@ -1703,7 +1776,11 @@ export default function PacienteDetalhe() {
                             {/* Toolbar de ferramentas */}
                             <div className="flex flex-wrap gap-2 mb-6 p-3 bg-slate-50 rounded-xl border border-slate-200">
                                 {TOOLS.map(t => (
-                                    <button key={t.key} onClick={() => setFerramenta(t.key)} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold border transition-all ${ferramenta === t.key ? 'border-slate-800 ring-2 ring-slate-300 bg-white shadow' : 'border-slate-200 bg-white hover:border-slate-400'}`}>
+                                    <button
+                                        key={t.key}
+                                        onClick={() => setFerramenta(t.key)}
+                                        className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold border min-h-[48px] transition-all ${ferramenta === t.key ? 'border-slate-800 ring-2 ring-slate-300 bg-white shadow' : 'border-slate-200 bg-white hover:border-slate-400'}`}
+                                    >
                                         <span className="w-4 h-4 rounded border border-slate-300" style={{ background: t.color }}></span>
                                         <span>{t.label}</span>
                                         {t.tipo === 'cond' && <span className="text-[9px] uppercase text-slate-400">dente</span>}
@@ -1716,30 +1793,64 @@ export default function PacienteDetalhe() {
                                 </div>
                             </div>
 
+                            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:gap-4 mb-4 p-3 bg-slate-50 rounded-xl border border-slate-200">
+                                <div className="text-[11px] font-black uppercase tracking-wider text-slate-500">Zoom e Navegação</div>
+                                <div className="flex flex-1 flex-wrap items-center gap-2">
+                                    <button onClick={() => nudgeOdontogramaZoom(-0.1)} className="px-3 py-2 rounded-lg border border-slate-200 min-h-[44px] text-sm font-bold text-slate-600 hover:border-slate-400" aria-label="Diminuir zoom do odontograma">−</button>
+                                    <input
+                                        type="range"
+                                        min={ODONTO_ZOOM_RANGE.min}
+                                        max={ODONTO_ZOOM_RANGE.max}
+                                        step="0.05"
+                                        value={odontogramaZoom}
+                                        onChange={(e) => updateOdontogramaZoom(parseFloat(e.target.value))}
+                                        aria-label="Controle de zoom do odontograma"
+                                        className="flex-1 accent-blue-600"
+                                    />
+                                    <button onClick={() => nudgeOdontogramaZoom(0.1)} className="px-3 py-2 rounded-lg border border-slate-200 min-h-[44px] text-sm font-bold text-slate-600 hover:border-slate-400" aria-label="Aumentar zoom do odontograma">+</button>
+                                    <button onClick={resetOdontogramaView} className="px-4 py-2 rounded-lg min-h-[44px] text-sm font-semibold bg-white border border-slate-200 text-slate-600 hover:border-slate-400">Centralizar</button>
+                                </div>
+                                <span className="text-xs font-bold text-slate-500">{Math.round(odontogramaZoom * 100)}%</span>
+                            </div>
+
                             {/* Arcadas - dente lib + face-grid + número, em colunas alinhadas */}
-                            <div className="w-full bg-white rounded-2xl p-4 border border-slate-200 overflow-x-hidden flex justify-center">
-                                {(() => {
-                                    const isEsq = visaoOdonto === 'esquematica';
-                                    const quad = tipoArcada === 'permanente' ? QUAD_PERM : QUAD_LEITE;
-                                    return (
-                                        <div className="inline-flex flex-col items-center">
-                                            {/* Superior */}
-                                            <div className={`flex justify-center ${isEsq ? 'items-center' : 'items-end'}`}>
-                                                {quad.sup[0].map(n => <Tooth key={n} num={n} isUpper={true} esquematico={isEsq} state={odontograma[n] || { faces: {}, cond: 'normal' }} ferramenta={ferramenta} onApply={(f) => aplicarFerramenta(n, f)} />)}
-                                                <div className="w-1 self-stretch border-l-2 border-dashed border-slate-300 mx-2"></div>
-                                                {quad.sup[1].map(n => <Tooth key={n} num={n} isUpper={true} esquematico={isEsq} state={odontograma[n] || { faces: {}, cond: 'normal' }} ferramenta={ferramenta} onApply={(f) => aplicarFerramenta(n, f)} />)}
-                                            </div>
-                                            {/* linha média */}
-                                            <div className="h-px bg-gradient-to-r from-transparent via-slate-400 to-transparent my-3"></div>
-                                            {/* Inferior */}
-                                            <div className={`flex justify-center ${isEsq ? 'items-center' : 'items-start'}`}>
-                                                {quad.inf[0].map(n => <Tooth key={n} num={n} isUpper={false} esquematico={isEsq} state={odontograma[n] || { faces: {}, cond: 'normal' }} ferramenta={ferramenta} onApply={(f) => aplicarFerramenta(n, f)} />)}
-                                                <div className="w-1 self-stretch border-l-2 border-dashed border-slate-300 mx-2"></div>
-                                                {quad.inf[1].map(n => <Tooth key={n} num={n} isUpper={false} esquematico={isEsq} state={odontograma[n] || { faces: {}, cond: 'normal' }} ferramenta={ferramenta} onApply={(f) => aplicarFerramenta(n, f)} />)}
-                                            </div>
-                                        </div>
-                                    );
-                                })()}
+                            <div className="relative w-full bg-white rounded-2xl p-4 border border-slate-200">
+                                <div className="flex justify-center">
+                                    <div className="overflow-auto custom-scrollbar">
+                                        {(() => {
+                                            const isEsq = visaoOdonto === 'esquematica';
+                                            const quad = tipoArcada === 'permanente' ? QUAD_PERM : QUAD_LEITE;
+                                            return (
+                                                <div
+                                                    ref={odontogramaSurfaceRef}
+                                                    className="inline-flex flex-col items-center min-w-max select-none transition-transform"
+                                                    style={{
+                                                        transform: `translate3d(${odontogramaPan.x}px, ${odontogramaPan.y}px, 0) scale(${odontogramaZoom})`,
+                                                        transformOrigin: 'center center',
+                                                        touchAction: odontogramaZoom > 1 ? 'none' : 'pan-x pan-y',
+                                                    }}
+                                                    onPointerDown={handleOdontoPanStart}
+                                                    onPointerMove={handleOdontoPanMove}
+                                                    onPointerUp={handleOdontoPanEnd}
+                                                    onPointerLeave={handleOdontoPanEnd}
+                                                    onPointerCancel={handleOdontoPanEnd}
+                                                >
+                                                    <div className={`flex justify-center ${isEsq ? 'items-center' : 'items-end'}`}>
+                                                        {quad.sup[0].map(n => <Tooth key={n} num={n} isUpper={true} esquematico={isEsq} state={odontograma[n] || { faces: {}, cond: 'normal' }} ferramenta={ferramenta} onApply={(f) => aplicarFerramenta(n, f)} />)}
+                                                        <div className="w-1 self-stretch border-l-2 border-dashed border-slate-300 mx-2"></div>
+                                                        {quad.sup[1].map(n => <Tooth key={n} num={n} isUpper={true} esquematico={isEsq} state={odontograma[n] || { faces: {}, cond: 'normal' }} ferramenta={ferramenta} onApply={(f) => aplicarFerramenta(n, f)} />)}
+                                                    </div>
+                                                    <div className="h-px bg-gradient-to-r from-transparent via-slate-400 to-transparent my-3"></div>
+                                                    <div className={`flex justify-center ${isEsq ? 'items-center' : 'items-start'}`}>
+                                                        {quad.inf[0].map(n => <Tooth key={n} num={n} isUpper={false} esquematico={isEsq} state={odontograma[n] || { faces: {}, cond: 'normal' }} ferramenta={ferramenta} onApply={(f) => aplicarFerramenta(n, f)} />)}
+                                                        <div className="w-1 self-stretch border-l-2 border-dashed border-slate-300 mx-2"></div>
+                                                        {quad.inf[1].map(n => <Tooth key={n} num={n} isUpper={false} esquematico={isEsq} state={odontograma[n] || { faces: {}, cond: 'normal' }} ferramenta={ferramenta} onApply={(f) => aplicarFerramenta(n, f)} />)}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
+                                    </div>
+                                </div>
                             </div>
 
                             {/* Resumo de dentes alterados */}
@@ -1917,12 +2028,33 @@ export default function PacienteDetalhe() {
                         <div className="flex flex-wrap justify-between items-center gap-3 mb-5">
                             <h3 className="text-lg font-black text-slate-800 flex items-center gap-2"><Sparkles size={20} className="text-purple-500"/> Harmonização Orofacial (HOF)</h3>
                             <div className="flex gap-2 flex-wrap">
-                                <button onClick={() => setModalProtocolo(true)} className="px-3 py-2 text-xs font-bold rounded-lg bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 flex items-center gap-1.5"><Zap size={14}/> Protocolos</button>
-                                <button onClick={gerarTermoConsentimentoHof} className="px-3 py-2 text-xs font-bold rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 flex items-center gap-1.5"><ShieldCheck size={14}/> Consentimento</button>
-                                <button onClick={imprimirMapaHof} className="px-3 py-2 text-xs font-bold rounded-lg bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 flex items-center gap-1.5"><Printer size={14}/> Imprimir</button>
-                                <button onClick={async () => { if(marcacoesHof.length && await showConfirm('Limpar todas as marcações?', { title: 'Limpar', type: 'warning', confirmLabel: 'Limpar' })) setMarcacoesHof([]); }} className="px-3 py-2 text-xs font-bold rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center gap-1.5"><Eraser size={14}/> Limpar</button>
-                                <button onClick={salvarHof} disabled={savingHof} className="px-4 py-2 text-xs font-bold rounded-lg bg-purple-600 text-white hover:bg-purple-700 flex items-center gap-1.5 shadow-sm disabled:opacity-50">{savingHof ? <Loader2 size={14} className="animate-spin"/> : <Save size={14}/>} Salvar</button>
+                                <button onClick={() => setModalProtocolo(true)} className="px-4 py-2 text-sm font-semibold rounded-lg min-h-[44px] bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 flex items-center gap-1.5"><Zap size={16}/> Protocolos</button>
+                                <button onClick={gerarTermoConsentimentoHof} className="px-4 py-2 text-sm font-semibold rounded-lg min-h-[44px] bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 flex items-center gap-1.5"><ShieldCheck size={16}/> Consentimento</button>
+                                <button onClick={imprimirMapaHof} className="px-4 py-2 text-sm font-semibold rounded-lg min-h-[44px] bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 flex items-center gap-1.5"><Printer size={16}/> Imprimir</button>
+                                <button onClick={async () => { if(marcacoesHof.length && await showConfirm('Limpar todas as marcações?', { title: 'Limpar', type: 'warning', confirmLabel: 'Limpar' })) setMarcacoesHof([]); }} className="px-4 py-2 text-sm font-semibold rounded-lg min-h-[44px] bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center gap-1.5"><Eraser size={16}/> Limpar</button>
+                                <button onClick={salvarHof} disabled={savingHof} className="px-5 py-2 text-sm font-bold rounded-lg min-h-[44px] bg-purple-600 text-white hover:bg-purple-700 flex items-center gap-1.5 shadow-sm disabled:opacity-50">{savingHof ? <Loader2 size={16} className="animate-spin"/> : <Save size={16}/>} Salvar</button>
                             </div>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-3 mb-4">
+                            <div className="flex items-center bg-slate-100 border border-slate-200 rounded-full p-1">
+                                {(['visualizar','alterar'] as const).map(modo => (
+                                    <button
+                                        key={modo}
+                                        onClick={() => {
+                                            setHofModo(modo);
+                                            if (modo === 'visualizar') setHofPopover({ x: 0, y: 0, open: false });
+                                        }}
+                                        className={`px-4 py-2 text-xs font-black rounded-full min-h-[44px] transition-all ${hofModo === modo ? 'bg-white text-purple-600 shadow' : 'text-slate-500 hover:text-slate-700'}`}
+                                        aria-pressed={hofModo === modo}
+                                    >
+                                        {modo === 'visualizar' ? 'Visualizar' : 'Alterar'}
+                                    </button>
+                                ))}
+                            </div>
+                            <p className="text-[11px] text-slate-500 font-semibold">
+                                Modo "Visualizar" bloqueia novos pontos para evitar toques acidentais.
+                            </p>
                         </div>
 
                         {/* Alertas de retorno */}
@@ -1961,14 +2093,14 @@ export default function PacienteDetalhe() {
                         {/* Toolbar de procedimentos + Toggle Gênero */}
                         <div className="flex flex-wrap items-center gap-2 mb-4">
                             {HOF_TIPOS.map(t => (
-                                <button key={t.key} onClick={() => setHofTipoAtivo(t.key)} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold border transition-all ${hofTipoAtivo === t.key ? 'border-slate-800 ring-2 ring-slate-300 bg-white shadow' : 'border-slate-200 bg-white hover:border-slate-400'}`}>
+                                <button key={t.key} onClick={() => setHofTipoAtivo(t.key)} className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold border min-h-[48px] transition-all ${hofTipoAtivo === t.key ? 'border-slate-800 ring-2 ring-slate-300 bg-white shadow' : 'border-slate-200 bg-white hover:border-slate-400'}`}>
                                     <span className="w-3.5 h-3.5 rounded-full border border-slate-300 shrink-0" style={{ background: t.color }}/>
                                     <span>{t.label}</span>
                                 </button>
                             ))}
                             <div className="ml-auto flex items-center bg-slate-100 rounded-lg p-0.5 border border-slate-200">
-                                <button onClick={() => setFaceHofAtiva('feminina')} className={`px-3 py-1.5 rounded-md text-[11px] font-bold transition-all ${faceHofAtiva === 'feminina' ? 'bg-white text-pink-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>♀ Feminino</button>
-                                <button onClick={() => setFaceHofAtiva('masculina')} className={`px-3 py-1.5 rounded-md text-[11px] font-bold transition-all ${faceHofAtiva === 'masculina' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>♂ Masculino</button>
+                                <button onClick={() => setFaceHofAtiva('feminina')} className={`px-4 py-2 text-[11px] font-bold rounded-md min-h-[44px] transition-all ${faceHofAtiva === 'feminina' ? 'bg-white text-pink-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>♀ Feminino</button>
+                                <button onClick={() => setFaceHofAtiva('masculina')} className={`px-4 py-2 text-[11px] font-bold rounded-md min-h-[44px] transition-all ${faceHofAtiva === 'masculina' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>♂ Masculino</button>
                             </div>
                         </div>
 
@@ -1977,14 +2109,16 @@ export default function PacienteDetalhe() {
                         {/* Canvas Facial */}
                         <div className="flex justify-center">
                             <div
-                                className="relative max-w-md w-full select-none cursor-crosshair rounded-2xl overflow-hidden border-2 border-slate-200 bg-cover bg-center bg-no-repeat transition-all duration-300"
+                                ref={hofSurfaceRef}
+                                className={`relative max-w-md w-full select-none rounded-2xl overflow-hidden border-2 border-slate-200 bg-cover bg-center bg-no-repeat transition-all duration-300 ${hofModo === 'alterar' ? 'cursor-crosshair' : 'cursor-default'}`}
                                 style={{
                                     aspectRatio: '3/4',
                                     backgroundImage: faceHofAtiva === 'feminina'
                                         ? "url('/hof/imagem_feminina.png')"
                                         : "url('/hof/imagem_masculina.png')",
+                                    touchAction: 'manipulation',
                                 }}
-                                onClick={handleFaceClick}
+                                onClick={hofModo === 'alterar' ? handleFaceClick : undefined}
                             >
                                 {/* Labels anatômicos sobre a imagem */}
                                 <span className="absolute top-[10%] left-1/2 -translate-x-1/2 text-[9px] font-black uppercase tracking-[0.2em] text-white/80 pointer-events-none" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.7), 0 0 8px rgba(0,0,0,0.4)' }}>Testa</span>

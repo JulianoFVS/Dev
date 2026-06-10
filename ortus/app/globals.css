@@ -190,3 +190,8 @@ input[type="time"] {
 /* Firefox scrollbar support */
 .custom-scrollbar { scrollbar-width: thin; scrollbar-color: #cbd5e1 transparent; }
 .kanban-scrollbar { scrollbar-width: thin; scrollbar-color: #ec4899 #fdf2f8; }
+.touch-target {
+    min-height: 44px;
+    min-width: 44px;
+}
+

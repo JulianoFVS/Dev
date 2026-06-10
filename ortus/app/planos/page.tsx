@@ -449,13 +449,13 @@ export default function PlanosPage() {
                         <>
                             <button
                                 onClick={() => exportarPlanoCsv()}
-                                className="hidden sm:inline-flex items-center justify-center gap-2 px-4 py-2 border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold rounded-xl text-sm"
+                                className="touch-target hidden sm:inline-flex items-center justify-center gap-2 px-4 py-2 border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold rounded-xl text-sm"
                             >
                                 <Download size={14} /> Exportar
                             </button>
                             <button
                                 onClick={() => setReajusteAberto(true)}
-                                className="inline-flex items-center justify-center gap-2 px-4 py-2 border border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold rounded-xl text-sm"
+                                className="touch-target inline-flex items-center justify-center gap-2 px-4 py-2 border border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold rounded-xl text-sm"
                             >
                                 <SlidersHorizontal size={14} /> Reajustar
                             </button>
@@ -463,7 +463,7 @@ export default function PlanosPage() {
                     )}
                     <button
                         onClick={() => setModalPlanoAberto(true)}
-                        className="flex items-center justify-center gap-2 px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-lg shadow-blue-200 text-sm"
+                        className="touch-target flex items-center justify-center gap-2 px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-lg shadow-blue-200 text-sm"
                     >
                         <Plus size={16} /> Novo Plano
                     </button>
@@ -492,7 +492,7 @@ export default function PlanosPage() {
                             <button
                                 key={plano.id}
                                 onClick={() => setSelectedPlanoId(plano.id)}
-                                className={`px-4 py-3 rounded-2xl border text-left transition-all ${ativo ? 'border-blue-500 bg-blue-50 shadow-sm text-blue-700' : 'border-slate-200 bg-white text-slate-600 hover:border-blue-200'}`}
+                                className={`touch-target px-4 py-3.5 rounded-2xl border text-left transition-all ${ativo ? 'border-blue-500 bg-blue-50 shadow-sm text-blue-700' : 'border-slate-200 bg-white text-slate-600 hover:border-blue-200'}`}
                             >
                                 <p className="text-sm font-bold">{plano.nome}</p>
                                 <p className={`text-[10px] uppercase font-black tracking-wider ${ativo ? 'text-blue-500' : 'text-slate-400'}`}>
@@ -512,12 +512,12 @@ export default function PlanosPage() {
             )}
 
             {!carregando && planos.length > 0 && (
-                <div className="grid grid-cols-1 lg:grid-cols-[240px,1fr] gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-[260px,1fr] gap-6">
                     <aside className="bg-white border border-slate-100 rounded-3xl p-4 shadow-sm">
                         <p className="text-[11px] font-black uppercase tracking-wider text-slate-400 mb-3">Especialidades</p>
                         <button
                             onClick={() => setEspecialidadeAtiva('all')}
-                            className={`w-full flex items-center justify-between px-3 py-2 rounded-2xl text-sm font-bold mb-1 border ${especialidadeAtiva === 'all' ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-white border-slate-100 text-slate-600 hover:border-slate-300'}`}
+                            className={`touch-target w-full flex items-center justify-between px-4 py-2.5 rounded-2xl text-sm font-bold mb-1 border ${especialidadeAtiva === 'all' ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-white border-slate-100 text-slate-600 hover:border-slate-300'}`}
                         >
                             <span>Todas</span>
                             <span className="text-[11px] font-black text-slate-400">{tratamentosBase.length}</span>
@@ -526,7 +526,7 @@ export default function PlanosPage() {
                             <button
                                 key={esp.id}
                                 onClick={() => setEspecialidadeAtiva(esp.id)}
-                                className={`w-full flex items-center justify-between px-3 py-2 rounded-2xl text-sm font-bold mb-1 border ${especialidadeAtiva === esp.id ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-white border-slate-100 text-slate-600 hover:border-slate-300'}`}
+                                className={`touch-target w-full flex items-center justify-between px-4 py-2.5 rounded-2xl text-sm font-bold mb-1 border ${especialidadeAtiva === esp.id ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-white border-slate-100 text-slate-600 hover:border-slate-300'}`}
                             >
                                 <span className="truncate">{esp.nome}</span>
                                 <span className="text-[11px] font-black text-slate-400">{esp.total}</span>
@@ -555,13 +555,13 @@ export default function PlanosPage() {
                                             <button
                                                 type="button"
                                                 onClick={() => updateTratamentoForm(tratamento.id, 'ativo', !form.ativo)}
-                                                className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wide border ${form.ativo ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-white border-slate-200 text-slate-400'}`}
+                                                className={`touch-target flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wide border ${form.ativo ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-white border-slate-200 text-slate-400'}`}
                                             >
                                                 {form.ativo ? <ToggleRight size={20} /> : <ToggleLeft size={20} />}
                                                 {form.ativo ? 'Usando' : 'Não usar'}
                                             </button>
                                         </div>
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                                             <div>
                                                 <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Valor</label>
                                                 <div className="relative mt-1">
@@ -605,7 +605,7 @@ export default function PlanosPage() {
                                             <button
                                                 type="button"
                                                 onClick={() => updateTratamentoForm(tratamento.id, 'aceita_faces', !form.aceita_faces)}
-                                                className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wide border ${form.aceita_faces ? 'bg-slate-900 text-white border-slate-900' : 'bg-white border-slate-200 text-slate-500'}`}
+                                                className={`touch-target flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wide border ${form.aceita_faces ? 'bg-slate-900 text-white border-slate-900' : 'bg-white border-slate-200 text-slate-500'}`}
                                             >
                                                 {form.aceita_faces ? <ToggleRight size={20} /> : <ToggleLeft size={20} />}
                                                 Aceita faces
@@ -614,7 +614,7 @@ export default function PlanosPage() {
                                                 type="button"
                                                 disabled={!dirty || salvando}
                                                 onClick={() => salvarPlanoTratamento(tratamento.id)}
-                                                className="flex items-center gap-2 px-4 py-2 rounded-2xl text-sm font-bold text-white bg-blue-600 disabled:bg-slate-200 disabled:text-slate-400"
+                                                className="touch-target flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-bold text-white bg-blue-600 disabled:bg-slate-200 disabled:text-slate-400"
                                             >
                                                 {salvando ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
                                                 Salvar
@@ -647,7 +647,7 @@ export default function PlanosPage() {
                             </div>
                             <div className="space-y-2">
                                 <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Tratamentos iniciais</p>
-                                <label className={`flex items-start gap-3 p-3 rounded-2xl border cursor-pointer ${opcaoCopia === 'copiar' ? 'border-blue-300 bg-blue-50' : 'border-slate-200 bg-white'}`}>
+                                <label className={`flex items-start gap-3 p-3 rounded-2xl border cursor-pointer min-h-[56px] ${opcaoCopia === 'copiar' ? 'border-blue-300 bg-blue-50' : 'border-slate-200 bg-white'}`}>
                                     <input
                                         type="radio"
                                         name="opcaoCopiar"
@@ -664,7 +664,7 @@ export default function PlanosPage() {
                                         )}
                                     </div>
                                 </label>
-                                <label className={`flex items-start gap-3 p-3 rounded-2xl border cursor-pointer ${opcaoCopia === 'vazio' ? 'border-blue-300 bg-blue-50' : 'border-slate-200 bg-white'}`}>
+                                <label className={`flex items-start gap-3 p-3 rounded-2xl border cursor-pointer min-h-[56px] ${opcaoCopia === 'vazio' ? 'border-blue-300 bg-blue-50' : 'border-slate-200 bg-white'}`}>
                                     <input
                                         type="radio"
                                         name="opcaoCopiar"
@@ -705,15 +705,15 @@ export default function PlanosPage() {
                             <div className="space-y-2">
                                 <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Tipo de reajuste</p>
                                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                                    <label className={`flex items-center gap-2 p-2 rounded-xl border cursor-pointer ${reajusteTipo === 'percent' ? 'border-blue-300 bg-blue-50' : 'border-slate-200 bg-white'}`}>
+                                    <label className={`flex items-center gap-2 p-3 rounded-xl border cursor-pointer min-h-[52px] ${reajusteTipo === 'percent' ? 'border-blue-300 bg-blue-50' : 'border-slate-200 bg-white'}`}>
                                         <input type="radio" name="tipo" checked={reajusteTipo==='percent'} onChange={() => setReajusteTipo('percent')} />
                                         <span className="text-sm font-bold">Percentual (%)</span>
                                     </label>
-                                    <label className={`flex items-center gap-2 p-2 rounded-xl border cursor-pointer ${reajusteTipo === 'fixo' ? 'border-blue-300 bg-blue-50' : 'border-slate-200 bg-white'}`}>
+                                    <label className={`flex items-center gap-2 p-3 rounded-xl border cursor-pointer min-h-[52px] ${reajusteTipo === 'fixo' ? 'border-blue-300 bg-blue-50' : 'border-slate-200 bg-white'}`}>
                                         <input type="radio" name="tipo" checked={reajusteTipo==='fixo'} onChange={() => setReajusteTipo('fixo')} />
                                         <span className="text-sm font-bold">Valor fixo (R$)</span>
                                     </label>
-                                    <label className={`flex items-center gap-2 p-2 rounded-xl border cursor-pointer ${reajusteTipo === 'zerar' ? 'border-blue-300 bg-blue-50' : 'border-slate-200 bg-white'}`}>
+                                    <label className={`flex items-center gap-2 p-3 rounded-xl border cursor-pointer min-h-[52px] ${reajusteTipo === 'zerar' ? 'border-blue-300 bg-blue-50' : 'border-slate-200 bg-white'}`}>
                                         <input type="radio" name="tipo" checked={reajusteTipo==='zerar'} onChange={() => setReajusteTipo('zerar')} />
                                         <span className="text-sm font-bold">Zerar</span>
                                     </label>
@@ -734,18 +734,18 @@ export default function PlanosPage() {
                             )}
                             <div className="space-y-2">
                                 <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Escopo</p>
-                                <label className={`flex items-center gap-2 p-2 rounded-xl border cursor-pointer ${reajusteEscopo === 'todos' ? 'border-blue-300 bg-blue-50' : 'border-slate-200 bg-white'}`}>
+                                <label className={`flex items-center gap-2 p-3 rounded-xl border cursor-pointer min-h-[52px] ${reajusteEscopo === 'todos' ? 'border-blue-300 bg-blue-50' : 'border-slate-200 bg-white'}`}>
                                     <input type="radio" name="escopo" checked={reajusteEscopo==='todos'} onChange={()=>setReajusteEscopo('todos')} />
                                     <span className="text-sm font-bold">Todos os tratamentos do plano</span>
                                 </label>
-                                <label className={`flex items-center gap-2 p-2 rounded-xl border cursor-pointer ${reajusteEscopo === 'especialidade' ? 'border-blue-300 bg-blue-50' : 'border-slate-200 bg-white'}`}>
+                                <label className={`flex items-center gap-2 p-3 rounded-xl border cursor-pointer min-h-[52px] ${reajusteEscopo === 'especialidade' ? 'border-blue-300 bg-blue-50' : 'border-slate-200 bg-white'}`}>
                                     <input type="radio" name="escopo" checked={reajusteEscopo==='especialidade'} onChange={()=>setReajusteEscopo('especialidade')} />
                                     <span className="text-sm font-bold">Apenas a especialidade atual</span>
                                 </label>
                             </div>
-                            <div className="flex items-center justify-end gap-2 pt-2">
-                                <button type="button" onClick={()=>setReajusteAberto(false)} className="px-4 py-2 rounded-xl text-sm font-bold text-slate-500 hover:bg-slate-50">Cancelar</button>
-                                <button type="button" onClick={aplicarReajusteSalvar} disabled={aplicandoReajuste || (reajusteTipo!=='zerar' && !reajusteValor)} className="px-5 py-2 rounded-xl text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-end gap-2 pt-2">
+                                <button type="button" onClick={()=>setReajusteAberto(false)} className="px-4 py-2 min-h-[44px] rounded-xl text-sm font-bold text-slate-500 hover:bg-slate-50">Cancelar</button>
+                                <button type="button" onClick={aplicarReajusteSalvar} disabled={aplicandoReajuste || (reajusteTipo!=='zerar' && !reajusteValor)} className="px-5 py-2 min-h-[44px] rounded-xl text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2 justify-center">
                                     {aplicandoReajuste ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
                                     Aplicar e salvar
                                 </button>

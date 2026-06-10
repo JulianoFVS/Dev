@@ -237,6 +237,12 @@ export function PatientActionModalProvider({ children }: { children: React.React
 
   const value = useMemo(() => ({ openPatientActions, openQuickCapture, closePatientActions }), [openPatientActions, openQuickCapture, closePatientActions]);
 
+  const goToPatientTab = useCallback((tab: string) => {
+    if (!patient) return;
+    closePatientActions();
+    router.push(`/pacientes/${patient.id}?tab=${tab}`);
+  }, [patient, closePatientActions, router]);
+
   useEffect(() => {
     if (!open) return;
     function handleKeyDown(event: KeyboardEvent) {
@@ -648,7 +654,7 @@ export function PatientActionModalProvider({ children }: { children: React.React
                     </button>
 
                     <button
-                      onClick={() => setActiveFlow('agendamento')}
+                      onClick={() => goToPatientTab('tratamentos')}
                       disabled={loading || !patient}
                       className="p-4 rounded-3xl border-2 border-blue-100 bg-blue-50/40 text-blue-800 text-left hover:bg-blue-50 hover:border-blue-300 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                     >
@@ -660,7 +666,7 @@ export function PatientActionModalProvider({ children }: { children: React.React
                     </button>
 
                     <button
-                      onClick={() => setActiveFlow('tratamento')}
+                      onClick={() => goToPatientTab('tratamentos')}
                       disabled={loading || !patient}
                       className="p-4 rounded-3xl border-2 border-emerald-100 bg-emerald-50/40 text-emerald-800 text-left hover:bg-emerald-50 hover:border-emerald-300 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                     >
@@ -672,7 +678,7 @@ export function PatientActionModalProvider({ children }: { children: React.React
                     </button>
 
                     <button
-                      onClick={() => setActiveFlow('protese')}
+                      onClick={() => goToPatientTab('tratamentos')}
                       disabled={loading || !patient}
                       className="p-4 rounded-3xl border-2 border-pink-100 bg-pink-50/40 text-pink-800 text-left hover:bg-pink-50 hover:border-pink-300 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                     >
@@ -684,7 +690,7 @@ export function PatientActionModalProvider({ children }: { children: React.React
                     </button>
 
                     <button
-                      onClick={() => { if (patient) { router.push(`/pacientes/${patient.id}?tab=hof`); closePatientActions(); } }}
+                      onClick={() => goToPatientTab('hof')}
                       disabled={loading || !patient}
                       className="p-4 rounded-3xl border-2 border-purple-100 bg-purple-50/40 text-purple-800 text-left hover:bg-purple-50 hover:border-purple-300 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                     >
