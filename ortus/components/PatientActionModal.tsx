@@ -243,6 +243,11 @@ export function PatientActionModalProvider({ children }: { children: React.React
     router.push(`/pacientes/${patient.id}?tab=${tab}`);
   }, [patient, closePatientActions, router]);
 
+  function startFlow(flow: Exclude<ActiveFlow, 'idle'>) {
+    if (!patient) return;
+    setActiveFlow(flow);
+  }
+
   useEffect(() => {
     if (!open) return;
     function handleKeyDown(event: KeyboardEvent) {
@@ -654,7 +659,7 @@ export function PatientActionModalProvider({ children }: { children: React.React
                     </button>
 
                     <button
-                      onClick={() => goToPatientTab('tratamentos')}
+                      onClick={() => startFlow('agendamento')}
                       disabled={loading || !patient}
                       className="p-4 rounded-3xl border-2 border-blue-100 bg-blue-50/40 text-blue-800 text-left hover:bg-blue-50 hover:border-blue-300 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                     >
@@ -666,7 +671,7 @@ export function PatientActionModalProvider({ children }: { children: React.React
                     </button>
 
                     <button
-                      onClick={() => goToPatientTab('tratamentos')}
+                      onClick={() => startFlow('tratamento')}
                       disabled={loading || !patient}
                       className="p-4 rounded-3xl border-2 border-emerald-100 bg-emerald-50/40 text-emerald-800 text-left hover:bg-emerald-50 hover:border-emerald-300 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                     >
@@ -678,7 +683,7 @@ export function PatientActionModalProvider({ children }: { children: React.React
                     </button>
 
                     <button
-                      onClick={() => goToPatientTab('tratamentos')}
+                      onClick={() => startFlow('protese')}
                       disabled={loading || !patient}
                       className="p-4 rounded-3xl border-2 border-pink-100 bg-pink-50/40 text-pink-800 text-left hover:bg-pink-50 hover:border-pink-300 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                     >

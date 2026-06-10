@@ -39,6 +39,17 @@ const TOOLS: { key: string; label: string; color: string; tipo: 'face' | 'cond' 
   { key: 'ausente',     label: 'Ausente',     color: '#94a3b8', tipo: 'cond' },
 ];
 
+const PATIENT_NAV_SECTIONS = [
+  { key: 'dados', label: 'Dados', icon: User },
+  { key: 'anamnese', label: 'Anamnese', icon: FileText },
+  { key: 'tratamentos', label: 'Tratamentos', icon: Smile },
+  { key: 'documentos', label: 'Documentos', icon: FolderOpen },
+  { key: 'evolucao', label: 'Evolução', icon: ClipboardList },
+  { key: 'debitos', label: 'Débitos', icon: DollarSign },
+  { key: 'hof', label: 'HOF', icon: Sparkles },
+  { key: 'historico', label: 'Histórico', icon: Clock },
+];
+
 const QUAD_PERM = {
   sup: [[18,17,16,15,14,13,12,11], [21,22,23,24,25,26,27,28]],
   inf: [[48,47,46,45,44,43,42,41], [31,32,33,34,35,36,37,38]],
@@ -1411,8 +1422,33 @@ export default function PacienteDetalhe() {
             </div>
         )}
 
+        {/* Navegação rápida mobile */}
+        <div className="lg:hidden sticky top-16 z-30 pb-4 bg-white/95 backdrop-blur border-b border-slate-100">
+            <div className="flex gap-2 overflow-x-auto pb-1 snap-x snap-mandatory [-ms-overflow-style:none] [scrollbar-width:none]">
+                {PATIENT_NAV_SECTIONS.map((section) => {
+                    const Icon = section.icon;
+                    const active = abaAtiva === section.key;
+                    return (
+                        <button
+                            type="button"
+                            key={section.key}
+                            onClick={() => setAbaAtiva(section.key)}
+                            className={`touch-target snap-start flex-none min-w-[120px] rounded-2xl border px-3 py-3 text-left text-xs font-black transition-all ${active ? 'bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-200' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'}`}
+                        >
+                            <div className="flex items-center gap-2">
+                                <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${active ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                                    <Icon size={16} />
+                                </div>
+                                <span className="text-sm">{section.label}</span>
+                            </div>
+                        </button>
+                    );
+                })}
+            </div>
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-            <div className="lg:col-span-1 space-y-2">
+            <div className="hidden lg:block lg:col-span-1 space-y-2">
                 <button onClick={() => setAbaAtiva('dados')} className={`w-full text-left px-5 py-4 rounded-xl font-bold flex items-center gap-3 transition-all ${abaAtiva === 'dados' ? 'bg-white shadow-sm border border-blue-100 text-blue-700' : 'text-slate-500 hover:bg-white/50'}`}><User size={20}/> Dados Pessoais</button>
                 <button onClick={() => setAbaAtiva('anamnese')} className={`w-full text-left px-5 py-4 rounded-xl font-bold flex items-center gap-3 transition-all ${abaAtiva === 'anamnese' ? 'bg-white shadow-sm border border-blue-100 text-blue-700' : 'text-slate-500 hover:bg-white/50'}`}><FileText size={20}/> Anamnese</button>
                 <button onClick={() => setAbaAtiva('tratamentos')} className={`w-full text-left px-5 py-4 rounded-xl font-bold flex items-center gap-3 transition-all ${abaAtiva === 'tratamentos' ? 'bg-white shadow-sm border border-blue-100 text-blue-700' : 'text-slate-500 hover:bg-white/50'}`}><Smile size={20}/> Tratamentos</button>

@@ -147,7 +147,7 @@ export function ClinicaProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     loadClinics();
     const { data: sub } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'SIGNED_IN') {
+      if (event === 'SIGNED_OUT') {
         if (typeof window !== 'undefined') {
           localStorage.removeItem(STORAGE_KEY);
         }
