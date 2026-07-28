@@ -1,0 +1,38 @@
+# Contexto do Projeto
+Você está desenvolvendo o "Ortus", um sistema SaaS de gestão para clínicas odontológicas. 
+O sistema é Multi-Tenant (múltiplas clínicas no mesmo banco de dados) e possui controle rígido de permissões (Role-Based Access Control - RBAC).
+
+# Tecnologias Base
+- Framework: Next.js (App Router)
+- Biblioteca UI: React
+- Linguagem: TypeScript (Tipagem Estrita obrigatória)
+- Estilização: Tailwind CSS
+- Banco de Dados / Auth: Supabase (PostgreSQL)
+
+# Arquitetura e Regras de Negócio (Multi-Tenant)
+- TODO dado inserido ou lido do Supabase DEVE estar vinculado ao `clinica_id` atual, exceto em operações globais do Super Admin.
+- Utilize o `ClinicaContext` (ou o hook apropriado) para recuperar o ID da clínica ativa no frontend.
+- Todas as rotas de páginas protegidas devem estar configuradas no `components/AuthGuard.tsx` respeitando o nível de permissão do usuário.
+
+# Regras de Código (TypeScript & React)
+- Use tipagem estrita para todas as variáveis, parâmetros e retornos de funções. Evite `any` a todo custo. Crie interfaces em `lib/types/` quando necessário.
+- Componentes devem ser funcionais e usar Hooks.
+- Mantenha o código limpo, modular e DRY. Reutilize componentes da pasta `components/ui/` (ex: `CustomAlert.tsx`, `CustomSelect.tsx`, `Tabs.tsx`).
+- Em formulários, extraia blocos complexos para a pasta `components/forms/`.
+
+# Banco de Dados e Integração (Supabase)
+- OBRIGATÓRIO: Envolva todas as chamadas assíncronas do Supabase em blocos `try/catch`.
+- OBRIGATÓRIO: Gerencie estados de carregamento (`isLoading: boolean`). Desabilite botões de envio (`disabled={isLoading}`) e mostre spinners durante requisições para evitar cliques duplos.
+- Exiba feedback de Sucesso/Erro ao usuário utilizando o componente `useCustomAlert` ou a biblioteca de Toast padrão do projeto.
+
+# UX/UI, Estilização e Responsividade
+- O idioma padrão da interface é o Português do Brasil (PT-BR).
+- Mobile-First: Todas as telas devem ser 100% responsivas. Use `grid-cols-1` no mobile e `md:grid-cols-2` ou superior para telas maiores.
+- Touch Targets (Ergonomia Clínica): O sistema será muito usado em celulares por dentistas. Todo botão, toggle ou elemento clicável DEVE ter uma área mínima de toque ergonômica (min-h-[44px] ou usar a classe `.touch-target`).
+- Modais e SlideOvers (ex: `PatientActionModal.tsx`, `PatientSlideOver.tsx`) devem ocupar largura total (`w-full`) no mobile e ter scroll interno (`overflow-y-auto`) para não quebrar a tela.
+- Componentes Clínicos (Odontograma / HOF): Ao manipular imagens, SVGs e mapas de clique, utilize posicionamento relativo (%) ou `viewBox` escalável. Permita Scroll horizontal em `overflow-x-auto` no mobile para evitar que os elementos encolham e prejudiquem a precisão do toque ("dedo gordo").
+
+# IA e Geração de Código
+- Pense passo a passo antes de escrever o código.
+- Se a alteração envolver o banco de dados, sempre forneça o script SQL de migração correspondente.
+- Remova `console.log` de debug antes de entregar a versão final do código.
