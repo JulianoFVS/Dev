@@ -1,5 +1,5 @@
 /**
- * Gera favicon quadrado recortando o escudo (parte superior) da logo.
+ * Gera favicon quadrado (escudo) com fundo transparente.
  * Uso: node scripts/generate-square-icon.mjs
  */
 import sharp from 'sharp';
@@ -10,6 +10,22 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(__dirname, '..');
 const src = path.join(root, 'public', 'logo.png');
+
+const TRANSPARENT = { r: 0, g: 0, b: 0, alpha: 0 };
+
+async function removerFundoClaro(inputBuffer, limiar = 245) {
+  const { data, info } = await sharp(inputBuffer).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const px = Buffer.from(data);
+  for (let i = 0; i < px.length; i += 4) {
+    const r = px[i];
+    const g = px[i + 1];
+    const b = px[i + 2];
+    if (r >= limiar && g >= limiar && b >= limiar) {
+      px[i + 3] = 0;
+    }
+  }
+  return sharp(px, { raw: { width: info.width, height: info.height, channels: 4 } });
+}
 
 const meta = await sharp(src).metadata();
 const { width = 0, height = 0 } = meta;
@@ -24,13 +40,15 @@ const cropped = await sharp(src)
   .png()
   .toBuffer();
 
-const base512 = await sharp(cropped)
-  .trim({ threshold: 20 })
-  .resize(512, 512, { fit: 'contain', background: { r: 255, g: 255, b: 255, alpha: 1 } })
-  .png({ compressionLevel: 9 })
+const trimmed = await sharp(cropped).trim({ threshold: 20 }).png().toBuffer();
+const semFundo = await removerFundoClaro(trimmed);
+
+const base512 = await semFundo
+  .resize(512, 512, { fit: 'contain', background: TRANSPARENT })
+  .png({ compressionLevel: 9, force: true })
   .toBuffer();
 
-const base32 = await sharp(base512).resize(32, 32).png().toBuffer();
+const base32 = await sharp(base512).resize(32, 32).png({ force: true }).toBuffer();
 
 const outputs512 = [
   path.join(root, 'public', 'icon-square.png'),
@@ -48,4 +66,4 @@ for (const out of outputs512) {
 fs.writeFileSync(path.join(root, 'public', 'favicon-32.png'), base32);
 console.log('✓ public/favicon-32.png');
 
-console.log('\nConcluído — favicon quadrado (escudo) gerado.');
+console.log('\nConcluído — favicon com fundo transparente.');
