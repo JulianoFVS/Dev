@@ -5,13 +5,20 @@ import { supabase } from '@/lib/supabase';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { User, Phone, Edit, ArrowLeft, Save, Loader2, FileText, Clock, Trash2, Calendar, CalendarPlus, Pill, AlertTriangle, Stethoscope, X, Check, Building2, Printer, MessageCircle, Smile, Plus, Eraser, CheckCircle, ClipboardList, FolderOpen, AlertCircle, Upload, Download, Image as ImageIcon, DollarSign, Settings, Sparkles, Camera, Bell, ArrowLeftRight, ShieldCheck, Zap } from 'lucide-react';
 import Link from 'next/link';
-import { carregarModelos, type ModeloAnamnese } from '@/lib/anamnese';
+import { carregarModelos, formatarRespostaAnamnese, respostaInicial, type ModeloAnamnese, type RespostaAnamnese, type RespostaSimNaoTexto } from '@/lib/anamnese';
 // teeth-data lib no longer needed — using PNG images from /assets/dentes/
 import { fetchUserClinicas } from '@/lib/clinicScoped';
 import { registrarAudit } from '@/lib/auditLog';
 import TabEvolucao from './TabEvolucao';
 import CustomSelect from '@/components/ui/CustomSelect';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
+import { validarPaciente, isMenorDeIdade } from '@/lib/pacienteValidation';
+import { carregarConfig } from '@/lib/configClinica';
+import { buildDocumentoContexto, aplicarVariaveisDocumento } from '@/lib/documentVariables';
+import PatientContactButtons from '@/components/PatientContactButtons';
+import { carregarTaxasAtivas, receberAgendamento } from '@/lib/recebimentoAgendamento';
+import { calcularValorLiquido, type TaxaMaquininha } from '@/lib/configDefaults';
+import { registrarComissaoTratamentoFinalizado } from '@/lib/comissao';
 
 // =============== ODONTOGRAMA - Padrão Codental (Vista Lateral + Oclusal) ===============
 type Face = 'V' | 'M' | 'D' | 'L' | 'O'; // Vestibular, Mesial, Distal, Lingual/Palatal, Oclusal/Incisal
@@ -261,8 +268,15 @@ export default function PacienteDetalhe() {
   }, [id]); 
   const [modoEdicao, setModoEdicao] = useState(false); 
   const [modalDoc, setModalDoc] = useState(false); 
-  const [tipoDoc, setTipoDoc] = useState('receita'); 
+  const [tipoDoc, setTipoDoc] = useState<'receita' | 'atestado' | 'contrato'>('receita'); 
   const [textoDoc, setTextoDoc] = useState('');
+  const [modelosDocumentos, setModelosDocumentos] = useState<{ id: string; tipo: string; nome: string; conteudo: string }[]>([]);
+  const [modeloDocId, setModeloDocId] = useState('');
+
+  const [modalReceber, setModalReceber] = useState<any>(null);
+  const [taxaRecebimento, setTaxaRecebimento] = useState('');
+  const [taxasRecebimento, setTaxasRecebimento] = useState<TaxaMaquininha[]>([]);
+  const [recebendo, setRecebendo] = useState(false);
   
   const [form, setForm] = useState<any>({});
   const [ficha, setFicha] = useState<any>({}); 
@@ -280,6 +294,7 @@ export default function PacienteDetalhe() {
   const [visaoOdonto, setVisaoOdonto] = useState<'anatomica' | 'esquematica' | 'livre'>('anatomica');
   const [textoOdontogramaLivre, setTextoOdontogramaLivre] = useState('');
   const [modalTrat, setModalTrat] = useState(false);
+  const [salvandoTrat, setSalvandoTrat] = useState(false);
   const [tratEdit, setTratEdit] = useState<any>({ id: null, dente: '', procedimento: '', data: new Date().toISOString().split('T')[0], status: 'concluido', valor: '', observacoes: '', agendarNaAgenda: false, horaAgendamento: '09:00' });
   const [odontogramaZoom, setOdontogramaZoom] = useState(1);
   const [odontogramaPan, setOdontogramaPan] = useState({ x: 0, y: 0 });
@@ -290,7 +305,7 @@ export default function PacienteDetalhe() {
   const [modelosAnamnese, setModelosAnamnese] = useState<ModeloAnamnese[]>([]);
   const [anamneseAtual, setAnamneseAtual] = useState<any>({
       modelo_id: '', data: new Date().toISOString().split('T')[0],
-      preenchido_por: 'profissional', respostas: {} as Record<string, string>,
+      preenchido_por: 'profissional', respostas: {} as Record<string, RespostaAnamnese>,
   });
   const [anamnesesAnteriores, setAnamnesesAnteriores] = useState<any[]>([]);
 
@@ -366,6 +381,14 @@ export default function PacienteDetalhe() {
 
   useEffect(() => { if(id) carregar(); }, [id]);
 
+  useEffect(() => {
+      if (!form.clinica_id) { setPlanos([]); return; }
+      supabase.from('planos').select('id, nome, tipo').eq('clinica_id', form.clinica_id).eq('ativo', true).order('nome')
+          .then(({ data }) => setPlanos(data || []));
+  }, [form.clinica_id]);
+
+  const menorDeIdade = isMenorDeIdade(form.data_nascimento);
+
   async function carregar() {
       setLoading(true);
       const listaClinicas = await fetchUserClinicas();
@@ -389,6 +412,9 @@ export default function PacienteDetalhe() {
           if (data.clinica_id) {
               const { data: planosData } = await supabase.from('planos').select('id, nome').eq('clinica_id', data.clinica_id).eq('ativo', true).order('nome');
               if (planosData) setPlanos(planosData);
+              carregarConfig(data.clinica_id, 'modelos_documentos', 'ortus_modelos_documentos', []).then((d: any) => {
+                  if (Array.isArray(d)) setModelosDocumentos(d);
+              });
           }
           
           registrarAudit({ acao: 'visualizou', entidade: 'paciente', entidade_id: String(id) });
@@ -402,9 +428,12 @@ export default function PacienteDetalhe() {
   }
 
   async function salvarTudo() {
+      const erro = validarPaciente(form);
+      if (erro) { await showAlert(erro, { type: 'warning' }); return; }
       const fichaMerged = { ...ficha, odontograma, tratamentos, marcacoes_hof: marcacoesHof };
-      const payload = { ...form, ficha_medica: fichaMerged };
-      await supabase.from('pacientes').update(payload).eq('id', id);
+      const payload = { ...form, plano_id: form.plano_id || null, ficha_medica: fichaMerged };
+      const { error } = await supabase.from('pacientes').update(payload).eq('id', id);
+      if (error) { await showAlert('Erro ao salvar: ' + error.message, { type: 'error' }); return; }
       setFicha(fichaMerged);
       setModoEdicao(false);
       registrarAudit({ acao: 'editou', entidade: 'paciente', entidade_id: String(id) });
@@ -536,54 +565,76 @@ export default function PacienteDetalhe() {
 
   async function salvarTratamento() {
       if (!tratEdit.procedimento) { await showAlert('Informe o procedimento', { type: 'warning' }); return; }
-      const { agendarNaAgenda, horaAgendamento, ...tratSemAgenda } = tratEdit;
-      let novaLista;
-      if (tratSemAgenda.id) {
-          novaLista = tratamentos.map(t => t.id === tratSemAgenda.id ? tratSemAgenda : t);
-      } else {
-          novaLista = [...tratamentos, { ...tratSemAgenda, id: Date.now().toString(), criado_em: new Date().toISOString() }];
-      }
-      setTratamentos(novaLista);
-      const fichaMerged = { ...ficha, odontograma, tratamentos: novaLista };
-      const { error } = await supabase.from('pacientes').update({ ficha_medica: fichaMerged }).eq('id', id);
-      setFicha(fichaMerged);
-      if (error) { await showAlert('Erro: ' + error.message, { type: 'error' }); return; }
-
-      // Agendar na agenda se solicitado
-      let agendado = false;
-      if (agendarNaAgenda && tratEdit.data) {
-          try {
-              const { data: { session } } = await supabase.auth.getSession();
-              const userId = session?.user?.id;
-              let profId: string | null = null;
-              let clinicaId: string | null = null;
-              if (userId) {
-                  const { data: prof } = await supabase.from('profissionais').select('id').eq('user_id', userId).maybeSingle();
-                  profId = prof?.id || null;
-              }
-              if (clinicas.length > 0) clinicaId = String(clinicas[0].id);
-              const dataHoraISO = new Date(`${tratEdit.data}T${horaAgendamento || '09:00'}:00`).toISOString();
-              const payload: any = {
-                  paciente_id: id,
-                  data_hora: dataHoraISO,
-                  procedimento: `Tratamento: ${tratEdit.procedimento}`,
-                  valor: parseFloat(tratEdit.valor) || 0,
-                  valor_final: parseFloat(tratEdit.valor) || 0,
-                  status: 'agendado',
-                  observacoes: tratEdit.observacoes || '',
-              };
-              if (profId) payload.profissional_id = profId;
-              if (clinicaId) payload.clinica_id = clinicaId;
-              const { error: agErr } = await supabase.from('agendamentos').insert([payload]);
-              if (agErr) throw agErr;
-              agendado = true;
-          } catch (e: any) {
-              showAlert('Tratamento salvo, mas erro ao agendar: ' + (e.message || e), { type: 'warning' });
+      if (salvandoTrat) return;
+      setSalvandoTrat(true);
+      try {
+          const { agendarNaAgenda, horaAgendamento, ...tratSemAgenda } = tratEdit;
+          let novaLista;
+          if (tratSemAgenda.id) {
+              novaLista = tratamentos.map(t => t.id === tratSemAgenda.id ? tratSemAgenda : t);
+          } else {
+              novaLista = [...tratamentos, { ...tratSemAgenda, id: Date.now().toString(), criado_em: new Date().toISOString() }];
           }
-      }
+          const fichaMerged = { ...ficha, odontograma, tratamentos: novaLista };
+          const { error } = await supabase.from('pacientes').update({ ficha_medica: fichaMerged }).eq('id', id);
+          if (error) { await showAlert('Erro: ' + error.message, { type: 'error' }); return; }
+          setTratamentos(novaLista);
+          setFicha(fichaMerged);
 
-      setModalTrat(false);
-      showAlert(agendado ? 'Tratamento salvo e consulta marcada na agenda!' : 'Tratamento salvo com sucesso!', { type: 'success' });
+          if (tratSemAgenda.status === 'concluido' && form.clinica_id) {
+              const { data: { user } } = await supabase.auth.getUser();
+              let profId: string | number | null = null;
+              if (user) {
+                  const { data: prof } = await supabase.from('profissionais').select('id').eq('user_id', user.id).maybeSingle();
+                  profId = prof?.id ?? null;
+              }
+              await registrarComissaoTratamentoFinalizado({
+                  clinicaId: form.clinica_id,
+                  profissionalId: profId,
+                  pacienteId: String(id),
+                  procedimento: tratSemAgenda.procedimento,
+                  valor: parseFloat(tratSemAgenda.valor) || 0,
+              });
+          }
+
+          let agendado = false;
+          if (agendarNaAgenda && tratEdit.data) {
+              try {
+                  const { data: { session } } = await supabase.auth.getSession();
+                  const userId = session?.user?.id;
+                  let profId: string | null = null;
+                  let clinicaId: string | null = form.clinica_id ? String(form.clinica_id) : null;
+                  if (userId) {
+                      const { data: prof } = await supabase.from('profissionais').select('id').eq('user_id', userId).maybeSingle();
+                      profId = prof?.id || null;
+                  }
+                  if (!clinicaId && clinicas.length > 0) clinicaId = String(clinicas[0].id);
+                  if (!clinicaId) throw new Error('Paciente sem clínica vinculada.');
+                  const dataHoraISO = new Date(`${tratEdit.data}T${horaAgendamento || '09:00'}:00`).toISOString();
+                  const payload: any = {
+                      paciente_id: id,
+                      clinica_id: clinicaId,
+                      data_hora: dataHoraISO,
+                      procedimento: `Tratamento: ${tratEdit.procedimento}`,
+                      valor: parseFloat(tratEdit.valor) || 0,
+                      valor_final: parseFloat(tratEdit.valor) || 0,
+                      status: 'agendado',
+                      observacoes: tratEdit.observacoes || '',
+                  };
+                  if (profId) payload.profissional_id = profId;
+                  const { error: agErr } = await supabase.from('agendamentos').insert([payload]);
+                  if (agErr) throw agErr;
+                  agendado = true;
+              } catch (e: any) {
+                  showAlert('Tratamento salvo, mas erro ao agendar: ' + (e.message || e), { type: 'warning' });
+              }
+          }
+
+          setModalTrat(false);
+          showAlert(agendado ? 'Tratamento salvo e consulta marcada na agenda!' : 'Tratamento salvo com sucesso!', { type: 'success' });
+      } finally {
+          setSalvandoTrat(false);
+      }
   }
 
   async function excluirTratamento(tid: string) {
@@ -1113,8 +1164,8 @@ export default function PacienteDetalhe() {
   // ===== ANAMNESE helpers =====
   function selecionarModeloAnamnese(modelo_id: string) {
       const m = modelosAnamnese.find(x => x.id === modelo_id);
-      const respostasIniciais: Record<string, string> = {};
-      m?.perguntas.forEach(p => respostasIniciais[p.id] = '');
+      const respostasIniciais: Record<string, RespostaAnamnese> = {};
+      m?.perguntas.forEach(p => { respostasIniciais[p.id] = respostaInicial(p.tipo); });
       setAnamneseAtual({ modelo_id, data: new Date().toISOString().split('T')[0], preenchido_por: 'profissional', respostas: respostasIniciais });
   }
 
@@ -1152,7 +1203,7 @@ export default function PacienteDetalhe() {
       const janela = window.open('', '', 'width=800,height=600');
       const dataFmt = new Date(a.data).toLocaleDateString('pt-BR');
       const linhas = (a.perguntas_snapshot || []).map((p: any) => {
-          const r = (a.respostas && a.respostas[p.id]) || '___________';
+          const r = formatarRespostaAnamnese(a.respostas?.[p.id]);
           return `<div class="q"><strong>${p.label}</strong><div class="r">${r}</div></div>`;
       }).join('');
       const html = `
@@ -1257,15 +1308,43 @@ export default function PacienteDetalhe() {
       a.click();
   }
 
+  async function abrirModalReceber(debito: any) {
+      const taxas = form.clinica_id ? await carregarTaxasAtivas(form.clinica_id) : [];
+      setTaxasRecebimento(taxas);
+      setTaxaRecebimento(taxas[0]?.id || '');
+      setModalReceber(debito);
+  }
+
+  async function confirmarRecebimento() {
+      if (!modalReceber) return;
+      setRecebendo(true);
+      try {
+          const { comissaoLancamentos } = await receberAgendamento(modalReceber, taxaRecebimento || undefined, taxasRecebimento);
+          const agId = modalReceber.id;
+          setDebitos((prev) => prev.filter((d) => d.id !== agId));
+          setHistorico((prev) => prev.map((h) => h.id === agId ? { ...h, status: 'concluido' } : h));
+          setModalReceber(null);
+          const msgComissao = comissaoLancamentos > 0 ? ` Comissão registrada (${comissaoLancamentos} regra(s)).` : '';
+          showAlert(`Pagamento registrado.${msgComissao}`, { type: 'success' });
+      } catch (e: any) {
+          showAlert('Erro ao registrar: ' + (e.message || e), { type: 'error' });
+      } finally {
+          setRecebendo(false);
+      }
+  }
+
   // ===== DEBITOS helpers =====
   async function marcarComoPago(agId: string) {
+      const debito = debitos.find((d) => d.id === agId);
+      if (debito) { abrirModalReceber(debito); return; }
       if (!(await showConfirm('Marcar este atendimento como pago?', { title: 'Confirmar Pagamento', type: 'info', confirmLabel: 'Confirmar' }))) return;
-      const { error } = await supabase.from('agendamentos').update({ status: 'concluido' }).eq('id', agId);
-      if (error) { await showAlert('Erro: ' + error.message, { type: 'error' }); return; }
-      const novaLista = debitos.filter(d => d.id !== agId);
-      setDebitos(novaLista);
-      const histAtt = historico.map(h => h.id === agId ? { ...h, status: 'concluido' } : h);
-      setHistorico(histAtt);
+      try {
+          await receberAgendamento({ id: agId, clinica_id: form.clinica_id, paciente_id: String(id) });
+          setDebitos((prev) => prev.filter((d) => d.id !== agId));
+          setHistorico((prev) => prev.map((h) => h.id === agId ? { ...h, status: 'concluido' } : h));
+      } catch (e: any) {
+          showAlert('Erro: ' + e.message, { type: 'error' });
+      }
   }
 
   const toggleCheck = (campo: string) => {
@@ -1279,15 +1358,44 @@ export default function PacienteDetalhe() {
       router.push('/pacientes');
   }
 
-  function abrirWhatsapp() {
-      if (!form.telefone) { showAlert('Paciente sem telefone cadastrado.', { type: 'warning' }); return; }
-      const numero = form.telefone.replace(/\D/g, '');
-      window.open(`https://wa.me/55${numero}`, '_blank');
+  function buildCtxDocumento() {
+      const clinica = clinicas.find((c: any) => String(c.id) === String(form.clinica_id));
+      const plano = planos.find((p: any) => p.id === form.plano_id);
+      return buildDocumentoContexto({
+          paciente_nome: form.nome,
+          paciente_cpf: form.cpf,
+          paciente_telefone: form.telefone,
+          paciente_email: form.email,
+          paciente_endereco: [form.rua, form.numero, form.bairro, form.cidade, form.uf].filter(Boolean).join(', '),
+          responsavel_nome: form.responsavel_nome,
+          plano_nome: plano?.nome,
+          clinica_nome: clinica?.nome,
+          clinica_cnpj: clinica?.cnpj,
+          clinica_telefone: clinica?.telefone,
+          clinica_endereco: [clinica?.rua, clinica?.numero, clinica?.cidade, clinica?.uf].filter(Boolean).join(', '),
+      });
   }
 
   // LÓGICA INTELIGENTE DE MODELOS
   useEffect(() => {
-      if (!modalDoc) return; // Só roda se o modal abrir
+      if (!modalDoc) return;
+
+      const ctx = buildCtxDocumento();
+
+      const modelosTipo = modelosDocumentos.filter((m) => m.tipo === tipoDoc);
+      if (modelosTipo.length > 0) {
+          const modelo = modelosTipo.find((m) => m.id === modeloDocId) || modelosTipo[0];
+          if (modelo && !modeloDocId) setModeloDocId(modelo.id);
+          if (modelo) {
+              setTextoDoc(aplicarVariaveisDocumento(modelo.conteudo, ctx));
+              return;
+          }
+      }
+
+      if (tipoDoc === 'contrato') {
+          setTextoDoc('Nenhum modelo de contrato cadastrado. Vá em Configurações → Contratos & Docs.');
+          return;
+      }
 
       const dataHoje = new Date().toLocaleDateString('pt-BR');
       
@@ -1300,7 +1408,6 @@ export default function PacienteDetalhe() {
               '   Tomar 1 comprimido em caso de dor ou febre (6/6h).'
           );
       } else {
-          // Atestado Automático
           setTextoDoc(
               `Atesto para os devidos fins que o(a) Sr(a) ${form.nome.toUpperCase()}, \n` +
               `inscrito(a) no CPF sob nº ${form.cpf || '___.___.___-__'}, esteve sob meus cuidados profissionais nesta data (${dataHoje}).\n\n` +
@@ -1308,7 +1415,7 @@ export default function PacienteDetalhe() {
               'CID: K08.8 (Outras afecções especificadas dos dentes e das estruturas de suporte).'
           );
       }
-  }, [tipoDoc, modalDoc, form]);
+  }, [tipoDoc, modalDoc, form, modelosDocumentos, modeloDocId, clinicas, planos]);
 
   function imprimirDocumento() {
       const janela = window.open('', '', 'width=800,height=600');
@@ -1337,7 +1444,7 @@ export default function PacienteDetalhe() {
               <p>Odontologia Integrada • Dr(a). Especialista</p>
             </div>
 
-            <div class="titulo">${tipoDoc === 'receita' ? 'RECEITUÁRIO' : 'ATESTADO ODONTOLÓGICO'}</div>
+            <div class="titulo">${tipoDoc === 'receita' ? 'RECEITUÁRIO' : tipoDoc === 'contrato' ? 'CONTRATO' : 'ATESTADO ODONTOLÓGICO'}</div>
 
             <div class="conteudo">${textoDoc}</div>
 
@@ -1376,7 +1483,14 @@ export default function PacienteDetalhe() {
             </div>
             <div className="flex gap-2 flex-wrap">
                 {form.nome && <button onClick={handleExportarDados} className="px-3 py-2 bg-slate-50 border border-slate-200 text-slate-600 rounded-xl font-bold text-xs hover:bg-slate-100 transition-colors flex items-center gap-1.5" title="Exportar prontuário (LGPD)"><Download size={14}/> LGPD</button>}
-                <button onClick={abrirWhatsapp} className="px-4 py-2 bg-green-500 text-white rounded-xl font-bold text-sm hover:bg-green-600 transition-colors flex items-center gap-2 shadow-lg shadow-green-200"><MessageCircle size={16}/> WhatsApp</button>
+                <PatientContactButtons
+                    variant="buttons"
+                    telefone={form.telefone}
+                    email={form.email}
+                    clinicaId={form.clinica_id}
+                    evento="pos_consulta"
+                    contexto={buildCtxDocumento()}
+                />
                 {modoEdicao ? (
                     <>
                         <button onClick={() => setModoEdicao(false)} className="px-4 py-2 text-slate-500 font-bold hover:bg-slate-50 rounded-xl transition-colors">Cancelar</button>
@@ -1398,9 +1512,42 @@ export default function PacienteDetalhe() {
                     </div>
                     
                     <div className="flex bg-slate-100 p-1 rounded-xl mb-6">
-                        <button onClick={() => setTipoDoc('receita')} className={`flex-1 py-3 rounded-lg text-sm font-bold transition-all ${tipoDoc === 'receita' ? 'bg-white shadow text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}>Receita Médica</button>
-                        <button onClick={() => setTipoDoc('atestado')} className={`flex-1 py-3 rounded-lg text-sm font-bold transition-all ${tipoDoc === 'atestado' ? 'bg-white shadow text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}>Atestado de Comparecimento</button>
+                        <button onClick={() => { setTipoDoc('receita'); setModeloDocId(''); }} className={`flex-1 py-3 rounded-lg text-sm font-bold transition-all ${tipoDoc === 'receita' ? 'bg-white shadow text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}>Receita</button>
+                        <button onClick={() => { setTipoDoc('atestado'); setModeloDocId(''); }} className={`flex-1 py-3 rounded-lg text-sm font-bold transition-all ${tipoDoc === 'atestado' ? 'bg-white shadow text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}>Atestado</button>
+                        <button onClick={() => { setTipoDoc('contrato'); setModeloDocId(''); }} className={`flex-1 py-3 rounded-lg text-sm font-bold transition-all ${tipoDoc === 'contrato' ? 'bg-white shadow text-purple-600' : 'text-slate-500 hover:text-slate-700'}`}>Contrato</button>
                     </div>
+
+                    {tipoDoc === 'contrato' && modelosDocumentos.filter(m => m.tipo === 'contrato').length > 0 && (
+                        <div className="mb-4">
+                            <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Modelo de contrato</label>
+                            <CustomSelect
+                                value={modeloDocId}
+                                onChange={v => {
+                                    setModeloDocId(v);
+                                    const modelo = modelosDocumentos.find(m => m.id === v);
+                                    if (modelo) setTextoDoc(aplicarVariaveisDocumento(modelo.conteudo, buildCtxDocumento()));
+                                }}
+                                options={modelosDocumentos.filter(m => m.tipo === 'contrato').map(m => ({ value: m.id, label: m.nome }))}
+                                size="lg"
+                            />
+                        </div>
+                    )}
+
+                    {(tipoDoc === 'receita' || tipoDoc === 'atestado') && modelosDocumentos.filter(m => m.tipo === tipoDoc).length > 0 && (
+                        <div className="mb-4">
+                            <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Modelo</label>
+                            <CustomSelect
+                                value={modeloDocId}
+                                onChange={v => {
+                                    setModeloDocId(v);
+                                    const modelo = modelosDocumentos.find(m => m.id === v);
+                                    if (modelo) setTextoDoc(aplicarVariaveisDocumento(modelo.conteudo, buildCtxDocumento()));
+                                }}
+                                options={modelosDocumentos.filter(m => m.tipo === tipoDoc).map(m => ({ value: m.id, label: m.nome }))}
+                                size="lg"
+                            />
+                        </div>
+                    )}
 
                     <div className="space-y-2">
                         <label className="text-xs font-bold text-slate-400 uppercase flex justify-between">
@@ -1418,6 +1565,43 @@ export default function PacienteDetalhe() {
                     <button onClick={imprimirDocumento} className="w-full bg-slate-900 text-white font-bold py-4 rounded-xl hover:bg-black transition-all shadow-lg mt-6 flex justify-center items-center gap-2 active:scale-95">
                         <Printer size={20}/> Imprimir PDF
                     </button>
+                </div>
+            </div>
+        )}
+
+        {modalReceber && (
+            <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+                <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl p-6 animate-in zoom-in-95">
+                    <h3 className="text-lg font-black text-slate-800 mb-1">Registrar recebimento</h3>
+                    <p className="text-sm text-slate-500 mb-4">{modalReceber.procedimento}</p>
+                    <p className="text-2xl font-black text-emerald-700 mb-4">R$ {(Number(modalReceber.valor_final ?? modalReceber.valor) || 0).toFixed(2)}</p>
+                    {taxasRecebimento.length > 0 && (
+                        <div className="mb-4">
+                            <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Forma de pagamento</label>
+                            <CustomSelect
+                                value={taxaRecebimento}
+                                onChange={setTaxaRecebimento}
+                                options={[{ value: '', label: 'Sem taxa' }, ...taxasRecebimento.map(t => ({ value: t.id, label: `${t.nome} (${t.taxa_percentual}%)` }))]}
+                                size="lg"
+                            />
+                            {taxaRecebimento && (() => {
+                                const taxa = taxasRecebimento.find(t => t.id === taxaRecebimento);
+                                const bruto = Number(modalReceber.valor_final ?? modalReceber.valor) || 0;
+                                if (!taxa) return null;
+                                return (
+                                    <p className="text-xs text-emerald-700 mt-2 font-bold">
+                                        Líquido: R$ {calcularValorLiquido(bruto, taxa.taxa_percentual).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                    </p>
+                                );
+                            })()}
+                        </div>
+                    )}
+                    <div className="flex gap-2">
+                        <button onClick={() => setModalReceber(null)} disabled={recebendo} className="flex-1 py-3 rounded-xl font-bold text-slate-500 hover:bg-slate-100">Cancelar</button>
+                        <button onClick={confirmarRecebimento} disabled={recebendo} className="flex-1 py-3 rounded-xl font-bold text-white bg-emerald-600 hover:bg-emerald-700 flex items-center justify-center gap-2">
+                            {recebendo ? <Loader2 size={16} className="animate-spin"/> : <CheckCircle size={16}/>} Confirmar
+                        </button>
+                    </div>
                 </div>
             </div>
         )}
@@ -1487,7 +1671,7 @@ export default function PacienteDetalhe() {
                                 <input disabled={!modoEdicao} className={`w-full p-3 rounded-xl border outline-none font-bold text-slate-700 ${modoEdicao ? 'bg-white border-blue-300 ring-2 ring-blue-100' : 'bg-slate-50 border-slate-200'}`} value={form.nome || ''} onChange={e => setForm({...form, nome: e.target.value})} />
                             </div>
                             <div>
-                                <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Sexo</label>
+                                <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Sexo <span className="text-red-500">*</span></label>
                                 <select disabled={!modoEdicao} className={`w-full p-3 rounded-xl border outline-none ${modoEdicao ? 'bg-white border-blue-300' : 'bg-slate-50 border-slate-200'}`} value={form.sexo || ''} onChange={e => setForm({...form, sexo: e.target.value})}>
                                     <option value="">Selecione...</option>
                                     <option value="masculino">Masculino</option>
@@ -1534,7 +1718,7 @@ export default function PacienteDetalhe() {
                         {/* Endereço Completo com ViaCEP */}
                         <div className="mt-6 pt-6 border-t border-slate-100">
                             <h4 className="text-sm font-black text-slate-700 mb-3 flex items-center gap-2">
-                                Endereço 
+                                Endereço <span className="text-red-500 text-xs">*</span>
                                 {modoEdicao && (
                                     <button 
                                         onClick={async () => {
@@ -1611,7 +1795,9 @@ export default function PacienteDetalhe() {
 
                         {/* Responsável (para menores) */}
                         <div className="mt-6 pt-6 border-t border-slate-100">
-                            <h4 className="text-sm font-black text-slate-700 mb-3">Responsável (para pacientes menores)</h4>
+                            <h4 className="text-sm font-black text-slate-700 mb-3">
+                                Responsável {menorDeIdade && <span className="text-red-500 text-xs">* (obrigatório — menor de 18 anos)</span>}
+                            </h4>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div>
                                     <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Nome do Responsável</label>
@@ -1686,6 +1872,21 @@ export default function PacienteDetalhe() {
                                                             ))}
                                                         </div>
                                                     )}
+                                                    {p.tipo === 'sim_nao_texto' && (() => {
+                                                        const atual = (anamneseAtual.respostas[p.id] as RespostaSimNaoTexto) || { sim_nao: '', texto: '' };
+                                                        return (
+                                                            <div className="space-y-2">
+                                                                <div className="flex gap-2">
+                                                                    {['Sim','Não'].map(opt => (
+                                                                        <button key={opt} onClick={() => setAnamneseAtual({...anamneseAtual, respostas: {...anamneseAtual.respostas, [p.id]: { ...atual, sim_nao: opt, texto: opt === 'Não' ? '' : atual.texto }}})} className={`px-4 py-1.5 rounded-lg text-xs font-bold border transition-all ${atual.sim_nao === opt ? (opt === 'Sim' ? 'bg-rose-50 border-rose-300 text-rose-700' : 'bg-emerald-50 border-emerald-300 text-emerald-700') : 'bg-white border-slate-200 text-slate-500 hover:border-slate-400'}`}>{opt}</button>
+                                                                    ))}
+                                                                </div>
+                                                                {atual.sim_nao === 'Sim' && (
+                                                                    <textarea value={atual.texto || ''} onChange={e => setAnamneseAtual({...anamneseAtual, respostas: {...anamneseAtual.respostas, [p.id]: { ...atual, texto: e.target.value }}})} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 resize-none" rows={2} placeholder="Especifique..."/>
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    })()}
                                                     {p.tipo === 'multipla' && (
                                                         <div className="flex flex-wrap gap-2">
                                                             {(p.opcoes || []).map(opt => (
@@ -1966,7 +2167,7 @@ export default function PacienteDetalhe() {
                         <div className="flex flex-wrap justify-between items-center gap-3 mb-5">
                             <h3 className="text-lg font-black text-slate-800 flex items-center gap-2"><FolderOpen size={20} className="text-amber-500"/> Documentos & Imagens</h3>
                             <div className="flex gap-2 flex-wrap">
-                                <button onClick={() => setModalDoc(true)} className="px-4 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 bg-slate-800 text-white hover:bg-black transition-colors shadow-sm"><Printer size={14}/> Emitir Receita/Atestado</button>
+                                <button onClick={() => setModalDoc(true)} className="px-4 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 bg-slate-800 text-white hover:bg-black transition-colors shadow-sm"><Printer size={14}/> Emitir Documento</button>
                                 <label className={`px-4 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 cursor-pointer shadow-sm transition-all ${uploadingDoc ? 'bg-slate-300 text-white cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>
                                     {uploadingDoc ? <><Loader2 size={14} className="animate-spin"/> Enviando...</> : <><Upload size={14}/> Enviar Arquivo</>}
                                     <input type="file" className="hidden" onChange={uploadDocumento} disabled={uploadingDoc} accept="image/*,application/pdf,.doc,.docx,.txt"/>
@@ -2439,7 +2640,7 @@ export default function PacienteDetalhe() {
                     </div>
                     <div className="flex gap-2 justify-end mt-5">
                         <button onClick={() => setModalTrat(false)} className="px-4 py-2 text-slate-500 font-bold hover:bg-slate-100 rounded-lg">Cancelar</button>
-                        <button onClick={salvarTratamento} className="px-5 py-2 bg-emerald-600 text-white font-bold rounded-lg hover:bg-emerald-700 shadow-sm flex items-center gap-2"><Save size={14}/> {tratEdit.agendarNaAgenda ? 'Salvar e Agendar' : 'Salvar'}</button>
+                        <button onClick={salvarTratamento} disabled={salvandoTrat} className="px-5 py-2 bg-emerald-600 text-white font-bold rounded-lg hover:bg-emerald-700 shadow-sm flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"><Save size={14}/> {salvandoTrat ? 'Salvando...' : (tratEdit.agendarNaAgenda ? 'Salvar e Agendar' : 'Salvar')}</button>
                     </div>
                 </div>
             </div>

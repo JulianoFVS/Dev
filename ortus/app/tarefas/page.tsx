@@ -55,6 +55,7 @@ export default function Tarefas() {
     const [filtroPrioridade, setFiltroPrioridade] = useState<string>('todos');
     const [filtroBusca, setFiltroBusca] = useState('');
     const [showFiltros, setShowFiltros] = useState(false);
+    const [viewMode, setViewMode] = useState<'lista' | 'kanban'>('kanban');
     
     // Modal
     const [modalOpen, setModalOpen] = useState(false);
@@ -176,7 +177,7 @@ export default function Tarefas() {
             prioridade: form.prioridade,
             status: form.status,
             data_limite: form.data_limite || null,
-            paciente_id: form.paciente_id ? parseInt(form.paciente_id) : null
+            paciente_id: form.paciente_id || null
         };
 
         if (tarefaEditando) {
@@ -267,6 +268,56 @@ export default function Tarefas() {
         }
     }
 
+    function renderTarefaCard(t: Tarefa, compact = false) {
+        return (
+            <div
+                key={t.id}
+                className={`bg-white p-4 rounded-2xl border shadow-sm hover:shadow-md transition-all ${
+                    t.alerta_data === 'atrasada' && t.status !== 'concluido'
+                        ? 'border-red-300 bg-red-50/30'
+                        : t.alerta_data === 'proxima' && t.status !== 'concluido'
+                            ? 'border-amber-300 bg-amber-50/30'
+                            : 'border-slate-200'
+                }`}
+            >
+                <div className="flex items-start justify-between gap-2 mb-2">
+                    <h3 className={`font-bold text-slate-800 text-sm ${t.status === 'concluido' ? 'line-through text-slate-400' : ''}`}>
+                        {t.titulo}
+                    </h3>
+                    <button onClick={() => abrirEditarTarefa(t)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg">
+                        <MoreVertical size={14}/>
+                    </button>
+                </div>
+                {!compact && t.descricao && <p className="text-xs text-slate-500 mb-2 line-clamp-2">{t.descricao}</p>}
+                <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                    <span className={`font-black uppercase px-2 py-0.5 rounded-full border ${getPrioridadeCor(t.prioridade)}`}>{t.prioridade}</span>
+                    {t.responsavel_nome && <span className="flex items-center gap-1 text-slate-600"><User size={11}/>{t.responsavel_nome}</span>}
+                    {t.data_limite && (
+                        <span className={`flex items-center gap-1 ${t.alerta_data === 'atrasada' && t.status !== 'concluido' ? 'text-red-600 font-bold' : 'text-slate-500'}`}>
+                            <Calendar size={11}/>{new Date(t.data_limite).toLocaleDateString('pt-BR')}
+                        </span>
+                    )}
+                </div>
+                {t.status !== 'concluido' && (
+                    <div className="flex gap-1 mt-3">
+                        {t.status !== 'a_fazer' && (
+                            <button onClick={() => moverStatus(t.id, t.status === 'concluido' ? 'em_andamento' : 'a_fazer')} className="text-[10px] font-bold px-2 py-1 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200">← Voltar</button>
+                        )}
+                        <button onClick={() => moverStatus(t.id, t.status === 'a_fazer' ? 'em_andamento' : 'concluido')} className="text-[10px] font-bold px-2 py-1 rounded-lg bg-blue-100 text-blue-700 hover:bg-blue-200 ml-auto">
+                            {t.status === 'a_fazer' ? 'Iniciar →' : 'Concluir ✓'}
+                        </button>
+                    </div>
+                )}
+            </div>
+        );
+    }
+
+    const colunasKanban: { id: Tarefa['status']; label: string; cor: string }[] = [
+        { id: 'a_fazer', label: 'A Fazer', cor: 'border-slate-200 bg-slate-50' },
+        { id: 'em_andamento', label: 'Em Andamento', cor: 'border-blue-200 bg-blue-50/50' },
+        { id: 'concluido', label: 'Concluído', cor: 'border-emerald-200 bg-emerald-50/50' },
+    ];
+
     return (
         <div className="max-w-7xl mx-auto space-y-6 pb-20 animate-fade-in">
             {/* Header */}
@@ -275,9 +326,15 @@ export default function Tarefas() {
                     <h1 className="text-2xl sm:text-3xl font-black text-slate-800">Tarefas</h1>
                     <p className="text-sm text-slate-500">Organize as atividades da clínica.</p>
                 </div>
-                <button onClick={abrirNovaTarefa} className="touch-target flex-1 sm:flex-none bg-blue-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-blue-700 shadow-lg flex items-center justify-center gap-2 text-sm">
-                    <Plus size={18}/> Nova Tarefa
-                </button>
+                <div className="flex gap-2">
+                    <div className="flex bg-slate-100 p-1 rounded-xl">
+                        <button onClick={() => setViewMode('kanban')} className={`px-3 py-2 rounded-lg text-xs font-bold ${viewMode === 'kanban' ? 'bg-white shadow text-blue-600' : 'text-slate-500'}`}>Kanban</button>
+                        <button onClick={() => setViewMode('lista')} className={`px-3 py-2 rounded-lg text-xs font-bold ${viewMode === 'lista' ? 'bg-white shadow text-blue-600' : 'text-slate-500'}`}>Lista</button>
+                    </div>
+                    <button onClick={abrirNovaTarefa} className="touch-target flex-1 sm:flex-none bg-blue-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-blue-700 shadow-lg flex items-center justify-center gap-2 text-sm">
+                        <Plus size={18}/> Nova Tarefa
+                    </button>
+                </div>
             </div>
 
             {/* Alertas */}
@@ -377,6 +434,26 @@ export default function Tarefas() {
                             <p className="font-bold">Nenhuma tarefa encontrada</p>
                             <p className="text-sm">Crie uma nova tarefa para começar</p>
                         </div>
+                    ) : viewMode === 'kanban' ? (
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            {colunasKanban.map((col) => {
+                                const items = tarefasFiltradas.filter((t) => t.status === col.id);
+                                return (
+                                    <div key={col.id} className={`rounded-2xl border p-4 min-h-[320px] ${col.cor}`}>
+                                        <div className="flex items-center justify-between mb-4">
+                                            <h3 className="text-sm font-black text-slate-700">{col.label}</h3>
+                                            <span className="text-xs font-black bg-white/80 px-2 py-1 rounded-full text-slate-500">{items.length}</span>
+                                        </div>
+                                        <div className="space-y-3">
+                                            {items.map((t) => renderTarefaCard(t, true))}
+                                            {items.length === 0 && (
+                                                <p className="text-xs text-slate-400 text-center py-8">Nenhuma tarefa</p>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
                     ) : (
                         <div className="space-y-3">
                             {tarefasFiltradas.map(t => (
@@ -391,7 +468,6 @@ export default function Tarefas() {
                                     }`}
                                 >
                                     <div className="flex items-start gap-4">
-                                        {/* Status indicator */}
                                         <div className="flex flex-col gap-2 pt-1">
                                             {t.status !== 'concluido' && (
                                                 <button 

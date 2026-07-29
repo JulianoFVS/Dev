@@ -1,12 +1,32 @@
 // Helper para gerenciar Modelos de Anamnese (persistencia em localStorage)
 
-export type TipoPergunta = "texto" | "sim_nao" | "multipla";
+export type TipoPergunta = "texto" | "sim_nao" | "sim_nao_texto" | "multipla";
+
+export interface RespostaSimNaoTexto {
+  sim_nao: string;
+  texto: string;
+}
+
+export type RespostaAnamnese = string | RespostaSimNaoTexto;
 
 export interface PerguntaAnamnese {
   id: string;
   label: string;
   tipo: TipoPergunta;
   opcoes?: string[];
+}
+
+export function respostaInicial(tipo: TipoPergunta): RespostaAnamnese {
+  return tipo === "sim_nao_texto" ? { sim_nao: "", texto: "" } : "";
+}
+
+export function formatarRespostaAnamnese(resposta: RespostaAnamnese | undefined | null): string {
+  if (!resposta) return "___________";
+  if (typeof resposta === "object") {
+    const base = resposta.sim_nao || "___";
+    return resposta.texto ? `${base} — ${resposta.texto}` : base;
+  }
+  return resposta || "___________";
 }
 
 export interface ModeloAnamnese {
@@ -27,9 +47,9 @@ export const MODELOS_PADRAO: ModeloAnamnese[] = [
     padrao: true,
     perguntas: [
       { id: "q1", label: "Queixa principal", tipo: "texto" },
-      { id: "q2", label: "Possui alguma doenca sistemica? (diabetes, hipertensao, etc)", tipo: "texto" },
-      { id: "q3", label: "Faz uso continuo de medicamentos? Quais?", tipo: "texto" },
-      { id: "q4", label: "Possui alergia a algum medicamento?", tipo: "texto" },
+      { id: "q2", label: "Possui alguma doenca sistemica? (diabetes, hipertensao, etc)", tipo: "sim_nao_texto" },
+      { id: "q3", label: "Faz uso continuo de medicamentos? Quais?", tipo: "sim_nao_texto" },
+      { id: "q4", label: "Possui alergia a algum medicamento?", tipo: "sim_nao_texto" },
       { id: "q5", label: "Esta gestante?", tipo: "sim_nao" },
       { id: "q6", label: "Fuma?", tipo: "sim_nao" },
       { id: "q7", label: "Faz uso de bebida alcoolica?", tipo: "sim_nao" },

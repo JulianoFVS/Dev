@@ -3,11 +3,15 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import { AlertCircle, ArrowLeft, Building2, Calendar, CheckCircle2, DollarSign, FileText, FolderOpen, Loader2, Phone, Smile, Sparkles, User, X } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Building2, Calendar, CheckCircle2, DollarSign, FileText, FolderOpen, Loader2, MessageCircle, Phone, Smile, Sparkles, User, X } from 'lucide-react';
 import { useClinica } from '@/app/context/ClinicaContext';
 import AppointmentForm from '@/components/forms/AppointmentForm';
 import ProsthesisForm from '@/components/forms/ProsthesisForm';
 import TreatmentForm from '@/components/forms/TreatmentForm';
+import { validarPaciente, isMenorDeIdade } from '@/lib/pacienteValidation';
+import { buildDocumentoContexto } from '@/lib/documentVariables';
+import PatientContactButtons from '@/components/PatientContactButtons';
+import { receberAgendamento } from '@/lib/recebimentoAgendamento';
 
 type PatientActionModalContextValue = {
   openPatientActions: (patientId: string | number | null | undefined) => void;
@@ -27,6 +31,7 @@ type PatientData = {
   id: string | number;
   nome?: string | null;
   telefone?: string | null;
+  email?: string | null;
   cpf?: string | null;
   clinica_id?: string | null;
   clinicas?: { nome?: string | null } | { nome?: string | null }[] | null;
@@ -123,7 +128,7 @@ export function PatientActionModalProvider({ children }: { children: React.React
 
     const { data, error } = await supabase
       .from('pacientes')
-      .select('id, nome, telefone, cpf, clinica_id, clinicas(nome), agendamentos(id, data_hora, status, valor, valor_final)')
+      .select('id, nome, telefone, email, cpf, clinica_id, clinicas(nome), agendamentos(id, data_hora, status, valor, valor_final)')
       .eq('id', patientId)
       .single();
 
@@ -168,14 +173,31 @@ export function PatientActionModalProvider({ children }: { children: React.React
     // Carregar planos da clínica selecionada
     if (preselect) {
       const { data } = await supabase.from('planos').select('id, nome').eq('clinica_id', preselect).eq('ativo', true).order('nome');
-      if (data) setPlanos(data);
+      setPlanos(data || []);
+    } else {
+      setPlanos([]);
     }
   }, [activeClinicId]);
 
   async function submitQuickCapture() {
-    const nome = qcNome.trim();
-    if (!nome) {
-      setQcError('Informe o nome do paciente.');
+    const payload = {
+      nome: qcNome.trim(),
+      sexo: qcSexo,
+      data_nascimento: qcDataNascimento || null,
+      cep: qcCep.trim(),
+      rua: qcRua.trim(),
+      numero: qcNumero.trim(),
+      bairro: qcBairro.trim(),
+      cidade: qcCidade.trim(),
+      uf: qcUf.trim(),
+      responsavel_nome: qcResponsavelNome.trim(),
+      responsavel_parentesco: qcResponsavelParentesco,
+      responsavel_telefone: qcResponsavelTelefone.trim(),
+    };
+
+    const erro = validarPaciente(payload);
+    if (erro) {
+      setQcError(erro);
       return;
     }
     if (!qcClinicaId) {
@@ -186,34 +208,37 @@ export function PatientActionModalProvider({ children }: { children: React.React
     setQcSaving(true);
     setQcError(null);
 
-    const payload: any = {
-      nome,
+    const insertPayload: any = {
+      nome: payload.nome,
       telefone: qcTelefone.trim(),
       clinica_id: qcClinicaId,
-      sexo: qcSexo || null,
-      data_nascimento: qcDataNascimento || null,
+      sexo: payload.sexo,
+      data_nascimento: payload.data_nascimento,
       cpf: qcCpf.trim() || null,
-      cep: qcCep.trim() || null,
-      rua: qcRua.trim() || null,
-      numero: qcNumero.trim() || null,
+      cep: payload.cep,
+      rua: payload.rua,
+      numero: payload.numero,
       complemento: qcComplemento.trim() || null,
-      bairro: qcBairro.trim() || null,
-      cidade: qcCidade.trim() || null,
-      uf: qcUf.trim() || null,
+      bairro: payload.bairro,
+      cidade: payload.cidade,
+      uf: payload.uf,
       plano_id: qcPlanoId || null,
     };
-    
-    // Adiciona responsável apenas se preenchido
-    if (qcResponsavelNome.trim()) {
-      payload.responsavel_nome = qcResponsavelNome.trim();
-      payload.responsavel_parentesco = qcResponsavelParentesco.trim() || null;
-      payload.responsavel_telefone = qcResponsavelTelefone.trim() || null;
+
+    if (isMenorDeIdade(payload.data_nascimento)) {
+      insertPayload.responsavel_nome = payload.responsavel_nome;
+      insertPayload.responsavel_parentesco = payload.responsavel_parentesco;
+      insertPayload.responsavel_telefone = payload.responsavel_telefone;
+    } else if (payload.responsavel_nome) {
+      insertPayload.responsavel_nome = payload.responsavel_nome;
+      insertPayload.responsavel_parentesco = payload.responsavel_parentesco || null;
+      insertPayload.responsavel_telefone = payload.responsavel_telefone || null;
     }
 
     const { data, error } = await supabase
       .from('pacientes')
-      .insert([payload])
-      .select('id, nome, telefone, cpf, clinica_id, clinicas(nome), agendamentos(id, data_hora, status, valor, valor_final)')
+      .insert([insertPayload])
+      .select('id, nome, telefone, email, cpf, clinica_id, clinicas(nome), agendamentos(id, data_hora, status, valor, valor_final)')
       .single();
 
     setQcSaving(false);
@@ -282,26 +307,45 @@ export function PatientActionModalProvider({ children }: { children: React.React
   }
 
   async function receiveOpenBalance() {
-    if (!debtAppointments.length) return;
+    if (!debtAppointments.length || !patient) return;
+    const clinicaId = patient.clinica_id ?? activeClinicId;
+    if (!clinicaId) {
+      alert('Selecione uma clínica para registrar o recebimento.');
+      return;
+    }
     setReceiving(true);
-    const ids = debtAppointments.map((item) => item.id);
-    const { error } = await supabase.from('agendamentos').update({ status: 'concluido' }).in('id', ids);
-
-    if (!error) {
+    try {
+      for (const item of debtAppointments) {
+        await receberAgendamento({
+          id: item.id,
+          clinica_id: clinicaId,
+          profissional_id: (item as any).profissional_id,
+          paciente_id: String(patient.id),
+          procedimento: (item as any).procedimento,
+          valor_final: item.valor_final ?? item.valor,
+        });
+      }
       setPatient((current) => current ? {
         ...current,
-        agendamentos: (current.agendamentos || []).map((item) => ids.includes(item.id) ? { ...item, status: 'concluido' } : item),
+        agendamentos: (current.agendamentos || []).map((item) =>
+          debtAppointments.some((d) => d.id === item.id) ? { ...item, status: 'concluido' } : item,
+        ),
       } : current);
-      setToast({ message: 'Saldo recebido. Lançamentos quitados.', tone: 'success' });
+      setToast({ message: 'Saldo recebido. Comissões registradas.', tone: 'success' });
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('ortus:agenda-changed'));
       }
-    } else {
-      alert('Não foi possível receber: ' + error.message);
+    } catch (e: any) {
+      alert('Não foi possível receber: ' + (e.message || e));
     }
-
     setReceiving(false);
   }
+
+  useEffect(() => {
+    if (isMenorDeIdade(qcDataNascimento)) {
+      setQcMostrarResponsavel(true);
+    }
+  }, [qcDataNascimento]);
 
   const flowMeta = activeFlow !== 'idle' ? FLOW_META[activeFlow] : null;
 
@@ -363,9 +407,24 @@ export function PatientActionModalProvider({ children }: { children: React.React
                   </p>
                 </div>
               </div>
-              <button onClick={closePatientActions} className="p-2 rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors shrink-0">
-                <X size={20} />
-              </button>
+              <div className="flex items-center gap-2 shrink-0">
+                {!quickCapture && patient && activeFlow === 'idle' && (
+                  <PatientContactButtons
+                    variant="icons"
+                    telefone={patient.telefone}
+                    email={patient.email}
+                    clinicaId={patient.clinica_id || activeClinicId}
+                    evento="pos_consulta"
+                    contexto={buildDocumentoContexto({
+                      paciente_nome: patient.nome?.split(' ')[0],
+                      clinica_nome: getClinicName(patient),
+                    })}
+                  />
+                )}
+                <button onClick={closePatientActions} className="p-2 rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors shrink-0">
+                  <X size={20} />
+                </button>
+              </div>
             </div>
 
             {quickCapture && (
@@ -387,7 +446,7 @@ export function PatientActionModalProvider({ children }: { children: React.React
 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-500">Sexo</label>
+                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-500">Sexo <span className="text-red-500">*</span></label>
                     <select
                       value={qcSexo}
                       onChange={(e) => setQcSexo(e.target.value)}
@@ -444,11 +503,13 @@ export function PatientActionModalProvider({ children }: { children: React.React
                     value={qcClinicaId}
                     onChange={(e) => {
                       setQcClinicaId(e.target.value);
-                      // Recarregar planos quando mudar clínica
+                      setQcPlanoId('');
                       if (e.target.value) {
                         supabase.from('planos').select('id, nome').eq('clinica_id', e.target.value).eq('ativo', true).order('nome').then(({ data }) => {
-                          if (data) setPlanos(data);
+                          setPlanos(data || []);
                         });
+                      } else {
+                        setPlanos([]);
                       }
                     }}
                     className="w-full p-3 rounded-2xl bg-slate-50 border border-slate-200 font-bold text-slate-800 outline-none focus:bg-white focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition-all"
@@ -458,24 +519,23 @@ export function PatientActionModalProvider({ children }: { children: React.React
                   </select>
                 </div>
 
-                {/* Plano/Convênio */}
-                {planos.length > 0 && (
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-500">Plano / Convênio</label>
-                    <select
-                      value={qcPlanoId}
-                      onChange={(e) => setQcPlanoId(e.target.value)}
-                      className="w-full p-3 rounded-2xl bg-slate-50 border border-slate-200 font-bold text-slate-800 outline-none focus:bg-white focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition-all"
-                    >
-                      <option value="">Particular (sem convênio)</option>
-                      {planos.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}
-                    </select>
-                  </div>
-                )}
+                {/* Plano/Convênio — sempre visível */}
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-wider text-slate-500">Plano / Convênio</label>
+                  <select
+                    value={qcPlanoId}
+                    onChange={(e) => setQcPlanoId(e.target.value)}
+                    disabled={!qcClinicaId}
+                    className="w-full p-3 rounded-2xl bg-slate-50 border border-slate-200 font-bold text-slate-800 outline-none focus:bg-white focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition-all disabled:opacity-50"
+                  >
+                    <option value="">Particular (sem convênio)</option>
+                    {planos.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}
+                  </select>
+                </div>
 
                 {/* Endereço com ViaCEP */}
                 <div className="pt-2 border-t border-slate-100">
-                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-3">Endereço (ViaCEP)</p>
+                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-3">Endereço <span className="text-red-500">*</span> (ViaCEP)</p>
                   
                   <div className="space-y-2">
                     <div className="flex gap-2">
@@ -557,13 +617,14 @@ export function PatientActionModalProvider({ children }: { children: React.React
                 {/* Responsável (para menores) */}
                 <div className="pt-2 border-t border-slate-100">
                   <button
+                    type="button"
                     onClick={() => setQcMostrarResponsavel(!qcMostrarResponsavel)}
                     className="text-[10px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-2 hover:text-indigo-600 transition-colors"
                   >
-                    {qcMostrarResponsavel ? '▼' : '▶'} Adicionar Responsável (para menores)
+                    {qcMostrarResponsavel ? '▼' : '▶'} Responsável {isMenorDeIdade(qcDataNascimento) && <span className="text-red-500">* (obrigatório)</span>}
                   </button>
                   
-                  {qcMostrarResponsavel && (
+                  {(qcMostrarResponsavel || isMenorDeIdade(qcDataNascimento)) && (
                     <div className="mt-3 space-y-3 animate-in fade-in slide-in-from-top-2">
                       <input
                         type="text"

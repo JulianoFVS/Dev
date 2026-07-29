@@ -1,14 +1,25 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import { Building2, Users, Plus, Trash2, MapPin, Check, X, Loader2, Edit, UserPlus, Shield, User, FileText, Phone, Mail, Save, Lock, ClipboardList, HelpCircle, FileSignature, Tag, SlidersHorizontal, Database, Download, Upload, Bell, Palette, RotateCcw, AlertTriangle, Clock, DollarSign, Layers3 } from 'lucide-react';
+import { Building2, Users, Plus, Trash2, MapPin, Check, X, Loader2, Edit, UserPlus, Shield, User, FileText, Phone, Mail, Save, Lock, ClipboardList, HelpCircle, FileSignature, Tag, SlidersHorizontal, Database, Download, Upload, Bell, Palette, RotateCcw, AlertTriangle, Clock, DollarSign, Layers3, MessageCircle, CreditCard, Eye } from 'lucide-react';
 import PlanosEmbedded from '@/app/planos/page';
 import { carregarModelos, salvarModelos, novoIdModelo, novoIdPergunta, type ModeloAnamnese, type PerguntaAnamnese, type TipoPergunta } from '@/lib/anamnese';
 import { listarBackups, criarBackupAgora, baixarBackupComoJson, excluirBackup as deletarBackupServer, restaurarBackup } from '@/lib/backup';
-import { fetchUserClinicas, fetchUserEquipe } from '@/lib/clinicScoped';
+import { fetchUserClinicas } from '@/lib/clinicScoped';
 import { carregarConfig, salvarConfig } from '@/lib/configClinica';
 import CustomSelect from '@/components/ui/CustomSelect';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
+import { DOCUMENTO_VARIAVEIS, aplicarVariaveisDocumento, buildDocumentoContexto } from '@/lib/documentVariables';
+import {
+  CATEGORIAS_FINANCEIRAS_PADRAO,
+  TEMPLATES_COMUNICACAO_PADRAO,
+  TAXAS_MAQUININHA_PADRAO,
+  normalizarCategoriasFinanceiras,
+  type CategoriaFinanceira,
+  type TemplateComunicacao,
+  type TaxaMaquininha,
+} from '@/lib/configDefaults';
 
 interface ModeloDocumento { id: string; tipo: 'contrato' | 'receita' | 'atestado' | 'outro'; nome: string; conteudo: string; }
 
@@ -29,12 +40,15 @@ const PREFS_PADRAO = {
 };
 
 const DOCS_PADRAO: ModeloDocumento[] = [
-    { id: 'doc_contrato_1', tipo: 'contrato', nome: 'Contrato de Prestação de Serviços Odontológicos', conteudo: 'CONTRATO DE PRESTAÇÃO DE SERVIÇOS ODONTOLÓGICOS\n\nPelo presente instrumento, de um lado [NOME DA CLÍNICA], inscrita no CNPJ [CNPJ], doravante denominada CONTRATADA, e de outro lado {{paciente_nome}}, CPF {{paciente_cpf}}, doravante denominado(a) CONTRATANTE, têm entre si justo e contratado o seguinte:\n\nCLÁUSULA 1 - DO OBJETO\nA CONTRATADA prestará serviços odontológicos ao CONTRATANTE conforme plano de tratamento previamente apresentado.\n\nCLÁUSULA 2 - DO VALOR\nO valor total do tratamento é de R$ ____ (___________), a ser pago da seguinte forma: ____.\n\nCLÁUSULA 3 - DAS RESPONSABILIDADES\nO paciente compromete-se a comparecer às consultas e seguir as orientações do profissional.\n\n_____________, ___ de ________ de _____.\n\n___________________\nCONTRATADA\n\n___________________\nCONTRATANTE' },
-    { id: 'doc_termo_1', tipo: 'outro', nome: 'Termo de Consentimento Livre e Esclarecido', conteudo: 'TERMO DE CONSENTIMENTO LIVRE E ESCLARECIDO\n\nEu, {{paciente_nome}}, declaro que fui devidamente informado(a) pelo profissional sobre o tratamento odontológico a ser realizado, seus riscos, benefícios, alternativas e prognóstico.\n\nEstou ciente de que ____________________________.\n\nAutorizo a realização do procedimento.\n\n____, ___ de ________ de _____.\n\n____________________\nAssinatura do Paciente' },
+    { id: 'doc_contrato_1', tipo: 'contrato', nome: 'Contrato de Prestação de Serviços Odontológicos', conteudo: 'CONTRATO DE PRESTAÇÃO DE SERVIÇOS ODONTOLÓGICOS\n\nPelo presente instrumento, de um lado {{clinica_nome}}, inscrita no CNPJ {{clinica_cnpj}}, doravante denominada CONTRATADA, e de outro lado {{paciente_nome}}, CPF {{paciente_cpf}}, doravante denominado(a) CONTRATANTE, têm entre si justo e contratado o seguinte:\n\nCLÁUSULA 1 - DO OBJETO\nA CONTRATADA prestará serviços odontológicos ao CONTRATANTE conforme plano de tratamento previamente apresentado.\n\nCLÁUSULA 2 - DO VALOR\nO valor total do tratamento é de {{valor_total}}, a ser pago da seguinte forma: ____.\n\nCLÁUSULA 3 - DAS RESPONSABILIDADES\nO paciente compromete-se a comparecer às consultas e seguir as orientações do profissional.\n\n{{data_extenso}}.\n\n___________________\nCONTRATADA\n\n___________________\nCONTRATANTE' },
+    { id: 'doc_receita_1', tipo: 'receita', nome: 'Receituário Padrão', conteudo: 'RECEITUÁRIO\n\nPaciente: {{paciente_nome}}\nCPF: {{paciente_cpf}}\nData: {{data}}\n\nUSO ORAL:\n\n1. Amoxicilina 500mg ----------------------- 1 caixa\n   Tomar 1 comprimido de 8 em 8 horas por 7 dias.\n\n2. Dipirona Sódica 500mg ------------------ 1 caixa\n   Tomar 1 comprimido em caso de dor ou febre (6/6h).\n\n___________________\nProfissional responsável' },
+    { id: 'doc_atestado_1', tipo: 'atestado', nome: 'Atestado de Comparecimento', conteudo: 'ATESTADO ODONTOLÓGICO\n\nAtesto para os devidos fins que o(a) Sr(a) {{paciente_nome}}, inscrito(a) no CPF {{paciente_cpf}}, esteve sob meus cuidados profissionais nesta data ({{data}}).\n\nNecessita de _____ dias de repouso por motivo de tratamento odontológico.\n\nCID: K08.8\n\n{{data_extenso}}.\n\n___________________\nAssinatura e Carimbo' },
+    { id: 'doc_termo_1', tipo: 'outro', nome: 'Termo de Consentimento Livre e Esclarecido', conteudo: 'TERMO DE CONSENTIMENTO LIVRE E ESCLARECIDO\n\nEu, {{paciente_nome}}, declaro que fui devidamente informado(a) pelo profissional sobre o tratamento odontológico a ser realizado, seus riscos, benefícios, alternativas e prognóstico.\n\nEstou ciente de que ____________________________.\n\nAutorizo a realização do procedimento.\n\n{{data_extenso}}.\n\n____________________\nAssinatura do Paciente' },
 ];
 
 
 export default function Configuracoes() {
+  const router = useRouter();
   const [abaAtiva, setAbaAtiva] = useState('clinicas');
   const [loading, setLoading] = useState(true);
   const { showAlert, showConfirm } = useCustomAlert();
@@ -44,11 +58,7 @@ export default function Configuracoes() {
   const [clinicas, setClinicas] = useState<any[]>([]);
   const [profissionais, setProfissionais] = useState<any[]>([]);
   
-  // MODAL CLÍNICA
-  const [modalClinica, setModalClinica] = useState(false);
-  const [novaClinica, setNovaClinica] = useState('');
-  
-  // MODAL EDIÇÃO COMPLETA CLÍNICA
+  // MODAL CLÍNICA (criação e edição completas)
   const [modalClinicaCompleto, setModalClinicaCompleto] = useState(false);
   const [clinicaEditando, setClinicaEditando] = useState<any>(null);
   const [clinicaForm, setClinicaForm] = useState({
@@ -72,24 +82,6 @@ export default function Configuracoes() {
   });
   const [editandoProf, setEditandoProf] = useState(false);
 
-  // PERMISSÕES
-  const [permissoes, setPermissoes] = useState<Record<number, any>>({});
-  const [salvandoPermissao, setSalvandoPermissao] = useState<number | null>(null);
-
-  // COMISSÕES
-  const [comissoesRegras, setComissoesRegras] = useState<any[]>([]);
-  const [modalComissao, setModalComissao] = useState(false);
-  const [editandoComissao, setEditandoComissao] = useState(false);
-  const [salvandoComissao, setSalvandoComissao] = useState(false);
-  const [comissaoForm, setComissaoForm] = useState({
-      id: '',
-      profissional_id: '',
-      gatilho: 'debito_recebido',
-      tipo: 'percentual',
-      valor: '0',
-      ativo: true
-  });
-
   // MODAL VINCULOS
   const [modalVinculo, setModalVinculo] = useState(false);
   const [profSelecionado, setProfSelecionado] = useState<any>(null);
@@ -104,8 +96,17 @@ export default function Configuracoes() {
   const [prefs, setPrefs] = useState<any>(PREFS_PADRAO);
 
   // CATEGORIAS FINANCEIRAS
-  const [catsFin, setCatsFin] = useState<string[]>([]);
+  const [catsFin, setCatsFin] = useState<CategoriaFinanceira[]>(CATEGORIAS_FINANCEIRAS_PADRAO);
   const [novaCatFin, setNovaCatFin] = useState('');
+  const [novaCatTipo, setNovaCatTipo] = useState<'receita' | 'despesa'>('despesa');
+
+  // COMUNICAÇÃO
+  const [templatesComunicacao, setTemplatesComunicacao] = useState<TemplateComunicacao[]>(TEMPLATES_COMUNICACAO_PADRAO);
+  const [templateComEdit, setTemplateComEdit] = useState<TemplateComunicacao | null>(null);
+  const [modalTemplateCom, setModalTemplateCom] = useState(false);
+
+  // TAXAS MAQUININHA
+  const [taxasMaquininha, setTaxasMaquininha] = useState<TaxaMaquininha[]>(TAXAS_MAQUININHA_PADRAO);
 
   // MODELOS DE DOCUMENTOS (Contratos / Outros)
   const [docs, setDocs] = useState<ModeloDocumento[]>([]);
@@ -123,20 +124,26 @@ export default function Configuracoes() {
       if (typeof window !== 'undefined') {
           const params = new URLSearchParams(window.location.search);
           const aba = params.get('aba');
+          if (aba && ['equipe', 'permissoes', 'comissoes'].includes(aba)) {
+              router.replace('/ajustes/equipe');
+              return;
+          }
           if (aba) setAbaAtiva(aba);
       }
       carregarDados();
       setModelos(carregarModelos());
       recarregarBackups();
-  }, []);
+  }, [router]);
 
   // Carregar configs do Supabase após clinicas carregarem
   useEffect(() => {
       if (clinicas.length === 0) return;
       const cid = clinicas[0]?.id || '0';
       carregarConfig(cid, 'preferencias', 'ortus_preferencias', PREFS_PADRAO).then(p => setPrefs({ ...PREFS_PADRAO, ...(p || {}) }));
-      carregarConfig(cid, 'categorias_financeiro', 'ortus_categorias_financeiro', []).then(c => setCatsFin(c || []));
+      carregarConfig(cid, 'categorias_financeiro', 'ortus_categorias_financeiro', CATEGORIAS_FINANCEIRAS_PADRAO).then(c => setCatsFin(normalizarCategoriasFinanceiras(c)));
       carregarConfig(cid, 'modelos_documentos', 'ortus_modelos_documentos', DOCS_PADRAO).then(d => setDocs(d && d.length ? d : DOCS_PADRAO));
+      carregarConfig(cid, 'templates_comunicacao', 'ortus_templates_comunicacao', TEMPLATES_COMUNICACAO_PADRAO).then(t => setTemplatesComunicacao(Array.isArray(t) && t.length ? t : TEMPLATES_COMUNICACAO_PADRAO));
+      carregarConfig(cid, 'taxas_maquininha', 'ortus_taxas_maquininha', TAXAS_MAQUININHA_PADRAO).then(t => setTaxasMaquininha(Array.isArray(t) && t.length ? t : TAXAS_MAQUININHA_PADRAO));
   }, [clinicas]);
 
   async function recarregarBackups() {
@@ -182,23 +189,82 @@ export default function Configuracoes() {
   function atualizarPref(k: string, v: any) { const p = { ...prefs, [k]: v }; setPrefs(p); const cid = clinicas[0]?.id || '0'; salvarConfig(cid, 'preferencias', p); }
   function toggleDia(d: string) { const dias = { ...prefs.dias_atendimento, [d]: !prefs.dias_atendimento[d] }; atualizarPref('dias_atendimento', dias); }
 
-  // ===== CATEGORIAS FINANCEIRAS =====
+  function persistirCategorias(lista: CategoriaFinanceira[]) {
+      setCatsFin(lista);
+      const cid = clinicas[0]?.id || '0';
+      salvarConfig(cid, 'categorias_financeiro', lista);
+  }
+
   function adicionarCatFin() {
-      const n = novaCatFin.trim(); if (!n) return;
-      if (catsFin.find(c => c.toLowerCase() === n.toLowerCase())) { showAlert('Categoria já existe.', { type: 'warning' }); return; }
-      const novas = [...catsFin, n].sort();
-      setCatsFin(novas); const cid = clinicas[0]?.id || '0'; salvarConfig(cid, 'categorias_financeiro', novas); setNovaCatFin('');
+      const n = novaCatFin.trim();
+      if (!n) return;
+      if (catsFin.find(c => c.nome.toLowerCase() === n.toLowerCase())) {
+          showAlert('Categoria já existe.', { type: 'warning' });
+          return;
+      }
+      const nova: CategoriaFinanceira = {
+          id: `cat_${Date.now()}`,
+          nome: n,
+          tipo: novaCatTipo,
+          cor: novaCatTipo === 'receita' ? '#10b981' : '#64748b',
+          ativo: true,
+      };
+      persistirCategorias([...catsFin, nova].sort((a, b) => a.nome.localeCompare(b.nome)));
+      setNovaCatFin('');
   }
-  async function removerCatFin(c: string) {
-      if (!(await showConfirm(`Excluir categoria "${c}"?`, { title: 'Excluir', type: 'error', confirmLabel: 'Excluir' }))) return;
-      const novas = catsFin.filter(x => x !== c);
-      setCatsFin(novas); const cid = clinicas[0]?.id || '0'; salvarConfig(cid, 'categorias_financeiro', novas);
+
+  async function removerCatFin(id: string) {
+      const cat = catsFin.find(c => c.id === id);
+      if (!cat) return;
+      if (!(await showConfirm(`Excluir categoria "${cat.nome}"?`, { title: 'Excluir', type: 'error', confirmLabel: 'Excluir' }))) return;
+      persistirCategorias(catsFin.filter(x => x.id !== id));
   }
-  function renomearCatFin(antiga: string) {
-      const nova = prompt('Novo nome:', antiga);
-      if (!nova || nova.trim() === antiga) return;
-      const novas = catsFin.map(c => c === antiga ? nova.trim() : c).sort();
-      setCatsFin(novas); const cid = clinicas[0]?.id || '0'; salvarConfig(cid, 'categorias_financeiro', novas);
+
+  function toggleCatFinAtiva(id: string) {
+      persistirCategorias(catsFin.map(c => c.id === id ? { ...c, ativo: !c.ativo } : c));
+  }
+
+  function salvarTemplatesComunicacao(lista: TemplateComunicacao[]) {
+      setTemplatesComunicacao(lista);
+      salvarConfig(clinicas[0]?.id || '0', 'templates_comunicacao', lista);
+  }
+
+  function salvarTaxas(lista: TaxaMaquininha[]) {
+      setTaxasMaquininha(lista);
+      salvarConfig(clinicas[0]?.id || '0', 'taxas_maquininha', lista);
+  }
+
+  function abrirNovoTemplateCom() {
+      setTemplateComEdit({ id: `tpl_${Date.now()}`, canal: 'whatsapp', nome: '', corpo: '', ativo: true });
+      setModalTemplateCom(true);
+  }
+
+  function abrirEditarTemplateCom(t: TemplateComunicacao) {
+      setTemplateComEdit({ ...t });
+      setModalTemplateCom(true);
+  }
+
+  function salvarTemplateComEdit() {
+      if (!templateComEdit?.nome.trim() || !templateComEdit.corpo.trim()) {
+          showAlert('Preencha nome e mensagem.', { type: 'warning' });
+          return;
+      }
+      const idx = templatesComunicacao.findIndex(t => t.id === templateComEdit.id);
+      const novos = idx >= 0
+          ? templatesComunicacao.map((t, i) => i === idx ? templateComEdit : t)
+          : [...templatesComunicacao, templateComEdit];
+      salvarTemplatesComunicacao(novos);
+      setModalTemplateCom(false);
+      setTemplateComEdit(null);
+  }
+
+  async function excluirTemplateCom(id: string) {
+      if (!(await showConfirm('Excluir este template?', { title: 'Excluir', type: 'warning' }))) return;
+      salvarTemplatesComunicacao(templatesComunicacao.filter(t => t.id !== id));
+  }
+
+  function atualizarTaxa(id: string, campo: keyof TaxaMaquininha, valor: string | number | boolean) {
+      salvarTaxas(taxasMaquininha.map(t => t.id === id ? { ...t, [campo]: valor } : t));
   }
 
   // ===== MODELOS DE DOCUMENTOS =====
@@ -221,6 +287,33 @@ export default function Configuracoes() {
       setDocs(novos); const cidD2 = clinicas[0]?.id || '0'; salvarConfig(cidD2, 'modelos_documentos', novos);
   }
 
+  function renomearCatFin(id: string) {
+      const cat = catsFin.find(c => c.id === id);
+      if (!cat) return;
+      const nova = prompt('Novo nome:', cat.nome);
+      if (!nova || nova.trim() === cat.nome) return;
+      persistirCategorias(catsFin.map(c => c.id === id ? { ...c, nome: nova.trim() } : c).sort((a, b) => a.nome.localeCompare(b.nome)));
+  }
+
+  function atualizarCatFin(id: string, patch: Partial<CategoriaFinanceira>) {
+      persistirCategorias(catsFin.map(c => c.id === id ? { ...c, ...patch } : c));
+  }
+
+  function inserirVariavelDoc(chave: string) {
+      if (!docEdit) return;
+      setDocEdit({ ...docEdit, conteudo: `${docEdit.conteudo}{{${chave}}}` });
+  }
+
+  const docPreview = docEdit ? aplicarVariaveisDocumento(
+      docEdit.conteudo,
+      buildDocumentoContexto({
+          clinica_nome: clinicas[0]?.nome,
+          clinica_cnpj: clinicas[0]?.cnpj,
+          clinica_telefone: clinicas[0]?.telefone,
+          clinica_endereco: [clinicas[0]?.rua, clinicas[0]?.numero, clinicas[0]?.cidade].filter(Boolean).join(', '),
+      }),
+  ) : '';
+
   // ===== BACKUP =====
   function exportarTudo() {
       const tudo = {
@@ -228,6 +321,8 @@ export default function Configuracoes() {
           exportado_em: new Date().toISOString(),
           preferencias: prefs,
           categorias_financeiro: catsFin,
+          templates_comunicacao: templatesComunicacao,
+          taxas_maquininha: taxasMaquininha,
           modelos_anamnese: modelos,
           modelos_documentos: docs,
           lancamentos_meta: {},
@@ -250,7 +345,13 @@ export default function Configuracoes() {
               const obj = JSON.parse(reader.result as string);
               const cidB = clinicas[0]?.id || '0';
               if (obj.preferencias) { setPrefs(obj.preferencias); salvarConfig(cidB, 'preferencias', obj.preferencias); }
-              if (obj.categorias_financeiro) { setCatsFin(obj.categorias_financeiro); salvarConfig(cidB, 'categorias_financeiro', obj.categorias_financeiro); }
+              if (obj.categorias_financeiro) {
+                  const norm = normalizarCategoriasFinanceiras(obj.categorias_financeiro);
+                  setCatsFin(norm);
+                  salvarConfig(cidB, 'categorias_financeiro', norm);
+              }
+              if (obj.templates_comunicacao) { setTemplatesComunicacao(obj.templates_comunicacao); salvarConfig(cidB, 'templates_comunicacao', obj.templates_comunicacao); }
+              if (obj.taxas_maquininha) { setTaxasMaquininha(obj.taxas_maquininha); salvarConfig(cidB, 'taxas_maquininha', obj.taxas_maquininha); }
               if (obj.modelos_anamnese) { setModelos(obj.modelos_anamnese); salvarModelos(obj.modelos_anamnese); }
               if (obj.modelos_documentos) { setDocs(obj.modelos_documentos); salvarConfig(cidB, 'modelos_documentos', obj.modelos_documentos); }
               if (obj.lancamentos_meta) { salvarConfig(cidB, 'lancamentos_meta', obj.lancamentos_meta); }
@@ -356,275 +457,124 @@ export default function Configuracoes() {
           .maybeSingle();
       setPerfilCaller(meu);
 
-      const podeVerEquipe = meu?.nivel_acesso === 'admin' || meu?.is_super_admin;
-
-      // 2) Multi-tenant: clínicas e equipe sempre filtradas pelo helper.
-      //    A lista de profissionais só carrega se o usuário tem permissão.
       const c = await fetchUserClinicas();
       setClinicas(c || []);
-      if (podeVerEquipe) {
-          const equipe = await fetchUserEquipe();
-          setProfissionais(equipe || []);
-      } else {
-          setProfissionais([]);
-      }
+      setProfissionais([]);
       setLoading(false);
   }
 
-  // Carregar permissões quando a aba é aberta
-  useEffect(() => {
-      if (abaAtiva === 'permissoes' && profissionais.length > 0) {
-          carregarPermissoes();
-      }
-  }, [abaAtiva, profissionais]);
+  const CLINICA_FORM_VAZIO = {
+      id: '', nome: '', cnpj: '', responsavel_nome: '', email: '', telefone: '',
+      horario_inicio: '08:00', horario_fim: '18:00', fuso_horario: 'America/Sao_Paulo',
+      emitir_notas_em_nome: 'clinica', logo_url: '',
+      cep: '', rua: '', numero: '', complemento: '', bairro: '', cidade: '', uf: ''
+  };
 
-  // Carregar comissões quando a aba é aberta
-  useEffect(() => {
-      if (abaAtiva === 'comissoes') {
-          carregarComissoes();
-      }
-  }, [abaAtiva]);
-
-  // --- PERMISSÕES ---
-  async function carregarPermissoes() {
-      if (profissionais.length === 0) return;
-      
-      const { data } = await supabase
-          .from('permissoes_modulos')
-          .select('*')
-          .in('profissional_id', profissionais.map(p => p.id));
-      
-      if (data) {
-          const permMap: Record<number, any> = {};
-          data.forEach(p => {
-              permMap[p.profissional_id] = p;
-          });
-          setPermissoes(permMap);
-      }
+  function validarClinicaForm(): string | null {
+      if (!clinicaForm.nome.trim()) return 'Nome da clínica é obrigatório.';
+      const cep = clinicaForm.cep?.replace(/\D/g, '') || '';
+      if (cep.length !== 8) return 'Informe um CEP válido (8 dígitos).';
+      if (!clinicaForm.rua?.trim()) return 'Informe a rua/avenida.';
+      if (!clinicaForm.numero?.trim()) return 'Informe o número do endereço.';
+      if (!clinicaForm.bairro?.trim()) return 'Informe o bairro.';
+      if (!clinicaForm.cidade?.trim()) return 'Informe a cidade.';
+      if (!clinicaForm.uf?.trim()) return 'Selecione a UF.';
+      return null;
   }
 
-  async function salvarPermissao(profId: number, modulo: string, valor: boolean) {
-      setSalvandoPermissao(profId);
-      try {
-          const permissaoAtual = permissoes[profId];
-          
-          if (permissaoAtual) {
-              // Update existing
-              const { error } = await supabase
-                  .from('permissoes_modulos')
-                  .update({ [modulo]: valor, updated_at: new Date().toISOString() })
-                  .eq('id', permissaoAtual.id);
-              
-              if (error) throw error;
-              
-              setPermissoes(prev => ({
-                  ...prev,
-                  [profId]: { ...permissaoAtual, [modulo]: valor }
-              }));
-          } else {
-              // Insert new - use first clinic as default
-              const clinicaId = clinicas[0]?.id;
-              if (!clinicaId) {
-                  await showAlert('Nenhuma clínica disponível para vincular permissão.', { type: 'error' });
-                  return;
-              }
-              
-              const novaPermissao = {
-                  profissional_id: profId,
-                  clinica_id: clinicaId,
-                  [modulo]: valor
-              };
-              
-              const { data, error } = await supabase
-                  .from('permissoes_modulos')
-                  .insert(novaPermissao)
-                  .select()
-                  .single();
-              
-              if (error) throw error;
-              
-              setPermissoes(prev => ({
-                  ...prev,
-                  [profId]: data
-              }));
-          }
-          
-          await showAlert(`Permissão ${valor ? 'concedida' : 'revogada'} com sucesso!`, { type: 'success' });
-      } catch (error) {
-          await showAlert('Erro ao salvar permissão.', { type: 'error' });
-      } finally {
-          setSalvandoPermissao(null);
-      }
-  }
-
-  // --- COMISSÕES ---
-  async function carregarComissoes() {
-      const { data } = await supabase
-          .from('comissoes_regras')
-          .select('*, profissionais(nome)')
-          .order('created_at', { ascending: false });
-      
-      if (data) {
-          setComissoesRegras(data);
-      }
-  }
-
-  function abrirModalComissao(regra?: any) {
-      if (regra) {
-          setComissaoForm({
-              id: regra.id,
-              profissional_id: regra.profissional_id.toString(),
-              gatilho: regra.gatilho,
-              tipo: regra.tipo,
-              valor: regra.valor.toString(),
-              ativo: regra.ativo
-          });
-          setEditandoComissao(true);
-      } else {
-          setComissaoForm({
-              id: '',
-              profissional_id: '',
-              gatilho: 'debito_recebido',
-              tipo: 'percentual',
-              valor: '0',
-              ativo: true
-          });
-          setEditandoComissao(false);
-      }
-      setModalComissao(true);
-  }
-
-  async function salvarComissao() {
-      if (!comissaoForm.profissional_id || !comissaoForm.valor) {
-          await showAlert('Preencha todos os campos obrigatórios.', { type: 'error' });
-          return;
-      }
-
-      setSalvandoComissao(true);
-      try {
-          const clinicaId = clinicas[0]?.id;
-          if (!clinicaId) {
-              await showAlert('Nenhuma clínica disponível.', { type: 'error' });
-              return;
-          }
-
-          const dados = {
-              profissional_id: parseInt(comissaoForm.profissional_id),
-              clinica_id: clinicaId,
-              gatilho: comissaoForm.gatilho,
-              tipo: comissaoForm.tipo,
-              valor: parseFloat(comissaoForm.valor),
-              ativo: comissaoForm.ativo
-          };
-
-          if (editandoComissao && comissaoForm.id) {
-              const { error } = await supabase
-                  .from('comissoes_regras')
-                  .update({ ...dados, updated_at: new Date().toISOString() })
-                  .eq('id', comissaoForm.id);
-              
-              if (error) throw error;
-              await showAlert('Regra de comissão atualizada!', { type: 'success' });
-          } else {
-              const { error } = await supabase
-                  .from('comissoes_regras')
-                  .insert(dados);
-              
-              if (error) throw error;
-              await showAlert('Regra de comissão criada!', { type: 'success' });
-          }
-
-          await carregarComissoes();
-          setModalComissao(false);
-      } catch (error) {
-          await showAlert('Erro ao salvar regra de comissão.', { type: 'error' });
-      } finally {
-          setSalvandoComissao(false);
-      }
-  }
-
-  async function excluirComissao(id: string) {
-      const confirmed = await showConfirm('Tem certeza que deseja excluir esta regra de comissão?');
-      if (!confirmed) return;
-
-      const { error } = await supabase
-          .from('comissoes_regras')
-          .delete()
-          .eq('id', id);
-
-      if (error) {
-          await showAlert('Erro ao excluir regra.', { type: 'error' });
-      } else {
-          await showAlert('Regra excluída com sucesso!', { type: 'success' });
-          await carregarComissoes();
-      }
+  function abrirNovaClinica() {
+      setClinicaEditando(null);
+      setClinicaForm({ ...CLINICA_FORM_VAZIO });
+      setModalClinicaCompleto(true);
   }
 
   // --- CLÍNICAS ---
-  // Cria uma nova clínica DENTRO da rede do usuário logado e vincula ele
-  // automaticamente como membro (caso contrário, com RLS ativo, ninguém
-  // mais conseguiria enxergar a clínica recém-criada).
-  async function criarClinica() {
-      if (!novaClinica) return;
+  // Cria ou atualiza clínica com formulário completo
+  async function salvarClinicaCompleta() {
+      const erro = validarClinicaForm();
+      if (erro) {
+          showAlert(erro, { type: 'warning' });
+          return;
+      }
+
+      const payload = {
+          nome: clinicaForm.nome.trim(),
+          cnpj: clinicaForm.cnpj.trim() || null,
+          responsavel_nome: clinicaForm.responsavel_nome.trim() || null,
+          email: clinicaForm.email.trim() || null,
+          telefone: clinicaForm.telefone.trim() || null,
+          horario_inicio: clinicaForm.horario_inicio || null,
+          horario_fim: clinicaForm.horario_fim || null,
+          fuso_horario: clinicaForm.fuso_horario || 'America/Sao_Paulo',
+          emitir_notas_em_nome: clinicaForm.emitir_notas_em_nome || 'clinica',
+          logo_url: clinicaForm.logo_url || null,
+          cep: clinicaForm.cep.trim() || null,
+          rua: clinicaForm.rua.trim() || null,
+          numero: clinicaForm.numero.trim() || null,
+          complemento: clinicaForm.complemento.trim() || null,
+          bairro: clinicaForm.bairro.trim() || null,
+          cidade: clinicaForm.cidade.trim() || null,
+          uf: clinicaForm.uf || null
+      };
+
       try {
-          const { data: { session } } = await supabase.auth.getSession();
-          if (!session) { await showAlert('Sessão expirada. Faça login novamente.', { type: 'error' }); return; }
+          if (clinicaEditando?.id) {
+              const { error } = await supabase.from('clinicas').update(payload).eq('id', clinicaEditando.id);
+              if (error) throw error;
+              showAlert('Clínica atualizada com sucesso!', { type: 'success' });
+          } else {
+              const { data: { session } } = await supabase.auth.getSession();
+              if (!session) { showAlert('Sessão expirada. Faça login novamente.', { type: 'error' }); return; }
 
-          // 1) Profissional + rede_id atual do usuário (via primeiro vínculo)
-          const { data: prof } = await supabase
-              .from('profissionais')
-              .select('id, is_super_admin')
-              .eq('user_id', session.user.id)
-              .maybeSingle();
+              const { data: prof } = await supabase
+                  .from('profissionais')
+                  .select('id, is_super_admin')
+                  .eq('user_id', session.user.id)
+                  .maybeSingle();
 
-          if (!prof?.id) {
-              await showAlert('Não foi possível identificar seu perfil. Contate o suporte.', { type: 'error' });
-              return;
+              if (!prof?.id) {
+                  showAlert('Não foi possível identificar seu perfil.', { type: 'error' });
+                  return;
+              }
+
+              let redeId: any = null;
+              const { data: vinculos } = await supabase
+                  .from('profissionais_clinicas')
+                  .select('clinicas(rede_id)')
+                  .eq('profissional_id', prof.id)
+                  .limit(1);
+              redeId = (vinculos?.[0] as any)?.clinicas?.rede_id ?? null;
+
+              if (!redeId && !prof.is_super_admin) {
+                  showAlert('Sua conta não está vinculada a nenhuma rede. Contate o suporte.', { type: 'error' });
+                  return;
+              }
+
+              const insertPayload: any = { ...payload };
+              if (redeId !== null && redeId !== undefined) insertPayload.rede_id = redeId;
+
+              const { data: novaC, error } = await supabase
+                  .from('clinicas')
+                  .insert([insertPayload])
+                  .select('id')
+                  .single();
+              if (error || !novaC) throw error || new Error('Falha ao criar clínica');
+
+              const { error: vincErr } = await supabase
+                  .from('profissionais_clinicas')
+                  .insert([{ profissional_id: prof.id, clinica_id: novaC.id }]);
+              if (vincErr) {
+                  showAlert('Clínica criada, mas não foi possível vincular você automaticamente. Vincule em /ajustes/equipe.', { type: 'warning' });
+              } else {
+                  showAlert('Clínica cadastrada com sucesso!', { type: 'success' });
+              }
           }
 
-          let redeId: any = null;
-          const { data: vinculos } = await supabase
-              .from('profissionais_clinicas')
-              .select('clinicas(rede_id)')
-              .eq('profissional_id', prof.id)
-              .limit(1);
-          const primeiroVinculo: any = vinculos?.[0]?.clinicas;
-          redeId = primeiroVinculo?.rede_id ?? null;
-
-          if (!redeId && !prof.is_super_admin) {
-              await showAlert('Sua conta não está vinculada a nenhuma rede. Contate o suporte para configurar sua rede antes de criar clínicas.', { type: 'error' });
-              return;
-          }
-
-          // 2) Cria a clínica já com rede_id (se houver)
-          const payload: any = { nome: novaClinica.trim() };
-          if (redeId !== null && redeId !== undefined) payload.rede_id = redeId;
-
-          const { data: novaC, error } = await supabase
-              .from('clinicas')
-              .insert([payload])
-              .select('id')
-              .single();
-          if (error || !novaC) {
-              await showAlert('Erro ao criar clínica: ' + (error?.message || 'desconhecido'), { type: 'error' });
-              return;
-          }
-
-          // 3) Vincula o criador à nova clínica para que ele a enxergue
-          const { error: vincErr } = await supabase
-              .from('profissionais_clinicas')
-              .insert([{ profissional_id: prof.id, clinica_id: novaC.id }]);
-          if (vincErr) {
-              console.error('Aviso: clínica criada mas vínculo falhou:', vincErr);
-              showAlert('Clínica criada, mas não foi possível vincular você automaticamente. Vincule manualmente em /ajustes/equipe.', { type: 'warning' });
-          }
-
-          setNovaClinica('');
-          setModalClinica(false);
+          setModalClinicaCompleto(false);
+          setClinicaEditando(null);
           carregarDados();
       } catch (e: any) {
-          console.error(e);
-          showAlert('Erro inesperado: ' + (e?.message || e), { type: 'error' });
+          showAlert('Erro ao salvar: ' + (e?.message || e), { type: 'error' });
       }
   }
 
@@ -668,52 +618,10 @@ export default function Configuracoes() {
       setModalClinicaCompleto(true);
   }
 
-  // Salvar clínica completa (edição)
-  async function salvarClinicaCompleta() {
-      if (!clinicaForm.nome.trim()) {
-          showAlert('Nome da clínica é obrigatório', { type: 'warning' });
-          return;
-      }
-
-      const payload = {
-          nome: clinicaForm.nome.trim(),
-          cnpj: clinicaForm.cnpj.trim() || null,
-          responsavel_nome: clinicaForm.responsavel_nome.trim() || null,
-          email: clinicaForm.email.trim() || null,
-          telefone: clinicaForm.telefone.trim() || null,
-          horario_inicio: clinicaForm.horario_inicio || null,
-          horario_fim: clinicaForm.horario_fim || null,
-          fuso_horario: clinicaForm.fuso_horario || 'America/Sao_Paulo',
-          emitir_notas_em_nome: clinicaForm.emitir_notas_em_nome || 'clinica',
-          logo_url: clinicaForm.logo_url || null,
-          cep: clinicaForm.cep.trim() || null,
-          rua: clinicaForm.rua.trim() || null,
-          numero: clinicaForm.numero.trim() || null,
-          complemento: clinicaForm.complemento.trim() || null,
-          bairro: clinicaForm.bairro.trim() || null,
-          cidade: clinicaForm.cidade.trim() || null,
-          uf: clinicaForm.uf || null
-      };
-
-      const { error } = await supabase
-          .from('clinicas')
-          .update(payload)
-          .eq('id', clinicaEditando.id);
-
-      if (error) {
-          showAlert('Erro ao salvar: ' + error.message, { type: 'error' });
-      } else {
-          showAlert('Clínica atualizada com sucesso!', { type: 'success' });
-          setModalClinicaCompleto(false);
-          setClinicaEditando(null);
-          carregarDados();
-      }
-  }
-
   // Upload de logo
   async function uploadLogo(e: React.ChangeEvent<HTMLInputElement>) {
       const file = e.target.files?.[0];
-      if (!file) return;
+      if (!file || !clinicaEditando?.id) return;
 
       if (!file.type.startsWith('image/')) {
           showAlert('Selecione uma imagem válida', { type: 'warning' });
@@ -855,29 +763,21 @@ export default function Configuracoes() {
       
       <div>
           <h1 className="text-2xl sm:text-3xl font-black text-slate-800">Configurações</h1>
-          <p className="text-slate-500 text-sm font-medium">Gerencie suas unidades e equipe completa.</p>
+          <p className="text-slate-500 text-sm font-medium">Gerencie clínicas, preferências e configurações do sistema.</p>
       </div>
 
       <div className="flex gap-4 border-b border-slate-200">
           <div className="flex gap-1 overflow-x-auto pb-1 -mb-1">
               <button onClick={() => setAbaAtiva('clinicas')} className={`pb-4 px-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${abaAtiva === 'clinicas' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><Building2 size={16}/> Clínicas</button>
               {(perfilCaller?.nivel_acesso === 'admin' || perfilCaller?.is_super_admin) && (
-                <button onClick={() => setAbaAtiva('equipe')} className={`pb-4 px-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${abaAtiva === 'equipe' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><Users size={16}/> Equipe</button>
-              )}
- 
-              {(perfilCaller?.nivel_acesso === 'admin' || perfilCaller?.is_super_admin) && (
-                <button onClick={() => setAbaAtiva('permissoes')} className={`pb-4 px-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${abaAtiva === 'permissoes' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><Shield size={16}/> Permissões</button>
-              )}
-              {(perfilCaller?.nivel_acesso === 'admin' || perfilCaller?.is_super_admin) && (
                 <button onClick={() => setAbaAtiva('planos')} className={`pb-4 px-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${abaAtiva === 'planos' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><Layers3 size={16}/> Planos</button>
-              )}
-              {(perfilCaller?.nivel_acesso === 'admin' || perfilCaller?.is_super_admin) && (
-                <button onClick={() => setAbaAtiva('comissoes')} className={`pb-4 px-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${abaAtiva === 'comissoes' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><DollarSign size={16}/> Comissões</button>
               )}
               <button onClick={() => setAbaAtiva('geral')} className={`pb-4 px-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${abaAtiva === 'geral' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><SlidersHorizontal size={16}/> Geral</button>
               <button onClick={() => setAbaAtiva('anamnese')} className={`pb-4 px-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${abaAtiva === 'anamnese' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><ClipboardList size={16}/> Anamnese</button>
               <button onClick={() => setAbaAtiva('documentos')} className={`pb-4 px-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${abaAtiva === 'documentos' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><FileSignature size={16}/> Contratos & Docs</button>
               <button onClick={() => setAbaAtiva('categorias')} className={`pb-4 px-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${abaAtiva === 'categorias' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><Tag size={16}/> Categorias Fin.</button>
+              <button onClick={() => setAbaAtiva('comunicacao')} className={`pb-4 px-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${abaAtiva === 'comunicacao' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><MessageCircle size={16}/> Comunicação</button>
+              <button onClick={() => setAbaAtiva('taxas')} className={`pb-4 px-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${abaAtiva === 'taxas' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><CreditCard size={16}/> Taxas</button>
               <button onClick={() => setAbaAtiva('backup')} className={`pb-4 px-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${abaAtiva === 'backup' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><Database size={16}/> Backup</button>
           </div>
       </div>
@@ -890,7 +790,7 @@ export default function Configuracoes() {
                     <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
                         <div className="flex justify-between items-center mb-6">
                             <h3 className="font-bold text-slate-700 text-lg">Unidades Cadastradas</h3>
-                            <button onClick={() => setModalClinica(true)} className="bg-blue-600 text-white px-4 py-2 rounded-xl font-bold text-sm hover:bg-blue-700 flex items-center gap-2 shadow-lg shadow-blue-200"><Plus size={16}/> Nova Clínica</button>
+                            <button onClick={abrirNovaClinica} className="bg-blue-600 text-white px-4 py-2 rounded-xl font-bold text-sm hover:bg-blue-700 flex items-center gap-2 shadow-lg shadow-blue-200"><Plus size={16}/> Nova Clínica</button>
                         </div>
                         <div className="space-y-3">
                             {clinicas.map(c => (
@@ -919,196 +819,6 @@ export default function Configuracoes() {
             {abaAtiva === 'planos' && (perfilCaller?.nivel_acesso === 'admin' || perfilCaller?.is_super_admin) && (
                 <div className="space-y-6 animate-in fade-in">
                     <PlanosEmbedded />
-                </div>
-            )}
-
-            {/* ABA EQUIPE */}
-            {abaAtiva === 'equipe' && (perfilCaller?.nivel_acesso === 'admin' || perfilCaller?.is_super_admin) && (
-                <div className="space-y-6 animate-in slide-in-from-right-4">
-                    <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
-                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
-                            <h3 className="font-bold text-slate-700 text-lg">Profissionais</h3>
-                            <button onClick={abrirNovoProf} className="bg-green-600 text-white px-3 py-2 rounded-xl font-bold text-xs sm:text-sm hover:bg-green-700 flex items-center gap-2 shadow-sm"><UserPlus size={14}/> Adicionar</button>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {profissionais.map(p => (
-                                <div key={p.id} className="p-5 border border-slate-100 rounded-2xl bg-slate-50 hover:bg-white hover:shadow-md transition-all relative group flex flex-col justify-between h-full">
-                                    <div>
-                                        <div className="flex justify-between items-start mb-4">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center font-bold text-lg overflow-hidden border-2 border-white shadow-sm">
-                                                    {p.foto_url ? <img src={p.foto_url} className="w-full h-full object-cover"/> : p.nome.charAt(0)}
-                                                </div>
-                                                <div>
-                                                    <h4 className="font-bold text-slate-800 leading-tight">{p.nome}</h4>
-                                                    <p className="text-xs text-slate-400 font-bold">{p.cargo}</p>
-                                                </div>
-                                            </div>
-                                            <button onClick={() => abrirEditarProf(p)} className="p-2 text-slate-400 hover:text-blue-600 bg-white rounded-lg border border-slate-200 hover:border-blue-300 transition-all"><Edit size={16}/></button>
-                                        </div>
-                                        
-                                        <div className="space-y-2 mb-4">
-                                            {p.telefone && <div className="flex items-center gap-2 text-xs text-slate-500 font-medium"><Phone size={12}/> {p.telefone}</div>}
-                                            <div className="flex items-center gap-2 mt-2">
-                                                {p.nivel_acesso === 'admin' && <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase bg-purple-100 text-purple-700 flex items-center gap-1 border border-purple-200"><Shield size={10}/> Admin</span>}
-                                                {p.cro && <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase bg-emerald-50 text-emerald-700 border border-emerald-100 flex items-center gap-1"><FileText size={10}/> {p.conselho || 'CRO'}: {p.cro}</span>}
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <button onClick={() => abrirVinculos(p)} className="w-full py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:border-blue-400 hover:text-blue-600 transition-colors flex items-center justify-center gap-2 mt-auto">
-                                        <MapPin size={14}/> Gerenciar Unidades
-                                    </button>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* ABA PERMISSÕES */}
-            {abaAtiva === 'permissoes' && (perfilCaller?.nivel_acesso === 'admin' || perfilCaller?.is_super_admin) && (
-                <div className="space-y-6 animate-in slide-in-from-right-4">
-                    <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
-                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
-                            <div>
-                                <h3 className="font-bold text-slate-700 text-lg flex items-center gap-2"><Shield size={20} className="text-blue-500"/> Permissões de Acesso</h3>
-                                <p className="text-xs text-slate-400 font-medium mt-1">Gerencie quais módulos cada profissional pode acessar.</p>
-                            </div>
-                            <button 
-                                onClick={carregarPermissoes}
-                                className="text-blue-600 hover:text-blue-700 text-sm font-medium"
-                            >
-                                Recarregar
-                            </button>
-                        </div>
-                        
-                        <div className="space-y-4">
-                            {profissionais.length === 0 ? (
-                                <p className="text-slate-400 text-center py-8">Nenhum profissional cadastrado. Adicione profissionais na aba Equipe primeiro.</p>
-                            ) : (
-                                profissionais.map(prof => {
-                                    const perm = permissoes[prof.id] || {};
-                                    return (
-                                        <div key={prof.id} className="p-4 border border-slate-100 rounded-2xl bg-slate-50">
-                                            <div className="flex items-center justify-between mb-3">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
-                                                        <User size={20} className="text-blue-600" />
-                                                    </div>
-                                                    <div>
-                                                        <p className="font-bold text-slate-700">{prof.nome}</p>
-                                                        <p className="text-xs text-slate-400">{prof.nivel_acesso === 'admin' ? 'Administrador' : 'Profissional'}</p>
-                                                    </div>
-                                                </div>
-                                                {prof.nivel_acesso === 'admin' ? (
-                                                    <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full font-medium">Acesso Total</span>
-                                                ) : salvandoPermissao === prof.id ? (
-                                                    <Loader2 size={16} className="animate-spin text-blue-500" />
-                                                ) : null}
-                                            </div>
-                                            
-                                            {prof.nivel_acesso !== 'admin' && (
-                                                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-3">
-                                                    {['agenda', 'pacientes', 'financeiro', 'proteses', 'documentos', 'configuracoes'].map(modulo => (
-                                                        <label key={modulo} className="flex items-center gap-2 p-2 rounded-lg hover:bg-white cursor-pointer">
-                                                            <input 
-                                                                type="checkbox" 
-                                                                className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                                                                checked={perm[modulo] || false}
-                                                                onChange={(e) => salvarPermissao(prof.id, modulo, e.target.checked)}
-                                                            />
-                                                            <span className="text-sm text-slate-600 capitalize">{modulo}</span>
-                                                        </label>
-                                                    ))}
-                                                </div>
-                                            )}
-                                        </div>
-                                    );
-                                })
-                            )}
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* ABA COMISSÕES */}
-            {abaAtiva === 'comissoes' && (perfilCaller?.nivel_acesso === 'admin' || perfilCaller?.is_super_admin) && (
-                <div className="space-y-6 animate-in slide-in-from-right-4">
-                    <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
-                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
-                            <div>
-                                <h3 className="font-bold text-slate-700 text-lg flex items-center gap-2"><DollarSign size={20} className="text-emerald-500"/> Regras de Comissão</h3>
-                                <p className="text-xs text-slate-400 font-medium mt-1">Configure comissões por profissional e tipo de serviço.</p>
-                            </div>
-                            <div className="flex gap-2">
-                                <button 
-                                    onClick={carregarComissoes}
-                                    className="text-emerald-600 hover:text-emerald-700 text-sm font-medium px-3 py-2"
-                                >
-                                    Recarregar
-                                </button>
-                                <button 
-                                    onClick={() => abrirModalComissao()}
-                                    className="bg-emerald-600 text-white px-4 py-2 rounded-xl font-bold text-sm hover:bg-emerald-700 flex items-center gap-2 shadow-lg shadow-emerald-200"
-                                >
-                                    <Plus size={16}/> Nova Regra
-                                </button>
-                            </div>
-                        </div>
-                        
-                        <div className="space-y-4">
-                            {comissoesRegras.length === 0 ? (
-                                <div className="p-8 border border-slate-100 rounded-2xl bg-slate-50 text-center">
-                                    <DollarSign size={48} className="text-slate-300 mx-auto mb-4"/>
-                                    <p className="text-slate-500 font-medium">Nenhuma regra de comissão cadastrada</p>
-                                    <p className="text-slate-400 text-sm mt-1">Clique em "Nova Regra" para começar</p>
-                                </div>
-                            ) : (
-                                comissoesRegras.map(regra => (
-                                    <div key={regra.id} className={`p-4 border rounded-2xl bg-white ${regra.ativo ? 'border-slate-200' : 'border-slate-100 opacity-60'}`}>
-                                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                                            <div className="flex items-center gap-3">
-                                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${regra.ativo ? 'bg-emerald-100' : 'bg-slate-100'}`}>
-                                                    <DollarSign size={20} className={regra.ativo ? 'text-emerald-600' : 'text-slate-400'} />
-                                                </div>
-                                                <div>
-                                                    <p className="font-bold text-slate-700">{regra.profissionais?.nome || 'Profissional'}</p>
-                                                    <div className="flex items-center gap-2 text-xs text-slate-500">
-                                                        <span className="capitalize">{regra.gatilho.replace('_', ' ')}</span>
-                                                        <span>•</span>
-                                                        <span className="font-medium text-emerald-600">
-                                                            {regra.tipo === 'percentual' ? `${regra.valor}%` : `R$ ${regra.valor}`}
-                                                        </span>
-                                                        {regra.ativo ? (
-                                                            <span className="text-emerald-600 font-medium">• Ativa</span>
-                                                        ) : (
-                                                            <span className="text-slate-400">• Inativa</span>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div className="flex gap-2">
-                                                <button 
-                                                    onClick={() => abrirModalComissao(regra)}
-                                                    className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                                >
-                                                    <Edit size={16}/>
-                                                </button>
-                                                <button 
-                                                    onClick={() => excluirComissao(regra.id)}
-                                                    className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                                >
-                                                    <Trash2 size={16}/>
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))
-                            )}
-                        </div>
-                    </div>
                 </div>
             )}
 
@@ -1142,7 +852,7 @@ export default function Configuracoes() {
                                     <div className="space-y-1.5 max-h-32 overflow-y-auto mb-4">
                                         {m.perguntas.slice(0, 5).map(p => (
                                             <div key={p.id} className="text-[11px] text-slate-600 bg-white p-2 rounded border border-slate-100 truncate">
-                                                <span className="text-slate-400 font-bold mr-1">{p.tipo === 'sim_nao' ? '◉' : p.tipo === 'multipla' ? '☰' : '▭'}</span>
+                                                <span className="text-slate-400 font-bold mr-1">{p.tipo === 'sim_nao' || p.tipo === 'sim_nao_texto' ? '◉' : p.tipo === 'multipla' ? '☰' : '▭'}</span>
                                                 {p.label}
                                             </div>
                                         ))}
@@ -1258,26 +968,118 @@ export default function Configuracoes() {
                 <div className="space-y-6 animate-in fade-in">
                     <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
                         <h3 className="font-bold text-slate-700 text-lg flex items-center gap-2 mb-4"><Tag size={20} className="text-emerald-500"/> Categorias Financeiras</h3>
-                        <p className="text-xs text-slate-400 mb-4">Categorias usadas no módulo Financeiro. Você também pode criar novas direto na tela de novo lançamento.</p>
+                        <p className="text-xs text-slate-400 mb-4">Organize receitas e despesas por tipo. Categorias inativas não aparecem no Financeiro.</p>
 
-                        <div className="flex gap-2 mb-4">
+                        <div className="flex flex-col sm:flex-row gap-2 mb-4">
                             <input value={novaCatFin} onChange={e => setNovaCatFin(e.target.value)} onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), adicionarCatFin())} placeholder="Nome da nova categoria..." className="flex-1 min-w-0 p-2.5 sm:p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-sm"/>
-                            <button onClick={adicionarCatFin} disabled={!novaCatFin.trim()} className="px-3 sm:px-4 py-2.5 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 disabled:opacity-40 flex items-center gap-1.5 text-xs sm:text-sm shrink-0"><Plus size={14}/> Adicionar</button>
+                            <CustomSelect value={novaCatTipo} onChange={v => setNovaCatTipo(v as 'receita' | 'despesa')} options={[{ value: 'receita', label: 'Receita' }, { value: 'despesa', label: 'Despesa' }]} size="md"/>
+                            <button onClick={adicionarCatFin} disabled={!novaCatFin.trim()} className="px-3 sm:px-4 py-2.5 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 disabled:opacity-40 flex items-center justify-center gap-1.5 text-xs sm:text-sm shrink-0"><Plus size={14}/> Adicionar</button>
                         </div>
 
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                             {catsFin.length === 0 ? (
-                                <div className="col-span-3 text-center py-8 text-slate-400 border-2 border-dashed border-slate-200 rounded-xl text-sm">Nenhuma categoria cadastrada ainda.</div>
+                                <div className="col-span-2 text-center py-8 text-slate-400 border-2 border-dashed border-slate-200 rounded-xl text-sm">Nenhuma categoria cadastrada ainda.</div>
                             ) : catsFin.map(c => (
-                                <div key={c} className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-xl group hover:bg-white">
-                                    <span className="font-bold text-slate-700 text-sm flex items-center gap-2"><Tag size={14} className="text-slate-400"/> {c}</span>
-                                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <button onClick={() => renomearCatFin(c)} className="p-1 text-slate-400 hover:text-blue-600"><Edit size={14}/></button>
-                                        <button onClick={() => removerCatFin(c)} className="p-1 text-slate-400 hover:text-rose-600"><Trash2 size={14}/></button>
+                                <div key={c.id} className={`p-3 border rounded-xl group transition-all ${c.ativo ? 'bg-slate-50 border-slate-200 hover:bg-white' : 'bg-slate-100 border-slate-100 opacity-60'}`}>
+                                    <div className="flex items-center justify-between gap-2 mb-2">
+                                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                                            <input type="color" value={c.cor} onChange={e => atualizarCatFin(c.id, { cor: e.target.value })} className="w-8 h-8 rounded cursor-pointer shrink-0 border-0" title="Cor"/>
+                                            <span className="font-bold text-slate-700 text-sm truncate">{c.nome}</span>
+                                        </div>
+                                        <div className="flex gap-1 shrink-0">
+                                            <button onClick={() => toggleCatFinAtiva(c.id)} className={`p-1 rounded ${c.ativo ? 'text-emerald-600 hover:bg-emerald-50' : 'text-slate-400 hover:bg-slate-200'}`} title={c.ativo ? 'Desativar' : 'Ativar'}><Check size={14}/></button>
+                                            <button onClick={() => renomearCatFin(c.id)} className="p-1 text-slate-400 hover:text-blue-600"><Edit size={14}/></button>
+                                            <button onClick={() => removerCatFin(c.id)} className="p-1 text-slate-400 hover:text-rose-600"><Trash2 size={14}/></button>
+                                        </div>
+                                    </div>
+                                    <CustomSelect value={c.tipo} onChange={v => atualizarCatFin(c.id, { tipo: v as 'receita' | 'despesa' })} options={[{ value: 'receita', label: 'Receita' }, { value: 'despesa', label: 'Despesa' }]} size="sm"/>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {abaAtiva === 'comunicacao' && (
+                <div className="space-y-6 animate-in fade-in">
+                    <div className="bg-blue-50 border border-blue-100 rounded-3xl p-5">
+                        <h4 className="font-black text-blue-900 text-sm mb-2">Automação de lembretes 24h</h4>
+                        <p className="text-xs text-blue-800 leading-relaxed">
+                            Com <code className="bg-white/80 px-1 rounded">CRON_SECRET</code> + deploy na Vercel, o sistema envia lembretes automaticamente todo dia às 10h (Brasília).
+                            Configure <strong>Twilio</strong> (SMS) e/ou <strong>Resend</strong> (e-mail) no <code className="bg-white/80 px-1 rounded">.env.local</code> — veja <code className="bg-white/80 px-1 rounded">.env.example</code>.
+                            WhatsApp continua manual (confirmação e lembrete na agenda e ficha do paciente).
+                        </p>
+                    </div>
+                    <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+                        <div className="flex justify-between items-center mb-6">
+                            <div>
+                                <h3 className="font-bold text-slate-700 text-lg flex items-center gap-2"><MessageCircle size={20} className="text-green-500"/> Templates de Comunicação</h3>
+                                <p className="text-xs text-slate-400 mt-1">Mensagens para WhatsApp, e-mail e SMS. Use variáveis como <code className="bg-slate-100 px-1 rounded">{`{{paciente_nome}}`}</code>.</p>
+                            </div>
+                            <button onClick={abrirNovoTemplateCom} className="bg-green-600 text-white px-4 py-2 rounded-xl font-bold text-sm hover:bg-green-700 flex items-center gap-2"><Plus size={16}/> Novo Template</button>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {templatesComunicacao.map(t => (
+                                <div key={t.id} className={`p-4 border rounded-2xl ${t.ativo ? 'bg-slate-50 border-slate-200' : 'bg-slate-100 border-slate-100 opacity-60'}`}>
+                                    <div className="flex items-start justify-between gap-2 mb-2">
+                                        <div>
+                                            <span className={`text-[9px] uppercase font-black px-1.5 py-0.5 rounded ${t.canal === 'whatsapp' ? 'bg-green-100 text-green-700' : t.canal === 'email' ? 'bg-blue-100 text-blue-700' : 'bg-slate-200 text-slate-700'}`}>{t.canal}</span>
+                                            <h4 className="font-bold text-slate-800 mt-1">{t.nome}</h4>
+                                        </div>
+                                        {!t.ativo && <span className="text-[10px] font-bold text-slate-400">Inativo</span>}
+                                    </div>
+                                    <p className="text-[11px] text-slate-500 line-clamp-3 whitespace-pre-line mb-3">{t.corpo}</p>
+                                    <div className="flex gap-2">
+                                        <button onClick={() => abrirEditarTemplateCom(t)} className="flex-1 py-2 text-xs font-bold rounded-lg bg-white border border-slate-200 text-slate-600 hover:border-green-400 hover:text-green-600 flex items-center justify-center gap-1"><Edit size={12}/> Editar</button>
+                                        <button onClick={() => excluirTemplateCom(t.id)} className="py-2 px-3 text-xs font-bold rounded-lg bg-white border border-slate-200 text-rose-400 hover:border-rose-400"><Trash2 size={12}/></button>
                                     </div>
                                 </div>
                             ))}
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {abaAtiva === 'taxas' && (
+                <div className="space-y-6 animate-in fade-in">
+                    <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+                        <h3 className="font-bold text-slate-700 text-lg flex items-center gap-2 mb-2"><CreditCard size={20} className="text-indigo-500"/> Taxas de Maquininha</h3>
+                        <p className="text-xs text-slate-400 mb-6">Configure as taxas por bandeira e tipo de pagamento para calcular o valor líquido recebido.</p>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                                <thead>
+                                    <tr className="text-left text-[10px] uppercase font-black text-slate-400 border-b border-slate-100">
+                                        <th className="pb-3 pr-4">Nome</th>
+                                        <th className="pb-3 pr-4">Bandeira</th>
+                                        <th className="pb-3 pr-4">Tipo</th>
+                                        <th className="pb-3 pr-4">Taxa (%)</th>
+                                        <th className="pb-3 pr-4">Prazo (dias)</th>
+                                        <th className="pb-3">Ativo</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                    {taxasMaquininha.map(t => (
+                                        <tr key={t.id} className={t.ativo ? '' : 'opacity-50'}>
+                                            <td className="py-3 pr-4 font-bold text-slate-700">{t.nome}</td>
+                                            <td className="py-3 pr-4 text-slate-600">{t.bandeira}</td>
+                                            <td className="py-3 pr-4">
+                                                <span className="text-[10px] font-bold uppercase bg-slate-100 px-2 py-0.5 rounded">{t.tipo.replace('_', ' ')}</span>
+                                            </td>
+                                            <td className="py-3 pr-4">
+                                                <input type="number" step="0.01" min="0" max="100" value={t.taxa_percentual} onChange={e => atualizarTaxa(t.id, 'taxa_percentual', parseFloat(e.target.value) || 0)} className="w-20 p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold"/>
+                                            </td>
+                                            <td className="py-3 pr-4">
+                                                <input type="number" min="0" value={t.prazo_recebimento_dias} onChange={e => atualizarTaxa(t.id, 'prazo_recebimento_dias', parseInt(e.target.value) || 0)} className="w-16 p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold"/>
+                                            </td>
+                                            <td className="py-3">
+                                                <button onClick={() => atualizarTaxa(t.id, 'ativo', !t.ativo)} className={`p-1.5 rounded-lg ${t.ativo ? 'text-emerald-600 bg-emerald-50' : 'text-slate-400 bg-slate-100'}`}><Check size={16}/></button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                        <p className="text-[11px] text-slate-400 mt-4">Exemplo: R$ 1.000 com taxa de 2,5% = líquido de R$ 975,00</p>
                     </div>
                 </div>
             )}
@@ -1450,13 +1252,59 @@ export default function Configuracoes() {
                       </div>
                       <div>
                           <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Conteúdo</label>
-                          <textarea value={docEdit.conteudo} onChange={e => setDocEdit({...docEdit, conteudo: e.target.value})} className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-purple-500 font-mono text-sm h-72 resize-none" placeholder="Texto do modelo. Use {{paciente_nome}}, {{paciente_cpf}}, {{data}} como variáveis..."/>
-                          <p className="text-[10px] text-slate-400 mt-1">Variáveis disponíveis: <code className="bg-slate-100 px-1 rounded">{`{{paciente_nome}}`}</code>, <code className="bg-slate-100 px-1 rounded">{`{{paciente_cpf}}`}</code>, <code className="bg-slate-100 px-1 rounded">{`{{data}}`}</code></p>
+                          <div className="flex flex-wrap gap-1.5 mb-2">
+                              {DOCUMENTO_VARIAVEIS.map(v => (
+                                  <button key={v.chave} type="button" onClick={() => inserirVariavelDoc(String(v.chave))} className="text-[10px] font-bold px-2 py-1 bg-purple-50 text-purple-700 border border-purple-100 rounded-lg hover:bg-purple-100">{`{{${v.chave}}}`}</button>
+                              ))}
+                          </div>
+                          <textarea value={docEdit.conteudo} onChange={e => setDocEdit({...docEdit, conteudo: e.target.value})} className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-purple-500 font-mono text-sm h-48 resize-none" placeholder="Texto do modelo com variáveis {{paciente_nome}}, {{clinica_cnpj}}, etc."/>
+                          <div className="mt-3 p-4 bg-slate-100 border border-slate-200 rounded-xl">
+                              <div className="flex items-center gap-2 text-[10px] font-black uppercase text-slate-400 mb-2"><Eye size={12}/> Pré-visualização</div>
+                              <p className="text-sm text-slate-700 whitespace-pre-line">{docPreview || '—'}</p>
+                          </div>
                       </div>
                   </div>
                   <div className="p-5 border-t bg-slate-50 flex gap-3 rounded-b-3xl">
                       <button onClick={() => setModalDoc(false)} className="flex-1 py-3 text-slate-500 font-bold hover:bg-slate-200 rounded-xl">Cancelar</button>
                       <button onClick={salvarDocEdit} className="flex-1 py-3 bg-purple-600 text-white font-bold rounded-xl hover:bg-purple-700 shadow-lg shadow-purple-200 flex items-center justify-center gap-2"><Save size={16}/> Salvar</button>
+                  </div>
+              </div>
+          </div>
+      )}
+
+      {/* MODAL TEMPLATE COMUNICAÇÃO */}
+      {modalTemplateCom && templateComEdit && (
+          <div className="fixed inset-0 z-[60] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+              <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl flex flex-col max-h-[90vh] animate-in zoom-in-95 border border-slate-100">
+                  <div className="p-5 border-b bg-slate-50 flex justify-between items-center rounded-t-3xl">
+                      <h3 className="font-black text-lg text-slate-800 flex items-center gap-2"><MessageCircle size={18} className="text-green-500"/> {templatesComunicacao.find(t => t.id === templateComEdit.id) ? 'Editar' : 'Novo'} Template</h3>
+                      <button onClick={() => setModalTemplateCom(false)} className="p-2 hover:bg-slate-100 rounded-full text-slate-400"><X size={18}/></button>
+                  </div>
+                  <div className="p-6 space-y-4 overflow-y-auto flex-1">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          <div>
+                              <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Nome</label>
+                              <input value={templateComEdit.nome} onChange={e => setTemplateComEdit({ ...templateComEdit, nome: e.target.value })} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-green-500 font-bold"/>
+                          </div>
+                          <div>
+                              <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Canal</label>
+                              <CustomSelect value={templateComEdit.canal} onChange={v => setTemplateComEdit({ ...templateComEdit, canal: v as TemplateComunicacao['canal'] })} options={[{ value: 'whatsapp', label: 'WhatsApp' }, { value: 'email', label: 'E-mail' }, { value: 'sms', label: 'SMS' }]} size="lg"/>
+                          </div>
+                      </div>
+                      {templateComEdit.canal === 'email' && (
+                          <div>
+                              <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Assunto</label>
+                              <input value={templateComEdit.assunto || ''} onChange={e => setTemplateComEdit({ ...templateComEdit, assunto: e.target.value })} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-green-500"/>
+                          </div>
+                      )}
+                      <div>
+                          <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Mensagem</label>
+                          <textarea value={templateComEdit.corpo} onChange={e => setTemplateComEdit({ ...templateComEdit, corpo: e.target.value })} rows={8} className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-green-500 text-sm resize-none"/>
+                      </div>
+                  </div>
+                  <div className="p-5 border-t bg-slate-50 flex gap-3 rounded-b-3xl">
+                      <button onClick={() => setModalTemplateCom(false)} className="flex-1 py-3 text-slate-500 font-bold hover:bg-slate-200 rounded-xl">Cancelar</button>
+                      <button onClick={salvarTemplateComEdit} className="flex-1 py-3 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 shadow-lg flex items-center justify-center gap-2"><Save size={16}/> Salvar</button>
                   </div>
               </div>
           </div>
@@ -1499,7 +1347,7 @@ export default function Configuracoes() {
                                           <div className="flex-1 space-y-2">
                                               <input value={p.label} onChange={e => atualizarPergunta(idx, { label: e.target.value })} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700 text-sm" placeholder="Texto da pergunta..."/>
                                               <div className="flex gap-2 items-center">
-                                                  <CustomSelect value={p.tipo} onChange={v => atualizarPergunta(idx, { tipo: v as TipoPergunta, opcoes: v === 'multipla' ? (p.opcoes || ['Opção 1']) : undefined })} options={[{value:'texto',label:'Texto livre'},{value:'sim_nao',label:'Sim / Não'},{value:'multipla',label:'Múltipla escolha'}]} size="sm"/>
+                                                  <CustomSelect value={p.tipo} onChange={v => atualizarPergunta(idx, { tipo: v as TipoPergunta, opcoes: v === 'multipla' ? (p.opcoes || ['Opção 1']) : undefined })} options={[{value:'texto',label:'Texto livre'},{value:'sim_nao',label:'Sim / Não'},{value:'sim_nao_texto',label:'Sim / Não + Texto'},{value:'multipla',label:'Múltipla escolha'}]} size="sm"/>
                                                   {p.tipo === 'multipla' && (
                                                       <input value={(p.opcoes || []).join(', ')} onChange={e => atualizarPergunta(idx, { opcoes: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })} className="flex-1 px-3 py-1.5 bg-white border border-slate-200 rounded-lg outline-none text-xs font-medium text-slate-600" placeholder="Opções separadas por vírgula"/>
                                                   )}
@@ -1520,21 +1368,6 @@ export default function Configuracoes() {
           </div>
       )}
 
-      {/* MODAIS (MANTIDOS IGUAIS, APENAS OCORREM QUANDO ATIVADOS) */}
-      {modalClinica && (
-          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-              <div className="bg-white p-6 rounded-2xl w-full max-w-sm shadow-2xl animate-in zoom-in-95">
-                  <h3 className="font-bold text-lg mb-4">Cadastrar Nova Unidade</h3>
-                  <input autoFocus value={novaClinica} onChange={e => setNovaClinica(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold mb-4" placeholder="Ex: Filial Centro" />
-                  <div className="flex gap-2">
-                      <button onClick={() => setModalClinica(false)} className="flex-1 py-3 text-slate-500 font-bold hover:bg-slate-50 rounded-xl">Cancelar</button>
-                      <button onClick={criarClinica} className="flex-1 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700">Salvar</button>
-                  </div>
-              </div>
-          </div>
-      )}
-
-      {/* MODAL PROFISSIONAL */}
       {modalProf && (
           <div className="fixed inset-0 z-[60] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
               <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl flex flex-col max-h-[90vh] animate-in zoom-in-95 border border-slate-100">
@@ -1591,19 +1424,19 @@ export default function Configuracoes() {
       )}
 
       {/* MODAL EDIÇÃO COMPLETA CLÍNICA */}
-      {modalClinicaCompleto && clinicaEditando && (
+      {modalClinicaCompleto && (
           <div className="fixed inset-0 z-[60] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
               <div className="bg-white w-full max-w-3xl rounded-3xl shadow-2xl flex flex-col max-h-[90vh] animate-in zoom-in-95 border border-slate-100">
                   <div className="p-6 border-b border-slate-100 flex justify-between items-start bg-gradient-to-r from-blue-50 to-white rounded-t-3xl flex-none">
                       <div>
-                          <h3 className="font-black text-2xl text-slate-800">Editar Clínica</h3>
-                          <p className="text-slate-500 font-medium text-sm">Complete os dados da unidade.</p>
+                          <h3 className="font-black text-2xl text-slate-800">{clinicaEditando ? 'Editar Clínica' : 'Nova Clínica'}</h3>
+                          <p className="text-slate-500 font-medium text-sm">{clinicaEditando ? 'Atualize os dados da unidade.' : 'Preencha todos os dados para cadastrar a unidade.'}</p>
                       </div>
-                      <button onClick={() => setModalClinicaCompleto(false)} className="p-2 text-slate-400 hover:bg-slate-100 rounded-xl transition-colors"><X size={24}/></button>
+                      <button onClick={() => { setModalClinicaCompleto(false); setClinicaEditando(null); }} className="p-2 text-slate-400 hover:bg-slate-100 rounded-xl transition-colors"><X size={24}/></button>
                   </div>
                   
                   <div className="p-8 overflow-y-auto custom-scrollbar space-y-8 flex-1">
-                      {/* Logo */}
+                      {clinicaEditando ? (
                       <div className="flex items-center gap-6">
                           <div className="w-24 h-24 bg-slate-50 border-2 border-dashed border-slate-300 rounded-2xl flex items-center justify-center overflow-hidden">
                               {clinicaForm.logo_url ? (
@@ -1622,6 +1455,11 @@ export default function Configuracoes() {
                               <p className="text-xs text-slate-400 mt-1">Max. 2MB • PNG, JPG</p>
                           </div>
                       </div>
+                      ) : (
+                          <div className="p-4 bg-blue-50 border border-blue-100 rounded-2xl text-sm text-blue-700">
+                              Após salvar, você poderá enviar a logomarca editando a clínica.
+                          </div>
+                      )}
 
                       {/* Dados Básicos */}
                       <div className="space-y-4">
@@ -1696,7 +1534,7 @@ export default function Configuracoes() {
 
                       {/* Endereço com ViaCEP */}
                       <div className="space-y-4">
-                          <h4 className="text-sm font-black text-slate-800 uppercase tracking-wider flex items-center gap-2"><MapPin size={16} className="text-blue-500"/> Endereço (ViaCEP)</h4>
+                          <h4 className="text-sm font-black text-slate-800 uppercase tracking-wider flex items-center gap-2"><MapPin size={16} className="text-blue-500"/> Endereço <span className="text-red-500 text-xs normal-case">*</span> (ViaCEP)</h4>
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                               <div className="relative">
                                   <label className="text-xs font-bold text-slate-400 uppercase ml-1">CEP</label>
@@ -1754,110 +1592,17 @@ export default function Configuracoes() {
                   </div>
                   
                   <div className="p-6 border-t border-slate-100 bg-slate-50 flex gap-3 rounded-b-3xl flex-none">
-                      <button onClick={() => setModalClinicaCompleto(false)} className="flex-1 py-4 text-slate-500 font-bold hover:bg-slate-200 rounded-xl transition-colors">
+                      <button onClick={() => { setModalClinicaCompleto(false); setClinicaEditando(null); }} className="flex-1 py-4 text-slate-500 font-bold hover:bg-slate-200 rounded-xl transition-colors">
                           Cancelar
                       </button>
                       <button onClick={salvarClinicaCompleta} className="flex-1 py-4 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all active:scale-95 flex items-center justify-center gap-2">
-                          <Save size={18}/> Salvar Alterações
+                          <Save size={18}/> {clinicaEditando ? 'Salvar Alterações' : 'Cadastrar Clínica'}
                       </button>
                   </div>
               </div>
           </div>
       )}
 
-      {/* MODAL COMISSÃO */}
-      {modalComissao && (
-          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
-              <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
-                  <div className="p-6 border-b border-slate-100">
-                      <h3 className="text-xl font-bold text-slate-800">
-                          {editandoComissao ? 'Editar Regra de Comissão' : 'Nova Regra de Comissão'}
-                      </h3>
-                  </div>
-                  
-                  <div className="p-6 space-y-4">
-                      <div>
-                          <label className="text-sm font-bold text-slate-700">Profissional</label>
-                          <select 
-                              value={comissaoForm.profissional_id}
-                              onChange={e => setComissaoForm({...comissaoForm, profissional_id: e.target.value})}
-                              className="w-full mt-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500"
-                          >
-                              <option value="">Selecione...</option>
-                              {profissionais.filter(p => p.nivel_acesso !== 'admin').map(p => (
-                                  <option key={p.id} value={p.id}>{p.nome}</option>
-                              ))}
-                          </select>
-                      </div>
-                      
-                      <div className="grid grid-cols-2 gap-4">
-                          <div>
-                              <label className="text-sm font-bold text-slate-700">Gatilho</label>
-                              <select 
-                                  value={comissaoForm.gatilho}
-                                  onChange={e => setComissaoForm({...comissaoForm, gatilho: e.target.value})}
-                                  className="w-full mt-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500"
-                              >
-                                  <option value="debito_recebido">Débito Recebido</option>
-                                  <option value="tratamento_finalizado">Tratamento Finalizado</option>
-                                  <option value="orcamento_aprovado">Orçamento Aprovado</option>
-                              </select>
-                          </div>
-                          <div>
-                              <label className="text-sm font-bold text-slate-700">Tipo</label>
-                              <select 
-                                  value={comissaoForm.tipo}
-                                  onChange={e => setComissaoForm({...comissaoForm, tipo: e.target.value})}
-                                  className="w-full mt-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500"
-                              >
-                                  <option value="percentual">Percentual (%)</option>
-                                  <option value="valor_fixo">Valor Fixo (R$)</option>
-                              </select>
-                          </div>
-                      </div>
-                      
-                      <div>
-                          <label className="text-sm font-bold text-slate-700">Valor</label>
-                          <input 
-                              type="number"
-                              value={comissaoForm.valor}
-                              onChange={e => setComissaoForm({...comissaoForm, valor: e.target.value})}
-                              className="w-full mt-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500"
-                              placeholder={comissaoForm.tipo === 'percentual' ? 'Ex: 10' : 'Ex: 50.00'}
-                              step="0.01"
-                          />
-                      </div>
-                      
-                      <label className="flex items-center gap-2 cursor-pointer">
-                          <input 
-                              type="checkbox"
-                              checked={comissaoForm.ativo}
-                              onChange={e => setComissaoForm({...comissaoForm, ativo: e.target.checked})}
-                              className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
-                          />
-                          <span className="text-sm text-slate-700">Regra ativa</span>
-                      </label>
-                  </div>
-                  
-                  <div className="p-6 border-t border-slate-100 bg-slate-50 flex gap-3">
-                      <button 
-                          onClick={() => setModalComissao(false)}
-                          className="flex-1 py-3 text-slate-500 font-bold hover:bg-slate-200 rounded-xl transition-colors"
-                      >
-                          Cancelar
-                      </button>
-                      <button 
-                          onClick={salvarComissao}
-                          disabled={salvandoComissao}
-                          className="flex-1 py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-                      >
-                          {salvandoComissao ? <Loader2 size={18} className="animate-spin"/> : <Save size={18}/>}
-                          {salvandoComissao ? 'Salvando...' : 'Salvar'}
-                      </button>
-                  </div>
-              </div>
-          </div>
-      )}
     </div>
   );
 }

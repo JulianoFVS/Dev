@@ -1,5 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
+import { buildPresetAccessMap, presetIdFromCargo } from '@/lib/permissionPresets';
+import type { ModuleName } from '@/lib/types/permissions';
+import { MODULES } from '@/lib/modules';
 
 /**
  * API de Administração — Criar Funcionário (Temporary Password Flow)
@@ -117,7 +120,7 @@ export async function POST(req: Request) {
                 user_id: authData.user.id,
                 nome,
                 cargo: cargo || null,
-                nivel_acesso: 'padrao',
+                nivel_acesso: 'comum',
                 precisa_trocar_senha: true,
             }])
             .select()
@@ -144,6 +147,23 @@ export async function POST(req: Request) {
                 senha_temporaria: senhaTemporaria,
                 profissional_id: profData.id,
             });
+        }
+
+        // ---- 7. Permissões granulares padrão por cargo ----
+        const presetMap = buildPresetAccessMap(presetIdFromCargo(cargo));
+        const permissoesPayload = idsPedidos.flatMap((clinica_id) =>
+            MODULES.map((modulo) => ({
+                profissional_id: profData.id,
+                clinica_id: Number(clinica_id),
+                modulo: modulo.id as ModuleName,
+                pode_acessar: presetMap[modulo.id],
+            })),
+        );
+        const { error: permErr } = await supabaseAdmin
+            .from('permissoes_modulos')
+            .upsert(permissoesPayload, { onConflict: 'profissional_id,clinica_id,modulo' });
+        if (permErr) {
+            console.warn('[criar-usuario] permissões padrão:', permErr.message);
         }
 
         return NextResponse.json({

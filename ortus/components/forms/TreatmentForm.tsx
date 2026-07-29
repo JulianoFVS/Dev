@@ -18,6 +18,7 @@ type TreatmentFormProps = {
 export default function TreatmentForm({ paciente, onSuccess, onCancel }: TreatmentFormProps) {
   const [loadingDeps, setLoadingDeps] = useState(true);
   const [fichaMedica, setFichaMedica] = useState<any>({});
+  const [clinicaIdPaciente, setClinicaIdPaciente] = useState<string | number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -44,7 +45,8 @@ export default function TreatmentForm({ paciente, onSuccess, onCancel }: Treatme
       if (fetchError) {
         setError(fetchError.message);
       } else {
-        setFichaMedica({ ...(data?.ficha_medica || {}), _clinica_id: data?.clinica_id });
+        setFichaMedica(data?.ficha_medica || {});
+        setClinicaIdPaciente(data?.clinica_id ?? null);
       }
       setLoadingDeps(false);
     })();
@@ -82,12 +84,11 @@ export default function TreatmentForm({ paciente, onSuccess, onCancel }: Treatme
       return;
     }
 
-    // Auto-agendar na agenda se toggle ativo
     if (form.agendar && form.horario) {
       const dataHora = new Date(`${form.data}T${form.horario}:00`);
-      await supabase.from('agendamentos').insert([{
+      const { error: agErr } = await supabase.from('agendamentos').insert([{
         paciente_id: paciente.id,
-        clinica_id: fichaMedica?._clinica_id || null,
+        clinica_id: clinicaIdPaciente,
         data_hora: dataHora.toISOString(),
         procedimento: form.procedimento.trim(),
         valor: parseFloat(form.valor) || 0,
@@ -95,6 +96,11 @@ export default function TreatmentForm({ paciente, onSuccess, onCancel }: Treatme
         status: 'agendado',
         observacoes: form.observacoes.trim() || null,
       }]);
+      if (agErr) {
+        setSaving(false);
+        setError('Tratamento salvo, mas erro ao agendar: ' + agErr.message);
+        return;
+      }
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('ortus:agenda-changed'));
       }

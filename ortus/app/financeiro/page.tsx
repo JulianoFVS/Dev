@@ -10,8 +10,17 @@ import { useClinica, getClinicLabel } from '@/app/context/ClinicaContext';
 import { carregarConfig, salvarConfig } from '@/lib/configClinica';
 import CustomSelect from '@/components/ui/CustomSelect';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
+import {
+    CATEGORIAS_FINANCEIRAS_PADRAO,
+    TAXAS_MAQUININHA_PADRAO,
+    normalizarCategoriasFinanceiras,
+    nomesCategoriasAtivas,
+    calcularValorLiquido,
+    type CategoriaFinanceira,
+    type TaxaMaquininha,
+} from '@/lib/configDefaults';
 
-const CATS_PADRAO = ['Geral','Vendas','Aluguel','Fornecedores','Equipe','Impostos','Marketing','Procedimentos Extras'];
+const CATS_PADRAO = nomesCategoriasAtivas(CATEGORIAS_FINANCEIRAS_PADRAO);
 
 export default function Financeiro() {
   const { activeClinicId, activeClinic, loading: clinicLoading } = useClinica();
@@ -31,7 +40,9 @@ export default function Financeiro() {
   // Modal Lançamento
   const [modalAberto, setModalAberto] = useState(false);
   const [salvando, setSalvando] = useState(false);
-  const [categorias, setCategorias] = useState<string[]>([]);
+  const [categorias, setCategorias] = useState<string[]>(CATS_PADRAO);
+  const [categoriasObj, setCategoriasObj] = useState<CategoriaFinanceira[]>(CATEGORIAS_FINANCEIRAS_PADRAO);
+  const [taxasMaquininha, setTaxasMaquininha] = useState<TaxaMaquininha[]>(TAXAS_MAQUININHA_PADRAO);
   const [modoCategoria, setModoCategoria] = useState<'lista' | 'livre'>('lista');
   const [novaCatTemp, setNovaCatTemp] = useState('');
 
@@ -41,6 +52,7 @@ export default function Financeiro() {
       categoria: 'Geral',
       status: 'concluido' as 'concluido' | 'andamento',
       paciente_id: '' as string,
+      taxa_id: '' as string,
   });
 
   // Pacientes (vinculação opcional ao lançamento)
@@ -61,7 +73,14 @@ export default function Financeiro() {
   useEffect(() => {
       if (clinicLoading || !activeClinicId) return;
       const cid = (activeClinicId && activeClinicId !== 'all' ? String(activeClinicId) : '0');
-      carregarConfig<string[]>(cid, 'categorias_financeiro', 'ortus_categorias_financeiro', CATS_PADRAO).then(c => setCategorias(c && c.length ? c : CATS_PADRAO));
+      carregarConfig<unknown>(cid, 'categorias_financeiro', 'ortus_categorias_financeiro', CATEGORIAS_FINANCEIRAS_PADRAO).then(c => {
+          const norm = normalizarCategoriasFinanceiras(c);
+          setCategoriasObj(norm);
+          setCategorias(nomesCategoriasAtivas(norm));
+      });
+      carregarConfig<TaxaMaquininha[]>(cid, 'taxas_maquininha', 'ortus_taxas_maquininha', TAXAS_MAQUININHA_PADRAO).then(t => {
+          setTaxasMaquininha(Array.isArray(t) && t.length ? t.filter(x => x.ativo) : TAXAS_MAQUININHA_PADRAO.filter(x => x.ativo));
+      });
       carregarConfig<Record<string, any>>(cid, 'lancamentos_meta', 'ortus_lancamentos_meta', {}).then(m => setMeta(m || {}));
   }, [clinicLoading, activeClinicId]);
 
@@ -96,15 +115,21 @@ export default function Financeiro() {
 
         const listaAg = (agendamentos || [])
             .filter((e: any) => e.status === 'concluido' || e.status === 'fiado')
-            .map((e: any) => ({
+            .map((e: any) => {
+                const metaAg = meta[`ag_${e.id}`] as { valor_liquido?: number; taxa_nome?: string; valor_bruto?: number } | undefined;
+                const bruto = parseFloat(e.valor_final || '0');
+                const liquido = metaAg?.valor_liquido ?? bruto;
+                return {
                 id: 'ag_' + e.id, refId: e.id, origem: 'agendamento',
                 tipo: 'entrada',
                 descricao: `${Array.isArray(e.pacientes) ? e.pacientes[0]?.nome : e.pacientes?.nome} - ${e.procedimento}`,
-                valor: parseFloat(e.valor_final || '0'),
+                valor: liquido,
+                valorBruto: bruto,
+                taxaNome: metaAg?.taxa_nome,
                 data: e.data_hora,
                 categoria: e.status === 'fiado' ? 'Fiado / A Receber' : 'Atendimento',
                 status: e.status === 'fiado' ? 'andamento' : 'concluido',
-            }));
+            };});
 
         const listaMan = (manuais || []).map((s: any) => {
             const id = 'man_' + s.id;
@@ -140,7 +165,7 @@ export default function Financeiro() {
           showAlert('Selecione uma Clínica específica no menu antes de lançar.', { type: 'warning' });
           return;
       }
-      setNovoLancamento({ tipo: 'saida', descricao: '', valor: '', data: new Date().toISOString().split('T')[0], categoria: 'Geral', status: 'concluido', paciente_id: '' });
+      setNovoLancamento({ tipo: 'saida', descricao: '', valor: '', data: new Date().toISOString().split('T')[0], categoria: 'Geral', status: 'concluido', paciente_id: '', taxa_id: '' });
       setModoCategoria('lista');
       setNovaCatTemp('');
       setModalAberto(true);
@@ -158,10 +183,19 @@ export default function Financeiro() {
           setNovaCatTemp('');
           return;
       }
-      const novas = [...categorias, nome].sort();
+      const nova: CategoriaFinanceira = {
+          id: `cat_${Date.now()}`,
+          nome,
+          tipo: novoLancamento.tipo === 'entrada' ? 'receita' : 'despesa',
+          cor: novoLancamento.tipo === 'entrada' ? '#10b981' : '#64748b',
+          ativo: true,
+      };
+      const novasObj = [...categoriasObj, nova].sort((a, b) => a.nome.localeCompare(b.nome));
+      const novas = nomesCategoriasAtivas(novasObj);
+      setCategoriasObj(novasObj);
       setCategorias(novas);
       const cid = (activeClinicId && activeClinicId !== 'all' ? String(activeClinicId) : '0');
-      salvarConfig(cid, 'categorias_financeiro', novas);
+      salvarConfig(cid, 'categorias_financeiro', novasObj);
       setNovoLancamento({ ...novoLancamento, categoria: nome });
       setNovaCatTemp('');
   }
@@ -189,6 +223,26 @@ export default function Financeiro() {
       };
       const { data: ins, error } = await supabase.from('despesas').insert([payload]).select().single();
       if (error) { await showAlert('Erro: ' + error.message, { type: 'error' }); setSalvando(false); return; }
+
+      if (novoLancamento.tipo === 'entrada' && novoLancamento.taxa_id) {
+          const taxa = taxasMaquininha.find(t => t.id === novoLancamento.taxa_id);
+          if (taxa) {
+              const bruto = parseFloat(novoLancamento.valor) || 0;
+              const liquido = calcularValorLiquido(bruto, taxa.taxa_percentual);
+              const updMeta = {
+                  ...meta,
+                  [`manual_${ins.id}`]: {
+                      taxa_id: taxa.id,
+                      taxa_nome: taxa.nome,
+                      taxa_percentual: taxa.taxa_percentual,
+                      valor_bruto: bruto,
+                      valor_liquido: liquido,
+                  },
+              };
+              setMeta(updMeta);
+              salvarConfig(String(clinicaId), 'lancamentos_meta', updMeta);
+          }
+      }
 
       setModalAberto(false);
       carregarDados();
@@ -485,6 +539,9 @@ export default function Financeiro() {
                                   </div>
                                   <div className="flex-1 min-w-0">
                                       <p className={`font-bold text-sm md:text-base ${isCancel ? 'line-through text-slate-400' : 'text-slate-700'}`}>{t.descricao}</p>
+                                      {t.taxaNome && t.valorBruto && t.valorBruto !== t.valor && (
+                                          <p className="text-[10px] text-slate-400">Bruto R$ {t.valorBruto.toFixed(2)} · {t.taxaNome} · Líquido</p>
+                                      )}
                                       <div className="flex items-center gap-2 mt-1 flex-wrap">
                                           <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded uppercase tracking-wide border border-slate-200">{t.categoria}</span>
                                           <span className="text-xs text-slate-400 font-medium">{new Date(t.data).toLocaleDateString('pt-BR', {timeZone: 'UTC'})}</span>
@@ -556,6 +613,30 @@ export default function Financeiro() {
                             <input required type="date" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-600" value={novoLancamento.data} onChange={e => setNovoLancamento({...novoLancamento, data: e.target.value})} />
                         </div>
                     </div>
+
+                    {novoLancamento.tipo === 'entrada' && taxasMaquininha.length > 0 && (
+                        <div>
+                            <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Forma de pagamento / Maquininha</label>
+                            <CustomSelect
+                                value={novoLancamento.taxa_id}
+                                onChange={v => setNovoLancamento({ ...novoLancamento, taxa_id: v })}
+                                options={[{ value: '', label: 'Sem taxa (valor integral)' }, ...taxasMaquininha.map(t => ({ value: t.id, label: `${t.nome} (${t.taxa_percentual}%)` }))]}
+                                placeholder="Selecione..."
+                                size="lg"
+                            />
+                            {novoLancamento.taxa_id && novoLancamento.valor && (() => {
+                                const taxa = taxasMaquininha.find(t => t.id === novoLancamento.taxa_id);
+                                if (!taxa) return null;
+                                const bruto = parseFloat(novoLancamento.valor) || 0;
+                                const liquido = calcularValorLiquido(bruto, taxa.taxa_percentual);
+                                return (
+                                    <p className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2 mt-2 font-bold">
+                                        Valor líquido estimado: R$ {liquido.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} (taxa {taxa.taxa_percentual}%)
+                                    </p>
+                                );
+                            })()}
+                        </div>
+                    )}
 
                     {/* CATEGORIA */}
                     <div>

@@ -329,9 +329,12 @@ export default function TratamentosBasePage() {
             }
             fecharModalTratamento();
             await carregarTratamentos(selectedEspecialidadeId);
-        } catch (err) {
+        } catch (err: any) {
             console.error('[Tratamentos] salvarTratamento', err);
-            showAlert('Erro ao salvar o tratamento.', { type: 'error' });
+            const msg = err?.code === '23505'
+                ? 'Já existe um tratamento com este nome nesta clínica.'
+                : (err?.message || 'Erro ao salvar o tratamento.');
+            showAlert(msg, { type: 'error' });
         } finally {
             setTratamentoSalvando(false);
         }

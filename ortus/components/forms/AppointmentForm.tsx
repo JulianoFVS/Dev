@@ -1,10 +1,12 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import { Building2, Calendar, Clock, DollarSign, Loader2, Save, User } from 'lucide-react';
+import { Building2, Calendar, Clock, DollarSign, ExternalLink, Loader2, Plus, Save, User } from 'lucide-react';
 import { fetchUserClinicas } from '@/lib/clinicScoped';
 import CustomSelect from '@/components/ui/CustomSelect';
+import { validarAgendamentoCompleto } from '@/lib/horarioProfissional';
 
 export type AppointmentPatient = {
   id: string | number;
@@ -12,7 +14,7 @@ export type AppointmentPatient = {
   clinica_id?: string | null;
 };
 
-type Servico = { id: string | number; nome: string; valor?: number | string | null };
+type TratamentoBase = { id: string | number; nome: string; valor_sugerido?: number | string | null };
 type Clinica = { id: string | number; nome: string };
 type Profissional = {
   id: string | number;
@@ -29,17 +31,10 @@ type AppointmentFormProps = {
   onCancel?: () => void;
 };
 
-const THEMES = [
-  { value: 'blue', cls: 'from-blue-500 to-blue-600' },
-  { value: 'green', cls: 'from-emerald-500 to-emerald-600' },
-  { value: 'red', cls: 'from-rose-500 to-rose-600' },
-  { value: 'yellow', cls: 'from-amber-400 to-amber-500' },
-  { value: 'purple', cls: 'from-violet-500 to-violet-600' },
-  { value: 'slate', cls: 'from-slate-500 to-slate-600' },
-];
-
 export default function AppointmentForm({ paciente, defaultDate, defaultTime, onSuccess, onCancel }: AppointmentFormProps) {
-  const [servicos, setServicos] = useState<Servico[]>([]);
+  const router = useRouter();
+  const [tratamentosBase, setTratamentosBase] = useState<TratamentoBase[]>([]);
+  const [tratamentoSelecionadoId, setTratamentoSelecionadoId] = useState('');
   const [clinicas, setClinicas] = useState<Clinica[]>([]);
   const [profissionais, setProfissionais] = useState<Profissional[]>([]);
   const [usuarioNivel, setUsuarioNivel] = useState<'admin' | 'user'>('admin');
@@ -51,10 +46,8 @@ export default function AppointmentForm({ paciente, defaultDate, defaultTime, on
     procedimento: '',
     date: defaultDate || today.toISOString().split('T')[0],
     time: defaultTime || '08:00',
-    theme: 'blue',
     valor: '0',
     desconto: '0',
-    observacoes: '',
     status: 'agendado',
     clinica_id: String(paciente.clinica_id || ''),
     profissional_id: '',
@@ -65,18 +58,13 @@ export default function AppointmentForm({ paciente, defaultDate, defaultTime, on
   useEffect(() => {
     let mounted = true;
     (async () => {
-      const [{ data: user }, deps, clinicasUsuario] = await Promise.all([
+      const [{ data: user }, clinicasUsuario] = await Promise.all([
         supabase.auth.getUser(),
-        Promise.all([
-          supabase.from('servicos').select('*').order('nome'),
-          supabase.from('profissionais').select('id, nome, user_id, profissionais_clinicas(clinica_id)'),
-        ]),
         fetchUserClinicas(),
       ]);
       if (!mounted) return;
 
-      const [{ data: serv }, { data: pr }] = deps;
-      setServicos(serv || []);
+      const { data: pr } = await supabase.from('profissionais').select('id, nome, user_id, profissionais_clinicas(clinica_id)');
       setClinicas(clinicasUsuario.map((c) => ({ id: c.id, nome: c.nome })));
       setProfissionais(pr || []);
 
@@ -101,19 +89,49 @@ export default function AppointmentForm({ paciente, defaultDate, defaultTime, on
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      if (!form.clinica_id) {
+        setTratamentosBase([]);
+        setTratamentoSelecionadoId('');
+        return;
+      }
+      const { data } = await supabase
+        .from('tratamentos_base')
+        .select('id, nome, valor_sugerido')
+        .eq('clinica_id', form.clinica_id)
+        .eq('ativo', true)
+        .order('nome');
+      if (mounted) setTratamentosBase(data || []);
+    })();
+    return () => { mounted = false; };
+  }, [form.clinica_id]);
+
   const profissionaisFiltrados = useMemo(() => {
     if (!form.clinica_id) return [] as Profissional[];
     return profissionais.filter((p) => p.profissionais_clinicas?.some((v) => String(v.clinica_id) === String(form.clinica_id)));
   }, [form.clinica_id, profissionais]);
 
-  function pickServico(serv: Servico) {
-    setForm((current) => ({ ...current, procedimento: serv.nome, valor: String(serv.valor ?? current.valor) }));
+  function pickTratamento(trat: TratamentoBase) {
+    setTratamentoSelecionadoId(String(trat.id));
+    setForm((current) => ({ ...current, procedimento: trat.nome, valor: String(trat.valor_sugerido ?? current.valor) }));
   }
 
-  async function submit(overrideStatus?: string) {
+  async function submit() {
     setError(null);
     if (!form.procedimento.trim()) return setError('Informe o procedimento.');
     if (!form.clinica_id) return setError('Selecione a clínica.');
+
+    if (form.profissional_id) {
+      const erroHorario = await validarAgendamentoCompleto({
+        clinicaId: form.clinica_id,
+        profissionalId: form.profissional_id,
+        date: form.date,
+        time: form.time,
+      });
+      if (erroHorario) return setError(erroHorario);
+    }
 
     setSaving(true);
     const dataLocal = new Date(`${form.date}T${form.time}:00`);
@@ -125,12 +143,12 @@ export default function AppointmentForm({ paciente, defaultDate, defaultTime, on
       profissional_id: form.profissional_id || null,
       data_hora: dataLocal.toISOString(),
       procedimento: form.procedimento.trim(),
-      cor: form.theme,
+      cor: 'blue',
       valor,
       desconto,
       valor_final: valor - desconto,
-      observacoes: form.observacoes,
-      status: overrideStatus || form.status,
+      observacoes: '',
+      status: form.status,
     };
 
     const { data, error: insertError } = await supabase
@@ -167,23 +185,33 @@ export default function AppointmentForm({ paciente, defaultDate, defaultTime, on
         </div>
 
         <div>
-          <label className="text-[11px] font-black uppercase tracking-wider text-slate-500 mb-1.5 block">Procedimento <span className="text-rose-500">*</span></label>
-          <input
-            autoFocus
-            value={form.procedimento}
-            onChange={(e) => setForm({ ...form, procedimento: e.target.value })}
-            className="w-full p-3 rounded-2xl bg-slate-50 border border-slate-200 font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Ex: Limpeza, Restauração, Consulta..."
-          />
-          {servicos.length > 0 && (
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {servicos.slice(0, 8).map((s) => (
-                <button key={s.id} type="button" onClick={() => pickServico(s)} className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-blue-100 text-xs font-bold text-slate-600 hover:text-blue-700 transition-colors">
-                  {s.nome}
+          <div className="flex items-center justify-between mb-1.5">
+            <label className="text-[11px] font-black uppercase tracking-wider text-slate-500">Procedimento <span className="text-rose-500">*</span></label>
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={() => router.push('/ajustes/tratamentos')} className="text-[10px] font-bold text-purple-600 hover:underline flex items-center gap-1 uppercase">
+                <Plus size={12}/> Novo serviço
+              </button>
+              <button type="button" onClick={() => router.push('/ajustes/tratamentos')} className="text-[10px] font-bold text-slate-500 hover:underline flex items-center gap-1 uppercase">
+                <ExternalLink size={12}/> Tratamento Base
+              </button>
+            </div>
+          </div>
+          {tratamentosBase.length > 0 && (
+            <div className="mb-2 flex flex-wrap gap-1.5">
+              {tratamentosBase.slice(0, 8).map((t) => (
+                <button key={t.id} type="button" onClick={() => pickTratamento(t)} className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-colors ${tratamentoSelecionadoId === String(t.id) ? 'bg-blue-100 text-blue-700 border border-blue-200' : 'bg-slate-100 hover:bg-blue-100 text-slate-600 hover:text-blue-700'}`}>
+                  {t.nome}
                 </button>
               ))}
             </div>
           )}
+          <input
+            autoFocus
+            value={form.procedimento}
+            onChange={(e) => { setTratamentoSelecionadoId(''); setForm({ ...form, procedimento: e.target.value }); }}
+            className="w-full p-3 rounded-2xl bg-slate-50 border border-slate-200 font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="Ex: Limpeza, Restauração, Consulta..."
+          />
         </div>
 
         <div className="grid grid-cols-2 gap-3">
@@ -219,26 +247,6 @@ export default function AppointmentForm({ paciente, defaultDate, defaultTime, on
           </div>
         </div>
 
-        <div>
-          <label className="text-[11px] font-black uppercase tracking-wider text-slate-500 mb-1.5 block">Cor do Card</label>
-          <div className="flex gap-2">
-            {THEMES.map((t) => (
-              <button
-                key={t.value}
-                type="button"
-                onClick={() => setForm({ ...form, theme: t.value })}
-                className={`w-9 h-9 rounded-xl bg-gradient-to-br ${t.cls} shadow-md transition-all ${form.theme === t.value ? 'ring-2 ring-offset-2 ring-slate-400 scale-110' : 'opacity-70 hover:opacity-100'}`}
-                aria-label={`Tema ${t.value}`}
-              />
-            ))}
-          </div>
-        </div>
-
-        <div>
-          <label className="text-[11px] font-black uppercase tracking-wider text-slate-500 mb-1.5 block">Observações</label>
-          <textarea value={form.observacoes} onChange={(e) => setForm({ ...form, observacoes: e.target.value })} rows={2} className="w-full p-3 rounded-2xl bg-slate-50 border border-slate-200 font-medium text-slate-700 outline-none focus:ring-2 focus:ring-blue-500" placeholder="Notas adicionais (opcional)" />
-        </div>
-
         {error && <div className="p-3 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold">{error}</div>}
         {loadingDeps && <div className="text-xs text-slate-400 italic flex items-center gap-2"><Loader2 size={14} className="animate-spin" /> Carregando opções...</div>}
       </div>
@@ -246,9 +254,6 @@ export default function AppointmentForm({ paciente, defaultDate, defaultTime, on
       <div className="p-4 border-t border-slate-100 bg-white flex gap-2 shrink-0">
         <button type="button" onClick={onCancel} disabled={saving} className="flex-1 py-3 rounded-xl font-bold text-slate-500 hover:bg-slate-100 transition-colors disabled:opacity-50">
           Voltar
-        </button>
-        <button type="button" onClick={() => submit('concluido')} disabled={saving} className="flex-1 py-3 rounded-xl font-black text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-colors disabled:opacity-50">
-          Concluir
         </button>
         <button type="button" onClick={() => submit()} disabled={saving} className="flex-1 py-3 rounded-xl bg-blue-600 text-white font-black hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
           {saving ? <Loader2 className="animate-spin" size={16} /> : <><Save size={16} /> Agendar</>}

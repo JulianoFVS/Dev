@@ -17,6 +17,7 @@ import {
 import { useClinica, getClinicLabel } from '@/app/context/ClinicaContext';
 import type { ModuleName } from '@/lib/types/permissions';
 import { buildModuleAccessMap } from '@/lib/modules';
+import { moduleForPath } from '@/lib/permissionPresets';
 
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<any>(null);
@@ -51,6 +52,17 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   }, [ctxActiveId]);
 
   useEffect(() => { validarSessao(); }, [pathname]);
+
+  useEffect(() => {
+    if (loading || !session || !perfil) return;
+    if (perfil.nivel_acesso === 'admin' || perfil.is_super_admin) return;
+    const rotaPublica = ['/login', '/', '/site', '/termos', '/checkout', '/cadastro', '/selecao', '/primeiro-acesso'].includes(pathname) || pathname.startsWith('/super-admin');
+    if (rotaPublica) return;
+    const modulo = moduleForPath(pathname);
+    if (modulo && !moduleAccess[modulo]) {
+      router.replace('/dashboard?acesso=negado');
+    }
+  }, [loading, session, perfil, pathname, moduleAccess, router]);
 
   useEffect(() => {
     if (!perfil?.id) return;

@@ -1,6 +1,6 @@
 'use client';
-import { useState, useEffect, useRef } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
@@ -9,17 +9,27 @@ import interactionPlugin from '@fullcalendar/interaction';
 import listPlugin from '@fullcalendar/list';
 import ptBrLocale from '@fullcalendar/core/locales/pt-br';
 import { usePatientSlideOver } from '@/components/PatientSlideOver';
+import { usePatientActionModal } from '@/components/PatientActionModal';
 import { useClinica } from '@/app/context/ClinicaContext';
 import { fetchUserClinicas, fetchUserEquipe } from '@/lib/clinicScoped';
 
 import { 
-  Plus, X, Loader2, CheckCircle, MapPin, User, Building2, 
-  Calendar as CalIcon, ChevronLeft, ChevronRight, 
-  UserPlus, FilePlus, DollarSign, Phone, Mail, FileText, Calendar, Trash2,
-  Clock, Ban
+  Plus, X, Loader2, CheckCircle, 
+  Calendar as CalIcon, 
+  UserPlus, DollarSign, Phone, Trash2,
+  Clock, Ban, ExternalLink, PlusCircle, Bell
 } from 'lucide-react';
 import CustomSelect from '@/components/ui/CustomSelect';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
+import { validarAgendamentoCompleto } from '@/lib/horarioProfissional';
+import PatientContactButtons from '@/components/PatientContactButtons';
+import {
+  buscarAgendamentosLembrete24h,
+  filtrarPendentesLembrete,
+  ctxLembreteAgendamento,
+  marcarLembreteEnviado,
+  type LembreteAgendamento,
+} from '@/lib/lembretesAgenda';
 
 // Paleta de cores por tema (gradiente + acento + texto)
 const TEMA_CORES: Record<string, { grad: string; accent: string; text: string; soft: string; ring: string; label: string }> = {
@@ -33,9 +43,11 @@ const TEMA_CORES: Record<string, { grad: string; accent: string; text: string; s
 
 export default function Agenda() {
   const calendarRef = useRef(null);
+  const router = useRouter();
   const searchParams = useSearchParams();
   const pacientePreSelecionado = searchParams?.get('paciente');
   const { openPatient } = usePatientSlideOver();
+  const { openQuickCapture } = usePatientActionModal();
   const { activeClinicId, loading: clinicLoading } = useClinica();
   const { showAlert, showConfirm } = useCustomAlert();
   const [events, setEvents] = useState<any[]>([]);
@@ -45,24 +57,21 @@ export default function Agenda() {
   const [profissionais, setProfissionais] = useState<any[]>([]);
   const [profissionaisFiltrados, setProfissionaisFiltrados] = useState<any[]>([]);
   const [pacientes, setPacientes] = useState<any[]>([]);
-  const [servicos, setServicos] = useState<any[]>([]);
+  const [tratamentosBase, setTratamentosBase] = useState<any[]>([]);
+  const [tratamentoSelecionadoId, setTratamentoSelecionadoId] = useState('');
   
   const [clinicaFiltro, setClinicaFiltro] = useState('todas');
   const [clinicaGlobal, setClinicaGlobal] = useState<string | null>(null);
   const [openModal, setOpenModal] = useState(false);
   const [loading, setLoading] = useState(false);
-
-  const [modalNovoPaciente, setModalNovoPaciente] = useState(false);
-  const [modalNovoServico, setModalNovoServico] = useState(false);
+  const [lembretesPendentes, setLembretesPendentes] = useState<LembreteAgendamento[]>([]);
+  const [lembretesLoading, setLembretesLoading] = useState(false);
 
   const [formData, setFormData] = useState({ 
       id: null, title: '', date: '', time: '08:00', theme: 'blue', 
       paciente_id: '', valor: '0', desconto: '0', observacoes: '', 
       status: 'agendado', clinica_id: '', profissional_id: '' 
   });
-
-  const [formPaciente, setFormPaciente] = useState({ nome: '', cpf: '', telefone: '', email: '', data_nascimento: '', endereco: '' });
-  const [formServico, setFormServico] = useState({ nome: '', valor: '0' });
 
   // Sincroniza filtro com contexto global (reativo)
   useEffect(() => {
@@ -77,6 +86,33 @@ export default function Agenda() {
   }, [clinicLoading]);
 
   useEffect(() => { if(usuarioAtual) carregarEventos(); }, [clinicaFiltro, usuarioAtual]);
+
+  useEffect(() => {
+      if (!clinicLoading && clinicas.length) carregarLembretes();
+  }, [clinicLoading, clinicas, clinicaFiltro]);
+
+  async function carregarLembretes() {
+      setLembretesLoading(true);
+      try {
+          const ids = clinicaFiltro !== 'todas'
+              ? [clinicaFiltro]
+              : clinicas.map((c: any) => c.id);
+          const todos = await buscarAgendamentosLembrete24h(ids);
+          if (clinicaFiltro !== 'todas') {
+              const pendentes = await filtrarPendentesLembrete(clinicaFiltro, todos);
+              setLembretesPendentes(pendentes);
+          } else {
+              const agregado: LembreteAgendamento[] = [];
+              for (const cid of ids) {
+                  const p = await filtrarPendentesLembrete(cid, todos);
+                  agregado.push(...p);
+              }
+              setLembretesPendentes(agregado);
+          }
+      } finally {
+          setLembretesLoading(false);
+      }
+  }
 
   useEffect(() => {
       if (!pacientePreSelecionado || pacientes.length === 0) return;
@@ -99,11 +135,45 @@ export default function Agenda() {
   useEffect(() => { 
       if (!formData.clinica_id) { 
           setProfissionaisFiltrados([]); 
+          setTratamentosBase([]);
+          setTratamentoSelecionadoId('');
       } else { 
           const filtrados = profissionais.filter((p:any) => p.profissionais_clinicas?.some((vinculo:any) => vinculo.clinica_id == formData.clinica_id)); 
-          setProfissionaisFiltrados(filtrados); 
+          setProfissionaisFiltrados(filtrados);
+          carregarTratamentosBase(formData.clinica_id);
       } 
   }, [formData.clinica_id, profissionais]);
+
+  const recarregarPacientes = useCallback(async () => {
+      const cl = await fetchUserClinicas();
+      const idsPermitidos = cl.map((c) => c.id);
+      if (idsPermitidos.length > 0) {
+          const { data: pac } = await supabase
+              .from('pacientes')
+              .select('id, nome, clinica_id, telefone')
+              .in('clinica_id', idsPermitidos as any)
+              .order('nome');
+          if (pac) setPacientes(pac);
+      } else {
+          setPacientes([]);
+      }
+  }, []);
+
+  async function carregarTratamentosBase(clinicaId: string) {
+      const { data } = await supabase
+          .from('tratamentos_base')
+          .select('id, nome, valor_sugerido')
+          .eq('clinica_id', clinicaId)
+          .eq('ativo', true)
+          .order('nome');
+      setTratamentosBase(data || []);
+  }
+
+  useEffect(() => {
+      function handlePacienteChanged() { recarregarPacientes(); }
+      window.addEventListener('ortus:paciente-changed', handlePacienteChanged);
+      return () => window.removeEventListener('ortus:paciente-changed', handlePacienteChanged);
+  }, [recarregarPacientes]);
 
   async function inicializar() { 
       const { data: { user } } = await supabase.auth.getUser(); 
@@ -139,15 +209,13 @@ export default function Agenda() {
       if (idsPermitidos.length > 0) {
           const { data: pac } = await supabase
               .from('pacientes')
-              .select('id, nome, clinica_id')
+              .select('id, nome, clinica_id, telefone')
               .in('clinica_id', idsPermitidos as any)
               .order('nome');
           if (pac) setPacientes(pac);
       } else {
           setPacientes([]);
       }
-
-      const { data: serv } = await supabase.from('servicos').select('*').order('nome'); if (serv) setServicos(serv);
   }
 
   async function carregarEventos() { 
@@ -177,7 +245,7 @@ export default function Agenda() {
       const min = String(d.getMinutes()).padStart(2, '0'); 
       const preClinica = clinicaFiltro !== 'todas' ? clinicaFiltro : ''; 
       const preProfissional = (usuarioAtual?.nivel !== 'admin' && usuarioAtual?.profissional_id) ? usuarioAtual.profissional_id : ''; 
-      
+      setTratamentoSelecionadoId('');
       setFormData(prev => ({ ...prev, id: null, title: '', date: d.toISOString().split('T')[0], time: `${h}:${min}`, status: 'agendado', desconto: '0', valor: '0', clinica_id: preClinica, profissional_id: preProfissional })); 
       setOpenModal(true); 
   };
@@ -185,6 +253,7 @@ export default function Agenda() {
   const handleEventClick = (info:any) => { 
       const r = info.event.extendedProps; 
       const localDate = new Date(r.data_hora); 
+      setTratamentoSelecionadoId('');
       setFormData({ 
           id: r.id, 
           title: r.procedimento, 
@@ -204,6 +273,18 @@ export default function Agenda() {
 
   async function saveOrUpdate(overrideStatus?: string) { 
       if (!formData.title || !formData.paciente_id || !formData.clinica_id) { await showAlert('Preencha campos obrigatórios.', { type: 'warning' }); return; } 
+
+      if (formData.profissional_id) {
+          const erroHorario = await validarAgendamentoCompleto({
+              clinicaId: formData.clinica_id,
+              profissionalId: formData.profissional_id,
+              date: formData.date,
+              time: formData.time,
+              excludeAgendamentoId: formData.id,
+          });
+          if (erroHorario) { await showAlert(erroHorario, { type: 'warning' }); return; }
+      }
+
       setLoading(true); 
       
       const finalStatus = overrideStatus || formData.status; 
@@ -240,40 +321,9 @@ export default function Agenda() {
       carregarEventos();
   }
 
-  async function salvarNovoPaciente(e: any) {
-      e.preventDefault();
-      if (!formPaciente.nome) { await showAlert('Nome é obrigatório', { type: 'warning' }); return; }
-      
-      const payload = { 
-          ...formPaciente, 
-          data_nascimento: formPaciente.data_nascimento || null, 
-          clinica_id: formData.clinica_id || null 
-      };
-
-      const { data, error } = await supabase.from('pacientes').insert([payload]).select().single();
-      
-      if (error) { await showAlert('Erro: ' + error.message, { type: 'error' }); }
-      else {
-          setPacientes([...pacientes, data]);
-          setFormData({ ...formData, paciente_id: data.id });
-          setModalNovoPaciente(false);
-          setFormPaciente({ nome: '', cpf: '', telefone: '', email: '', data_nascimento: '', endereco: '' });
-      }
-  }
-
-  async function salvarNovoServico(e: any) {
-      e.preventDefault();
-      if (!formServico.nome) { await showAlert('Nome é obrigatório', { type: 'warning' }); return; }
-      
-      const { data, error } = await supabase.from('servicos').insert([{ nome: formServico.nome, valor: parseFloat(formServico.valor) }]).select().single();
-      
-      if (error) { await showAlert('Erro: ' + error.message, { type: 'error' }); }
-      else {
-          setServicos([...servicos, data]);
-          setFormData({ ...formData, title: data.nome, valor: data.valor });
-          setModalNovoServico(false);
-          setFormServico({ nome: '', valor: '0' });
-      }
+  function abrirCadastroPaciente() {
+      const clinicaId = formData.clinica_id || (clinicaFiltro !== 'todas' ? clinicaFiltro : null);
+      openQuickCapture(clinicaId);
   }
 
   const renderEventContent = (eventInfo:any) => {
@@ -494,6 +544,45 @@ export default function Agenda() {
                 </div>
             );
         })()}
+
+        {(lembretesLoading || lembretesPendentes.length > 0) && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 shadow-sm">
+                <div className="flex items-center justify-between gap-3 mb-3">
+                    <div className="flex items-center gap-2">
+                        <Bell size={18} className="text-amber-600"/>
+                        <div>
+                            <p className="font-black text-amber-900 text-sm">Lembretes 24h — consultas de amanhã</p>
+                            <p className="text-xs text-amber-700">{lembretesLoading ? 'Carregando...' : `${lembretesPendentes.length} pendente(s) de envio`}</p>
+                            <p className="text-[10px] text-amber-600/80 mt-0.5">SMS e e-mail automáticos rodam via cron (10h). WhatsApp é manual.</p>
+                        </div>
+                    </div>
+                </div>
+                {!lembretesLoading && lembretesPendentes.length > 0 && (
+                    <div className="space-y-2 max-h-40 overflow-y-auto">
+                        {lembretesPendentes.map((ag) => (
+                            <div key={ag.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-white rounded-xl border border-amber-100">
+                                <div className="min-w-0 text-sm">
+                                    <span className="font-bold text-slate-800">{ag.paciente_nome}</span>
+                                    <span className="text-slate-500 ml-2">{new Date(ag.data_hora).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} — {ag.procedimento}</span>
+                                </div>
+                                <PatientContactButtons
+                                    variant="row"
+                                    telefone={ag.paciente_telefone}
+                                    email={ag.paciente_email}
+                                    clinicaId={ag.clinica_id}
+                                    evento="lembrete"
+                                    contexto={ctxLembreteAgendamento(ag)}
+                                    onEnviado={() => {
+                                        marcarLembreteEnviado(ag.clinica_id, ag.id);
+                                        setLembretesPendentes((prev) => prev.filter((x) => x.id !== ag.id));
+                                    }}
+                                />
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+        )}
       </div>
 
       <div className="flex-1 bg-white rounded-xl shadow-sm border border-slate-200 p-2 sm:p-4 overflow-hidden">
@@ -534,7 +623,7 @@ export default function Agenda() {
                       <div>
                           <div className="flex justify-between items-center mb-1">
                               <label className="text-xs font-bold text-slate-500 uppercase">Paciente</label>
-                              <button type="button" onClick={() => setModalNovoPaciente(true)} className="text-[10px] font-bold text-blue-600 hover:underline flex items-center gap-1 uppercase"><UserPlus size={12}/> Cadastrar Novo</button>
+                              <button type="button" onClick={abrirCadastroPaciente} className="text-[10px] font-bold text-blue-600 hover:underline flex items-center gap-1 uppercase"><UserPlus size={12}/> Cadastrar Novo</button>
                           </div>
                           <CustomSelect value={formData.paciente_id} onChange={v => setFormData({...formData, paciente_id: v})} options={pacientes.filter((p:any) => !formData.clinica_id || p.clinica_id == formData.clinica_id).map((p:any) => ({ value: String(p.id), label: p.nome }))} placeholder="Selecione..." searchable/>
                       </div>
@@ -545,9 +634,32 @@ export default function Agenda() {
                       <div>
                           <div className="flex justify-between items-center mb-1">
                               <label className="text-xs font-bold text-slate-500 uppercase">Procedimento</label>
-                              <button type="button" onClick={() => setModalNovoServico(true)} className="text-[10px] font-bold text-purple-600 hover:underline flex items-center gap-1 uppercase"><FilePlus size={12}/> Novo Serviço</button>
+                              <div className="flex items-center gap-2">
+                                  <button type="button" onClick={() => router.push('/ajustes/tratamentos')} className="text-[10px] font-bold text-purple-600 hover:underline flex items-center gap-1 uppercase"><PlusCircle size={12}/> Novo serviço</button>
+                                  <button type="button" onClick={() => router.push('/ajustes/tratamentos')} className="text-[10px] font-bold text-slate-500 hover:underline flex items-center gap-1 uppercase"><ExternalLink size={12}/> Tratamento Base</button>
+                              </div>
                           </div>
-                          <CustomSelect value="" onChange={v => { const s = servicos.find((x:any) => String(x.id) === v); if(s) setFormData(p => ({...p, title: s.nome, valor: s.valor, theme: s.cor || 'blue'})) }} options={servicos.map((s:any) => ({ value: String(s.id), label: `${s.nome} - R$ ${s.valor}` }))} placeholder="Selecionar Catálogo..." triggerClassName="!bg-blue-50 !border-blue-100 !text-blue-700" className="mb-2"/>
+                          <CustomSelect
+                              value={tratamentoSelecionadoId}
+                              onChange={v => {
+                                  const t = tratamentosBase.find((x: any) => String(x.id) === v);
+                                  if (t) {
+                                      setTratamentoSelecionadoId(v);
+                                      setFormData(p => ({ ...p, title: t.nome, valor: String(t.valor_sugerido ?? 0) }));
+                                  }
+                              }}
+                              options={tratamentosBase.map((t: any) => ({ value: String(t.id), label: `${t.nome} - R$ ${Number(t.valor_sugerido || 0).toFixed(2)}` }))}
+                              placeholder={formData.clinica_id ? (tratamentosBase.length ? 'Selecionar do catálogo...' : 'Nenhum tratamento cadastrado') : 'Selecione a clínica primeiro'}
+                              disabled={!formData.clinica_id}
+                              triggerClassName="!bg-blue-50 !border-blue-100 !text-blue-700"
+                              className="mb-2"
+                          />
+                          <input
+                              value={formData.title}
+                              onChange={e => { setTratamentoSelecionadoId(''); setFormData({ ...formData, title: e.target.value }); }}
+                              placeholder="Ou digite o procedimento manualmente..."
+                              className="w-full p-2.5 border border-slate-200 rounded-lg text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500"
+                          />
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200/60">
                           <div>
@@ -566,22 +678,35 @@ export default function Agenda() {
                       
                       {(() => {
                           const pac = pacientes.find((p: any) => p.id == formData.paciente_id);
-                          const tel = pac?.telefone?.replace(/\D/g, '');
-                          if (!tel || !formData.date || !formData.time) return null;
+                          if (!pac || !formData.date || !formData.time || !formData.clinica_id) return null;
+                          const clinica = clinicas.find((c: any) => String(c.id) === String(formData.clinica_id));
                           const dataFmt = new Date(formData.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
-                          const msg = `Olá ${(pac?.nome || '').split(' ')[0]}! 😊\n\nSua consulta está confirmada:\n📅 ${dataFmt} às ${formData.time}h\n📋 ${formData.title || 'Consulta'}\n\nPedimos que confirme sua presença respondendo esta mensagem. Obrigado!`;
                           return (
-                              <a href={`https://wa.me/55${tel}?text=${encodeURIComponent(msg)}`} target="_blank" rel="noopener" className="flex items-center justify-center gap-2 py-2.5 rounded-lg font-bold text-xs uppercase bg-emerald-500 text-white hover:bg-emerald-600 border border-emerald-600 transition-colors shadow-sm">
-                                  <Phone size={13}/> Confirmar via WhatsApp
-                              </a>
+                              <div className="space-y-2 pt-1">
+                                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Confirmar consulta</p>
+                                  <PatientContactButtons
+                                      variant="row"
+                                      telefone={pac.telefone}
+                                      email={pac.email}
+                                      clinicaId={formData.clinica_id}
+                                      evento="confirmacao"
+                                      contexto={{
+                                          paciente_nome: (pac.nome || '').split(' ')[0],
+                                          data_consulta: dataFmt,
+                                          hora_consulta: formData.time,
+                                          clinica_nome: clinica?.nome,
+                                          clinica_telefone: clinica?.telefone,
+                                      }}
+                                      className="w-full"
+                                  />
+                              </div>
                           );
                       })()}
-                      <div className="flex gap-3 pt-2">
-                          {formData.id && <button onClick={excluirAgendamento} className="p-3 text-red-400 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={20}/></button>}
-                          <button onClick={() => saveOrUpdate('concluido')} className="flex-1 bg-green-50 text-green-700 py-2.5 rounded-lg font-bold text-xs uppercase hover:bg-green-100 border border-green-200">Concluir</button>
-                          <button onClick={() => saveOrUpdate('fiado')} className="flex-1 bg-amber-50 text-amber-700 py-2.5 rounded-lg font-bold text-xs uppercase hover:bg-amber-100 border border-amber-200" title="Concluir mas marcar como devendo">Fiado</button>
-                          <button onClick={() => saveOrUpdate('cancelado')} className="flex-1 bg-red-50 text-red-600 py-2.5 rounded-lg font-bold text-xs uppercase hover:bg-red-100 border border-red-200">Cancelar</button>
-                      </div>
+                      {formData.id && (
+                          <div className="flex gap-3 pt-2">
+                              <button onClick={excluirAgendamento} className="p-3 text-red-400 hover:bg-red-50 rounded-lg transition-colors" title="Excluir agendamento"><Trash2 size={20}/></button>
+                          </div>
+                      )}
                   </div>
                   <div className="p-5 border-t bg-slate-50 flex justify-end gap-3">
                       <button onClick={() => setOpenModal(false)} className="px-4 py-2 text-slate-500 font-bold hover:bg-slate-200 rounded-lg text-sm transition-colors">Fechar</button>
@@ -589,42 +714,6 @@ export default function Agenda() {
                   </div>
               </div>
           </div> 
-      )}
-      {/* MODAIS SECUNDÁRIOS OMITIDOS (Mantidos iguais) */}
-      {modalNovoPaciente && (
-          <div className="fixed inset-0 z-[60] bg-slate-900/30 flex items-center justify-center p-4">
-              <div className="bg-white w-full max-w-xl rounded-2xl shadow-xl p-6 animate-in zoom-in-95 overflow-y-auto max-h-[90vh]">
-                  <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-slate-800"><UserPlus size={20} className="text-green-600"/> Cadastrar Paciente</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                      <div className="md:col-span-2"><label className="text-xs font-bold text-slate-400 uppercase">Nome Completo</label><div className="relative"><User className="absolute left-3 top-2.5 text-slate-300" size={16}/><input autoFocus className="w-full pl-9 p-2 border rounded-lg" value={formPaciente.nome} onChange={e => setFormPaciente({...formPaciente, nome: e.target.value})} /></div></div>
-                      <div><label className="text-xs font-bold text-slate-400 uppercase">Telefone</label><div className="relative"><Phone className="absolute left-3 top-2.5 text-slate-300" size={16}/><input className="w-full pl-9 p-2 border rounded-lg" value={formPaciente.telefone} onChange={e => setFormPaciente({...formPaciente, telefone: e.target.value})} /></div></div>
-                      <div><label className="text-xs font-bold text-slate-400 uppercase">Email</label><div className="relative"><Mail className="absolute left-3 top-2.5 text-slate-300" size={16}/><input className="w-full pl-9 p-2 border rounded-lg" value={formPaciente.email} onChange={e => setFormPaciente({...formPaciente, email: e.target.value})} /></div></div>
-                      <div><label className="text-xs font-bold text-slate-400 uppercase">CPF</label><div className="relative"><FileText className="absolute left-3 top-2.5 text-slate-300" size={16}/><input className="w-full pl-9 p-2 border rounded-lg" value={formPaciente.cpf} onChange={e => setFormPaciente({...formPaciente, cpf: e.target.value})} /></div></div>
-                      <div><label className="text-xs font-bold text-slate-400 uppercase">Nascimento</label><div className="relative"><Calendar className="absolute left-3 top-2.5 text-slate-300" size={16}/><input type="date" className="w-full pl-9 p-2 border rounded-lg" value={formPaciente.data_nascimento} onChange={e => setFormPaciente({...formPaciente, data_nascimento: e.target.value})} /></div></div>
-                      <div className="md:col-span-2"><label className="text-xs font-bold text-slate-400 uppercase">Endereço</label><div className="relative"><MapPin className="absolute left-3 top-2.5 text-slate-300" size={16}/><input className="w-full pl-9 p-2 border rounded-lg" value={formPaciente.endereco} onChange={e => setFormPaciente({...formPaciente, endereco: e.target.value})} /></div></div>
-                  </div>
-                  <div className="flex gap-2 justify-end">
-                      <button onClick={() => setModalNovoPaciente(false)} className="px-4 py-2 text-slate-500 font-bold hover:bg-slate-100 rounded-lg">Cancelar</button>
-                      <button onClick={salvarNovoPaciente} className="px-4 py-2 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700">Salvar</button>
-                  </div>
-              </div>
-          </div>
-      )}
-
-      {modalNovoServico && (
-          <div className="fixed inset-0 z-[60] bg-slate-900/30 flex items-center justify-center p-4">
-              <div className="bg-white w-full max-w-sm rounded-2xl shadow-xl p-6 animate-in zoom-in-95">
-                  <h3 className="font-bold text-lg mb-4 flex items-center gap-2"><FilePlus size={20} className="text-purple-600"/> Novo Serviço</h3>
-                  <div className="space-y-3">
-                      <div><label className="text-xs font-bold text-slate-400 uppercase">Nome</label><input autoFocus className="w-full p-2 border rounded-lg" value={formServico.nome} onChange={e => setFormServico({...formServico, nome: e.target.value})} /></div>
-                      <div><label className="text-xs font-bold text-slate-400 uppercase">Valor Padrão (R$)</label><input type="number" className="w-full p-2 border rounded-lg" value={formServico.valor} onChange={e => setFormServico({...formServico, valor: e.target.value})} /></div>
-                  </div>
-                  <div className="flex gap-2 justify-end mt-4">
-                      <button onClick={() => setModalNovoServico(false)} className="px-4 py-2 text-slate-500 font-bold hover:bg-slate-100 rounded-lg">Cancelar</button>
-                      <button onClick={salvarNovoServico} className="px-4 py-2 bg-purple-600 text-white font-bold rounded-lg hover:bg-purple-700">Salvar</button>
-                  </div>
-              </div>
-          </div>
       )}
     </div>
   );

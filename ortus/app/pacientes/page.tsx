@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Search, Plus, LayoutGrid, List as ListIcon, User, Phone, Edit, Trash2, Activity, Loader2, ChevronRight, Building2, Download, Filter, AlertCircle, Calendar, Clock, X, MessageCircle } from 'lucide-react';
+import { Search, Plus, LayoutGrid, List as ListIcon, User, Phone, Edit, Trash2, Activity, Loader2, ChevronRight, Building2, Download, Filter, AlertCircle, Calendar, Clock, X } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { usePatientSlideOver } from '@/components/PatientSlideOver';
@@ -9,7 +9,9 @@ import { usePatientActionModal } from '@/components/PatientActionModal';
 import { useClinica } from '@/app/context/ClinicaContext';
 import { fetchUserClinicas } from '@/lib/clinicScoped';
 import CustomSelect from '@/components/ui/CustomSelect';
+import PatientContactButtons from '@/components/PatientContactButtons';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
+import { buildDocumentoContexto } from '@/lib/documentVariables';
 
 export default function Pacientes() {
   const [pacientes, setPacientes] = useState<any[]>([]);
@@ -183,11 +185,8 @@ export default function Pacientes() {
       setFiltroStatus('todos'); setFiltroDebito(false); setFiltroSemConsulta(null); setFiltroProcedimento('');
   }
 
-  function abrirWhatsapp(telefone: string, e: React.MouseEvent) {
+  function stopRowClick(e: React.MouseEvent) {
       e.stopPropagation();
-      if (!telefone) return;
-      const numero = telefone.replace(/\D/g, '');
-      window.open(`https://wa.me/55${numero}`, '_blank');
   }
 
   return (
@@ -260,16 +259,18 @@ export default function Pacientes() {
                         <td className="p-3 sm:p-4 text-sm text-slate-500">{p.telefone}</td>
                         <td className="p-3 sm:p-4 hidden sm:table-cell"><span className="text-[10px] font-bold uppercase bg-slate-100 text-slate-500 px-2 py-1 rounded">{p.status}</span></td>
                         <td className="p-3 sm:p-4 text-right pr-4 sm:pr-6">
-                            <div className="flex items-center justify-end gap-2">
-                                {p.telefone && (
-                                    <button
-                                        onClick={(e) => abrirWhatsapp(p.telefone, e)}
-                                        className="p-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors shadow-sm"
-                                        title="Conversar no WhatsApp"
-                                    >
-                                        <MessageCircle size={16}/>
-                                    </button>
-                                )}
+                            <div className="flex items-center justify-end gap-2" onClick={stopRowClick}>
+                                <PatientContactButtons
+                                    variant="icons"
+                                    telefone={p.telefone}
+                                    email={p.email}
+                                    clinicaId={p.clinica_id}
+                                    evento="pos_consulta"
+                                    contexto={buildDocumentoContexto({
+                                        paciente_nome: p.nome?.split(' ')[0],
+                                        clinica_nome: p.nome_clinica,
+                                    })}
+                                />
                                 <span className="text-slate-300 group-hover:text-blue-500"><ChevronRight size={20}/></span>
                             </div>
                         </td>
@@ -281,15 +282,21 @@ export default function Pacientes() {
        ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">{filtrados.map((p: any) => (
             <div key={p.id} onClick={() => openPatientActions(p.id)} className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm hover:shadow-md cursor-pointer transition-all hover:border-blue-200 group">
-                <div className="flex items-center gap-4 mb-4"><div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center font-bold text-lg group-hover:bg-blue-600 group-hover:text-white transition-colors">{p.nome.charAt(0)}</div><div className="flex-1 min-w-0"><h3 className="font-bold text-slate-800 truncate">{p.nome}</h3><p className="text-xs text-slate-400 uppercase font-bold">{p.nome_clinica || 'Sem Clínica'}</p></div>{p.telefone && (
-                    <button
-                        onClick={(e) => abrirWhatsapp(p.telefone, e)}
-                        className="p-2 bg-green-500 text-white rounded-xl hover:bg-green-600 transition-colors shadow-sm"
-                        title="Conversar no WhatsApp"
-                    >
-                        <MessageCircle size={18}/>
-                    </button>
-                )}</div>
+                <div className="flex items-center gap-4 mb-4"><div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center font-bold text-lg group-hover:bg-blue-600 group-hover:text-white transition-colors">{p.nome.charAt(0)}</div><div className="flex-1 min-w-0"><h3 className="font-bold text-slate-800 truncate">{p.nome}</h3><p className="text-xs text-slate-400 uppercase font-bold">{p.nome_clinica || 'Sem Clínica'}</p></div>
+                    <div onClick={stopRowClick}>
+                        <PatientContactButtons
+                            variant="icons"
+                            telefone={p.telefone}
+                            email={p.email}
+                            clinicaId={p.clinica_id}
+                            evento="pos_consulta"
+                            contexto={buildDocumentoContexto({
+                                paciente_nome: p.nome?.split(' ')[0],
+                                clinica_nome: p.nome_clinica,
+                            })}
+                        />
+                    </div>
+                </div>
                 <div className="space-y-2">
                     <div className="text-sm text-slate-500 flex items-center gap-2"><Phone size={14}/> {p.telefone || 'Sem telefone'}</div>
                     <div className="flex items-center gap-2 flex-wrap">

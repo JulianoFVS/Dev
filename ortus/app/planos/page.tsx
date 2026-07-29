@@ -15,7 +15,9 @@ import {
     Check,
     Download,
     SlidersHorizontal,
+    FileText,
 } from 'lucide-react';
+import { PLANO_CONVENIO_TEMPLATES } from '@/lib/planoTemplates';
 
 interface Plano {
     id: string;
@@ -23,6 +25,7 @@ interface Plano {
     nome: string;
     tipo: string;
     ativo: boolean;
+    observacoes?: string | null;
 }
 
 interface Especialidade {
@@ -75,7 +78,9 @@ export default function PlanosPage() {
     const [salvandoTratamentoId, setSalvandoTratamentoId] = useState<number | null>(null);
 
     const [modalPlanoAberto, setModalPlanoAberto] = useState(false);
+    const [templateSelecionado, setTemplateSelecionado] = useState('personalizado');
     const [novoPlanoNome, setNovoPlanoNome] = useState('');
+    const [novoPlanoObservacoes, setNovoPlanoObservacoes] = useState('');
     const [opcaoCopia, setOpcaoCopia] = useState<'copiar' | 'vazio'>('copiar');
     const [criandoPlano, setCriandoPlano] = useState(false);
 
@@ -87,6 +92,28 @@ export default function PlanosPage() {
     const [aplicandoReajuste, setAplicandoReajuste] = useState(false);
 
     const possuiPlanoPadrao = useMemo(() => planos.some((p) => p.tipo === 'particular'), [planos]);
+
+    const templateAtual = useMemo(
+        () => PLANO_CONVENIO_TEMPLATES.find((t) => t.id === templateSelecionado) ?? PLANO_CONVENIO_TEMPLATES.find((t) => t.id === 'personalizado')!,
+        [templateSelecionado],
+    );
+
+    function abrirModalNovoPlano() {
+        setTemplateSelecionado('personalizado');
+        setNovoPlanoNome('');
+        setNovoPlanoObservacoes('');
+        setOpcaoCopia('copiar');
+        setModalPlanoAberto(true);
+    }
+
+    function selecionarTemplate(id: string) {
+        setTemplateSelecionado(id);
+        const tpl = PLANO_CONVENIO_TEMPLATES.find((t) => t.id === id);
+        if (!tpl || id === 'personalizado') return;
+        setNovoPlanoNome(tpl.nome);
+        setNovoPlanoObservacoes(tpl.observacoes);
+        if (tpl.reajustePercentSugerido && possuiPlanoPadrao) setOpcaoCopia('copiar');
+    }
 
     useEffect(() => {
         if (!clinicaId) {
@@ -354,7 +381,7 @@ export default function PlanosPage() {
         }
     }
 
-    async function copiarTratamentosPlanoPadrao(novoPlanoId: string) {
+    async function copiarTratamentosPlanoPadrao(novoPlanoId: string, reajustePercent?: number) {
         if (!clinicaId) return;
         const planoPadrao = planos.find((p) => p.tipo === 'particular');
         if (!planoPadrao) return;
@@ -364,16 +391,22 @@ export default function PlanosPage() {
             .eq('plano_id', planoPadrao.id);
         if (error) throw error;
         if (!data || data.length === 0) return;
-        const payload = data.map((registro) => ({
-            plano_id: novoPlanoId,
-            clinica_id: clinicaId,
-            tratamento_id: registro.tratamento_id,
-            valor: registro.valor,
-            custo: registro.custo,
-            codigo_tuss: registro.codigo_tuss,
-            aceita_faces: registro.aceita_faces,
-            ativo: registro.ativo,
-        }));
+        const payload = data.map((registro) => {
+            const valorBase = Number(registro.valor) || 0;
+            const valor = reajustePercent
+                ? Math.round(valorBase * (1 + reajustePercent / 100) * 100) / 100
+                : valorBase;
+            return {
+                plano_id: novoPlanoId,
+                clinica_id: clinicaId,
+                tratamento_id: registro.tratamento_id,
+                valor,
+                custo: registro.custo,
+                codigo_tuss: registro.codigo_tuss,
+                aceita_faces: registro.aceita_faces,
+                ativo: registro.ativo,
+            };
+        });
         if (payload.length > 0) {
             const { error: insertError } = await supabase.from('planos_tratamentos').insert(payload);
             if (insertError) throw insertError;
@@ -395,13 +428,19 @@ export default function PlanosPage() {
         try {
             const { data, error } = await supabase
                 .from('planos')
-                .insert({ nome, clinica_id: clinicaId, tipo: 'convenio', ativo: true })
+                .insert({
+                    nome,
+                    clinica_id: clinicaId,
+                    tipo: 'convenio',
+                    ativo: true,
+                    observacoes: novoPlanoObservacoes.trim() || null,
+                })
                 .select()
                 .single();
             if (error) throw error;
             if (opcaoCopia === 'copiar') {
                 try {
-                    await copiarTratamentosPlanoPadrao(data.id);
+                    await copiarTratamentosPlanoPadrao(data.id, templateAtual.reajustePercentSugerido);
                 } catch (copyErr: any) {
                     console.error(copyErr);
                     showAlert('Plano criado, porém não foi possível copiar os valores do plano padrão.', { type: 'warning' });
@@ -409,6 +448,8 @@ export default function PlanosPage() {
             }
             setModalPlanoAberto(false);
             setNovoPlanoNome('');
+            setNovoPlanoObservacoes('');
+            setTemplateSelecionado('personalizado');
             setOpcaoCopia('copiar');
             await carregarPlanos(data.id);
             showAlert('Plano criado com sucesso!', { type: 'success' });
@@ -462,7 +503,7 @@ export default function PlanosPage() {
                         </>
                     )}
                     <button
-                        onClick={() => setModalPlanoAberto(true)}
+                        onClick={abrirModalNovoPlano}
                         className="touch-target flex items-center justify-center gap-2 px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-lg shadow-blue-200 text-sm"
                     >
                         <Plus size={16} /> Novo Plano
@@ -637,6 +678,31 @@ export default function PlanosPage() {
                         </div>
                         <form onSubmit={handleCriarPlano} className="p-6 space-y-4">
                             <div>
+                                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Template de convênio</label>
+                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2">
+                                    {PLANO_CONVENIO_TEMPLATES.filter((t) => t.id !== 'personalizado').map((tpl) => (
+                                        <button
+                                            key={tpl.id}
+                                            type="button"
+                                            onClick={() => selecionarTemplate(tpl.id)}
+                                            className={`p-2.5 rounded-xl border text-left text-xs font-bold transition-all ${templateSelecionado === tpl.id ? 'border-blue-400 bg-blue-50 text-blue-800 ring-2 ring-blue-100' : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300'}`}
+                                        >
+                                            {tpl.nome}
+                                            {tpl.reajustePercentSugerido ? (
+                                                <span className="block text-[10px] font-medium text-slate-400 mt-0.5">+{tpl.reajustePercentSugerido}% sugerido</span>
+                                            ) : null}
+                                        </button>
+                                    ))}
+                                    <button
+                                        type="button"
+                                        onClick={() => selecionarTemplate('personalizado')}
+                                        className={`p-2.5 rounded-xl border text-left text-xs font-bold transition-all ${templateSelecionado === 'personalizado' ? 'border-blue-400 bg-blue-50 text-blue-800 ring-2 ring-blue-100' : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300'}`}
+                                    >
+                                        Personalizado
+                                    </button>
+                                </div>
+                            </div>
+                            <div>
                                 <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Nome do plano</label>
                                 <input
                                     value={novoPlanoNome}
@@ -645,8 +711,23 @@ export default function PlanosPage() {
                                     placeholder="Ex.: Amil Dental, SulAmérica, Uniodonto..."
                                 />
                             </div>
+                            <div>
+                                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 flex items-center gap-1"><FileText size={12}/> Observações</label>
+                                <textarea
+                                    value={novoPlanoObservacoes}
+                                    onChange={(e) => setNovoPlanoObservacoes(e.target.value)}
+                                    rows={2}
+                                    className="w-full mt-1 px-3 py-2.5 rounded-2xl border border-slate-200 bg-slate-50 text-sm text-slate-700 focus:bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-100 resize-none"
+                                    placeholder="Notas sobre cobertura, TUSS, glosas..."
+                                />
+                            </div>
                             <div className="space-y-2">
                                 <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Tratamentos iniciais</p>
+                                {templateAtual.reajustePercentSugerido && opcaoCopia === 'copiar' && possuiPlanoPadrao && (
+                                    <p className="text-xs text-blue-700 bg-blue-50 border border-blue-100 rounded-xl px-3 py-2">
+                                        Ao copiar do Particular, os valores serão reajustados em <strong>+{templateAtual.reajustePercentSugerido}%</strong> automaticamente.
+                                    </p>
+                                )}
                                 <label className={`flex items-start gap-3 p-3 rounded-2xl border cursor-pointer min-h-[56px] ${opcaoCopia === 'copiar' ? 'border-blue-300 bg-blue-50' : 'border-slate-200 bg-white'}`}>
                                     <input
                                         type="radio"

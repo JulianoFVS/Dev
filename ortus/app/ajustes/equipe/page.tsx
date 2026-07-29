@@ -1,5 +1,6 @@
 'use client';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useClinica, getClinicLabel } from '@/app/context/ClinicaContext';
 import { fetchUserEquipe } from '@/lib/clinicScoped';
@@ -8,10 +9,11 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/Tabs';
 import {
     Users, UserPlus, Loader2, X, Mail, Building2, ShieldCheck, Copy, Check,
     KeyRound, AlertTriangle, User, Briefcase, ToggleLeft, ToggleRight, Clock,
-    DollarSign, Trash2, Plus, Settings,
+    DollarSign, Trash2, Plus, Settings, Edit,
 } from 'lucide-react';
 import type { ComissaoRegra, ModuleName } from '@/lib/types/permissions';
 import { MODULES, buildModuleAccessMap } from '@/lib/modules';
+import { PERMISSION_PRESETS, buildPresetAccessMap, type PermissionPresetId } from '@/lib/permissionPresets';
 import { carregarConfig, salvarConfig } from '@/lib/configClinica';
 
 type Profissional = {
@@ -85,6 +87,7 @@ const formatValorComissao = (tipo: string, valor: number) => (
 );
 
 export default function EquipePage() {
+    const searchParams = useSearchParams();
     const { clinics, loading: clinicLoading, activeClinicId } = useClinica();
     const { showAlert, showConfirm } = useCustomAlert();
 
@@ -121,12 +124,18 @@ export default function EquipePage() {
     const [horarioDirty, setHorarioDirty] = useState(false);
     const [horarioSaving, setHorarioSaving] = useState(false);
 
-    const [comissaoForm, setComissaoForm] = useState({ gatilho: GATILHOS_COMISSAO[0].value, tipo: TIPOS_COMISSAO[0].value, valor: '' });
+    const [comissaoForm, setComissaoForm] = useState({ gatilho: GATILHOS_COMISSAO[0].value, tipo: TIPOS_COMISSAO[0].value, valor: '', ativo: true });
+    const [comissaoEditandoId, setComissaoEditandoId] = useState<string | null>(null);
     const [comissoes, setComissoes] = useState<ComissaoRegra[]>([]);
     const [comissoesLoaded, setComissoesLoaded] = useState(false);
     const [comissoesLoading, setComissoesLoading] = useState(false);
     const [comissaoSaving, setComissaoSaving] = useState(false);
     const [comissaoExcluindo, setComissaoExcluindo] = useState<string | null>(null);
+    const [comissoesConsolidadas, setComissoesConsolidadas] = useState<(ComissaoRegra & { profissionais?: { nome: string } | null })[]>([]);
+    const [comissoesConsolidadasLoading, setComissoesConsolidadasLoading] = useState(false);
+    const [comissaoLancamentos, setComissaoLancamentos] = useState<any[]>([]);
+    const [nivelAcessoEdit, setNivelAcessoEdit] = useState<'comum' | 'admin'>('comum');
+    const [nivelSaving, setNivelSaving] = useState(false);
 
     const clinicaIdNumerica = useMemo(() => (activeClinicId && activeClinicId !== 'all' ? Number(activeClinicId) : null), [activeClinicId]);
     const clinicaNomeAtiva = useMemo(() => {
@@ -240,10 +249,11 @@ export default function EquipePage() {
         } catch {}
     }
 
-    function abrirEditorAvancado(prof: Profissional) {
+    function abrirEditorAvancado(prof: Profissional, abaInicial?: 'permissoes' | 'horarios' | 'comissao') {
         setProfissionalSelecionado(prof);
         setEditorAberto(true);
-        setAbaEditor('permissoes');
+        setAbaEditor(abaInicial || 'permissoes');
+        setNivelAcessoEdit(prof.nivel_acesso === 'admin' ? 'admin' : 'comum');
         setPermissoesMapa(novaPermissaoMap());
         setPermissoesLoaded(false);
         setPermissoesDirty(false);
@@ -252,7 +262,7 @@ export default function EquipePage() {
         setHorarioDirty(false);
         setComissoes([]);
         setComissoesLoaded(false);
-        setComissaoForm({ gatilho: GATILHOS_COMISSAO[0].value, tipo: TIPOS_COMISSAO[0].value, valor: '' });
+        setComissaoForm({ gatilho: GATILHOS_COMISSAO[0].value, tipo: TIPOS_COMISSAO[0].value, valor: '', ativo: true });
     }
 
     function fecharEditorAvancado() {
@@ -274,6 +284,62 @@ export default function EquipePage() {
         setHorarioLoaded(false);
         setComissoesLoaded(false);
     }, [editorAberto, activeClinicId]);
+
+    useEffect(() => {
+        const aba = searchParams.get('aba');
+        if (aba === 'comissao' || aba === 'horarios' || aba === 'permissoes') {
+            setAbaEditor(aba);
+        }
+    }, [searchParams]);
+
+    useEffect(() => {
+        if (!clinicaIdNumerica) {
+            setComissoesConsolidadas([]);
+            return;
+        }
+        setComissoesConsolidadasLoading(true);
+        supabase
+            .from('comissoes_regras')
+            .select('*, profissionais(nome)')
+            .eq('clinica_id', clinicaIdNumerica)
+            .eq('ativo', true)
+            .order('profissional_id')
+            .then(({ data, error }) => {
+                if (!error) setComissoesConsolidadas((data || []) as typeof comissoesConsolidadas);
+                setComissoesConsolidadasLoading(false);
+            });
+        supabase
+            .from('comissoes_lancamentos')
+            .select('*, profissionais(nome)')
+            .eq('clinica_id', clinicaIdNumerica)
+            .order('created_at', { ascending: false })
+            .limit(20)
+            .then(({ data }) => setComissaoLancamentos(data || []));
+    }, [clinicaIdNumerica, comissoesLoaded, editorAberto]);
+
+    function aplicarPresetPermissoes(presetId: PermissionPresetId) {
+        setPermissoesMapa(buildPresetAccessMap(presetId));
+        setPermissoesDirty(true);
+    }
+
+    async function salvarNivelAcesso() {
+        if (!profissionalSelecionado) return;
+        setNivelSaving(true);
+        try {
+            const { error } = await supabase
+                .from('profissionais')
+                .update({ nivel_acesso: nivelAcessoEdit })
+                .eq('id', profissionalSelecionado.id);
+            if (error) throw error;
+            setProfissionalSelecionado((prev) => prev ? { ...prev, nivel_acesso: nivelAcessoEdit } : prev);
+            setProfissionais((prev) => prev.map((p) => p.id === profissionalSelecionado.id ? { ...p, nivel_acesso: nivelAcessoEdit } : p));
+            await showAlert('Nível de acesso atualizado!', { type: 'success' });
+        } catch {
+            await showAlert('Erro ao atualizar nível de acesso.', { type: 'error' });
+        } finally {
+            setNivelSaving(false);
+        }
+    }
 
     async function carregarPermissoesProfissional() {
         if (!profissionalSelecionado) return;
@@ -442,27 +508,77 @@ export default function EquipePage() {
         }
         setComissaoSaving(true);
         try {
-            const { data, error } = await supabase
-                .from('comissoes_regras')
-                .insert({
-                    profissional_id: Number(profissionalSelecionado.id),
-                    clinica_id: clinicaIdNumerica,
-                    gatilho: comissaoForm.gatilho,
-                    tipo: comissaoForm.tipo,
-                    valor: valorNumber,
-                    ativo: true,
-                })
-                .select()
-                .single();
-            if (error) throw error;
-            setComissoes((prev) => [data as ComissaoRegra, ...prev]);
-            setComissaoForm((prev) => ({ ...prev, valor: '' }));
-            await showAlert('Regra adicionada!', { type: 'success' });
+            if (comissaoEditandoId) {
+                const { data, error } = await supabase
+                    .from('comissoes_regras')
+                    .update({
+                        gatilho: comissaoForm.gatilho,
+                        tipo: comissaoForm.tipo,
+                        valor: valorNumber,
+                        ativo: comissaoForm.ativo,
+                    })
+                    .eq('id', comissaoEditandoId)
+                    .select()
+                    .single();
+                if (error) throw error;
+                setComissoes((prev) => prev.map((r) => (r.id === comissaoEditandoId ? (data as ComissaoRegra) : r)));
+                setComissaoEditandoId(null);
+                setComissaoForm({ gatilho: GATILHOS_COMISSAO[0].value, tipo: TIPOS_COMISSAO[0].value, valor: '', ativo: true });
+                await showAlert('Regra atualizada!', { type: 'success' });
+            } else {
+                const { data, error } = await supabase
+                    .from('comissoes_regras')
+                    .insert({
+                        profissional_id: Number(profissionalSelecionado.id),
+                        clinica_id: clinicaIdNumerica,
+                        gatilho: comissaoForm.gatilho,
+                        tipo: comissaoForm.tipo,
+                        valor: valorNumber,
+                        ativo: comissaoForm.ativo,
+                    })
+                    .select()
+                    .single();
+                if (error) throw error;
+                setComissoes((prev) => [data as ComissaoRegra, ...prev]);
+                setComissaoForm((prev) => ({ ...prev, valor: '' }));
+                await showAlert('Regra adicionada!', { type: 'success' });
+            }
         } catch (err: any) {
             console.error(err);
             await showAlert('Erro ao salvar regra de comissão.', { type: 'error' });
         } finally {
             setComissaoSaving(false);
+        }
+    }
+
+    function editarComissaoRegra(regra: ComissaoRegra) {
+        setComissaoEditandoId(regra.id);
+        setComissaoForm({
+            gatilho: regra.gatilho,
+            tipo: regra.tipo,
+            valor: String(regra.valor),
+            ativo: regra.ativo !== false,
+        });
+    }
+
+    function cancelarEdicaoComissao() {
+        setComissaoEditandoId(null);
+        setComissaoForm({ gatilho: GATILHOS_COMISSAO[0].value, tipo: TIPOS_COMISSAO[0].value, valor: '', ativo: true });
+    }
+
+    async function toggleComissaoAtiva(regra: ComissaoRegra) {
+        try {
+            const { data, error } = await supabase
+                .from('comissoes_regras')
+                .update({ ativo: !regra.ativo })
+                .eq('id', regra.id)
+                .select()
+                .single();
+            if (error) throw error;
+            setComissoes((prev) => prev.map((r) => (r.id === regra.id ? (data as ComissaoRegra) : r)));
+        } catch (err: any) {
+            console.error(err);
+            await showAlert('Erro ao alterar status da regra.', { type: 'error' });
         }
     }
 
@@ -500,6 +616,37 @@ export default function EquipePage() {
         }
         return (
             <div className="space-y-4">
+                <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                        <p className="text-xs font-bold text-slate-600">Nível de acesso</p>
+                        <p className="text-[11px] text-slate-400">Admin tem acesso total; comum usa os módulos abaixo.</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <div className="flex bg-white p-1 rounded-xl border border-slate-200">
+                            <button type="button" onClick={() => setNivelAcessoEdit('comum')} className={`px-3 py-1.5 rounded-lg text-xs font-bold ${nivelAcessoEdit === 'comum' ? 'bg-slate-800 text-white' : 'text-slate-500'}`}>Comum</button>
+                            <button type="button" onClick={() => setNivelAcessoEdit('admin')} className={`px-3 py-1.5 rounded-lg text-xs font-bold ${nivelAcessoEdit === 'admin' ? 'bg-purple-600 text-white' : 'text-slate-500'}`}>Admin</button>
+                        </div>
+                        <button type="button" onClick={salvarNivelAcesso} disabled={nivelSaving || nivelAcessoEdit === (profissionalSelecionado.nivel_acesso === 'admin' ? 'admin' : 'comum')} className="px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-bold disabled:opacity-50">
+                            {nivelSaving ? 'Salvando...' : 'Salvar nível'}
+                        </button>
+                    </div>
+                </div>
+                <div>
+                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2">Perfis rápidos</p>
+                    <div className="flex flex-wrap gap-2">
+                        {PERMISSION_PRESETS.map((preset) => (
+                            <button
+                                key={preset.id}
+                                type="button"
+                                onClick={() => aplicarPresetPermissoes(preset.id)}
+                                className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:border-blue-300 hover:text-blue-600 transition-colors"
+                                title={preset.description}
+                            >
+                                {preset.label}
+                            </button>
+                        ))}
+                    </div>
+                </div>
                 <p className="text-xs text-slate-500 font-medium">
                     Ajuste o acesso por módulo para <span className="font-bold text-slate-700">{profissionalSelecionado.nome}</span>.
                 </p>
@@ -540,6 +687,12 @@ export default function EquipePage() {
         if (!clinicaIdNumerica) return renderClinicaObrigatoria();
         return (
             <div className="space-y-5">
+                <p className="text-xs text-slate-500">
+                    Horário de atendimento de <span className="font-bold text-slate-700">{profissionalSelecionado.nome}</span> na clínica <span className="font-bold">{clinicaNomeAtiva}</span>.
+                </p>
+                {horarioLoading && (
+                    <div className="flex items-center gap-2 text-slate-500 text-sm"><Loader2 size={16} className="animate-spin"/>Carregando horário...</div>
+                )}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Início</label>
@@ -622,10 +775,22 @@ export default function EquipePage() {
                         <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Valor</label>
                         <input type="number" step="0.01" min={0} value={comissaoForm.valor} onChange={(e) => setComissaoForm((prev) => ({ ...prev, valor: e.target.value }))} className="mt-1 w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-white text-sm font-bold text-slate-700" placeholder={comissaoForm.tipo === 'percentual' ? '0 a 100%' : 'Valor em R$'} />
                     </div>
-                    <div className="md:col-span-4 flex justify-end">
-                        <button type="submit" disabled={comissaoSaving} className="px-4 py-2 rounded-xl bg-green-600 text-white text-sm font-bold flex items-center gap-2 disabled:opacity-50">
-                            {comissaoSaving ? <Loader2 size={14} className="animate-spin"/> : <Plus size={14}/>}Adicionar regra
-                        </button>
+                    <div className="md:col-span-4 flex items-center justify-between gap-3">
+                        <label className="flex items-center gap-2 text-sm font-bold text-slate-600">
+                            <input type="checkbox" checked={comissaoForm.ativo} onChange={(e) => setComissaoForm((prev) => ({ ...prev, ativo: e.target.checked }))} className="w-4 h-4 rounded border-slate-300 text-green-600" />
+                            Regra ativa
+                        </label>
+                        <div className="flex gap-2">
+                            {comissaoEditandoId && (
+                                <button type="button" onClick={cancelarEdicaoComissao} className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 text-sm font-bold hover:bg-white">
+                                    Cancelar
+                                </button>
+                            )}
+                            <button type="submit" disabled={comissaoSaving} className="px-4 py-2 rounded-xl bg-green-600 text-white text-sm font-bold flex items-center gap-2 disabled:opacity-50">
+                                {comissaoSaving ? <Loader2 size={14} className="animate-spin"/> : (comissaoEditandoId ? <Check size={14}/> : <Plus size={14}/>)}
+                                {comissaoEditandoId ? 'Salvar alterações' : 'Adicionar regra'}
+                            </button>
+                        </div>
                     </div>
                 </form>
                 <div className="space-y-3">
@@ -637,20 +802,29 @@ export default function EquipePage() {
                         </div>
                     ) : (
                         comissoes.map((regra) => (
-                            <div key={regra.id} className="p-4 border border-slate-100 rounded-2xl bg-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                            <div key={regra.id} className={`p-4 border rounded-2xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 ${regra.ativo !== false ? 'border-slate-100 bg-white' : 'border-slate-100 bg-slate-50 opacity-70'}`}>
                                 <div>
                                     <p className="text-sm font-bold text-slate-700">{getGatilhoLabel(regra.gatilho)}</p>
-                                    <p className="text-xs text-slate-500">{regra.tipo === 'percentual' ? 'Percentual' : 'Valor fixo'} • <span className="font-bold text-slate-700">{formatValorComissao(regra.tipo, regra.valor)}</span></p>
+                                    <p className="text-xs text-slate-500">{regra.tipo === 'percentual' ? 'Percentual' : 'Valor fixo'} • <span className="font-bold text-slate-700">{formatValorComissao(regra.tipo, regra.valor)}</span>{regra.ativo === false && <span className="ml-2 text-amber-600 font-bold">• Inativa</span>}</p>
                                 </div>
-                                <button
-                                    type="button"
-                                    onClick={() => excluirComissaoRegra(regra.id)}
-                                    disabled={comissaoExcluindo === regra.id}
-                                    className="self-start sm:self-auto px-3 py-2 rounded-lg border border-red-200 text-red-600 text-xs font-bold hover:bg-red-50 disabled:opacity-50 flex items-center gap-2"
-                                >
-                                    {comissaoExcluindo === regra.id ? <Loader2 size={14} className="animate-spin"/> : <Trash2 size={14}/>}
-                                    Remover
-                                </button>
+                                <div className="flex gap-2 self-start sm:self-auto">
+                                    <button type="button" onClick={() => toggleComissaoAtiva(regra)} className={`px-3 py-2 rounded-lg border text-xs font-bold flex items-center gap-1 ${regra.ativo !== false ? 'border-slate-200 text-slate-600 hover:bg-slate-50' : 'border-green-200 text-green-700 hover:bg-green-50'}`}>
+                                        {regra.ativo !== false ? <ToggleRight size={14}/> : <ToggleLeft size={14}/>}
+                                        {regra.ativo !== false ? 'Desativar' : 'Ativar'}
+                                    </button>
+                                    <button type="button" onClick={() => editarComissaoRegra(regra)} className="px-3 py-2 rounded-lg border border-blue-200 text-blue-600 text-xs font-bold hover:bg-blue-50 flex items-center gap-1">
+                                        <Edit size={14}/> Editar
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => excluirComissaoRegra(regra.id)}
+                                        disabled={comissaoExcluindo === regra.id}
+                                        className="px-3 py-2 rounded-lg border border-red-200 text-red-600 text-xs font-bold hover:bg-red-50 disabled:opacity-50 flex items-center gap-2"
+                                    >
+                                        {comissaoExcluindo === regra.id ? <Loader2 size={14} className="animate-spin"/> : <Trash2 size={14}/>}
+                                        Remover
+                                    </button>
+                                </div>
                             </div>
                         ))
                     )}
@@ -709,6 +883,74 @@ export default function EquipePage() {
                     <UserPlus size={18} /> Adicionar funcionário
                 </button>
             </div>
+
+            {clinicaIdNumerica && (
+                <div className="bg-white border border-slate-100 rounded-2xl shadow-sm p-5">
+                    <div className="flex items-center justify-between gap-3 mb-4">
+                        <div>
+                            <h2 className="font-bold text-slate-800 flex items-center gap-2"><DollarSign size={18} className="text-emerald-600"/> Comissões consolidadas</h2>
+                            <p className="text-xs text-slate-500 mt-0.5">Visão de todas as regras ativas em {clinicaNomeAtiva}</p>
+                        </div>
+                        {comissoesConsolidadasLoading && <Loader2 size={18} className="animate-spin text-slate-400"/>}
+                    </div>
+                    {comissoesConsolidadas.length === 0 ? (
+                        <p className="text-sm text-slate-400 text-center py-6 border-2 border-dashed border-slate-200 rounded-xl">Nenhuma regra de comissão ativa nesta clínica.</p>
+                    ) : (
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm min-w-[520px]">
+                                <thead>
+                                    <tr className="text-left text-[10px] uppercase font-black text-slate-400 border-b border-slate-100">
+                                        <th className="pb-2 pr-4">Profissional</th>
+                                        <th className="pb-2 pr-4">Gatilho</th>
+                                        <th className="pb-2 pr-4">Tipo</th>
+                                        <th className="pb-2">Valor</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-50">
+                                    {comissoesConsolidadas.map((r) => (
+                                        <tr key={r.id}>
+                                            <td className="py-2.5 pr-4 font-bold text-slate-700">{r.profissionais?.nome || `#${r.profissional_id}`}</td>
+                                            <td className="py-2.5 pr-4 text-slate-600">{getGatilhoLabel(r.gatilho)}</td>
+                                            <td className="py-2.5 pr-4 text-slate-500 capitalize">{r.tipo?.replace('_', ' ')}</td>
+                                            <td className="py-2.5 font-black text-emerald-700">{formatValorComissao(r.tipo, Number(r.valor))}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {clinicaIdNumerica && comissaoLancamentos.length > 0 && (
+                <div className="bg-white border border-slate-100 rounded-2xl shadow-sm p-5">
+                    <h2 className="font-bold text-slate-800 flex items-center gap-2 mb-4"><DollarSign size={18} className="text-blue-600"/> Lançamentos de comissão (recentes)</h2>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm min-w-[520px]">
+                            <thead>
+                                <tr className="text-left text-[10px] uppercase font-black text-slate-400 border-b border-slate-100">
+                                    <th className="pb-2 pr-4">Profissional</th>
+                                    <th className="pb-2 pr-4">Descrição</th>
+                                    <th className="pb-2 pr-4">Base</th>
+                                    <th className="pb-2 pr-4">Comissão</th>
+                                    <th className="pb-2">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-50">
+                                {comissaoLancamentos.map((l) => (
+                                    <tr key={l.id}>
+                                        <td className="py-2.5 pr-4 font-bold text-slate-700">{l.profissionais?.nome || `#${l.profissional_id}`}</td>
+                                        <td className="py-2.5 pr-4 text-slate-600 text-xs">{l.descricao}</td>
+                                        <td className="py-2.5 pr-4 text-slate-500">R$ {Number(l.valor_base).toFixed(2)}</td>
+                                        <td className="py-2.5 pr-4 font-black text-blue-700">R$ {Number(l.valor_comissao).toFixed(2)}</td>
+                                        <td className="py-2.5"><span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-slate-100 text-slate-600">{l.status}</span></td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-[280px,1fr] gap-6">
                 <aside className="space-y-4">
@@ -830,15 +1072,15 @@ export default function EquipePage() {
                                 <AlertTriangle size={16}/>Selecione uma clínica específica para aplicar as alterações.
                             </div>
                         )}
-                        <Tabs value={abaEditor} onValueChange={(value) => setAbaEditor(value as 'permissoes' | 'horarios' | 'comissao')} className="flex-1 flex flex-col">
-                            <div className="px-6 pt-4">
+                        <Tabs value={abaEditor} onValueChange={(value) => setAbaEditor(value as 'permissoes' | 'horarios' | 'comissao')} className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                            <div className="px-6 pt-4 flex-none">
                                 <TabsList className="bg-slate-100 rounded-2xl p-1 w-full grid grid-cols-3">
                                     <TabsTrigger value="permissoes" className="touch-target text-xs font-bold">Permissões</TabsTrigger>
                                     <TabsTrigger value="horarios" className="touch-target text-xs font-bold">Horários</TabsTrigger>
                                     <TabsTrigger value="comissao" className="touch-target text-xs font-bold">Comissão</TabsTrigger>
                                 </TabsList>
                             </div>
-                            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                            <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-6 space-y-4">
                                 <TabsContent value="permissoes" className="m-0">{permissoesLoading && clinicaIdNumerica ? <div className="text-sm text-slate-500 flex items-center gap-2"><Loader2 size={16} className="animate-spin"/>Carregando permissões...</div> : renderPermissoesTab()}</TabsContent>
                                 <TabsContent value="horarios" className="m-0">{horarioLoading && clinicaIdNumerica ? <div className="text-sm text-slate-500 flex items-center gap-2"><Loader2 size={16} className="animate-spin"/>Carregando horários...</div> : renderHorariosTab()}</TabsContent>
                                 <TabsContent value="comissao" className="m-0">{renderComissoesTab()}</TabsContent>

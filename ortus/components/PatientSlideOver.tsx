@@ -4,6 +4,9 @@ import Link from 'next/link';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { AlertCircle, Calendar, CheckCircle, Clock, DollarSign, ExternalLink, Loader2, Phone, Smile, User, X } from 'lucide-react';
+import PatientContactButtons from '@/components/PatientContactButtons';
+import { buildDocumentoContexto } from '@/lib/documentVariables';
+import { receberAgendamento } from '@/lib/recebimentoAgendamento';
 
 type PatientSlideOverContextValue = {
   openPatient: (patientId: string | number | null | undefined) => void;
@@ -17,10 +20,12 @@ type Appointment = {
   status?: string | null;
   valor?: number | string | null;
   valor_final?: number | string | null;
+  profissional_id?: string | number | null;
 };
 
 type PatientData = {
   id: string | number;
+  clinica_id?: string | number | null;
   nome?: string | null;
   telefone?: string | null;
   email?: string | null;
@@ -89,7 +94,7 @@ export function PatientSlideOverProvider({ children }: { children: React.ReactNo
 
     const { data, error } = await supabase
       .from('pacientes')
-      .select('*, clinicas(nome), agendamentos(id, data_hora, procedimento, status, valor, valor_final)')
+      .select('*, clinicas(nome), agendamentos(id, data_hora, procedimento, status, valor, valor_final, profissional_id)')
       .eq('id', patientId)
       .single();
 
@@ -156,20 +161,32 @@ export function PatientSlideOverProvider({ children }: { children: React.ReactNo
   const prosthesisItems = kanbanProstheses.length ? kanbanProstheses : getProsthesisItems(patient);
 
   async function receiveOpenBalance() {
-    if (!debtAppointments.length) return;
+    if (!debtAppointments.length || !patient) return;
+    if (!patient.clinica_id) {
+      alert('Paciente sem clínica vinculada.');
+      return;
+    }
     setReceiving(true);
-    const ids = debtAppointments.map((item) => item.id);
-    const { error } = await supabase.from('agendamentos').update({ status: 'concluido' }).in('id', ids);
-
-    if (!error) {
+    try {
+      for (const item of debtAppointments) {
+        await receberAgendamento({
+          id: item.id,
+          clinica_id: patient.clinica_id,
+          profissional_id: item.profissional_id,
+          paciente_id: String(patient.id),
+          procedimento: item.procedimento ?? undefined,
+          valor_final: item.valor_final ?? item.valor,
+        });
+      }
       setPatient((current) => current ? {
         ...current,
-        agendamentos: (current.agendamentos || []).map((item) => ids.includes(item.id) ? { ...item, status: 'concluido' } : item),
+        agendamentos: (current.agendamentos || []).map((item) =>
+          debtAppointments.some((d) => d.id === item.id) ? { ...item, status: 'concluido' } : item,
+        ),
       } : current);
-    } else {
-      alert('Não foi possível receber: ' + error.message);
+    } catch (e: any) {
+      alert('Não foi possível receber: ' + (e.message || e));
     }
-
     setReceiving(false);
   }
 
@@ -192,9 +209,24 @@ export function PatientSlideOverProvider({ children }: { children: React.ReactNo
                     <p className="text-xs font-bold text-slate-400 truncate">{getClinicName(patient)}</p>
                   </div>
                 </div>
-                <button onClick={closePatient} className="p-2 rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors">
-                  <X size={20} />
-                </button>
+                <div className="flex items-center gap-2 shrink-0">
+                  {patient && (
+                    <PatientContactButtons
+                      variant="icons"
+                      telefone={patient.telefone}
+                      email={patient.email}
+                      clinicaId={patient.clinica_id}
+                      evento="pos_consulta"
+                      contexto={buildDocumentoContexto({
+                        paciente_nome: patient.nome?.split(' ')[0],
+                        clinica_nome: getClinicName(patient),
+                      })}
+                    />
+                  )}
+                  <button onClick={closePatient} className="p-2 rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors">
+                    <X size={20} />
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -223,10 +255,22 @@ export function PatientSlideOverProvider({ children }: { children: React.ReactNo
                       <h3 className="text-sm font-black text-slate-800">Resumo rápido</h3>
                       <span className="text-[10px] font-black uppercase text-slate-400 bg-slate-50 px-2 py-1 rounded-lg">Contextual</span>
                     </div>
-                    <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div className="grid grid-cols-1 gap-3 text-sm">
                       <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100">
-                        <p className="text-[10px] font-black uppercase text-slate-400">WhatsApp</p>
-                        <p className="font-bold text-slate-700 truncate flex items-center gap-1.5 mt-1"><Phone size={13} />{patient.telefone || 'Não informado'}</p>
+                        <p className="text-[10px] font-black uppercase text-slate-400 mb-2">Contato</p>
+                        <p className="font-bold text-slate-700 truncate flex items-center gap-1.5 mb-2"><Phone size={13} />{patient.telefone || 'Sem telefone'}</p>
+                        <p className="font-bold text-slate-700 truncate text-xs mb-2">{patient.email || 'Sem e-mail'}</p>
+                        <PatientContactButtons
+                          variant="row"
+                          telefone={patient.telefone}
+                          email={patient.email}
+                          clinicaId={patient.clinica_id}
+                          evento="pos_consulta"
+                          contexto={buildDocumentoContexto({
+                            paciente_nome: patient.nome?.split(' ')[0],
+                            clinica_nome: getClinicName(patient),
+                          })}
+                        />
                       </div>
                       <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100">
                         <p className="text-[10px] font-black uppercase text-slate-400">Cadastro</p>
