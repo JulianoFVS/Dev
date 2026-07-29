@@ -1,5 +1,5 @@
 'use client';
-import { useState, type FormEvent } from 'react';
+import { useState, useEffect, type FormEvent } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import { Lock, Mail, Loader2, ShieldCheck, ArrowLeft, Eye, EyeOff } from 'lucide-react';
@@ -13,6 +13,21 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const hash = window.location.hash || '';
+    const params = new URLSearchParams(hash.replace(/^#/, ''));
+    const authError = params.get('error_description') || params.get('error');
+    if (authError) {
+      setError(
+        decodeURIComponent(authError.replace(/\+/g, ' ')) === 'Email link is invalid or has expired'
+          ? 'Link de e-mail expirado ou inválido. Use e-mail e senha abaixo — não clique em links antigos do Supabase.'
+          : decodeURIComponent(authError.replace(/\+/g, ' ')),
+      );
+      window.history.replaceState(null, '', window.location.pathname);
+    }
+  }, []);
 
   async function handleLogin(e: FormEvent) {
     e.preventDefault();

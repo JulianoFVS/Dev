@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import QuickTratamentoModal, { type TratamentoCriado } from '@/components/modals/QuickTratamentoModal';
 import { Building2, Calendar, Clock, DollarSign, ExternalLink, Loader2, Plus, Save, User } from 'lucide-react';
 import { fetchUserClinicas } from '@/lib/clinicScoped';
 import CustomSelect from '@/components/ui/CustomSelect';
@@ -32,9 +32,9 @@ type AppointmentFormProps = {
 };
 
 export default function AppointmentForm({ paciente, defaultDate, defaultTime, onSuccess, onCancel }: AppointmentFormProps) {
-  const router = useRouter();
   const [tratamentosBase, setTratamentosBase] = useState<TratamentoBase[]>([]);
   const [tratamentoSelecionadoId, setTratamentoSelecionadoId] = useState('');
+  const [tratamentoModal, setTratamentoModal] = useState<'quick' | 'full' | null>(null);
   const [clinicas, setClinicas] = useState<Clinica[]>([]);
   const [profissionais, setProfissionais] = useState<Profissional[]>([]);
   const [usuarioNivel, setUsuarioNivel] = useState<'admin' | 'user'>('admin');
@@ -89,24 +89,24 @@ export default function AppointmentForm({ paciente, defaultDate, defaultTime, on
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const carregarTratamentosBase = useCallback(async (clinicaId: string) => {
+    const { data } = await supabase
+      .from('tratamentos_base')
+      .select('id, nome, valor_sugerido')
+      .eq('clinica_id', clinicaId)
+      .eq('ativo', true)
+      .order('nome');
+    setTratamentosBase(data || []);
+  }, []);
+
   useEffect(() => {
-    let mounted = true;
-    (async () => {
-      if (!form.clinica_id) {
-        setTratamentosBase([]);
-        setTratamentoSelecionadoId('');
-        return;
-      }
-      const { data } = await supabase
-        .from('tratamentos_base')
-        .select('id, nome, valor_sugerido')
-        .eq('clinica_id', form.clinica_id)
-        .eq('ativo', true)
-        .order('nome');
-      if (mounted) setTratamentosBase(data || []);
-    })();
-    return () => { mounted = false; };
-  }, [form.clinica_id]);
+    if (!form.clinica_id) {
+      setTratamentosBase([]);
+      setTratamentoSelecionadoId('');
+      return;
+    }
+    carregarTratamentosBase(form.clinica_id);
+  }, [form.clinica_id, carregarTratamentosBase]);
 
   const profissionaisFiltrados = useMemo(() => {
     if (!form.clinica_id) return [] as Profissional[];
@@ -116,6 +116,23 @@ export default function AppointmentForm({ paciente, defaultDate, defaultTime, on
   function pickTratamento(trat: TratamentoBase) {
     setTratamentoSelecionadoId(String(trat.id));
     setForm((current) => ({ ...current, procedimento: trat.nome, valor: String(trat.valor_sugerido ?? current.valor) }));
+  }
+
+  function abrirModalTratamento(variant: 'quick' | 'full') {
+    if (!form.clinica_id) {
+      setError('Selecione a clínica antes de cadastrar um procedimento.');
+      return;
+    }
+    setError(null);
+    setTratamentoModal(variant);
+  }
+
+  function handleTratamentoCriado(t: TratamentoCriado) {
+    setTratamentosBase((prev) => {
+      if (prev.some((x) => String(x.id) === String(t.id))) return prev;
+      return [...prev, t].sort((a, b) => a.nome.localeCompare(b.nome));
+    });
+    pickTratamento(t);
   }
 
   async function submit() {
@@ -188,10 +205,10 @@ export default function AppointmentForm({ paciente, defaultDate, defaultTime, on
           <div className="flex items-center justify-between mb-1.5">
             <label className="text-[11px] font-black uppercase tracking-wider text-slate-500">Procedimento <span className="text-rose-500">*</span></label>
             <div className="flex items-center gap-2">
-              <button type="button" onClick={() => router.push('/ajustes/tratamentos')} className="text-[10px] font-bold text-purple-600 hover:underline flex items-center gap-1 uppercase">
+              <button type="button" onClick={() => abrirModalTratamento('quick')} className="text-[10px] font-bold text-purple-600 hover:underline flex items-center gap-1 uppercase">
                 <Plus size={12}/> Novo serviço
               </button>
-              <button type="button" onClick={() => router.push('/ajustes/tratamentos')} className="text-[10px] font-bold text-slate-500 hover:underline flex items-center gap-1 uppercase">
+              <button type="button" onClick={() => abrirModalTratamento('full')} className="text-[10px] font-bold text-slate-500 hover:underline flex items-center gap-1 uppercase">
                 <ExternalLink size={12}/> Tratamento Base
               </button>
             </div>
@@ -259,6 +276,14 @@ export default function AppointmentForm({ paciente, defaultDate, defaultTime, on
           {saving ? <Loader2 className="animate-spin" size={16} /> : <><Save size={16} /> Agendar</>}
         </button>
       </div>
+
+      <QuickTratamentoModal
+        open={tratamentoModal !== null}
+        variant={tratamentoModal ?? 'quick'}
+        clinicaId={form.clinica_id || null}
+        onClose={() => setTratamentoModal(null)}
+        onCreated={handleTratamentoCriado}
+      />
     </div>
   );
 }

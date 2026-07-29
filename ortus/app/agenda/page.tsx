@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
@@ -23,6 +23,7 @@ import CustomSelect from '@/components/ui/CustomSelect';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
 import { validarAgendamentoCompleto } from '@/lib/horarioProfissional';
 import PatientContactButtons from '@/components/PatientContactButtons';
+import QuickTratamentoModal, { type TratamentoCriado } from '@/components/modals/QuickTratamentoModal';
 import {
   buscarAgendamentosLembrete24h,
   filtrarPendentesLembrete,
@@ -43,7 +44,6 @@ const TEMA_CORES: Record<string, { grad: string; accent: string; text: string; s
 
 export default function Agenda() {
   const calendarRef = useRef(null);
-  const router = useRouter();
   const searchParams = useSearchParams();
   const pacientePreSelecionado = searchParams?.get('paciente');
   const { openPatient } = usePatientSlideOver();
@@ -59,6 +59,7 @@ export default function Agenda() {
   const [pacientes, setPacientes] = useState<any[]>([]);
   const [tratamentosBase, setTratamentosBase] = useState<any[]>([]);
   const [tratamentoSelecionadoId, setTratamentoSelecionadoId] = useState('');
+  const [tratamentoModal, setTratamentoModal] = useState<'quick' | 'full' | null>(null);
   
   const [clinicaFiltro, setClinicaFiltro] = useState('todas');
   const [clinicaGlobal, setClinicaGlobal] = useState<string | null>(null);
@@ -324,6 +325,24 @@ export default function Agenda() {
   function abrirCadastroPaciente() {
       const clinicaId = formData.clinica_id || (clinicaFiltro !== 'todas' ? clinicaFiltro : null);
       openQuickCapture(clinicaId);
+  }
+
+  async function abrirModalTratamento(variant: 'quick' | 'full') {
+      const clinicaId = formData.clinica_id || (clinicaFiltro !== 'todas' ? clinicaFiltro : null);
+      if (!clinicaId) {
+          await showAlert('Selecione a clínica antes de cadastrar um procedimento.', { type: 'warning' });
+          return;
+      }
+      setTratamentoModal(variant);
+  }
+
+  function handleTratamentoCriado(t: TratamentoCriado) {
+      setTratamentosBase((prev) => {
+          if (prev.some((x) => String(x.id) === String(t.id))) return prev;
+          return [...prev, t].sort((a, b) => a.nome.localeCompare(b.nome));
+      });
+      setTratamentoSelecionadoId(String(t.id));
+      setFormData((p) => ({ ...p, title: t.nome, valor: String(t.valor_sugerido ?? 0) }));
   }
 
   const renderEventContent = (eventInfo:any) => {
@@ -635,8 +654,8 @@ export default function Agenda() {
                           <div className="flex justify-between items-center mb-1">
                               <label className="text-xs font-bold text-slate-500 uppercase">Procedimento</label>
                               <div className="flex items-center gap-2">
-                                  <button type="button" onClick={() => router.push('/ajustes/tratamentos')} className="text-[10px] font-bold text-purple-600 hover:underline flex items-center gap-1 uppercase"><PlusCircle size={12}/> Novo serviço</button>
-                                  <button type="button" onClick={() => router.push('/ajustes/tratamentos')} className="text-[10px] font-bold text-slate-500 hover:underline flex items-center gap-1 uppercase"><ExternalLink size={12}/> Tratamento Base</button>
+                                  <button type="button" onClick={() => abrirModalTratamento('quick')} className="text-[10px] font-bold text-purple-600 hover:underline flex items-center gap-1 uppercase"><PlusCircle size={12}/> Novo serviço</button>
+                                  <button type="button" onClick={() => abrirModalTratamento('full')} className="text-[10px] font-bold text-slate-500 hover:underline flex items-center gap-1 uppercase"><ExternalLink size={12}/> Tratamento Base</button>
                               </div>
                           </div>
                           <CustomSelect
@@ -715,6 +734,14 @@ export default function Agenda() {
               </div>
           </div> 
       )}
+
+      <QuickTratamentoModal
+          open={tratamentoModal !== null}
+          variant={tratamentoModal ?? 'quick'}
+          clinicaId={formData.clinica_id || (clinicaFiltro !== 'todas' ? clinicaFiltro : null)}
+          onClose={() => setTratamentoModal(null)}
+          onCreated={handleTratamentoCriado}
+      />
     </div>
   );
 }
