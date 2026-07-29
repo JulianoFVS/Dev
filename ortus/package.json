@@ -9,7 +9,10 @@
     "lint": "eslint",
     "db:audit": "node scripts/audit-db.mjs",
     "db:migrate": "node scripts/apply-migration.mjs",
-    "db:types": "node scripts/gen-types.mjs"
+    "db:types": "node scripts/gen-types.mjs",
+    "db:inventory": "node scripts/inventory-db.mjs",
+    "db:clean": "node scripts/clean-db.mjs",
+    "icons:generate": "node scripts/generate-square-icon.mjs"
   },
   "dependencies": {
     "@fullcalendar/core": "^6.1.20",

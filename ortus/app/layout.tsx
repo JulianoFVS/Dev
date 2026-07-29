@@ -11,6 +11,15 @@ const inter = Inter({ subsets: ['latin'] });
 export const metadata: Metadata = {
   title: 'ORTUS - Sistema de Gestão Odontológica',
   description: 'Gestão completa para clínicas odontológicas. Agenda, prontuário e financeiro.',
+  icons: {
+    icon: [
+      { url: '/favicon-32.png', type: 'image/png', sizes: '32x32' },
+      { url: '/favicon.png', type: 'image/png', sizes: '512x512' },
+      { url: '/icon-square.png', type: 'image/png', sizes: '512x512' },
+    ],
+    apple: '/apple-icon.png',
+    shortcut: '/favicon.png',
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
