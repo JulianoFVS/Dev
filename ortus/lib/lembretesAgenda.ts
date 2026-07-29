@@ -1,7 +1,8 @@
 import { supabase } from '@/lib/supabase';
 import { carregarConfig, salvarConfig } from '@/lib/configClinica';
-import { montarMensagemEvento } from '@/lib/comunicacao';
+import { CONFIG_KEYS } from '@/lib/configKeys';
 import { buildDocumentoContexto } from '@/lib/documentVariables';
+import { montarMensagemEvento } from '@/lib/comunicacao';
 
 export type LembreteAgendamento = {
   id: number | string;
@@ -14,17 +15,51 @@ export type LembreteAgendamento = {
   clinica_nome?: string;
 };
 
-type LembretesEnviados = Record<string, string>;
+type LembretesEnviadosLegado = Record<string, string>;
 
-export async function carregarLembretesEnviados(clinicaId: string | number): Promise<LembretesEnviados> {
-  return carregarConfig<LembretesEnviados>(clinicaId, 'lembretes_enviados', 'ortus_lembretes_enviados', {});
+export async function lembreteJaEnviado(clinicaId: string | number, agendamentoId: string | number): Promise<boolean> {
+  const { count } = await supabase
+    .from('lembretes_agenda')
+    .select('id', { count: 'exact', head: true })
+    .eq('clinica_id', Number(clinicaId))
+    .eq('agendamento_id', Number(agendamentoId));
+
+  if ((count ?? 0) > 0) return true;
+
+  const legado = await carregarConfig<LembretesEnviadosLegado>(
+    clinicaId,
+    CONFIG_KEYS.lembretes_enviados,
+    'ortus_lembretes_enviados',
+    {},
+  );
+  return !!legado[String(agendamentoId)];
 }
 
-export async function marcarLembreteEnviado(clinicaId: string | number, agendamentoId: string | number) {
-  const atual = await carregarLembretesEnviados(clinicaId);
-  const novos = { ...atual, [String(agendamentoId)]: new Date().toISOString() };
-  await salvarConfig(clinicaId, 'lembretes_enviados', novos);
-  return novos;
+export async function marcarLembreteEnviado(
+  clinicaId: string | number,
+  agendamentoId: string | number,
+  canal: 'whatsapp' | 'email' | 'sms' | 'manual' = 'manual',
+) {
+  await supabase.from('lembretes_agenda').upsert(
+    {
+      clinica_id: Number(clinicaId),
+      agendamento_id: Number(agendamentoId),
+      canal,
+      enviado_em: new Date().toISOString(),
+    },
+    { onConflict: 'agendamento_id,canal' },
+  );
+
+  const legado = await carregarConfig<LembretesEnviadosLegado>(
+    clinicaId,
+    CONFIG_KEYS.lembretes_enviados,
+    'ortus_lembretes_enviados',
+    {},
+  );
+  await salvarConfig(clinicaId, CONFIG_KEYS.lembretes_enviados, {
+    ...legado,
+    [String(agendamentoId)]: new Date().toISOString(),
+  });
 }
 
 export async function buscarAgendamentosLembrete24h(clinicaIds: (number | string)[]): Promise<LembreteAgendamento[]> {
@@ -91,7 +126,10 @@ export function urlWhatsappLembrete(telefone: string | null | undefined, mensage
 }
 
 export async function filtrarPendentesLembrete(clinicaId: string | number, agendamentos: LembreteAgendamento[]) {
-  const enviados = await carregarLembretesEnviados(clinicaId);
-  return agendamentos.filter((a) => String(a.clinica_id) === String(clinicaId) && !enviados[String(a.id)]);
+  const pendentes: LembreteAgendamento[] = [];
+  for (const a of agendamentos.filter((x) => String(x.clinica_id) === String(clinicaId))) {
+    if (!(await lembreteJaEnviado(clinicaId, a.id))) pendentes.push(a);
+  }
+  return pendentes;
 }
 

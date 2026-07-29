@@ -19,6 +19,12 @@ import PatientContactButtons from '@/components/PatientContactButtons';
 import { carregarTaxasAtivas, receberAgendamento } from '@/lib/recebimentoAgendamento';
 import { calcularValorLiquido, type TaxaMaquininha } from '@/lib/configDefaults';
 import { registrarComissaoTratamentoFinalizado } from '@/lib/comissao';
+import { carregarProntuario } from '@/lib/fichaPaciente';
+import { criarAnamnese, excluirAnamnese as excluirAnamneseDb } from '@/lib/db/anamneses';
+import { criarDocumento, excluirDocumento as excluirDocumentoDb } from '@/lib/db/documentos';
+import { salvarFichaClinica } from '@/lib/db/fichaClinica';
+import { atualizarTratamento, criarTratamento, excluirTratamento as excluirTratamentoDb } from '@/lib/db/tratamentos';
+import type { TratamentoPaciente } from '@/lib/db/types';
 
 // =============== ODONTOGRAMA - Padrão Codental (Vista Lateral + Oclusal) ===============
 type Face = 'V' | 'M' | 'D' | 'L' | 'O'; // Vestibular, Mesial, Distal, Lingual/Palatal, Oclusal/Incisal
@@ -397,16 +403,17 @@ export default function PacienteDetalhe() {
       const { data } = await supabase.from('pacientes').select('*').eq('id', id).single();
       if (data) {
           setForm(data);
-          const fm = data.ficha_medica || {};
+          const prontuario = await carregarProntuario(String(id));
+          const fm = { ...(data.ficha_medica || {}), ...prontuario.fichaClinica };
           setFicha(fm);
-          setOdontograma(fm.odontograma || {});
-          setTratamentos(fm.tratamentos || []);
-          setTextoOdontogramaLivre(fm.texto_livre || '');
-          setMarcacoesHof(fm.marcacoes_hof || []);
-          setHofFotos(fm.hof_fotos || []);
-          setAnamnesesAnteriores(fm.anamneses || []);
-          setDocumentos(fm.documentos || []);
-          setEvolucoes(fm.evolucoes || []);
+          setOdontograma((prontuario.fichaClinica.odontograma || {}) as Record<string, ToothState>);
+          setTratamentos(prontuario.tratamentos);
+          setTextoOdontogramaLivre(prontuario.fichaClinica.texto_livre || '');
+          setMarcacoesHof((prontuario.fichaClinica.marcacoes_hof || []) as HofMarcacao[]);
+          setHofFotos((prontuario.fichaClinica.hof_fotos || []) as HofFoto[]);
+          setAnamnesesAnteriores(prontuario.anamneses);
+          setDocumentos(prontuario.documentos);
+          setEvolucoes(prontuario.evolucoes);
           
           // Carregar planos da clínica do paciente
           if (data.clinica_id) {
@@ -430,11 +437,11 @@ export default function PacienteDetalhe() {
   async function salvarTudo() {
       const erro = validarPaciente(form);
       if (erro) { await showAlert(erro, { type: 'warning' }); return; }
-      const fichaMerged = { ...ficha, odontograma, tratamentos, marcacoes_hof: marcacoesHof };
-      const payload = { ...form, plano_id: form.plano_id || null, ficha_medica: fichaMerged };
+      const fichaAtualizada = await salvarFichaClinica(String(id), { odontograma, marcacoes_hof: marcacoesHof }, ficha);
+      const payload = { ...form, plano_id: form.plano_id || null, ficha_medica: { ...ficha, ...fichaAtualizada } };
       const { error } = await supabase.from('pacientes').update(payload).eq('id', id);
       if (error) { await showAlert('Erro ao salvar: ' + error.message, { type: 'error' }); return; }
-      setFicha(fichaMerged);
+      setFicha({ ...ficha, ...fichaAtualizada });
       setModoEdicao(false);
       registrarAudit({ acao: 'editou', entidade: 'paciente', entidade_id: String(id) });
       showAlert('Dados salvos com sucesso!', { type: 'success' });
@@ -507,11 +514,13 @@ export default function PacienteDetalhe() {
 
   async function salvarOdontograma() {
       setSavingOdo(true);
-      const fichaMerged = { ...ficha, odontograma, tratamentos, texto_livre: textoOdontogramaLivre, marcacoes_hof: marcacoesHof };
-      const { error } = await supabase.from('pacientes').update({ ficha_medica: fichaMerged }).eq('id', id);
-      setFicha(fichaMerged);
+      try {
+          const fichaAtualizada = await salvarFichaClinica(String(id), { odontograma, texto_livre: textoOdontogramaLivre, marcacoes_hof: marcacoesHof }, ficha);
+          setFicha({ ...ficha, ...fichaAtualizada });
+      } catch (error: any) {
+          showAlert('Erro ao salvar: ' + error.message, { type: 'error' });
+      }
       setSavingOdo(false);
-      if (error) showAlert('Erro ao salvar: ' + error.message, { type: 'error' });
   }
 
   function updateOdontogramaZoom(value: number) {
@@ -569,17 +578,28 @@ export default function PacienteDetalhe() {
       setSalvandoTrat(true);
       try {
           const { agendarNaAgenda, horaAgendamento, ...tratSemAgenda } = tratEdit;
-          let novaLista;
+          let salvo: TratamentoPaciente;
           if (tratSemAgenda.id) {
-              novaLista = tratamentos.map(t => t.id === tratSemAgenda.id ? tratSemAgenda : t);
+              salvo = await atualizarTratamento(String(tratSemAgenda.id), {
+                  procedimento: tratSemAgenda.procedimento,
+                  dente: tratSemAgenda.dente || null,
+                  valor: parseFloat(tratSemAgenda.valor) || 0,
+                  status: tratSemAgenda.status,
+                  data: tratSemAgenda.data || null,
+                  observacoes: tratSemAgenda.observacoes || null,
+              });
+              setTratamentos(tratamentos.map(t => t.id === salvo.id ? salvo : t));
           } else {
-              novaLista = [...tratamentos, { ...tratSemAgenda, id: Date.now().toString(), criado_em: new Date().toISOString() }];
+              salvo = await criarTratamento(String(id), form.clinica_id, {
+                  procedimento: tratSemAgenda.procedimento,
+                  dente: tratSemAgenda.dente || null,
+                  valor: parseFloat(tratSemAgenda.valor) || 0,
+                  status: tratSemAgenda.status,
+                  data: tratSemAgenda.data || null,
+                  observacoes: tratSemAgenda.observacoes || null,
+              });
+              setTratamentos([...tratamentos, salvo]);
           }
-          const fichaMerged = { ...ficha, odontograma, tratamentos: novaLista };
-          const { error } = await supabase.from('pacientes').update({ ficha_medica: fichaMerged }).eq('id', id);
-          if (error) { await showAlert('Erro: ' + error.message, { type: 'error' }); return; }
-          setTratamentos(novaLista);
-          setFicha(fichaMerged);
 
           if (tratSemAgenda.status === 'concluido' && form.clinica_id) {
               const { data: { user } } = await supabase.auth.getUser();
@@ -639,11 +659,12 @@ export default function PacienteDetalhe() {
 
   async function excluirTratamento(tid: string) {
       if (!(await showConfirm('Excluir este tratamento?', { title: 'Excluir', type: 'error', confirmLabel: 'Excluir' }))) return;
-      const novaLista = tratamentos.filter(t => t.id !== tid);
-      setTratamentos(novaLista);
-      const fichaMerged = { ...ficha, odontograma, tratamentos: novaLista };
-      await supabase.from('pacientes').update({ ficha_medica: fichaMerged }).eq('id', id);
-      setFicha(fichaMerged);
+      try {
+          await excluirTratamentoDb(tid);
+          setTratamentos(tratamentos.filter(t => t.id !== tid));
+      } catch (e: any) {
+          await showAlert('Erro ao excluir: ' + (e.message || e), { type: 'error' });
+      }
   }
 
   // ===== HOF helpers =====
@@ -701,18 +722,19 @@ export default function PacienteDetalhe() {
           const nova: HofFoto = { id: Date.now().toString(), sessao: hofSessaoAtiva, angulo, dataUrl: urlData.publicUrl, storagePath: caminhoArquivo, criado_em: new Date().toISOString() };
           const novasFotos = [...hofFotos, nova];
           setHofFotos(novasFotos);
-          const fichaMerged = { ...ficha, marcacoes_hof: marcacoesHof, hof_fotos: novasFotos };
-          const { error: updateErr } = await supabase.from('pacientes').update({ ficha_medica: fichaMerged }).eq('id', id);
-          if (updateErr) {
+          try {
+              const fichaAtualizada = await salvarFichaClinica(String(id), { marcacoes_hof: marcacoesHof, hof_fotos: novasFotos }, ficha);
+              setFicha({ ...ficha, ...fichaAtualizada });
+          } catch (updateErr: any) {
               console.error('[HOF Update] Erro Supabase:', updateErr);
-              if (updateErr.message?.includes('row-level security') || updateErr.message?.includes('security policy')) {
+              const msg = updateErr?.message || String(updateErr);
+              if (msg.includes('row-level security') || msg.includes('security policy')) {
                   showAlert('Erro de permissão: Verifique as políticas RLS da tabela de pacientes no Supabase.', { type: 'error', title: 'Permissão Negada' });
               } else {
-                  showAlert('Erro ao salvar foto no prontuário: ' + updateErr.message, { type: 'error' });
+                  showAlert('Erro ao salvar foto no prontuário: ' + msg, { type: 'error' });
               }
               setEnviandoFoto(null); return;
           }
-          setFicha(fichaMerged);
       } catch (err: any) {
           console.error('[HOF] Erro inesperado:', err);
           const msg = err?.message || String(err);
@@ -733,9 +755,12 @@ export default function PacienteDetalhe() {
       }
       const novasFotos = hofFotos.filter(f => f.id !== fid);
       setHofFotos(novasFotos);
-      const fichaMerged = { ...ficha, marcacoes_hof: marcacoesHof, hof_fotos: novasFotos };
-      await supabase.from('pacientes').update({ ficha_medica: fichaMerged }).eq('id', id);
-      setFicha(fichaMerged);
+      try {
+          const fichaAtualizada = await salvarFichaClinica(String(id), { marcacoes_hof: marcacoesHof, hof_fotos: novasFotos }, ficha);
+          setFicha({ ...ficha, ...fichaAtualizada });
+      } catch (e: any) {
+          showAlert('Erro ao excluir foto: ' + (e.message || e), { type: 'error' });
+      }
   }
 
   function calcularAlertasHof() {
@@ -760,12 +785,14 @@ export default function PacienteDetalhe() {
 
   async function salvarHof() {
       setSavingHof(true);
-      const fichaMerged = { ...ficha, marcacoes_hof: marcacoesHof, hof_fotos: hofFotos };
-      const { error } = await supabase.from('pacientes').update({ ficha_medica: fichaMerged }).eq('id', id);
-      setFicha(fichaMerged);
+      try {
+          const fichaAtualizada = await salvarFichaClinica(String(id), { marcacoes_hof: marcacoesHof, hof_fotos: hofFotos }, ficha);
+          setFicha({ ...ficha, ...fichaAtualizada });
+          showAlert('Mapa facial salvo com sucesso!', { type: 'success' });
+      } catch (error: any) {
+          showAlert('Erro ao salvar HOF: ' + error.message, { type: 'error' });
+      }
       setSavingHof(false);
-      if (error) showAlert('Erro ao salvar HOF: ' + error.message, { type: 'error' });
-      else showAlert('Mapa facial salvo com sucesso!', { type: 'success' });
   }
 
   // ===== HOF Protocol Templates =====
@@ -1174,21 +1201,20 @@ export default function PacienteDetalhe() {
       const modelo = modelosAnamnese.find(m => m.id === anamneseAtual.modelo_id);
       if (!modelo) { await showAlert('Modelo não encontrado.', { type: 'error' }); return; }
       const nova = {
-          id: Date.now().toString(),
           modelo_id: anamneseAtual.modelo_id,
           modelo_nome: modelo.nome,
           data: anamneseAtual.data,
           preenchido_por: anamneseAtual.preenchido_por,
           respostas: anamneseAtual.respostas,
           perguntas_snapshot: modelo.perguntas,
-          criado_em: new Date().toISOString(),
       };
-      const novaLista = [...anamnesesAnteriores, nova];
-      const fichaMerged = { ...ficha, odontograma, tratamentos, anamneses: novaLista };
-      const { error } = await supabase.from('pacientes').update({ ficha_medica: fichaMerged }).eq('id', id);
-      if (error) { await showAlert('Erro: ' + error.message, { type: 'error' }); return; }
-      setAnamnesesAnteriores(novaLista);
-      setFicha(fichaMerged);
+      try {
+          const salva = await criarAnamnese(String(id), nova);
+          setAnamnesesAnteriores([...anamnesesAnteriores, salva]);
+      } catch (error: any) {
+          await showAlert('Erro: ' + error.message, { type: 'error' });
+          return;
+      }
       setAnamneseAtual({ modelo_id: '', data: new Date().toISOString().split('T')[0], preenchido_por: 'profissional', respostas: {} });
       showAlert('Anamnese salva com sucesso!', { type: 'success' });
   }
@@ -1240,11 +1266,12 @@ export default function PacienteDetalhe() {
 
   async function excluirAnamnese(aid: string) {
       if (!(await showConfirm('Excluir esta anamnese?', { title: 'Excluir', type: 'error', confirmLabel: 'Excluir' }))) return;
-      const novaLista = anamnesesAnteriores.filter(a => a.id !== aid);
-      const fichaMerged = { ...ficha, odontograma, tratamentos, anamneses: novaLista };
-      await supabase.from('pacientes').update({ ficha_medica: fichaMerged }).eq('id', id);
-      setAnamnesesAnteriores(novaLista);
-      setFicha(fichaMerged);
+      try {
+          await excluirAnamneseDb(aid);
+          setAnamnesesAnteriores(anamnesesAnteriores.filter(a => a.id !== aid));
+      } catch (e: any) {
+          await showAlert('Erro ao excluir: ' + (e.message || e), { type: 'error' });
+      }
   }
 
   // ===== DOCUMENTOS helpers =====
@@ -1273,13 +1300,13 @@ export default function PacienteDetalhe() {
           if (uploadErr) { showAlert('Erro ao enviar: ' + uploadErr.message, { type: 'error' }); setUploadingDoc(false); e.target.value = ''; return; }
 
           const { data: urlData } = supabase.storage.from('arquivos_ortus').getPublicUrl(caminhoArquivo);
-          const novo = { id: timestamp.toString(), nome: file.name, tipo: file.type, isImg, dataUrl: urlData.publicUrl, storagePath: caminhoArquivo, tamanho: blob.size, criado_em: new Date().toISOString() };
-          const novaLista = [...documentos, novo];
-          const fichaMerged = { ...ficha, odontograma, tratamentos, documentos: novaLista };
-          const { error } = await supabase.from('pacientes').update({ ficha_medica: fichaMerged }).eq('id', id);
-          if (error) { showAlert('Erro: ' + error.message, { type: 'error' }); setUploadingDoc(false); e.target.value = ''; return; }
-          setDocumentos(novaLista);
-          setFicha(fichaMerged);
+          const salvo = await criarDocumento(String(id), {
+              nome: file.name,
+              tipo: file.type,
+              storage_path: caminhoArquivo,
+              meta: { isImg, dataUrl: urlData.publicUrl, tamanho: blob.size },
+          });
+          setDocumentos([...documentos, salvo]);
       } catch (err: any) {
           showAlert('Erro ao processar arquivo: ' + (err?.message || err), { type: 'error' });
       }
@@ -1290,14 +1317,14 @@ export default function PacienteDetalhe() {
   async function excluirDocumento(did: string) {
       if (!(await showConfirm('Excluir este documento?', { title: 'Excluir', type: 'error', confirmLabel: 'Excluir' }))) return;
       const doc = documentos.find(d => d.id === did);
-      if (doc?.storagePath) {
-          await supabase.storage.from('arquivos_ortus').remove([doc.storagePath]);
+      try {
+          const { storage_path } = await excluirDocumentoDb(did);
+          const path = storage_path || doc?.storagePath;
+          if (path) await supabase.storage.from('arquivos_ortus').remove([path]);
+          setDocumentos(documentos.filter(d => d.id !== did));
+      } catch (e: any) {
+          await showAlert('Erro ao excluir: ' + (e.message || e), { type: 'error' });
       }
-      const novaLista = documentos.filter(d => d.id !== did);
-      const fichaMerged = { ...ficha, odontograma, tratamentos, documentos: novaLista };
-      await supabase.from('pacientes').update({ ficha_medica: fichaMerged }).eq('id', id);
-      setDocumentos(novaLista);
-      setFicha(fichaMerged);
   }
 
   function baixarDocumento(d: any) {

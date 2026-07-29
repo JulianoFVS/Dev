@@ -68,7 +68,7 @@ export default function Pacientes() {
     // 2. Carregar Pacientes restritos às clínicas do usuário
     let pacientesQuery = supabase
         .from('pacientes')
-        .select('*, agendamentos(data_hora, status), clinicas(nome), planos(nome, tipo)')
+        .select('*, agendamentos(data_hora, status), clinicas(nome), planos(nome, tipo), paciente_tratamentos(procedimento, status), paciente_anamneses(id), paciente_documentos(id)')
         .order('created_at', { ascending: false });
     if (idsPermitidos.length > 0) {
         // Inclui pacientes da clinica OU sem clinica vinculada (null)
@@ -119,6 +119,9 @@ export default function Pacientes() {
           const fm = p.ficha_medica || {};
           const condicoes = ['Diabetes','Hipertensão','Cardiopatia','Asma/Bronquite','Alergia Antibiótico','Alergia Anestésico','Gestante','Fumante','Uso de Anticoagulante']
               .filter(k => fm[k]).join('; ');
+          const totalAnamneses = (p.paciente_anamneses || []).length || (fm.anamneses || []).length;
+          const totalTratamentos = (p.paciente_tratamentos || []).length || (fm.tratamentos || []).length;
+          const totalDocumentos = (p.paciente_documentos || []).length || (fm.documentos || []).length;
           return [
               p.id, p.nome, p.cpf, p.rg, p.telefone, p.email, p.data_nascimento,
               p.sexo, p.endereco, p.nome_clinica, p.status,
@@ -126,9 +129,9 @@ export default function Pacientes() {
               condicoes,
               fm.medicamentos || '',
               p.anamnese || '',
-              (fm.anamneses || []).length,
-              (fm.tratamentos || []).length,
-              (fm.documentos || []).length,
+              totalAnamneses,
+              totalTratamentos,
+              totalDocumentos,
               (p.agendamentos || []).filter((a: any) => a.status === 'fiado').length,
           ].map(escapeCSV).join(',');
       });
@@ -173,7 +176,7 @@ export default function Pacientes() {
 
       // Procedimento pendente
       if (filtroProcedimento) {
-          const trts = (p.ficha_medica?.tratamentos || []);
+          const trts = p.paciente_tratamentos || p.ficha_medica?.tratamentos || [];
           const match = trts.some((t: any) => t.procedimento?.toLowerCase().includes(filtroProcedimento.toLowerCase()) && t.status !== 'concluido');
           if (!match) return false;
       }

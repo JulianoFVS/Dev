@@ -1,4 +1,7 @@
-// Helper para gerenciar Modelos de Anamnese (persistencia em localStorage)
+// Helper para gerenciar Modelos de Anamnese (Supabase + fallback localStorage)
+
+import { carregarConfig, salvarConfig } from '@/lib/configClinica';
+import { CONFIG_KEYS } from '@/lib/configKeys';
 
 export type TipoPergunta = "texto" | "sim_nao" | "sim_nao_texto" | "multipla";
 
@@ -91,7 +94,7 @@ export const MODELOS_PADRAO: ModeloAnamnese[] = [
   }
 ];
 
-export function carregarModelos(): ModeloAnamnese[] {
+function carregarModelosLocal(): ModeloAnamnese[] {
   if (typeof window === "undefined") return MODELOS_PADRAO;
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
@@ -104,9 +107,33 @@ export function carregarModelos(): ModeloAnamnese[] {
   return MODELOS_PADRAO;
 }
 
+/** @deprecated use carregarModelosAsync */
+export function carregarModelos(): ModeloAnamnese[] {
+  return carregarModelosLocal();
+}
+
+export async function carregarModelosAsync(clinicaId?: string | number | null): Promise<ModeloAnamnese[]> {
+  if (clinicaId) {
+    const remoto = await carregarConfig<ModeloAnamnese[]>(
+      clinicaId,
+      CONFIG_KEYS.anamnese_modelos,
+      STORAGE_KEY,
+      MODELOS_PADRAO,
+    );
+    if (Array.isArray(remoto) && remoto.length) return remoto;
+  }
+  return carregarModelosLocal();
+}
+
+/** @deprecated use salvarModelosAsync */
 export function salvarModelos(modelos: ModeloAnamnese[]) {
   if (typeof window === "undefined") return;
   localStorage.setItem(STORAGE_KEY, JSON.stringify(modelos));
+}
+
+export async function salvarModelosAsync(clinicaId: string | number, modelos: ModeloAnamnese[]) {
+  salvarModelos(modelos);
+  await salvarConfig(clinicaId, CONFIG_KEYS.anamnese_modelos, modelos);
 }
 
 export function novoIdModelo(): string {

@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { Building2, Users, Plus, Trash2, MapPin, Check, X, Loader2, Edit, UserPlus, Shield, User, FileText, Phone, Mail, Save, Lock, ClipboardList, HelpCircle, FileSignature, Tag, SlidersHorizontal, Database, Download, Upload, Bell, Palette, RotateCcw, AlertTriangle, Clock, DollarSign, Layers3, MessageCircle, CreditCard, Eye } from 'lucide-react';
 import PlanosEmbedded from '@/app/planos/page';
-import { carregarModelos, salvarModelos, novoIdModelo, novoIdPergunta, type ModeloAnamnese, type PerguntaAnamnese, type TipoPergunta } from '@/lib/anamnese';
+import { carregarModelos, carregarModelosAsync, salvarModelos, salvarModelosAsync, novoIdModelo, novoIdPergunta, type ModeloAnamnese, type PerguntaAnamnese, type TipoPergunta } from '@/lib/anamnese';
 import { listarBackups, criarBackupAgora, baixarBackupComoJson, excluirBackup as deletarBackupServer, restaurarBackup } from '@/lib/backup';
 import { fetchUserClinicas } from '@/lib/clinicScoped';
 import { carregarConfig, salvarConfig } from '@/lib/configClinica';
@@ -144,7 +144,15 @@ export default function Configuracoes() {
       carregarConfig(cid, 'modelos_documentos', 'ortus_modelos_documentos', DOCS_PADRAO).then(d => setDocs(d && d.length ? d : DOCS_PADRAO));
       carregarConfig(cid, 'templates_comunicacao', 'ortus_templates_comunicacao', TEMPLATES_COMUNICACAO_PADRAO).then(t => setTemplatesComunicacao(Array.isArray(t) && t.length ? t : TEMPLATES_COMUNICACAO_PADRAO));
       carregarConfig(cid, 'taxas_maquininha', 'ortus_taxas_maquininha', TAXAS_MAQUININHA_PADRAO).then(t => setTaxasMaquininha(Array.isArray(t) && t.length ? t : TAXAS_MAQUININHA_PADRAO));
+      carregarModelosAsync(cid).then(setModelos);
   }, [clinicas]);
+
+  async function persistirModelosAnamnese(novos: ModeloAnamnese[]) {
+      setModelos(novos);
+      const cid = clinicas[0]?.id;
+      if (cid) await salvarModelosAsync(cid, novos);
+      else salvarModelos(novos);
+  }
 
   async function recarregarBackups() {
       const list = await listarBackups(50);
@@ -384,7 +392,7 @@ export default function Configuracoes() {
       if (!modeloEdit) return;
       setModeloEdit({ ...modeloEdit, perguntas: modeloEdit.perguntas.filter((_, i) => i !== idx) });
   }
-  function salvarModelo() {
+  async function salvarModelo() {
       if (!modeloEdit) return;
       if (!modeloEdit.nome.trim()) { showAlert('Informe o nome do modelo.', { type: 'warning' }); return; }
       const perguntasValidas = modeloEdit.perguntas.filter(p => p.label.trim());
@@ -392,8 +400,7 @@ export default function Configuracoes() {
       const limpo = { ...modeloEdit, perguntas: perguntasValidas, padrao: false };
       const existe = modelos.findIndex(m => m.id === limpo.id);
       const novos = existe >= 0 ? modelos.map((m, i) => i === existe ? limpo : m) : [...modelos, limpo];
-      setModelos(novos);
-      salvarModelos(novos);
+      await persistirModelosAnamnese(novos);
       setModalModelo(false);
       setModeloEdit(null);
   }
@@ -402,10 +409,9 @@ export default function Configuracoes() {
       if (m?.padrao) { showAlert('Modelos padrão não podem ser excluídos.', { type: 'warning' }); return; }
       if (!(await showConfirm('Excluir este modelo?', { title: 'Excluir', type: 'error', confirmLabel: 'Excluir' }))) return;
       const novos = modelos.filter(x => x.id !== id);
-      setModelos(novos);
-      salvarModelos(novos);
+      await persistirModelosAnamnese(novos);
   }
-  function duplicarModelo(m: ModeloAnamnese) {
+  async function duplicarModelo(m: ModeloAnamnese) {
       const copia: ModeloAnamnese = {
           ...m,
           id: novoIdModelo(),
@@ -414,8 +420,7 @@ export default function Configuracoes() {
           perguntas: m.perguntas.map(p => ({ ...p, id: novoIdPergunta() })),
       };
       const novos = [...modelos, copia];
-      setModelos(novos);
-      salvarModelos(novos);
+      await persistirModelosAnamnese(novos);
   }
 
   // Buscar endereço ViaCEP para clínica

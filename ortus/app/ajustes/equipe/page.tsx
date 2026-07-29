@@ -15,6 +15,7 @@ import type { ComissaoRegra, ModuleName } from '@/lib/types/permissions';
 import { MODULES, buildModuleAccessMap } from '@/lib/modules';
 import { PERMISSION_PRESETS, buildPresetAccessMap, type PermissionPresetId } from '@/lib/permissionPresets';
 import { carregarConfig, salvarConfig } from '@/lib/configClinica';
+import { carregarHorarioProfissional, salvarHorarioProfissional, type HorarioAtendimento, type HorarioDia } from '@/lib/horarioProfissional';
 
 type Profissional = {
     id: number | string;
@@ -30,18 +31,9 @@ const CARGOS = [
     'Dentista', 'Auxiliar', 'Recepcionista', 'Protético', 'Gestor', 'Outro',
 ];
 
-type HorarioDia = 'seg' | 'ter' | 'qua' | 'qui' | 'sex' | 'sab' | 'dom';
+type HorarioAtendimentoLocal = HorarioAtendimento;
 
-type HorarioAtendimento = {
-    inicio: string;
-    fim: string;
-    intervalo: number;
-    limiteSimultaneo: number;
-    dias: Record<HorarioDia, boolean>;
-    observacoes: string;
-};
-
-const HORARIO_PADRAO: HorarioAtendimento = {
+const HORARIO_PADRAO: HorarioAtendimentoLocal = {
     inicio: '08:00',
     fim: '18:00',
     intervalo: 30,
@@ -71,7 +63,7 @@ const DIAS_SEMANA: { id: HorarioDia; label: string }[] = [
     { id: 'dom', label: 'Dom' },
 ];
 
-const cloneHorarioPadrao = (): HorarioAtendimento => ({
+const cloneHorarioPadrao = (): HorarioAtendimentoLocal => ({
     ...HORARIO_PADRAO,
     dias: { ...HORARIO_PADRAO.dias },
 });
@@ -273,7 +265,7 @@ export default function EquipePage() {
     useEffect(() => {
         if (!editorAberto || !profissionalSelecionado) return;
         if (abaEditor === 'permissoes' && !permissoesLoaded) carregarPermissoesProfissional();
-        if (abaEditor === 'horarios' && !horarioLoaded) carregarHorarioProfissional();
+        if (abaEditor === 'horarios' && !horarioLoaded) carregarHorarioEditor();
         if (abaEditor === 'comissao' && !comissoesLoaded) carregarComissoesProfissional();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [editorAberto, profissionalSelecionado, abaEditor, permissoesLoaded, horarioLoaded, comissoesLoaded]);
@@ -408,7 +400,7 @@ export default function EquipePage() {
         }
     }
 
-    async function carregarHorarioProfissional() {
+    async function carregarHorarioEditor() {
         if (!profissionalSelecionado) return;
         if (!clinicaIdNumerica) {
             setHorarioState(cloneHorarioPadrao());
@@ -417,7 +409,7 @@ export default function EquipePage() {
         }
         setHorarioLoading(true);
         try {
-            const valor = await carregarConfig<HorarioAtendimento | null>(clinicaIdNumerica, `horario_profissional_${profissionalSelecionado.id}`);
+            const valor = await carregarHorarioProfissional(clinicaIdNumerica, profissionalSelecionado.id);
             if (valor) {
                 setHorarioState({
                     ...valor,
@@ -457,7 +449,7 @@ export default function EquipePage() {
         }
         setHorarioSaving(true);
         try {
-            await salvarConfig(clinicaIdNumerica, `horario_profissional_${profissionalSelecionado.id}`, horarioState);
+            await salvarHorarioProfissional(clinicaIdNumerica, profissionalSelecionado.id, horarioState);
             setHorarioDirty(false);
             await showAlert('Horário salvo com sucesso!', { type: 'success' });
         } catch (err: any) {

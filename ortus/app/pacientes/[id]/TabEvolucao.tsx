@@ -1,8 +1,8 @@
 'use client';
 import { useState } from 'react';
-import { supabase } from '@/lib/supabase';
 import { ClipboardList, Clock, Calendar, User, Trash2, Save, Loader2, Printer } from 'lucide-react';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
+import { criarEvolucao, excluirEvolucao as excluirEvolucaoDb } from '@/lib/db/evolucoes';
 
 type Props = {
     id: string;
@@ -21,24 +21,29 @@ export default function TabEvolucao({ id, form, ficha, setFicha, evolucoes, setE
     async function salvarEvolucao() {
         if (!novaEvolucao.texto.trim()) { await showAlert('Preencha o texto da evolução.', { type: 'warning' }); return; }
         setSavingEvo(true);
-        const nova = { id: Date.now().toString(), texto: novaEvolucao.texto.trim(), data: novaEvolucao.data, profissional: novaEvolucao.profissional || 'Dr(a).', criado_em: new Date().toISOString() };
-        const novaLista = [nova, ...evolucoes];
-        const fichaMerged = { ...ficha, evolucoes: novaLista };
-        const { error } = await supabase.from('pacientes').update({ ficha_medica: fichaMerged }).eq('id', id);
-        if (error) { await showAlert('Erro: ' + error.message, { type: 'error' }); setSavingEvo(false); return; }
-        setEvolucoes(novaLista);
-        setFicha(fichaMerged);
-        setNovaEvolucao({ texto: '', data: new Date().toISOString().split('T')[0], profissional: novaEvolucao.profissional });
+        try {
+            const salva = await criarEvolucao(String(id), {
+                texto: novaEvolucao.texto.trim(),
+                data: novaEvolucao.data,
+                profissional: novaEvolucao.profissional || 'Dr(a).',
+            });
+            const novaLista = [salva, ...evolucoes];
+            setEvolucoes(novaLista);
+            setNovaEvolucao({ texto: '', data: new Date().toISOString().split('T')[0], profissional: novaEvolucao.profissional });
+        } catch (error: any) {
+            await showAlert('Erro: ' + error.message, { type: 'error' });
+        }
         setSavingEvo(false);
     }
 
     async function excluirEvolucao(eid: string) {
         if (!(await showConfirm('Excluir esta evolução?', { title: 'Excluir', type: 'error', confirmLabel: 'Excluir' }))) return;
-        const novaLista = evolucoes.filter((e: any) => e.id !== eid);
-        const fichaMerged = { ...ficha, evolucoes: novaLista };
-        await supabase.from('pacientes').update({ ficha_medica: fichaMerged }).eq('id', id);
-        setEvolucoes(novaLista);
-        setFicha(fichaMerged);
+        try {
+            await excluirEvolucaoDb(eid);
+            setEvolucoes(evolucoes.filter((e: any) => e.id !== eid));
+        } catch (e: any) {
+            await showAlert('Erro ao excluir: ' + (e.message || e), { type: 'error' });
+        }
     }
 
     return (

@@ -572,8 +572,8 @@ export default function Agenda() {
                                     clinicaId={ag.clinica_id}
                                     evento="lembrete"
                                     contexto={ctxLembreteAgendamento(ag)}
-                                    onEnviado={() => {
-                                        marcarLembreteEnviado(ag.clinica_id, ag.id);
+                                    onEnviado={(canal) => {
+                                        marcarLembreteEnviado(ag.clinica_id, ag.id, canal === 'whatsapp' ? 'whatsapp' : canal === 'email' ? 'email' : canal === 'sms' ? 'sms' : 'manual');
                                         setLembretesPendentes((prev) => prev.filter((x) => x.id !== ag.id));
                                     }}
                                 />

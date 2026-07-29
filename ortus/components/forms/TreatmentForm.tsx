@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { criarTratamento } from '@/lib/db/tratamentos';
 import { Calendar, CheckCircle, Clock, DollarSign, Loader2, Save, Smile, User } from 'lucide-react';
 
 export type TreatmentPatient = {
@@ -17,7 +18,6 @@ type TreatmentFormProps = {
 
 export default function TreatmentForm({ paciente, onSuccess, onCancel }: TreatmentFormProps) {
   const [loadingDeps, setLoadingDeps] = useState(true);
-  const [fichaMedica, setFichaMedica] = useState<any>({});
   const [clinicaIdPaciente, setClinicaIdPaciente] = useState<string | number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -38,14 +38,13 @@ export default function TreatmentForm({ paciente, onSuccess, onCancel }: Treatme
     (async () => {
       const { data, error: fetchError } = await supabase
         .from('pacientes')
-        .select('ficha_medica, clinica_id')
+        .select('clinica_id')
         .eq('id', paciente.id)
         .single();
       if (!mounted) return;
       if (fetchError) {
         setError(fetchError.message);
       } else {
-        setFichaMedica(data?.ficha_medica || {});
         setClinicaIdPaciente(data?.clinica_id ?? null);
       }
       setLoadingDeps(false);
@@ -59,26 +58,16 @@ export default function TreatmentForm({ paciente, onSuccess, onCancel }: Treatme
 
     setSaving(true);
 
-    const novoTratamento = {
-      id: Date.now().toString(),
-      procedimento: form.procedimento.trim(),
-      dente: form.dente.trim(),
-      valor: parseFloat(form.valor) || 0,
-      status: form.status,
-      data: form.data,
-      observacoes: form.observacoes.trim(),
-      criado_em: new Date().toISOString(),
-    };
-
-    const listaAtual: any[] = Array.isArray(fichaMedica?.tratamentos) ? fichaMedica.tratamentos : [];
-    const novaFicha = { ...(fichaMedica || {}), tratamentos: [...listaAtual, novoTratamento] };
-
-    const { error: updateError } = await supabase
-      .from('pacientes')
-      .update({ ficha_medica: novaFicha })
-      .eq('id', paciente.id);
-
-    if (updateError) {
+    try {
+      await criarTratamento(String(paciente.id), clinicaIdPaciente, {
+        procedimento: form.procedimento.trim(),
+        dente: form.dente.trim() || null,
+        valor: parseFloat(form.valor) || 0,
+        status: form.status,
+        data: form.data,
+        observacoes: form.observacoes.trim() || null,
+      });
+    } catch (updateError: any) {
       setSaving(false);
       setError(updateError.message);
       return;
