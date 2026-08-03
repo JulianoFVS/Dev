@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { usePatientSlideOver } from '@/components/PatientSlideOver';
 import { useClinica } from '@/app/context/ClinicaContext';
-import { AlertTriangle, Check, CheckCircle2, CircleDot, ClipboardList, Edit3, Eye, FlaskConical, Gem, Heart, Loader2, Package, Paintbrush, Plus, Scissors, Search, Shield, Smile, Sparkles, Star, Trash2, Truck, Wrench, X, Zap } from 'lucide-react';
+import { AlertTriangle, Check, CheckCircle2, ChevronDown, ChevronRight, CircleDot, ClipboardList, Edit3, Eye, FlaskConical, Gem, Heart, Loader2, Package, Paintbrush, Plus, Scissors, Search, Shield, Smile, Sparkles, Star, Trash2, Truck, Wrench, X, Zap } from 'lucide-react';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
 import CustomSelect from '@/components/ui/CustomSelect';
 import Modal from '@/components/ui/Modal';
@@ -160,6 +160,7 @@ export default function KanbanProtesesInteligente() {
   const [searchQuery, setSearchQuery] = useState('');
   const [periodFilter, setPeriodFilter] = useState<'all' | '7d' | '30d' | '90d'>('all');
   const [statusFilter, setStatusFilter] = useState<StatusKey | 'all'>('all');
+  const [flowDropdownOpen, setFlowDropdownOpen] = useState(false);
 
   // Mapa de ícones por slug (persiste no DB como string)
   const ICON_MAP: Record<string, React.ReactNode> = {
@@ -191,6 +192,25 @@ export default function KanbanProtesesInteligente() {
     'Finalizado / Entregue': 'truck',
   };
   function getColumnIcon(col: Column) { return ICON_MAP[col.icone || DEFAULT_ICONS[col.titulo] || 'package'] || <Package size={14} />; }
+
+  const flowBarRef = useRef<HTMLDivElement>(null);
+  const [maxVisibleFlow, setMaxVisibleFlow] = useState(99);
+  useEffect(() => {
+    const el = flowBarRef.current;
+    if (!el || columns.length === 0) return;
+    const BUTTON_W = 175;
+    const OVERFLOW_W = 130;
+    function calc() {
+      const w = el!.clientWidth;
+      if (w < 100) return;
+      const fits = Math.max(2, Math.floor((w - OVERFLOW_W) / BUTTON_W));
+      setMaxVisibleFlow(columns.length <= fits ? columns.length : fits);
+    }
+    const raf = requestAnimationFrame(calc);
+    const ro = new ResizeObserver(calc);
+    ro.observe(el);
+    return () => { cancelAnimationFrame(raf); ro.disconnect(); };
+  }, [columns.length, loading]);
 
   // Sincroniza clinicId com contexto global (reativo) — evita reload desnecessário
   const prevClinicRef = useRef<string | null | undefined>(undefined);
@@ -618,6 +638,73 @@ export default function KanbanProtesesInteligente() {
           {filteredCards.length} de {cards.length} pedido(s)
         </div>
       </div>
+
+      {/* FLUXO DO PROCESSO — navegação rápida por etapa */}
+      {!loading && columns.length > 0 && (
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm shrink-0 w-full max-w-full min-w-0 px-4 py-3">
+          <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2">Fluxo do Processo</p>
+          <div ref={flowBarRef} className="flex items-center gap-1 flex-wrap">
+            {columns.slice(0, maxVisibleFlow).map((col, idx) => {
+              const count = cardsByColumn(col.id).length;
+              return (
+                <div key={col.id} className="flex items-center">
+                  <button
+                    type="button"
+                    onClick={() => document.getElementById(`coluna-${col.id}`)?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })}
+                    className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-black transition-all hover:bg-pink-50 hover:text-pink-700 text-slate-600 border border-transparent hover:border-pink-200 active:scale-95"
+                    title={`Ir para ${col.titulo}`}
+                  >
+                    <span className="w-7 h-7 rounded-lg bg-pink-50 text-pink-500 flex items-center justify-center shrink-0">{getColumnIcon(col)}</span>
+                    <span className="hidden sm:inline whitespace-nowrap">{col.titulo}</span>
+                    <span className="px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-400 text-[10px] font-black shrink-0">{count}</span>
+                  </button>
+                  {idx < maxVisibleFlow - 1 && columns.length > 1 && <ChevronRight size={14} className="text-slate-300 shrink-0" />}
+                </div>
+              );
+            })}
+
+            {columns.length > maxVisibleFlow && (
+              <div className="relative shrink-0 ml-1">
+                <button
+                  type="button"
+                  onClick={() => setFlowDropdownOpen(!flowDropdownOpen)}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black bg-pink-50 text-pink-600 border border-pink-200 hover:bg-pink-100 transition-all active:scale-95"
+                >
+                  +{columns.length - maxVisibleFlow} etapas
+                  <ChevronDown size={13} className={`transition-transform ${flowDropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
+                {flowDropdownOpen && (
+                  <>
+                    <button type="button" aria-label="Fechar" className="fixed inset-0 z-40" onClick={() => setFlowDropdownOpen(false)} />
+                    <div className="absolute top-full right-0 mt-2 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 min-w-[240px] py-2 animate-in fade-in slide-in-from-top-2">
+                      <p className="px-4 py-1.5 text-[10px] font-black uppercase tracking-wider text-slate-400">Etapas do Fluxo ({columns.length} no total)</p>
+                      {columns.slice(maxVisibleFlow).map((col, idx) => {
+                        const count = cardsByColumn(col.id).length;
+                        return (
+                          <button
+                            key={col.id}
+                            type="button"
+                            onClick={() => {
+                              document.getElementById(`coluna-${col.id}`)?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+                              setFlowDropdownOpen(false);
+                            }}
+                            className="w-full text-left px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-pink-50 hover:text-pink-700 flex items-center gap-3 transition-colors"
+                          >
+                            <span className="text-[11px] font-black text-slate-400 w-5">{maxVisibleFlow + idx + 1}</span>
+                            <span className="w-6 h-6 rounded-lg bg-pink-50 text-pink-500 flex items-center justify-center shrink-0">{getColumnIcon(col)}</span>
+                            <span className="truncate">{col.titulo}</span>
+                            <span className="ml-auto px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-400 text-[10px] font-black shrink-0">{count}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="flex-1 bg-white rounded-2xl sm:rounded-3xl border border-slate-200 shadow-sm overflow-hidden min-h-0 w-full max-w-full min-w-0">
         {loading ? (
