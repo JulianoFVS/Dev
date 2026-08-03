@@ -425,7 +425,7 @@ export default function PlanosPage() {
                         <Layers3 size={14} /> Planos e TUSS
                     </div>
                     <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-800">Gestão de Planos</h1>
-                    <p className="text-sm text-slate-500">Configure os valores de cada tratamento por plano ou convênio.</p>
+                    <p className="text-sm text-slate-500">Configure os valores de cada tratamento por plano.</p>
                 </div>
                 <div className="flex items-center gap-2">
                     {selectedPlanoId && (
@@ -467,11 +467,11 @@ export default function PlanosPage() {
                             <button
                                 key={plano.id}
                                 onClick={() => setSelectedPlanoId(plano.id)}
-                                className={`touch-target inline-flex items-center gap-2 px-3 py-2 rounded-xl border text-sm transition-all ${ativo ? 'border-blue-500 bg-blue-50 text-blue-700 shadow-sm' : 'border-slate-200 bg-white text-slate-600 hover:border-blue-200'}`}
+                                className={`touch-target inline-flex items-center gap-2 px-3 py-2 rounded-xl border text-sm transition-all ${ativo ? 'chip-ortus-active shadow-sm' : 'border-slate-200 bg-white text-slate-600 hover:border-ortus-accent'}`}
                             >
                                 <span className="font-bold">{plano.nome}</span>
-                                <span className={`text-[9px] uppercase font-black tracking-wider px-1.5 py-0.5 rounded ${ativo ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-400'}`}>
-                                    {plano.tipo === 'particular' ? 'Padrão' : 'Conv.'}
+                                <span className={`text-[9px] uppercase font-black tracking-wider px-1.5 py-0.5 rounded ${ativo ? 'bg-ortus-accent-muted text-ortus-accent-muted' : 'bg-slate-100 text-slate-400'}`}>
+                                    {plano.tipo === 'particular' ? 'Padrão' : 'Plano'}
                                 </span>
                             </button>
                         );
@@ -605,7 +605,7 @@ export default function PlanosPage() {
                 <div className="bg-white w-full rounded-3xl border border-slate-100 shadow-2xl overflow-hidden">
                     <div className="px-6 py-4 border-b border-slate-100">
                         <h2 className="text-lg font-bold text-slate-800">Novo plano</h2>
-                        <p className="text-xs text-slate-500">Cadastre um convênio ou plano alternativo.</p>
+                        <p className="text-xs text-slate-500">Cadastre um plano personalizado.</p>
                     </div>
                     <form onSubmit={handleCriarPlano} className="p-6 space-y-4">
                         <div>
@@ -635,7 +635,7 @@ export default function PlanosPage() {
                             <button
                                 type="submit"
                                 disabled={criandoPlano || !novoPlanoNome.trim()}
-                                className="px-5 py-2 rounded-xl text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+                                className="btn-ortus-primary px-5 py-2 text-sm disabled:opacity-50 flex items-center gap-2"
                             >
                                 {criandoPlano ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
                                 Criar plano vazio

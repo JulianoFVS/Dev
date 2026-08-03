@@ -18,6 +18,7 @@ import { useClinica, getClinicLabel } from '@/app/context/ClinicaContext';
 import type { ModuleName } from '@/lib/types/permissions';
 import { buildModuleAccessMap } from '@/lib/modules';
 import { moduleForPath } from '@/lib/permissionPresets';
+import { clearAuthCookies, setAuthMarkerCookie, syncModuleAccessCookie } from '@/lib/authCookies';
 
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<any>(null);
@@ -71,11 +72,14 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     async function sincronizarPermissoes() {
       if (perfil.nivel_acesso === 'admin' || perfil.is_super_admin) {
         setModuleAccess(buildModuleAccessMap(true));
+        syncModuleAccessCookie('all');
         return;
       }
       const clinicId = ctxActive?.id && ctxActive.id !== 'all' ? Number(ctxActive.id) : null;
       if (!clinicId) {
-        setModuleAccess(buildModuleAccessMap(false));
+        const vazio = buildModuleAccessMap(false);
+        setModuleAccess(vazio);
+        syncModuleAccessCookie(vazio);
         return;
       }
       const { data, error } = await supabase
@@ -86,7 +90,9 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
       if (cancelado) return;
       if (error) {
         console.error('[AuthGuard] permissoes_modulos:', error);
-        setModuleAccess(buildModuleAccessMap(false));
+        const vazio = buildModuleAccessMap(false);
+        setModuleAccess(vazio);
+        syncModuleAccessCookie(vazio);
         return;
       }
       const mapa = buildModuleAccessMap(false);
@@ -95,14 +101,14 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
         if (mapa[modulo] !== undefined) mapa[modulo] = !!row.pode_acessar;
       });
       setModuleAccess(mapa);
+      syncModuleAccessCookie(mapa);
     }
 
     sincronizarPermissoes();
     return () => { cancelado = true; };
   }, [perfil?.id, perfil?.nivel_acesso, perfil?.is_super_admin, ctxActive?.id]);
 
-  // Backup automático: dispara em background a cada vez que um usuário autenticado
-  // usa o sistema, se faz mais de 12h desde o último backup. Throttle de 1h/sessão.
+  // Backup automático
   useEffect(() => {
       if (session) verificarBackupAutomatico().catch(() => {});
   }, [session]);
@@ -116,6 +122,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     
     if (session) {
         setSession(session);
+        setAuthMarkerCookie();
         const { data: prof } = await supabase.from('profissionais').select('*').eq('user_id', session.user.id).single();
         if (prof) {
             setPerfil(prof);
@@ -266,11 +273,12 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   async function handleLogout() {
       await supabase.auth.signOut();
       localStorage.removeItem('ortus_clinica_id');
+      clearAuthCookies();
       router.push('/login');
   }
 
   if (['/login', '/', '/site', '/termos', '/checkout', '/cadastro'].includes(pathname)) return <>{children}</>;
-  if (loading) return <div className="h-screen w-screen bg-slate-50 flex items-center justify-center text-blue-600 animate-pulse"><Building2 size={40}/></div>;
+  if (loading) return <div className="h-screen w-screen bg-slate-50 flex items-center justify-center text-ortus-accent-muted animate-pulse"><Building2 size={40}/></div>;
   if (!session) return null;
 
   // LAYOUT LIMPO PARA SELEÇÃO, PRIMEIRO ACESSO E SUPER ADMIN
@@ -290,7 +298,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
       const active = pathname.includes(href) || (href === '/dashboard' && pathname === '/dashboard');
       const showBadge = typeof badge === 'number' && badge > 0;
       return (
-        <Link href={href} onClick={() => setMenuMobileAberto(false)} className={`flex items-center gap-3 px-3 py-3 rounded-xl transition-all mb-1 group relative overflow-hidden ${active ? 'bg-blue-50 text-blue-700 font-bold shadow-sm' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'} ${menuRecolhido ? 'justify-center !px-0 w-12 mx-auto' : ''}`}>
+        <Link href={href} onClick={() => setMenuMobileAberto(false)} className={`flex items-center gap-3 px-3 py-3 rounded-xl transition-all mb-1 group relative overflow-hidden ${active ? 'bg-ortus-accent-soft text-ortus-accent font-bold shadow-sm border border-ortus-accent' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'} ${menuRecolhido ? 'justify-center !px-0 w-12 mx-auto' : ''}`}>
             <span className={`transition-transform ${!menuRecolhido && 'group-hover:scale-110'}`}>{icon}</span>
             {!menuRecolhido && (
                 <span className="flex-1 flex items-center justify-between">
@@ -349,12 +357,12 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
         
         <nav className={`flex-1 space-y-1 mt-4 overflow-y-auto custom-scrollbar ${menuRecolhido ? 'px-1 flex flex-col items-center' : 'px-3'}`}>
             {!menuRecolhido ? (
-                <button onClick={() => { const e = new KeyboardEvent('keydown', { key: 'k', metaKey: true, ctrlKey: true, bubbles: true }); window.dispatchEvent(e); }} className="w-full flex items-center gap-3 px-3 py-2.5 mb-2 rounded-xl text-sm font-semibold text-slate-400 bg-slate-50 border border-slate-200 hover:border-blue-300 hover:text-blue-500 transition-all">
+                <button onClick={() => { const e = new KeyboardEvent('keydown', { key: 'k', metaKey: true, ctrlKey: true, bubbles: true }); window.dispatchEvent(e); }} className="w-full flex items-center gap-3 px-3 py-2.5 mb-2 rounded-xl text-sm font-semibold text-slate-400 bg-slate-50 border border-slate-200 hover:border-ortus-accent hover:text-ortus-accent-muted transition-all">
                     <Search size={16}/> Buscar...
                     <kbd className="ml-auto text-[9px] font-bold bg-white border border-slate-200 px-1.5 py-0.5 rounded">⌘K</kbd>
                 </button>
             ) : (
-                <button onClick={() => { const e = new KeyboardEvent('keydown', { key: 'k', metaKey: true, ctrlKey: true, bubbles: true }); window.dispatchEvent(e); }} className="flex items-center justify-center w-12 p-2.5 mb-2 rounded-xl text-slate-400 bg-slate-50 border border-slate-200 hover:border-blue-300 hover:text-blue-500 transition-all" title="Buscar (Ctrl+K)">
+                <button onClick={() => { const e = new KeyboardEvent('keydown', { key: 'k', metaKey: true, ctrlKey: true, bubbles: true }); window.dispatchEvent(e); }} className="flex items-center justify-center w-12 p-2.5 mb-2 rounded-xl text-slate-400 bg-slate-50 border border-slate-200 hover:border-ortus-accent hover:text-ortus-accent-muted transition-all" title="Buscar (Ctrl+K)">
                     <Search size={18}/>
                 </button>
             )}
@@ -364,7 +372,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
             {perfil?.is_super_admin && (<><div className="my-2 border-t border-slate-100 mx-2"></div><NavItem href="/super-admin" icon={<ShieldAlert size={22}/>} label="Painel SaaS" /></>)}
         </nav>
 
-        <button onClick={() => setMenuRecolhido(!menuRecolhido)} className="absolute top-24 -right-3 bg-white border border-slate-200 shadow-sm p-1 rounded-full text-slate-400 hover:text-blue-600 hover:border-blue-300 transition-all z-50 hidden md:flex items-center justify-center w-6 h-6">{menuRecolhido ? <ChevronRight size={14}/> : <ChevronLeft size={14}/>}</button>
+        <button onClick={() => setMenuRecolhido(!menuRecolhido)} className="absolute top-24 -right-3 bg-white border border-slate-200 shadow-sm p-1 rounded-full text-slate-400 hover:text-ortus-accent-muted hover:border-ortus-accent transition-all z-50 hidden md:flex items-center justify-center w-6 h-6">{menuRecolhido ? <ChevronRight size={14}/> : <ChevronLeft size={14}/>}</button>
         <div className="p-4 border-t border-slate-50">{!menuRecolhido ? (<p className="text-[10px] text-center text-slate-300 font-medium">v1.0 &copy; 2025</p>) : (<div className="w-1 h-1 bg-slate-300 rounded-full mx-auto"></div>)}</div>
       </aside>
 
@@ -379,17 +387,17 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
             <div className="mr-auto relative min-w-0">
                 <button
                     onClick={() => setHeaderSwitchOpen((v) => !v)}
-                    className="flex items-center gap-1.5 md:gap-2 px-2 md:px-3 py-1.5 bg-slate-50 rounded-xl border border-slate-200 hover:border-blue-300 hover:bg-blue-50/40 transition-all group max-w-full"
+                    className="flex items-center gap-1.5 md:gap-2 px-2 md:px-3 py-1.5 bg-slate-50 rounded-xl border border-slate-200 hover:border-ortus-accent hover:bg-ortus-accent-soft transition-all group max-w-full"
                     title="Trocar unidade"
                 >
-                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${ctxActive?.id === 'all' ? 'bg-purple-100 text-purple-600' : 'bg-white text-blue-600 border border-slate-200'}`}>
+                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${ctxActive?.id === 'all' ? 'bg-purple-100 text-purple-600' : 'bg-white text-ortus-accent-muted border border-slate-200'}`}>
                         {ctxActive?.id === 'all' ? <Globe size={14}/> : <Building2 size={14}/>}
                     </div>
                     <div className="text-left min-w-0 hidden sm:block">
                         <p className="text-[9px] font-black uppercase tracking-wider text-slate-400 leading-none">Unidade</p>
                         <p className="text-xs font-bold text-slate-700 max-w-[140px] md:max-w-[220px] truncate">{ctxActive ? getClinicLabel(ctxActive) : 'Selecione'}</p>
                     </div>
-                    <ChevronsUpDown size={14} className="text-slate-400 group-hover:text-blue-500 shrink-0"/>
+                    <ChevronsUpDown size={14} className="text-slate-400 group-hover:text-ortus-accent-muted shrink-0"/>
                 </button>
                 {headerSwitchOpen && (
                     <>
@@ -410,13 +418,13 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
                                 <button
                                     key={c.id}
                                     onClick={() => { persistirClinicaSelecionada(c); setHeaderSwitchOpen(false); }}
-                                    className="w-full text-left px-4 py-3 text-sm font-bold text-slate-700 hover:bg-blue-50 hover:text-blue-700 flex items-center justify-between"
+                                    className="w-full text-left px-4 py-3 text-sm font-bold text-slate-700 hover:bg-ortus-accent-soft hover:text-ortus-accent flex items-center justify-between"
                                 >
                                     <div className="min-w-0">
                                         <p className="truncate">{getClinicLabel(c)}</p>
                                         {c.endereco && <p className="text-[10px] text-slate-400 font-medium truncate">{c.endereco}</p>}
                                     </div>
-                                    {String(ctxActive?.id) === String(c.id) && <Check size={16} className="text-blue-600 shrink-0 ml-2"/>}
+                                    {String(ctxActive?.id) === String(c.id) && <Check size={16} className="text-ortus-accent-muted shrink-0 ml-2"/>}
                                 </button>
                             ))}
                         </div>
@@ -424,8 +432,8 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
                 )}
             </div>
             <div className="flex items-center gap-0.5 md:gap-1 border-r border-slate-100 pr-2 md:pr-3 mr-0.5 md:mr-1">
-                <Link href="/inbox?tab=mensagens" className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all relative" title="Mensagens"><Mail size={20}/></Link>
-                <Link href="/inbox?tab=alertas" className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all relative" title="Alertas"><Bell size={20}/>{notificacoesCount > 0 && <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>}</Link>
+                <Link href="/inbox?tab=mensagens" className="p-2 text-slate-400 hover:text-ortus-accent-muted hover:bg-ortus-accent-soft rounded-lg transition-all relative" title="Mensagens"><Mail size={20}/></Link>
+                <Link href="/inbox?tab=alertas" className="p-2 text-slate-400 hover:text-ortus-accent-muted hover:bg-ortus-accent-soft rounded-lg transition-all relative" title="Alertas"><Bell size={20}/>{notificacoesCount > 0 && <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>}</Link>
             </div>
             <Link href="/perfil" className="flex items-center gap-3 pl-2 py-1 pr-2 rounded-xl hover:bg-slate-50 transition-colors group border border-transparent hover:border-slate-100">
                 <div className="text-right hidden sm:block"><p className="text-sm font-bold text-slate-700 group-hover:text-blue-700 transition-colors">{perfil?.nome}</p><p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide text-right">{perfil?.nivel_acesso === 'admin' ? 'Admin' : 'Dr(a).'}</p></div>

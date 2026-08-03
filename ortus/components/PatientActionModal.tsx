@@ -15,6 +15,7 @@ import { receberAgendamento, carregarTaxasAtivas } from '@/lib/recebimentoAgenda
 import Modal from '@/components/ui/Modal';
 import CustomSelect from '@/components/ui/CustomSelect';
 import { calcularValorLiquido, type TaxaMaquininha } from '@/lib/configDefaults';
+import { PARENTESCO_OPTIONS, SEXO_OPTIONS, UF_OPTIONS } from '@/lib/formOptions';
 
 type PatientActionModalContextValue = {
   openPatientActions: (patientId: string | number | null | undefined) => void;
@@ -461,17 +462,7 @@ export function PatientActionModalProvider({ children }: { children: React.React
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2">
                     <label className="text-[10px] font-black uppercase tracking-wider text-slate-500">Sexo <span className="text-red-500">*</span></label>
-                    <select
-                      value={qcSexo}
-                      onChange={(e) => setQcSexo(e.target.value)}
-                      className="w-full p-3 rounded-2xl bg-slate-50 border border-slate-200 font-bold text-slate-800 outline-none focus:bg-white focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition-all"
-                    >
-                      <option value="">Selecione...</option>
-                      <option value="masculino">Masculino</option>
-                      <option value="feminino">Feminino</option>
-                      <option value="outro">Outro</option>
-                      <option value="nao_informar">Prefiro não informar</option>
-                    </select>
+                    <CustomSelect value={qcSexo} onChange={setQcSexo} options={SEXO_OPTIONS} size="lg" />
                   </div>
                   <div className="space-y-2">
                     <label className="text-[10px] font-black uppercase tracking-wider text-slate-500">Data Nascimento</label>
@@ -513,38 +504,34 @@ export function PatientActionModalProvider({ children }: { children: React.React
                   <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
                     <Building2 size={12} /> Clínica <span className="text-red-500">*</span>
                   </label>
-                  <select
+                  <CustomSelect
                     value={qcClinicaId}
-                    onChange={(e) => {
-                      setQcClinicaId(e.target.value);
+                    onChange={(v) => {
+                      setQcClinicaId(v);
                       setQcPlanoId('');
-                      if (e.target.value) {
-                        supabase.from('planos').select('id, nome').eq('clinica_id', e.target.value).eq('ativo', true).order('nome').then(({ data }) => {
+                      if (v) {
+                        supabase.from('planos').select('id, nome').eq('clinica_id', v).eq('ativo', true).order('nome').then(({ data }) => {
                           setPlanos(data || []);
                         });
                       } else {
                         setPlanos([]);
                       }
                     }}
-                    className="w-full p-3 rounded-2xl bg-slate-50 border border-slate-200 font-bold text-slate-800 outline-none focus:bg-white focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition-all"
-                  >
-                    <option value="">Selecione a clínica...</option>
-                    {clinics.map((c: any) => <option key={c.id} value={c.id}>{c.nome}</option>)}
-                  </select>
+                    options={[{ value: '', label: 'Selecione a clínica...' }, ...clinics.map((c: any) => ({ value: c.id, label: c.nome }))]}
+                    size="lg"
+                  />
                 </div>
 
                 {/* Plano/Convênio — sempre visível */}
                 <div className="space-y-2">
                   <label className="text-[10px] font-black uppercase tracking-wider text-slate-500">Plano / Convênio</label>
-                  <select
+                  <CustomSelect
                     value={qcPlanoId}
-                    onChange={(e) => setQcPlanoId(e.target.value)}
+                    onChange={setQcPlanoId}
                     disabled={!qcClinicaId}
-                    className="w-full p-3 rounded-2xl bg-slate-50 border border-slate-200 font-bold text-slate-800 outline-none focus:bg-white focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition-all disabled:opacity-50"
-                  >
-                    <option value="">Particular (sem convênio)</option>
-                    {planos.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}
-                  </select>
+                    options={[{ value: '', label: 'Particular (sem convênio)' }, ...planos.map(p => ({ value: p.id, label: p.nome }))]}
+                    size="lg"
+                  />
                 </div>
 
                 {/* Endereço com ViaCEP */}
@@ -616,16 +603,7 @@ export function PatientActionModalProvider({ children }: { children: React.React
                     />
                   </div>
 
-                  <select
-                    value={qcUf}
-                    onChange={(e) => setQcUf(e.target.value)}
-                    className="w-full mt-2 p-2.5 rounded-xl bg-slate-50 border border-slate-200 font-bold text-slate-700 text-sm outline-none focus:bg-white focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition-all"
-                  >
-                    <option value="">UF</option>
-                    {['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'].map(uf => (
-                      <option key={uf} value={uf}>{uf}</option>
-                    ))}
-                  </select>
+                  <CustomSelect value={qcUf} onChange={setQcUf} options={UF_OPTIONS} size="sm" />
                 </div>
 
                 {/* Responsável (para menores) */}
@@ -648,18 +626,7 @@ export function PatientActionModalProvider({ children }: { children: React.React
                         className="w-full p-3 rounded-2xl bg-slate-50 border border-slate-200 font-bold text-slate-800 outline-none focus:bg-white focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition-all"
                       />
                       <div className="grid grid-cols-2 gap-2">
-                        <select
-                          value={qcResponsavelParentesco}
-                          onChange={(e) => setQcResponsavelParentesco(e.target.value)}
-                          className="w-full p-3 rounded-2xl bg-slate-50 border border-slate-200 font-bold text-slate-800 outline-none focus:bg-white focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition-all"
-                        >
-                          <option value="">Parentesco...</option>
-                          <option value="pai">Pai</option>
-                          <option value="mae">Mãe</option>
-                          <option value="tutor">Tutor</option>
-                          <option value="avo">Avô/Avó</option>
-                          <option value="outro">Outro</option>
-                        </select>
+                        <CustomSelect value={qcResponsavelParentesco} onChange={setQcResponsavelParentesco} options={PARENTESCO_OPTIONS} size="lg" />
                         <input
                           type="tel"
                           value={qcResponsavelTelefone}

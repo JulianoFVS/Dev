@@ -8,10 +8,6 @@ import { carregarModelos, carregarModelosAsync, salvarModelos, salvarModelosAsyn
 import { listarBackups, criarBackupAgora, baixarBackupComoJson, excluirBackup as deletarBackupServer, restaurarBackup } from '@/lib/backup';
 import { fetchUserClinicas } from '@/lib/clinicScoped';
 import { carregarConfig, salvarConfig } from '@/lib/configClinica';
-import CustomSelect from '@/components/ui/CustomSelect';
-import Modal from '@/components/ui/Modal';
-import { useCustomAlert } from '@/components/ui/CustomAlert';
-import { DOCUMENTO_VARIAVEIS, aplicarVariaveisDocumento, buildDocumentoContexto } from '@/lib/documentVariables';
 import {
   CATEGORIAS_FINANCEIRAS_PADRAO,
   TEMPLATES_COMUNICACAO_PADRAO,
@@ -22,6 +18,12 @@ import {
   type TemplateComunicacao,
   type TaxaMaquininha,
 } from '@/lib/configDefaults';
+import CustomSelect from '@/components/ui/CustomSelect';
+import Modal from '@/components/ui/Modal';
+import { useCustomAlert } from '@/components/ui/CustomAlert';
+import { DOCUMENTO_VARIAVEIS, aplicarVariaveisDocumento, buildDocumentoContexto } from '@/lib/documentVariables';
+import { applyTheme, THEME_OPTIONS, type ThemeId } from '@/lib/themePresets';
+import { FUSO_HORARIO_OPTIONS, UF_OPTIONS } from '@/lib/formOptions';
 
 interface ModeloDocumento { id: string; tipo: 'contrato' | 'receita' | 'atestado' | 'outro'; nome: string; conteudo: string; }
 
@@ -434,8 +436,11 @@ export default function Configuracoes() {
   async function removerPergunta(idx: number) {
       if (!modeloEdit) return;
       const pergunta = modeloEdit.perguntas[idx];
-      if (pergunta?.label.trim() && !(await showConfirm('Excluir esta pergunta?', { title: 'Excluir pergunta', type: 'warning', confirmLabel: 'Excluir' }))) return;
-      if (!pergunta?.label.trim() && modeloEdit.perguntas.length <= 1) {
+      const msg = pergunta?.label.trim()
+          ? 'Excluir esta pergunta?'
+          : 'Excluir esta pergunta em branco?';
+      if (!(await showConfirm(msg, { title: 'Excluir pergunta', type: 'warning', confirmLabel: 'Excluir' }))) return;
+      if (modeloEdit.perguntas.length <= 1) {
           showAlert('O modelo precisa de pelo menos uma pergunta.', { type: 'warning' });
           return;
       }
@@ -822,14 +827,14 @@ export default function Configuracoes() {
 
       <div className="flex gap-4 border-b border-slate-200">
           <div className="flex gap-1 overflow-x-auto pb-1 -mb-1">
-              <button onClick={() => setAbaAtiva('geral')} className={`pb-4 px-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${abaAtiva === 'geral' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><SlidersHorizontal size={16}/> Geral</button>
-              <button onClick={() => setAbaAtiva('clinicas')} className={`pb-4 px-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${abaAtiva === 'clinicas' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><Building2 size={16}/> Clínicas</button>
-              <button onClick={() => setAbaAtiva('anamnese')} className={`pb-4 px-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${abaAtiva === 'anamnese' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><ClipboardList size={16}/> Anamnese</button>
-              <button onClick={() => setAbaAtiva('documentos')} className={`pb-4 px-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${abaAtiva === 'documentos' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><FileSignature size={16}/> Contratos & Docs</button>
-              <button onClick={() => setAbaAtiva('categorias')} className={`pb-4 px-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${abaAtiva === 'categorias' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><Tag size={16}/> Categorias Fin.</button>
-              <button onClick={() => setAbaAtiva('taxas')} className={`pb-4 px-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${abaAtiva === 'taxas' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><CreditCard size={16}/> Taxas</button>
-              <button onClick={() => setAbaAtiva('comunicacao')} className={`pb-4 px-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${abaAtiva === 'comunicacao' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><MessageCircle size={16}/> Comunicação</button>
-              <button onClick={() => setAbaAtiva('backup')} className={`pb-4 px-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${abaAtiva === 'backup' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><Database size={16}/> Backup</button>
+              <button onClick={() => setAbaAtiva('geral')} className={`pb-4 px-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${abaAtiva === 'geral' ? 'border-ortus-accent-strong text-ortus-accent' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><SlidersHorizontal size={16}/> Geral</button>
+              <button onClick={() => setAbaAtiva('clinicas')} className={`pb-4 px-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${abaAtiva === 'clinicas' ? 'border-ortus-accent-strong text-ortus-accent' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><Building2 size={16}/> Clínicas</button>
+              <button onClick={() => setAbaAtiva('anamnese')} className={`pb-4 px-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${abaAtiva === 'anamnese' ? 'border-ortus-accent-strong text-ortus-accent' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><ClipboardList size={16}/> Anamnese</button>
+              <button onClick={() => setAbaAtiva('documentos')} className={`pb-4 px-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${abaAtiva === 'documentos' ? 'border-ortus-accent-strong text-ortus-accent' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><FileSignature size={16}/> Contratos & Docs</button>
+              <button onClick={() => setAbaAtiva('categorias')} className={`pb-4 px-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${abaAtiva === 'categorias' ? 'border-ortus-accent-strong text-ortus-accent' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><Tag size={16}/> Categorias Fin.</button>
+              <button onClick={() => setAbaAtiva('taxas')} className={`pb-4 px-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${abaAtiva === 'taxas' ? 'border-ortus-accent-strong text-ortus-accent' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><CreditCard size={16}/> Taxas</button>
+              <button onClick={() => setAbaAtiva('comunicacao')} className={`pb-4 px-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${abaAtiva === 'comunicacao' ? 'border-ortus-accent-strong text-ortus-accent' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><MessageCircle size={16}/> Comunicação</button>
+              <button onClick={() => setAbaAtiva('backup')} className={`pb-4 px-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${abaAtiva === 'backup' ? 'border-ortus-accent-strong text-ortus-accent' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><Database size={16}/> Backup</button>
           </div>
       </div>
 
@@ -841,13 +846,13 @@ export default function Configuracoes() {
                     <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
                         <div className="flex justify-between items-center mb-6">
                             <h3 className="font-bold text-slate-700 text-lg">Unidades Cadastradas</h3>
-                            <button onClick={abrirNovaClinica} className="bg-blue-600 text-white px-4 py-2 rounded-xl font-bold text-sm hover:bg-blue-700 flex items-center gap-2 shadow-lg shadow-blue-200"><Plus size={16}/> Nova Clínica</button>
+                            <button onClick={abrirNovaClinica} className="btn-ortus-primary px-4 py-2 text-sm flex items-center gap-2 shadow-ortus-accent"><Plus size={16}/> Nova Clínica</button>
                         </div>
                         <div className="space-y-3">
                             {clinicas.map(c => (
                                 <div key={c.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100 hover:border-blue-200 transition-colors">
                                     <div className="flex items-center gap-4">
-                                        <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center text-blue-600 border border-slate-200 font-bold overflow-hidden">
+                                        <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center text-ortus-accent-muted border border-slate-200 font-bold overflow-hidden">
                                             {c.logo_url ? <img src={c.logo_url} className="w-full h-full object-cover"/> : <Building2 size={20}/>}
                                         </div>
                                         <div>
@@ -856,7 +861,7 @@ export default function Configuracoes() {
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-1">
-                                        <button onClick={() => abrirEdicaoClinica(c)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-white rounded-lg transition-all" title="Editar"><Edit size={18}/></button>
+                                        <button onClick={() => abrirEdicaoClinica(c)} className="p-2 text-slate-400 hover:text-ortus-accent-muted hover:bg-white rounded-lg transition-all" title="Editar"><Edit size={18}/></button>
                                         <button onClick={() => excluirClinica(c.id)} className="p-2 text-slate-400 hover:text-red-500 hover:bg-white rounded-lg transition-all" title="Excluir"><Trash2 size={18}/></button>
                                     </div>
                                 </div>
@@ -877,7 +882,7 @@ export default function Configuracoes() {
                                 <h3 className="font-bold text-slate-700 text-lg flex items-center gap-2"><ClipboardList size={20} className="text-blue-500"/> Modelos de Anamnese</h3>
                                 <p className="text-xs text-slate-400 font-medium mt-1">Crie modelos com perguntas personalizadas para usar com pacientes.</p>
                             </div>
-                            <button onClick={abrirNovoModelo} className="bg-blue-600 text-white px-4 py-2 rounded-xl font-bold text-sm hover:bg-blue-700 flex items-center gap-2 shadow-lg shadow-blue-200"><Plus size={16}/> Novo Modelo</button>
+                            <button onClick={abrirNovoModelo} className="btn-ortus-primary px-4 py-2 text-sm flex items-center gap-2 shadow-ortus-accent"><Plus size={16}/> Novo Modelo</button>
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -905,7 +910,7 @@ export default function Configuracoes() {
                                         {m.perguntas.length > 5 && <div className="text-[10px] text-slate-400 text-center">+ {m.perguntas.length - 5} mais</div>}
                                     </div>
                                     <div className="flex gap-2">
-                                        <button onClick={() => abrirEditarModelo(m)} className="flex-1 py-2 text-xs font-bold rounded-lg bg-white border border-slate-200 text-slate-600 hover:border-blue-400 hover:text-blue-600 flex items-center justify-center gap-1"><Edit size={12}/> Editar</button>
+                                        <button onClick={() => abrirEditarModelo(m)} className="flex-1 py-2 text-xs font-bold rounded-lg bg-white border border-slate-200 text-slate-600 hover:border-blue-400 hover:text-ortus-accent-muted flex items-center justify-center gap-1"><Edit size={12}/> Editar</button>
                                         <button onClick={() => duplicarModelo(m)} className="py-2 px-3 text-xs font-bold rounded-lg bg-white border border-slate-200 text-slate-500 hover:border-purple-400 hover:text-purple-600">Duplicar</button>
                                         {!m.padrao && <button onClick={() => excluirModelo(m.id)} className="py-2 px-3 text-xs font-bold rounded-lg bg-white border border-slate-200 text-rose-400 hover:border-rose-400 hover:text-rose-600"><Trash2 size={12}/></button>}
                                     </div>
@@ -923,26 +928,26 @@ export default function Configuracoes() {
                         <h3 className="font-bold text-slate-700 text-lg flex items-center gap-2"><SlidersHorizontal size={20} className="text-blue-500"/> Preferências Gerais</h3>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div><label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Nome para Documentos</label><input value={prefs.nome_clinica} onChange={e => atualizarPref('nome_clinica', e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold" placeholder="Ex: Clínica Sorriso"/></div>
-                            <div><label className="text-xs font-bold text-slate-400 uppercase mb-1 block">CNPJ</label><input value={prefs.cnpj} onChange={e => atualizarPref('cnpj', e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium" placeholder="00.000.000/0000-00"/></div>
-                            <div className="md:col-span-2"><label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Slogan / Subtítulo</label><input value={prefs.slogan} onChange={e => atualizarPref('slogan', e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium" placeholder="Ex: Odontologia Integrada"/></div>
-                            <div className="md:col-span-2"><label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Cabeçalho dos Documentos</label><textarea value={prefs.cabecalho_documentos} onChange={e => atualizarPref('cabecalho_documentos', e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium h-20 resize-none" placeholder="Endereço, telefone e responsável técnico..."/></div>
-                            <div className="md:col-span-2"><label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Rodapé dos Documentos</label><input value={prefs.rodape_documentos} onChange={e => atualizarPref('rodape_documentos', e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium"/></div>
+                            <div><label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Nome para Documentos</label><input value={prefs.nome_clinica} onChange={e => atualizarPref('nome_clinica', e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-ortus-accent font-bold" placeholder="Ex: Clínica Sorriso"/></div>
+                            <div><label className="text-xs font-bold text-slate-400 uppercase mb-1 block">CNPJ</label><input value={prefs.cnpj} onChange={e => atualizarPref('cnpj', e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-ortus-accent font-medium" placeholder="00.000.000/0000-00"/></div>
+                            <div className="md:col-span-2"><label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Slogan / Subtítulo</label><input value={prefs.slogan} onChange={e => atualizarPref('slogan', e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-ortus-accent font-medium" placeholder="Ex: Odontologia Integrada"/></div>
+                            <div className="md:col-span-2"><label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Cabeçalho dos Documentos</label><textarea value={prefs.cabecalho_documentos} onChange={e => atualizarPref('cabecalho_documentos', e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-ortus-accent font-medium h-20 resize-none" placeholder="Endereço, telefone e responsável técnico..."/></div>
+                            <div className="md:col-span-2"><label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Rodapé dos Documentos</label><input value={prefs.rodape_documentos} onChange={e => atualizarPref('rodape_documentos', e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-ortus-accent font-medium"/></div>
                         </div>
                     </div>
 
                     <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
                         <h3 className="font-bold text-slate-700 text-lg">Horário de Atendimento</h3>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div><label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Abertura</label><input type="time" value={prefs.horario_abertura} onChange={e => atualizarPref('horario_abertura', e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold"/></div>
-                            <div><label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Fechamento</label><input type="time" value={prefs.horario_fechamento} onChange={e => atualizarPref('horario_fechamento', e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold"/></div>
-                            <div><label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Duração Padrão Consulta (min)</label><input type="number" value={prefs.duracao_consulta_padrao} onChange={e => atualizarPref('duracao_consulta_padrao', parseInt(e.target.value)||60)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold"/></div>
+                            <div><label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Abertura</label><input type="time" value={prefs.horario_abertura} onChange={e => atualizarPref('horario_abertura', e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-ortus-accent font-bold"/></div>
+                            <div><label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Fechamento</label><input type="time" value={prefs.horario_fechamento} onChange={e => atualizarPref('horario_fechamento', e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-ortus-accent font-bold"/></div>
+                            <div><label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Duração Padrão Consulta (min)</label><input type="number" value={prefs.duracao_consulta_padrao} onChange={e => atualizarPref('duracao_consulta_padrao', parseInt(e.target.value)||60)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-ortus-accent font-bold"/></div>
                         </div>
                         <div>
                             <label className="text-xs font-bold text-slate-400 uppercase mb-2 block">Dias de Atendimento</label>
                             <div className="flex flex-wrap gap-2">
                                 {[{k:'seg',l:'Seg'},{k:'ter',l:'Ter'},{k:'qua',l:'Qua'},{k:'qui',l:'Qui'},{k:'sex',l:'Sex'},{k:'sab',l:'Sáb'},{k:'dom',l:'Dom'}].map(d => (
-                                    <button key={d.k} onClick={() => toggleDia(d.k)} className={`px-4 py-2 rounded-xl text-xs font-black border transition-all ${prefs.dias_atendimento[d.k] ? 'bg-blue-600 text-white border-blue-600 shadow' : 'bg-white text-slate-400 border-slate-200 hover:border-slate-400'}`}>{d.l}</button>
+                                    <button key={d.k} onClick={() => toggleDia(d.k)} className={`px-4 py-2 rounded-xl text-xs font-black border transition-all ${prefs.dias_atendimento[d.k] ? 'chip-ortus-selected shadow' : 'bg-white text-slate-400 border-slate-200 hover:border-slate-400'}`}>{d.l}</button>
                                 ))}
                             </div>
                         </div>
@@ -954,14 +959,8 @@ export default function Configuracoes() {
                             <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Cor do tema</label>
                             <CustomSelect
                                 value={prefs.cor_tema || 'blue'}
-                                onChange={v => atualizarPref('cor_tema', v)}
-                                options={[
-                                    { value: 'blue', label: 'Azul (padrão)' },
-                                    { value: 'emerald', label: 'Verde' },
-                                    { value: 'purple', label: 'Roxo' },
-                                    { value: 'rose', label: 'Rosa' },
-                                    { value: 'slate', label: 'Cinza' },
-                                ]}
+                                onChange={v => { atualizarPref('cor_tema', v); applyTheme(v as ThemeId); }}
+                                options={THEME_OPTIONS}
                                 size="lg"
                             />
                         </div>
@@ -976,7 +975,7 @@ export default function Configuracoes() {
                         ].map(it => (
                             <label key={it.k} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100 cursor-pointer hover:bg-slate-100">
                                 <span className="text-sm font-bold text-slate-700">{it.l}</span>
-                                <button type="button" onClick={() => atualizarPref(it.k, !prefs[it.k])} className={`w-12 h-6 rounded-full relative transition-all ${prefs[it.k] ? 'bg-blue-600' : 'bg-slate-300'}`}>
+                                <button type="button" onClick={() => atualizarPref(it.k, !prefs[it.k])} className={`w-12 h-6 rounded-full relative transition-all ${prefs[it.k] ? 'toggle-ortus-on' : 'bg-slate-300'}`}>
                                     <span className={`absolute top-0.5 ${prefs[it.k] ? 'right-0.5' : 'left-0.5'} w-5 h-5 bg-white rounded-full transition-all shadow`}></span>
                                 </button>
                             </label>
@@ -1029,7 +1028,7 @@ export default function Configuracoes() {
                     {(perfilCaller?.nivel_acesso === 'admin' || perfilCaller?.is_super_admin) && (
                         <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
                             <div className="mb-6">
-                                <h3 className="font-bold text-slate-700 text-lg flex items-center gap-2"><Layers3 size={20} className="text-blue-500"/> Planos e Convênios</h3>
+                                <h3 className="font-bold text-slate-700 text-lg flex items-center gap-2"><Layers3 size={20} className="text-ortus-accent-muted"/> Planos</h3>
                                 <p className="text-xs text-slate-400 font-medium mt-1">Gerencie tabelas de preços vinculadas a contratos e documentos do paciente.</p>
                             </div>
                             <PlanosEmbedded />
@@ -1055,7 +1054,7 @@ export default function Configuracoes() {
                                 value={buscaCatFin}
                                 onChange={e => setBuscaCatFin(e.target.value)}
                                 placeholder="Buscar categorias..."
-                                className="flex-1 p-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-sm"
+                                className="flex-1 p-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-ortus-accent font-medium text-sm"
                             />
                             <span className="text-xs font-bold text-slate-400 whitespace-nowrap px-2">
                                 {catsFinFiltradas.length} de {catsFin.length}
@@ -1077,7 +1076,7 @@ export default function Configuracoes() {
                                         </div>
                                         <div className="flex gap-1 shrink-0">
                                             <button onClick={() => toggleCatFinAtiva(c.id)} className={`p-1 rounded ${c.ativo ? 'text-emerald-600 hover:bg-emerald-50' : 'text-slate-400 hover:bg-slate-200'}`} title={c.ativo ? 'Desativar' : 'Ativar'}><Check size={14}/></button>
-                                            <button onClick={() => abrirEditarCatFin(c)} className="p-1 text-slate-400 hover:text-blue-600"><Edit size={14}/></button>
+                                            <button onClick={() => abrirEditarCatFin(c)} className="p-1 text-slate-400 hover:text-ortus-accent-muted"><Edit size={14}/></button>
                                             <button onClick={() => removerCatFin(c.id)} className="p-1 text-slate-400 hover:text-rose-600"><Trash2 size={14}/></button>
                                         </div>
                                     </div>
@@ -1181,7 +1180,7 @@ export default function Configuracoes() {
                                 <h3 className="font-bold text-slate-700 text-lg flex items-center gap-2"><Database size={20} className="text-blue-500"/> Backups Automáticos do Banco</h3>
                                 <p className="text-xs text-slate-400 mt-1">O sistema cria um backup automático <strong>2x ao dia</strong> (manhã e tarde) com todos os dados (pacientes, agendamentos, despesas, clínicas, profissionais, serviços). Mantemos os <strong>30 mais recentes</strong>.</p>
                             </div>
-                            <button onClick={backupAgoraManual} disabled={criandoBackup} className="px-4 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 shadow-lg shadow-blue-200 flex items-center gap-2 disabled:opacity-50">
+                            <button onClick={backupAgoraManual} disabled={criandoBackup} className="btn-ortus-primary px-4 py-2.5 text-sm flex items-center gap-2 shadow-ortus-accent disabled:opacity-50">
                                 {criandoBackup ? <><Loader2 className="animate-spin" size={14}/> Gerando...</> : <><Plus size={14}/> Backup Manual</>}
                             </button>
                         </div>
@@ -1228,11 +1227,11 @@ export default function Configuracoes() {
                         <p className="text-xs text-slate-400 mb-4">Apenas as preferências/modelos salvos no navegador (não inclui dados do banco — esses estão nos backups acima).</p>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <button onClick={exportarTudo} className="p-5 bg-gradient-to-br from-blue-50 to-blue-100 border-2 border-blue-200 rounded-2xl hover:from-blue-100 hover:to-blue-200 transition-all flex flex-col items-center gap-3 group">
-                                <div className="w-12 h-12 bg-blue-600 text-white rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform"><Download size={22}/></div>
+                            <button onClick={exportarTudo} className="p-5 bg-gradient-to-br from-slate-50 to-white border-2 border-ortus-accent rounded-2xl hover:bg-ortus-accent-soft transition-all flex flex-col items-center gap-3 group">
+                                <div className="w-12 h-12 btn-ortus-primary rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform"><Download size={22}/></div>
                                 <div className="text-center">
-                                    <div className="font-black text-blue-900 text-sm">Exportar Configurações</div>
-                                    <div className="text-[11px] text-blue-700">Baixar .json com modelos e preferências.</div>
+                                    <div className="font-black text-ortus-accent text-sm">Exportar Configurações</div>
+                                    <div className="text-[11px] text-slate-500">Baixar .json com modelos e preferências.</div>
                                 </div>
                             </button>
                             <label className="p-5 bg-gradient-to-br from-emerald-50 to-emerald-100 border-2 border-emerald-200 rounded-2xl hover:from-emerald-100 hover:to-emerald-200 transition-all flex flex-col items-center gap-3 group cursor-pointer">
@@ -1444,18 +1443,18 @@ export default function Configuracoes() {
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                           <div className="md:col-span-1">
                               <label className="text-xs font-bold text-slate-400 uppercase ml-1">Nome do Modelo</label>
-                              <input value={modeloEdit.nome} onChange={e => setModeloEdit({...modeloEdit, nome: e.target.value})} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-700" placeholder="Ex: Anamnese Endodôntica"/>
+                              <input value={modeloEdit.nome} onChange={e => setModeloEdit({...modeloEdit, nome: e.target.value})} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-ortus-accent font-bold text-slate-700" placeholder="Ex: Anamnese Endodôntica"/>
                           </div>
                           <div className="md:col-span-2">
                               <label className="text-xs font-bold text-slate-400 uppercase ml-1">Descrição (opcional)</label>
-                              <input value={modeloEdit.descricao || ''} onChange={e => setModeloEdit({...modeloEdit, descricao: e.target.value})} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700" placeholder="Para que serve este modelo..."/>
+                              <input value={modeloEdit.descricao || ''} onChange={e => setModeloEdit({...modeloEdit, descricao: e.target.value})} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-ortus-accent font-medium text-slate-700" placeholder="Para que serve este modelo..."/>
                           </div>
                       </div>
 
                       <div className="border-t border-slate-100 pt-4">
                           <div className="flex justify-between items-center mb-3">
                               <h4 className="font-bold text-slate-700 text-sm flex items-center gap-2"><HelpCircle size={16} className="text-purple-500"/> Perguntas ({modeloEdit.perguntas.length})</h4>
-                              <button onClick={adicionarPergunta} className="text-xs font-bold text-blue-600 hover:underline flex items-center gap-1"><Plus size={14}/> Adicionar Pergunta</button>
+                              <button onClick={adicionarPergunta} className="text-xs font-bold text-ortus-accent-muted hover:underline flex items-center gap-1"><Plus size={14}/> Adicionar Pergunta</button>
                           </div>
 
                           <div className="space-y-3" ref={perguntasListRef}>
@@ -1464,7 +1463,7 @@ export default function Configuracoes() {
                                       <div className="flex items-start gap-3">
                                           <div className="w-7 h-7 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-black flex-none">{idx + 1}</div>
                                           <div className="flex-1 space-y-2">
-                                              <input value={p.label} onChange={e => atualizarPergunta(idx, { label: e.target.value })} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700 text-sm" placeholder="Texto da pergunta..."/>
+                                              <input value={p.label} onChange={e => atualizarPergunta(idx, { label: e.target.value })} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-ortus-accent font-medium text-slate-700 text-sm" placeholder="Texto da pergunta..."/>
                                               <div className="flex gap-2 items-center">
                                                   <CustomSelect value={p.tipo} onChange={v => atualizarPergunta(idx, { tipo: v as TipoPergunta, opcoes: v === 'multipla' ? (p.opcoes || ['Opção 1']) : undefined })} options={[{value:'texto',label:'Texto livre'},{value:'sim_nao',label:'Sim / Não'},{value:'sim_nao_texto',label:'Sim / Não + Texto'},{value:'multipla',label:'Múltipla escolha'}]} size="sm"/>
                                                   {p.tipo === 'multipla' && (
@@ -1477,12 +1476,12 @@ export default function Configuracoes() {
                                   </div>
                               ))}
                           </div>
-                          <button onClick={adicionarPergunta} className="mt-3 w-full py-2.5 text-xs font-bold text-blue-600 border-2 border-dashed border-blue-200 rounded-xl hover:bg-blue-50 flex items-center justify-center gap-1"><Plus size={14}/> Adicionar Pergunta</button>
+                          <button onClick={adicionarPergunta} className="mt-3 w-full py-2.5 text-xs font-bold text-ortus-accent-muted border-2 border-dashed border-ortus-accent rounded-xl hover:bg-ortus-accent-soft flex items-center justify-center gap-1"><Plus size={14}/> Adicionar Pergunta</button>
                       </div>
                   </div>
                   <div className="p-5 border-t border-slate-100 bg-slate-50 flex gap-3 rounded-b-3xl flex-none">
                       <button onClick={() => setModalModelo(false)} className="flex-1 py-3 text-slate-500 font-bold hover:bg-slate-200 rounded-xl transition-colors">Cancelar</button>
-                      <button onClick={salvarModelo} className="flex-1 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-200 flex items-center justify-center gap-2"><Save size={16}/> Salvar Modelo</button>
+                      <button onClick={salvarModelo} className="flex-1 py-3 btn-ortus-primary shadow-ortus-accent flex items-center justify-center gap-2"><Save size={16}/> Salvar Modelo</button>
                   </div>
               </div>
           )}
@@ -1498,20 +1497,20 @@ export default function Configuracoes() {
                       <div className="bg-blue-50 p-5 rounded-2xl border border-blue-100 space-y-4">
                           <div className="flex items-center gap-2 text-blue-700 font-bold text-sm mb-2"><Shield size={16}/> Dados de Login</div>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              <div><label className="text-xs font-bold text-slate-400 uppercase ml-1">E-mail de Acesso</label><div className="relative"><Mail className="absolute left-3 top-3.5 text-slate-400" size={18}/><input value={profForm.email} onChange={e => setProfForm({...profForm, email: e.target.value})} className="w-full pl-10 pr-4 py-3 bg-white border border-blue-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700 placeholder:text-slate-300" placeholder="email@clinica.com"/></div></div>
-                              <div><label className="text-xs font-bold text-slate-400 uppercase ml-1">Senha {editandoProf && '(Opcional)'}</label><div className="relative"><Lock className="absolute left-3 top-3.5 text-slate-400" size={18}/><input type="password" value={profForm.senha} onChange={e => setProfForm({...profForm, senha: e.target.value})} className="w-full pl-10 pr-4 py-3 bg-white border border-blue-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700 placeholder:text-slate-300" placeholder={editandoProf ? "Manter atual" : "Criar senha"}/></div></div>
+                              <div><label className="text-xs font-bold text-slate-400 uppercase ml-1">E-mail de Acesso</label><div className="relative"><Mail className="absolute left-3 top-3.5 text-slate-400" size={18}/><input value={profForm.email} onChange={e => setProfForm({...profForm, email: e.target.value})} className="w-full pl-10 pr-4 py-3 bg-white border border-blue-200 rounded-xl outline-none focus:ring-2 focus:ring-ortus-accent font-medium text-slate-700 placeholder:text-slate-300" placeholder="email@clinica.com"/></div></div>
+                              <div><label className="text-xs font-bold text-slate-400 uppercase ml-1">Senha {editandoProf && '(Opcional)'}</label><div className="relative"><Lock className="absolute left-3 top-3.5 text-slate-400" size={18}/><input type="password" value={profForm.senha} onChange={e => setProfForm({...profForm, senha: e.target.value})} className="w-full pl-10 pr-4 py-3 bg-white border border-blue-200 rounded-xl outline-none focus:ring-2 focus:ring-ortus-accent font-medium text-slate-700 placeholder:text-slate-300" placeholder={editandoProf ? "Manter atual" : "Criar senha"}/></div></div>
                           </div>
                       </div>
                       <div className="space-y-4">
                           <h4 className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-2">Dados do Profissional</h4>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              <div className="md:col-span-2"><label className="text-xs font-bold text-slate-400 uppercase ml-1">Nome Completo</label><div className="relative"><User className="absolute left-3 top-3.5 text-slate-300" size={18}/><input value={profForm.nome} onChange={e => setProfForm({...profForm, nome: e.target.value})} className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-700" placeholder="Dr. Nome Sobrenome"/></div></div>
-                              <div><label className="text-xs font-bold text-slate-400 uppercase ml-1">CPF</label><input value={profForm.cpf} onChange={e => setProfForm({...profForm, cpf: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700" placeholder="000.000.000-00"/></div>
+                              <div className="md:col-span-2"><label className="text-xs font-bold text-slate-400 uppercase ml-1">Nome Completo</label><div className="relative"><User className="absolute left-3 top-3.5 text-slate-300" size={18}/><input value={profForm.nome} onChange={e => setProfForm({...profForm, nome: e.target.value})} className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-ortus-accent font-bold text-slate-700" placeholder="Dr. Nome Sobrenome"/></div></div>
+                              <div><label className="text-xs font-bold text-slate-400 uppercase ml-1">CPF</label><input value={profForm.cpf} onChange={e => setProfForm({...profForm, cpf: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-ortus-accent font-medium text-slate-700" placeholder="000.000.000-00"/></div>
                               <div><label className="text-xs font-bold text-slate-400 uppercase ml-1">Sexo</label><CustomSelect value={profForm.sexo} onChange={v => setProfForm({...profForm, sexo: v})} options={[{value:'Masculino',label:'Masculino'},{value:'Feminino',label:'Feminino'},{value:'Outro',label:'Outro'}]} placeholder="Selecione..." size="lg"/></div>
-                              <div><label className="text-xs font-bold text-slate-400 uppercase ml-1">Contato / Telefone</label><div className="relative"><Phone className="absolute left-3 top-3.5 text-slate-300" size={18}/><input value={profForm.telefone} onChange={e => setProfForm({...profForm, telefone: e.target.value})} className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700" placeholder="(00) 00000-0000"/></div></div>
-                              <div><label className="text-xs font-bold text-slate-400 uppercase ml-1">Cargo</label><input value={profForm.cargo} onChange={e => setProfForm({...profForm, cargo: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-700" placeholder="Ex: Ortodontista"/></div>
+                              <div><label className="text-xs font-bold text-slate-400 uppercase ml-1">Contato / Telefone</label><div className="relative"><Phone className="absolute left-3 top-3.5 text-slate-300" size={18}/><input value={profForm.telefone} onChange={e => setProfForm({...profForm, telefone: e.target.value})} className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-ortus-accent font-medium text-slate-700" placeholder="(00) 00000-0000"/></div></div>
+                              <div><label className="text-xs font-bold text-slate-400 uppercase ml-1">Cargo</label><input value={profForm.cargo} onChange={e => setProfForm({...profForm, cargo: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-ortus-accent font-bold text-slate-700" placeholder="Ex: Ortodontista"/></div>
                           </div>
-                          <div className="md:col-span-2"><label className="text-xs font-bold text-slate-400 uppercase ml-1">Endereço</label><input value={profForm.endereco} onChange={e => setProfForm({...profForm, endereco: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700" placeholder="Rua, Número, Bairro..."/></div>
+                          <div className="md:col-span-2"><label className="text-xs font-bold text-slate-400 uppercase ml-1">Endereço</label><input value={profForm.endereco} onChange={e => setProfForm({...profForm, endereco: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-ortus-accent font-medium text-slate-700" placeholder="Rua, Número, Bairro..."/></div>
                           <div className="grid grid-cols-3 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-100"><div className="col-span-1"><label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Conselho</label><CustomSelect value={profForm.conselho} onChange={v => setProfForm({...profForm, conselho: v})} options={[{value:'CRO',label:'CRO'},{value:'CRM',label:'CRM'},{value:'Outro',label:'Outro'}]} size="sm"/></div><div className="col-span-1"><label className="text-[10px] font-bold text-slate-400 uppercase ml-1">UF</label><input value={profForm.uf} onChange={e => setProfForm({...profForm, uf: e.target.value})} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none text-sm font-medium" placeholder="UF"/></div><div className="col-span-1"><label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Nº Conselho</label><input value={profForm.cro} onChange={e => setProfForm({...profForm, cro: e.target.value})} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none text-sm font-medium" placeholder="12345"/></div></div>
                       </div>
                       <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4">
@@ -1519,7 +1518,7 @@ export default function Configuracoes() {
                           <div className="flex bg-white p-1 rounded-xl border border-slate-200 shadow-sm"><button onClick={() => setProfForm({...profForm, nivel_acesso: 'comum'})} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${profForm.nivel_acesso === 'comum' ? 'bg-slate-800 text-white shadow' : 'text-slate-500 hover:bg-slate-50'}`}>Comum</button><button onClick={() => setProfForm({...profForm, nivel_acesso: 'admin'})} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${profForm.nivel_acesso === 'admin' ? 'bg-purple-600 text-white shadow' : 'text-slate-500 hover:bg-slate-50'}`}>Admin</button></div>
                       </div>
                   </div>
-                  <div className="p-6 border-t border-slate-100 bg-slate-50 flex gap-3 rounded-b-3xl flex-none"><button onClick={() => setModalProf(false)} className="flex-1 py-4 text-slate-500 font-bold hover:bg-slate-200 rounded-xl transition-colors">Cancelar</button><button onClick={salvarProfissional} disabled={salvandoProf} className="flex-1 py-4 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all active:scale-95 flex items-center justify-center gap-2">{salvandoProf ? <Loader2 className="animate-spin"/> : <><Save size={18}/> Salvar Acesso</>}</button></div>
+                  <div className="p-6 border-t border-slate-100 bg-slate-50 flex gap-3 rounded-b-3xl flex-none"><button onClick={() => setModalProf(false)} className="flex-1 py-4 text-slate-500 font-bold hover:bg-slate-200 rounded-xl transition-colors">Cancelar</button><button onClick={salvarProfissional} disabled={salvandoProf} className="flex-1 py-4 btn-ortus-primary shadow-ortus-accent transition-all active:scale-95 flex items-center justify-center gap-2">{salvandoProf ? <Loader2 className="animate-spin"/> : <><Save size={18}/> Salvar Acesso</>}</button></div>
               </div>
       </Modal>
 
@@ -1532,7 +1531,7 @@ export default function Configuracoes() {
                       {clinicas.map(c => {
                           const ativo = vinculosDoProf.includes(c.id);
                           return (
-                              <button key={c.id} onClick={() => toggleVinculo(c.id)} className={`w-full flex items-center justify-between p-4 rounded-xl border transition-all ${ativo ? 'bg-blue-50 border-blue-200' : 'bg-white border-slate-100 hover:bg-slate-50'}`}><span className={`font-bold ${ativo ? 'text-blue-700' : 'text-slate-600'}`}>{c.nome}</span><div className={`w-6 h-6 rounded-full border flex items-center justify-center ${ativo ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-slate-300'}`}>{ativo && <Check size={14}/>}</div></button>
+                              <button key={c.id} onClick={() => toggleVinculo(c.id)} className={`w-full flex items-center justify-between p-4 rounded-xl border transition-all ${ativo ? 'chip-ortus-active' : 'bg-white border-slate-100 hover:bg-slate-50'}`}><span className={`font-bold ${ativo ? 'text-ortus-accent' : 'text-slate-600'}`}>{c.nome}</span><div className={`w-6 h-6 rounded-full border flex items-center justify-center ${ativo ? 'chip-ortus-selected' : 'bg-white border-slate-300'}`}>{ativo && <Check size={14}/>}</div></button>
                           );
                       })}
                   </div>
@@ -1584,23 +1583,23 @@ export default function Configuracoes() {
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                               <div className="md:col-span-2">
                                   <label className="text-xs font-bold text-slate-400 uppercase ml-1">Nome da Clínica *</label>
-                                  <input value={clinicaForm.nome} onChange={e => setClinicaForm({...clinicaForm, nome: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-700" placeholder="Ex: Clínica Ortus Centro"/>
+                                  <input value={clinicaForm.nome} onChange={e => setClinicaForm({...clinicaForm, nome: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-ortus-accent font-bold text-slate-700" placeholder="Ex: Clínica Ortus Centro"/>
                               </div>
                               <div>
                                   <label className="text-xs font-bold text-slate-400 uppercase ml-1">CNPJ</label>
-                                  <input value={clinicaForm.cnpj} onChange={e => setClinicaForm({...clinicaForm, cnpj: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700" placeholder="00.000.000/0000-00"/>
+                                  <input value={clinicaForm.cnpj} onChange={e => setClinicaForm({...clinicaForm, cnpj: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-ortus-accent font-medium text-slate-700" placeholder="00.000.000/0000-00"/>
                               </div>
                               <div>
                                   <label className="text-xs font-bold text-slate-400 uppercase ml-1">Responsável</label>
-                                  <input value={clinicaForm.responsavel_nome} onChange={e => setClinicaForm({...clinicaForm, responsavel_nome: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700" placeholder="Nome do responsável técnico"/>
+                                  <input value={clinicaForm.responsavel_nome} onChange={e => setClinicaForm({...clinicaForm, responsavel_nome: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-ortus-accent font-medium text-slate-700" placeholder="Nome do responsável técnico"/>
                               </div>
                               <div>
                                   <label className="text-xs font-bold text-slate-400 uppercase ml-1">E-mail</label>
-                                  <input value={clinicaForm.email} onChange={e => setClinicaForm({...clinicaForm, email: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700" placeholder="clinica@email.com"/>
+                                  <input value={clinicaForm.email} onChange={e => setClinicaForm({...clinicaForm, email: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-ortus-accent font-medium text-slate-700" placeholder="clinica@email.com"/>
                               </div>
                               <div>
                                   <label className="text-xs font-bold text-slate-400 uppercase ml-1">Telefone</label>
-                                  <input value={clinicaForm.telefone} onChange={e => setClinicaForm({...clinicaForm, telefone: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700" placeholder="(00) 0000-0000"/>
+                                  <input value={clinicaForm.telefone} onChange={e => setClinicaForm({...clinicaForm, telefone: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-ortus-accent font-medium text-slate-700" placeholder="(00) 0000-0000"/>
                               </div>
                           </div>
                       </div>
@@ -1611,22 +1610,15 @@ export default function Configuracoes() {
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                               <div>
                                   <label className="text-xs font-bold text-slate-400 uppercase ml-1">Início</label>
-                                  <input type="time" value={clinicaForm.horario_inicio} onChange={e => setClinicaForm({...clinicaForm, horario_inicio: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700"/>
+                                  <input type="time" value={clinicaForm.horario_inicio} onChange={e => setClinicaForm({...clinicaForm, horario_inicio: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-ortus-accent font-medium text-slate-700"/>
                               </div>
                               <div>
                                   <label className="text-xs font-bold text-slate-400 uppercase ml-1">Término</label>
-                                  <input type="time" value={clinicaForm.horario_fim} onChange={e => setClinicaForm({...clinicaForm, horario_fim: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700"/>
+                                  <input type="time" value={clinicaForm.horario_fim} onChange={e => setClinicaForm({...clinicaForm, horario_fim: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-ortus-accent font-medium text-slate-700"/>
                               </div>
                               <div>
                                   <label className="text-xs font-bold text-slate-400 uppercase ml-1">Fuso Horário</label>
-                                  <select value={clinicaForm.fuso_horario} onChange={e => setClinicaForm({...clinicaForm, fuso_horario: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700">
-                                      <option value="America/Sao_Paulo">São Paulo (GMT-3)</option>
-                                      <option value="America/Manaus">Manaus (GMT-4)</option>
-                                      <option value="America/Rio_Branco">Rio Branco (GMT-5)</option>
-                                      <option value="America/Fortaleza">Fortaleza (GMT-3)</option>
-                                      <option value="America/Recife">Recife (GMT-3)</option>
-                                      <option value="America/Bahia">Salvador (GMT-3)</option>
-                                  </select>
+                                  <CustomSelect value={clinicaForm.fuso_horario} onChange={v => setClinicaForm({...clinicaForm, fuso_horario: v})} options={FUSO_HORARIO_OPTIONS} size="lg"/>
                               </div>
                           </div>
                       </div>
@@ -1638,11 +1630,11 @@ export default function Configuracoes() {
                               <label className="text-xs font-bold text-slate-400 uppercase ml-1">Emitir notas fiscais em nome de:</label>
                               <div className="flex gap-4 mt-2">
                                   <label className="flex items-center gap-2 cursor-pointer">
-                                      <input type="radio" name="emitir_notas" checked={clinicaForm.emitir_notas_em_nome === 'clinica'} onChange={() => setClinicaForm({...clinicaForm, emitir_notas_em_nome: 'clinica'})} className="w-4 h-4 text-blue-600"/>
+                                      <input type="radio" name="emitir_notas" checked={clinicaForm.emitir_notas_em_nome === 'clinica'} onChange={() => setClinicaForm({...clinicaForm, emitir_notas_em_nome: 'clinica'})} className="w-4 h-4 text-ortus-accent-muted"/>
                                       <span className="text-sm font-medium text-slate-700">Clínica (CNPJ da clínica)</span>
                                   </label>
                                   <label className="flex items-center gap-2 cursor-pointer">
-                                      <input type="radio" name="emitir_notas" checked={clinicaForm.emitir_notas_em_nome === 'profissional'} onChange={() => setClinicaForm({...clinicaForm, emitir_notas_em_nome: 'profissional'})} className="w-4 h-4 text-blue-600"/>
+                                      <input type="radio" name="emitir_notas" checked={clinicaForm.emitir_notas_em_nome === 'profissional'} onChange={() => setClinicaForm({...clinicaForm, emitir_notas_em_nome: 'profissional'})} className="w-4 h-4 text-ortus-accent-muted"/>
                                       <span className="text-sm font-medium text-slate-700">Profissional (CPF do dentista)</span>
                                   </label>
                               </div>
@@ -1665,7 +1657,7 @@ export default function Configuracoes() {
                                               }
                                           }}
                                           onBlur={() => buscarCepClinica(clinicaForm.cep)}
-                                          className="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700" 
+                                          className="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-ortus-accent font-medium text-slate-700" 
                                           placeholder="00000-000"
                                       />
                                       {buscandoCepClinica && <Loader2 size={20} className="animate-spin text-blue-500 absolute right-3 top-10"/>}
@@ -1673,36 +1665,31 @@ export default function Configuracoes() {
                               </div>
                               <div className="md:col-span-2">
                                   <label className="text-xs font-bold text-slate-400 uppercase ml-1">Rua / Avenida</label>
-                                  <input value={clinicaForm.rua} onChange={e => setClinicaForm({...clinicaForm, rua: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700" placeholder="Logradouro"/>
+                                  <input value={clinicaForm.rua} onChange={e => setClinicaForm({...clinicaForm, rua: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-ortus-accent font-medium text-slate-700" placeholder="Logradouro"/>
                               </div>
                           </div>
                           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                               <div>
                                   <label className="text-xs font-bold text-slate-400 uppercase ml-1">Número</label>
-                                  <input value={clinicaForm.numero} onChange={e => setClinicaForm({...clinicaForm, numero: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700" placeholder="123"/>
+                                  <input value={clinicaForm.numero} onChange={e => setClinicaForm({...clinicaForm, numero: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-ortus-accent font-medium text-slate-700" placeholder="123"/>
                               </div>
                               <div className="md:col-span-3">
                                   <label className="text-xs font-bold text-slate-400 uppercase ml-1">Complemento</label>
-                                  <input value={clinicaForm.complemento} onChange={e => setClinicaForm({...clinicaForm, complemento: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700" placeholder="Sala, Bloco, Andar..."/>
+                                  <input value={clinicaForm.complemento} onChange={e => setClinicaForm({...clinicaForm, complemento: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-ortus-accent font-medium text-slate-700" placeholder="Sala, Bloco, Andar..."/>
                               </div>
                           </div>
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                               <div>
                                   <label className="text-xs font-bold text-slate-400 uppercase ml-1">Bairro</label>
-                                  <input value={clinicaForm.bairro} onChange={e => setClinicaForm({...clinicaForm, bairro: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700" placeholder="Bairro"/>
+                                  <input value={clinicaForm.bairro} onChange={e => setClinicaForm({...clinicaForm, bairro: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-ortus-accent font-medium text-slate-700" placeholder="Bairro"/>
                               </div>
                               <div>
                                   <label className="text-xs font-bold text-slate-400 uppercase ml-1">Cidade</label>
-                                  <input value={clinicaForm.cidade} onChange={e => setClinicaForm({...clinicaForm, cidade: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700" placeholder="Cidade"/>
+                                  <input value={clinicaForm.cidade} onChange={e => setClinicaForm({...clinicaForm, cidade: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-ortus-accent font-medium text-slate-700" placeholder="Cidade"/>
                               </div>
                               <div>
                                   <label className="text-xs font-bold text-slate-400 uppercase ml-1">UF</label>
-                                  <select value={clinicaForm.uf} onChange={e => setClinicaForm({...clinicaForm, uf: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700">
-                                      <option value="">Selecione...</option>
-                                      {['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'].map(uf => (
-                                          <option key={uf} value={uf}>{uf}</option>
-                                      ))}
-                                  </select>
+                                  <CustomSelect value={clinicaForm.uf || ''} onChange={v => setClinicaForm({...clinicaForm, uf: v})} options={UF_OPTIONS} size="lg"/>
                               </div>
                           </div>
                       </div>
@@ -1712,7 +1699,7 @@ export default function Configuracoes() {
                       <button onClick={() => { setModalClinicaCompleto(false); setClinicaEditando(null); }} className="flex-1 py-4 text-slate-500 font-bold hover:bg-slate-200 rounded-xl transition-colors">
                           Cancelar
                       </button>
-                      <button onClick={salvarClinicaCompleta} className="flex-1 py-4 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all active:scale-95 flex items-center justify-center gap-2">
+                      <button onClick={salvarClinicaCompleta} className="flex-1 py-4 btn-ortus-primary shadow-ortus-accent transition-all active:scale-95 flex items-center justify-center gap-2">
                           <Save size={18}/> {clinicaEditando ? 'Salvar Alterações' : 'Cadastrar Clínica'}
                       </button>
                   </div>

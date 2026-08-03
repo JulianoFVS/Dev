@@ -6,6 +6,7 @@ import { useClinica, getClinicLabel } from '@/app/context/ClinicaContext';
 import { fetchUserEquipe } from '@/lib/clinicScoped';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
 import Modal from '@/components/ui/Modal';
+import CustomSelect from '@/components/ui/CustomSelect';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/Tabs';
 import {
     Users, UserPlus, Loader2, X, Mail, Building2, ShieldCheck, Copy, Check,
@@ -754,15 +755,11 @@ export default function EquipePage() {
                 <form onSubmit={salvarComissaoRapida} className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-slate-50 border border-slate-100 p-4 rounded-2xl">
                     <div className="md:col-span-2">
                         <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Gatilho</label>
-                        <select value={comissaoForm.gatilho} onChange={(e) => setComissaoForm((prev) => ({ ...prev, gatilho: e.target.value }))} className="mt-1 w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-white text-sm font-bold text-slate-700">
-                            {GATILHOS_COMISSAO.map((g) => <option key={g.value} value={g.value}>{g.label}</option>)}
-                        </select>
+                        <CustomSelect value={comissaoForm.gatilho} onChange={v => setComissaoForm(prev => ({ ...prev, gatilho: v }))} options={GATILHOS_COMISSAO.map(g => ({ value: g.value, label: g.label }))} size="lg" className="mt-1" />
                     </div>
                     <div>
                         <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Tipo</label>
-                        <select value={comissaoForm.tipo} onChange={(e) => setComissaoForm((prev) => ({ ...prev, tipo: e.target.value }))} className="mt-1 w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-white text-sm font-bold text-slate-700">
-                            {TIPOS_COMISSAO.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-                        </select>
+                        <CustomSelect value={comissaoForm.tipo} onChange={v => setComissaoForm(prev => ({ ...prev, tipo: v }))} options={TIPOS_COMISSAO.map(t => ({ value: t.value, label: t.label }))} size="lg" className="mt-1" />
                     </div>
                     <div>
                         <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Valor</label>
@@ -1118,13 +1115,7 @@ export default function EquipePage() {
 
                             <div>
                                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1 flex items-center gap-1 mb-1"><Briefcase size={12}/> Cargo</label>
-                                <select
-                                    value={form.cargo}
-                                    onChange={(e) => setForm({ ...form, cargo: e.target.value })}
-                                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-medium text-slate-700 focus:bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none"
-                                >
-                                    {CARGOS.map((c) => <option key={c} value={c}>{c}</option>)}
-                                </select>
+                                <CustomSelect value={form.cargo} onChange={v => setForm({ ...form, cargo: v })} options={CARGOS.map(c => ({ value: c, label: c }))} size="lg" className="mt-1" />
                             </div>
 
                             <div>

@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { usePatientSlideOver } from '@/components/PatientSlideOver';
 import { useClinica } from '@/app/context/ClinicaContext';
-import { AlertTriangle, Check, CheckCircle2, ChevronDown, ChevronRight, CircleDot, ClipboardList, Edit3, Eye, FlaskConical, Gem, GripVertical, Heart, Loader2, Package, Paintbrush, Plus, Scissors, Search, Shield, Smile, Sparkles, Star, Trash2, Truck, Wrench, X, Zap } from 'lucide-react';
+import { AlertTriangle, Check, CheckCircle2, CircleDot, ClipboardList, Edit3, Eye, FlaskConical, Gem, Heart, Loader2, Package, Paintbrush, Plus, Scissors, Search, Shield, Smile, Sparkles, Star, Trash2, Truck, Wrench, X, Zap } from 'lucide-react';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
 import CustomSelect from '@/components/ui/CustomSelect';
 import Modal from '@/components/ui/Modal';
@@ -160,7 +160,6 @@ export default function KanbanProtesesInteligente() {
   const [searchQuery, setSearchQuery] = useState('');
   const [periodFilter, setPeriodFilter] = useState<'all' | '7d' | '30d' | '90d'>('all');
   const [statusFilter, setStatusFilter] = useState<StatusKey | 'all'>('all');
-  const [flowDropdownOpen, setFlowDropdownOpen] = useState(false);
 
   // Mapa de ícones por slug (persiste no DB como string)
   const ICON_MAP: Record<string, React.ReactNode> = {
@@ -192,26 +191,6 @@ export default function KanbanProtesesInteligente() {
     'Finalizado / Entregue': 'truck',
   };
   function getColumnIcon(col: Column) { return ICON_MAP[col.icone || DEFAULT_ICONS[col.titulo] || 'package'] || <Package size={14} />; }
-
-  // Calcula quantas etapas cabem dinamicamente no container
-  const flowBarRef = useRef<HTMLDivElement>(null);
-  const [maxVisibleFlow, setMaxVisibleFlow] = useState(99);
-  useEffect(() => {
-    const el = flowBarRef.current;
-    if (!el || columns.length === 0) return;
-    const BUTTON_W = 175;
-    const OVERFLOW_W = 130;
-    function calc() {
-      const w = el!.clientWidth;
-      if (w < 100) return; // DOM não renderizou ainda
-      const fits = Math.max(2, Math.floor((w - OVERFLOW_W) / BUTTON_W));
-      setMaxVisibleFlow(columns.length <= fits ? columns.length : fits);
-    }
-    const raf = requestAnimationFrame(calc);
-    const ro = new ResizeObserver(calc);
-    ro.observe(el);
-    return () => { cancelAnimationFrame(raf); ro.disconnect(); };
-  }, [columns.length, loading]);
 
   // Sincroniza clinicId com contexto global (reativo) — evita reload desnecessário
   const prevClinicRef = useRef<string | null | undefined>(undefined);
@@ -564,22 +543,19 @@ export default function KanbanProtesesInteligente() {
 
   return (
     <div className="w-full max-w-6xl mx-auto px-3 sm:px-5 flex flex-col gap-4 pb-16 min-h-screen animate-in fade-in slide-in-from-bottom-2 duration-500">
-      <div className="sticky top-0 z-20 bg-white rounded-3xl border border-slate-200 shadow-sm p-5 grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center gap-4 shrink-0 w-full max-w-full min-w-0">
+      <div className="sticky top-0 z-20 bg-white rounded-2xl border border-slate-200 shadow-sm p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shrink-0">
         <div>
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-pink-50 text-pink-700 text-[10px] font-black uppercase tracking-wider mb-2">
-            <Sparkles size={13} /> Kanban inteligente
-          </div>
-          <h1 className="text-2xl font-black text-slate-900 flex items-center gap-2">
-            <Smile className="text-pink-500" size={28} /> Controle de Próteses
+          <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">
+            <Smile className="text-pink-500" size={22} /> Próteses
           </h1>
-          <p className="text-sm text-slate-500 font-medium mt-1">Fluxo universal com checklist clínico contextual por tipo de prótese.</p>
+          <p className="text-xs text-slate-500 font-medium mt-0.5">{filteredCards.length} pedido(s) · arraste entre colunas</p>
         </div>
-        <div className="flex flex-col sm:flex-row gap-2 shrink-0">
-          <button onClick={openNewColumn} className="px-5 py-3 rounded-2xl bg-slate-100 text-slate-600 font-black text-sm hover:bg-slate-200 border border-slate-200 flex items-center justify-center gap-2 active:scale-95 transition-all">
-            <Plus size={18} /> Novo Quadro
+        <div className="flex gap-2 shrink-0">
+          <button onClick={openNewColumn} className="px-4 py-2.5 rounded-xl bg-slate-100 text-slate-600 font-bold text-sm hover:bg-slate-200 border border-slate-200 flex items-center gap-1.5">
+            <Plus size={16} /> Quadro
           </button>
-          <button onClick={() => openNewOrder()} className="px-5 py-3 rounded-2xl bg-pink-600 text-white font-black text-sm hover:bg-pink-700 shadow-lg shadow-pink-100 flex items-center justify-center gap-2 active:scale-95 transition-all">
-            <Plus size={18} /> Novo Pedido de Prótese
+          <button onClick={() => openNewOrder()} className="px-4 py-2.5 rounded-xl bg-pink-600 text-white font-bold text-sm hover:bg-pink-700 flex items-center gap-1.5">
+            <Plus size={16} /> Novo pedido
           </button>
         </div>
       </div>
@@ -643,64 +619,6 @@ export default function KanbanProtesesInteligente() {
         </div>
       </div>
 
-      {/* FLUXO DO PROCESSO - Navegação por etapa */}
-      {!loading && columns.length > 0 && (
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm shrink-0 w-full max-w-full min-w-0 px-5 py-3">
-          <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2">Fluxo do Processo</p>
-          <div ref={flowBarRef} className="flex items-center gap-1 flex-wrap">
-            {columns.slice(0, maxVisibleFlow).map((col, idx) => {
-              const count = cardsByColumn(col.id).length;
-              return (
-                <div key={col.id} className="flex items-center">
-                  <button
-                    onClick={() => document.getElementById(`coluna-${col.id}`)?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })}
-                    className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-black transition-all hover:bg-pink-50 hover:text-pink-700 text-slate-600 border border-transparent hover:border-pink-200 active:scale-95"
-                  >
-                    <span className="w-7 h-7 rounded-lg bg-pink-50 text-pink-500 flex items-center justify-center shrink-0">{getColumnIcon(col)}</span>
-                    <span className="hidden sm:inline whitespace-nowrap">{col.titulo}</span>
-                    <span className="px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-400 text-[10px] font-black shrink-0">{count}</span>
-                  </button>
-                  {idx < maxVisibleFlow - 1 && columns.length > 1 && <ChevronRight size={14} className="text-slate-300 shrink-0" />}
-                </div>
-              );
-            })}
-
-            {/* Overflow: +N etapas dropdown */}
-            {columns.length > maxVisibleFlow && (
-              <div className="relative shrink-0 ml-1">
-                <button
-                  onClick={() => setFlowDropdownOpen(!flowDropdownOpen)}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black bg-pink-50 text-pink-600 border border-pink-200 hover:bg-pink-100 transition-all active:scale-95"
-                >
-                  +{columns.length - maxVisibleFlow} etapas
-                  <ChevronDown size={13} className={`transition-transform ${flowDropdownOpen ? 'rotate-180' : ''}`} />
-                </button>
-                {flowDropdownOpen && (
-                  <div className="absolute top-full right-0 mt-2 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 min-w-[240px] py-2 animate-in fade-in slide-in-from-top-2">
-                    <p className="px-4 py-1.5 text-[10px] font-black uppercase tracking-wider text-slate-400">Etapas do Fluxo ({columns.length} no total)</p>
-                    {columns.slice(maxVisibleFlow).map((col, idx) => {
-                      const count = cardsByColumn(col.id).length;
-                      return (
-                        <button
-                          key={col.id}
-                          onClick={() => { document.getElementById(`coluna-${col.id}`)?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' }); setFlowDropdownOpen(false); }}
-                          className="w-full text-left px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-pink-50 hover:text-pink-700 flex items-center gap-3 transition-colors"
-                        >
-                          <span className="text-[11px] font-black text-slate-400 w-5">{maxVisibleFlow + idx + 1}</span>
-                          <span className="w-6 h-6 rounded-lg bg-pink-50 text-pink-500 flex items-center justify-center shrink-0">{getColumnIcon(col)}</span>
-                          <span className="truncate">{col.titulo}</span>
-                          <span className="ml-auto px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-400 text-[10px] font-black shrink-0">{count}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
       <div className="flex-1 bg-white rounded-2xl sm:rounded-3xl border border-slate-200 shadow-sm overflow-hidden min-h-0 w-full max-w-full min-w-0">
         {loading ? (
           <div className="h-full flex items-center justify-center text-slate-400 font-bold gap-2">
@@ -756,23 +674,16 @@ export default function KanbanProtesesInteligente() {
                           className={`bg-white border rounded-2xl shadow-sm hover:shadow-lg hover:ring-2 ${tokens.ring} transition-all cursor-pointer active:cursor-grabbing group ${tokens.cardBorder} ${draggedCard?.id === card.id ? 'opacity-50 scale-95 border-dashed border-slate-400' : 'border-slate-200'} ${hasChecklist ? 'p-4' : 'p-3'}`}
                           title="Clique para editar · Arraste para mover"
                         >
-                          <div className="flex items-start justify-between gap-2 mb-3">
+                          <div className="flex items-start justify-between gap-2 mb-1">
                             <div className="min-w-0">
-                              <p className="font-black text-slate-900 text-sm truncate max-w-[210px]">{card.paciente_nome}</p>
-                              <div className="flex items-center gap-1.5 mt-1">
-                                <span className={`text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded ${tokens.pill}`}>{tokens.label}</span>
-                                <p className="text-[10px] font-black uppercase tracking-wider text-pink-600 truncate">{card.tipo_protese || 'Prótese'}</p>
-                              </div>
+                              <p className="font-black text-slate-900 text-sm truncate">{card.paciente_nome}</p>
+                              <p className="text-[11px] text-slate-500 font-semibold truncate mt-0.5">
+                                {card.tipo_protese || card.categoria || 'Prótese'}
+                                {card.cor_dente ? ` · ${card.cor_dente}` : ''}
+                              </p>
                             </div>
                             <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
-                              <GripVertical size={16} className="text-slate-300" />
-                              <button
-                                onClick={(e) => { e.stopPropagation(); const patientId = patientIdByName(card.paciente_nome); if (patientId) openPatient(patientId); }}
-                                className="opacity-0 group-hover:opacity-100 p-1 rounded-lg text-slate-300 hover:text-blue-500 hover:bg-blue-50 transition-all"
-                                title="Abrir paciente"
-                              >
-                                <Search size={14} />
-                              </button>
+                              <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded ${tokens.pill}`}>{tokens.label}</span>
                               <button
                                 onClick={(e) => { e.stopPropagation(); deleteCard(card.id); }}
                                 className="opacity-0 group-hover:opacity-100 p-1 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all"
@@ -783,30 +694,13 @@ export default function KanbanProtesesInteligente() {
                             </div>
                           </div>
 
-                          <div className="grid grid-cols-2 gap-2 mb-3">
-                            <div className="rounded-xl bg-slate-50 border border-slate-100 p-2">
-                              <p className="text-[9px] font-black uppercase text-slate-400">Posição</p>
-                              <p className="text-xs font-bold text-slate-700">{card.posicao || '--'}</p>
-                            </div>
-                            <div className="rounded-xl bg-slate-50 border border-slate-100 p-2">
-                              <p className="text-[9px] font-black uppercase text-slate-400">Cor</p>
-                              <p className="text-xs font-bold text-slate-700">{card.cor_dente || '--'}</p>
-                            </div>
-                          </div>
-
-                          {hasChecklist ? (
-                            <div className="space-y-2 rounded-2xl bg-violet-50/60 border border-violet-100 p-3" onClick={(e) => e.stopPropagation()}>
-                              <p className="text-[10px] font-black uppercase tracking-wider text-violet-700">Provas clínicas</p>
-                              {(Array.isArray(card.checklist) && card.checklist.length ? card.checklist : buildChecklist(card.tipo_protese || '')).map((item, index) => (
-                                <label key={`${card.id}-${item.tarefa}`} className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer">
-                                  <input type="checkbox" checked={item.feito} onChange={() => toggleChecklist(card, index)} className="w-4 h-4 accent-violet-600" />
-                                  <span className={item.feito ? 'line-through text-slate-400' : ''}>{item.tarefa}</span>
-                                </label>
-                              ))}
-                            </div>
-                          ) : (
-                            <p className="text-xs text-slate-500 line-clamp-2 min-h-[32px]">{card.descricao || `${card.categoria || 'Pedido'} · ${card.cor_gengiva ? `Gengiva ${card.cor_gengiva}` : 'Sem observações adicionais'}`}</p>
-                          )}
+                          {hasChecklist && Array.isArray(card.checklist) && card.checklist.length > 0 ? (
+                            <p className="text-[10px] font-bold text-violet-600">
+                              Provas: {card.checklist.filter(i => i.feito).length}/{card.checklist.length}
+                            </p>
+                          ) : card.descricao ? (
+                            <p className="text-xs text-slate-500 line-clamp-1">{card.descricao}</p>
+                          ) : null}
                         </article>
                         );
                       })}
@@ -830,8 +724,7 @@ export default function KanbanProtesesInteligente() {
           <div className="p-5 border-b border-slate-100 flex items-start justify-between gap-4 bg-gradient-to-br from-pink-50 to-white shrink-0">
               <div>
                 <p className="text-[10px] font-black uppercase tracking-wider text-pink-600">{editingCard ? 'Editar pedido' : 'Novo pedido'}</p>
-                <h2 className="text-xl font-black text-slate-900">{editingCard ? 'Ajustar dados da prótese' : 'Prótese em menos de 30 segundos'}</h2>
-                <p className="text-sm text-slate-500 font-medium mt-1">{editingCard ? 'Atualize os detalhes sem perder o checklist já marcado.' : 'Preencha apenas o que importa agora. O checklist nasce automaticamente.'}</p>
+                <h2 className="text-xl font-black text-slate-900">{editingCard ? 'Editar pedido' : 'Novo pedido'}</h2>
               </div>
               <button onClick={() => setModalOpen(false)} className="p-2 rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"><X size={20} /></button>
             </div>
@@ -877,15 +770,12 @@ export default function KanbanProtesesInteligente() {
                   <span className={`w-7 h-7 rounded-xl ${STATUS_TOKENS[form.status].dot} text-white flex items-center justify-center text-xs font-black`}>●</span>
                   <h3 className="font-black text-slate-800">Status atual</h3>
                 </div>
-                <select
+                <CustomSelect
                   value={form.status}
-                  onChange={(event) => setForm((current) => ({ ...current, status: event.target.value as StatusKey }))}
-                  className="w-full p-3 rounded-2xl bg-slate-50 border border-slate-200 font-bold outline-none focus:ring-2 focus:ring-pink-500"
-                >
-                  {(['espera', 'lab', 'clinica', 'feito'] as StatusKey[]).map((key) => (
-                    <option key={key} value={key}>{STATUS_TOKENS[key].label}</option>
-                  ))}
-                </select>
+                  onChange={(v) => setForm((current) => ({ ...current, status: v as StatusKey }))}
+                  options={(['espera', 'lab', 'clinica', 'feito'] as StatusKey[]).map((key) => ({ value: key, label: STATUS_TOKENS[key].label }))}
+                  size="lg"
+                />
                 <p className="text-[11px] text-slate-400 font-bold mt-2">O status acompanha o pedido independente do quadro onde ele esteja.</p>
               </section>
 

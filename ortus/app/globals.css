@@ -2,10 +2,48 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
+:root,
+[data-theme="blue"] {
   --foreground-rgb: 0, 0, 0;
-  --background-start-rgb: 248, 250, 252; /* slate-50 */
+  --background-start-rgb: 248, 250, 252;
   --background-end-rgb: 255, 255, 255;
+  --ortus-accent: 37 99 235;
+  --ortus-accent-50: 239 246 255;
+  --ortus-accent-100: 219 234 254;
+  --ortus-accent-600: 37 99 235;
+  --ortus-accent-700: 29 78 216;
+}
+
+[data-theme="emerald"] {
+  --ortus-accent: 5 150 105;
+  --ortus-accent-50: 236 253 245;
+  --ortus-accent-100: 209 250 229;
+  --ortus-accent-600: 5 150 105;
+  --ortus-accent-700: 4 120 87;
+}
+
+[data-theme="purple"] {
+  --ortus-accent: 147 51 234;
+  --ortus-accent-50: 250 245 255;
+  --ortus-accent-100: 243 232 255;
+  --ortus-accent-600: 147 51 234;
+  --ortus-accent-700: 126 34 206;
+}
+
+[data-theme="rose"] {
+  --ortus-accent: 225 29 72;
+  --ortus-accent-50: 255 241 242;
+  --ortus-accent-100: 255 228 230;
+  --ortus-accent-600: 225 29 72;
+  --ortus-accent-700: 190 18 60;
+}
+
+[data-theme="slate"] {
+  --ortus-accent: 71 85 105;
+  --ortus-accent-50: 248 250 252;
+  --ortus-accent-100: 241 245 249;
+  --ortus-accent-600: 71 85 105;
+  --ortus-accent-700: 51 65 85;
 }
 
 body {
@@ -16,6 +54,53 @@ body {
 
 @layer utilities {
   .text-balance { text-wrap: balance; }
+  .bg-ortus-accent { background-color: rgb(var(--ortus-accent-600)); }
+  .bg-ortus-accent-hover:hover { background-color: rgb(var(--ortus-accent-700)); }
+  .text-ortus-accent { color: rgb(var(--ortus-accent-700)); }
+  .text-ortus-accent-muted { color: rgb(var(--ortus-accent-600)); }
+  .bg-ortus-accent-soft { background-color: rgb(var(--ortus-accent-50)); }
+  .bg-ortus-accent-muted { background-color: rgb(var(--ortus-accent-100)); }
+  .ring-ortus-accent { --tw-ring-color: rgb(var(--ortus-accent-600) / 0.25); }
+  .border-ortus-accent { border-color: rgb(var(--ortus-accent-100)); }
+  .border-ortus-accent-strong { border-color: rgb(var(--ortus-accent-600)); }
+  .shadow-ortus-accent { box-shadow: 0 10px 15px -3px rgb(var(--ortus-accent-600) / 0.15); }
+  .hover\:text-ortus-accent:hover { color: rgb(var(--ortus-accent-700)); }
+  .hover\:border-ortus-accent:hover { border-color: rgb(var(--ortus-accent-600)); }
+  .hover\:bg-ortus-accent-soft:hover { background-color: rgb(var(--ortus-accent-50)); }
+  .focus\:ring-ortus-accent:focus { --tw-ring-color: rgb(var(--ortus-accent-600) / 0.25); }
+}
+
+@layer components {
+  .btn-ortus-primary {
+    background-color: rgb(var(--ortus-accent-600));
+    color: white;
+    font-weight: 700;
+    border-radius: 0.75rem;
+    transition: all 0.15s ease;
+  }
+  .btn-ortus-primary:hover:not(:disabled) {
+    background-color: rgb(var(--ortus-accent-700));
+  }
+  .btn-ortus-primary:active:not(:disabled) {
+    transform: scale(0.98);
+  }
+  .btn-ortus-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .toggle-ortus-on {
+    background-color: rgb(var(--ortus-accent-600));
+  }
+  .chip-ortus-selected {
+    background-color: rgb(var(--ortus-accent-600));
+    color: white;
+    border-color: rgb(var(--ortus-accent-600));
+  }
+  .chip-ortus-active {
+    border-color: rgb(var(--ortus-accent-600));
+    background-color: rgb(var(--ortus-accent-50));
+    color: rgb(var(--ortus-accent-700));
+  }
 }
 
 /* Animações Globais */

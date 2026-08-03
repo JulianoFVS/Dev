@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Lock, Mail, Loader2, ShieldCheck, ArrowLeft, Eye, EyeOff } from 'lucide-react';
 import Link from 'next/link';
 import { registrarAudit } from '@/lib/auditLog';
+import { setAuthMarkerCookie } from '@/lib/authCookies';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -65,6 +66,7 @@ export default function Login() {
       }
 
       registrarAudit({ acao: 'login', entidade: 'profissional', entidade_id: userId || undefined });
+      setAuthMarkerCookie();
 
       // Senha temporária: redireciona para troca obrigatória antes de qualquer coisa.
       if (precisaTrocarSenha) {

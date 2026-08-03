@@ -5,6 +5,7 @@ import AuthGuard from '@/components/AuthGuard';
 import { ClinicaProvider } from '@/app/context/ClinicaContext';
 import CookieBanner from '@/components/CookieBanner';
 import { CustomAlertProvider } from '@/components/ui/CustomAlert';
+import ThemeProvider from '@/components/ThemeProvider';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -28,7 +29,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className={inter.className}>
         <CustomAlertProvider>
           <ClinicaProvider>
-            <AuthGuard>{children}</AuthGuard>
+            <ThemeProvider>
+              <AuthGuard>{children}</AuthGuard>
+            </ThemeProvider>
           </ClinicaProvider>
           <CookieBanner />
         </CustomAlertProvider>

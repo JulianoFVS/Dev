@@ -10,6 +10,8 @@ import { useClinica } from '@/app/context/ClinicaContext';
 import { fetchUserClinicas } from '@/lib/clinicScoped';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
 import Modal from '@/components/ui/Modal';
+import CustomSelect from '@/components/ui/CustomSelect';
+import { TAREFA_PRIORIDADE_OPTIONS, TAREFA_STATUS_OPTIONS } from '@/lib/formOptions';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
@@ -357,26 +359,8 @@ export default function Tarefas() {
                         </button>
                         {showFiltros && (
                             <div className="mt-4 pt-4 border-t border-slate-100 flex flex-wrap gap-3 animate-in fade-in">
-                                <select 
-                                    value={filtroStatus} 
-                                    onChange={e => setFiltroStatus(e.target.value)}
-                                    className="px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-sm font-bold flex-1"
-                                >
-                                    <option value="todos">Todos os status</option>
-                                    <option value="a_fazer">A Fazer</option>
-                                    <option value="em_andamento">Em Andamento</option>
-                                    <option value="concluido">Concluído</option>
-                                </select>
-                                <select 
-                                    value={filtroPrioridade} 
-                                    onChange={e => setFiltroPrioridade(e.target.value)}
-                                    className="px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-sm font-bold flex-1"
-                                >
-                                    <option value="todos">Todas as prioridades</option>
-                                    <option value="alta">Alta</option>
-                                    <option value="media">Média</option>
-                                    <option value="baixa">Baixa</option>
-                                </select>
+                                <CustomSelect value={filtroStatus} onChange={setFiltroStatus} options={[{ value: 'todos', label: 'Todos os status' }, ...TAREFA_STATUS_OPTIONS]} size="sm" className="flex-1 min-w-[140px]" />
+                                <CustomSelect value={filtroPrioridade} onChange={setFiltroPrioridade} options={[{ value: 'todos', label: 'Todas as prioridades' }, ...TAREFA_PRIORIDADE_OPTIONS]} size="sm" className="flex-1 min-w-[140px]" />
                             </div>
                         )}
                     </div>
@@ -588,16 +572,7 @@ export default function Tarefas() {
                             <div className="grid grid-cols-2 gap-3">
                                 <div>
                                     <label className="text-xs font-bold text-slate-400 uppercase ml-1">Responsável</label>
-                                    <select 
-                                        value={form.responsavel_id}
-                                        onChange={e => setForm({...form, responsavel_id: e.target.value})}
-                                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700"
-                                    >
-                                        <option value="">Sem responsável</option>
-                                        {profissionais.map(p => (
-                                            <option key={p.id} value={p.id}>{p.nome}</option>
-                                        ))}
-                                    </select>
+                                    <CustomSelect value={form.responsavel_id} onChange={v => setForm({...form, responsavel_id: v})} options={[{ value: '', label: 'Sem responsável' }, ...profissionais.map(p => ({ value: String(p.id), label: p.nome }))]} size="lg" />
                                 </div>
                                 <div>
                                     <label className="text-xs font-bold text-slate-400 uppercase ml-1">Data Limite</label>
@@ -613,42 +588,17 @@ export default function Tarefas() {
                             <div className="grid grid-cols-2 gap-3">
                                 <div>
                                     <label className="text-xs font-bold text-slate-400 uppercase ml-1">Prioridade</label>
-                                    <select 
-                                        value={form.prioridade}
-                                        onChange={e => setForm({...form, prioridade: e.target.value as 'baixa' | 'media' | 'alta'})}
-                                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700"
-                                    >
-                                        <option value="baixa">Baixa</option>
-                                        <option value="media">Média</option>
-                                        <option value="alta">Alta</option>
-                                    </select>
+                                    <CustomSelect value={form.prioridade} onChange={v => setForm({...form, prioridade: v as 'baixa' | 'media' | 'alta'})} options={TAREFA_PRIORIDADE_OPTIONS} size="lg" />
                                 </div>
                                 <div>
                                     <label className="text-xs font-bold text-slate-400 uppercase ml-1">Status</label>
-                                    <select 
-                                        value={form.status}
-                                        onChange={e => setForm({...form, status: e.target.value as 'a_fazer' | 'em_andamento' | 'concluido'})}
-                                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700"
-                                    >
-                                        <option value="a_fazer">A Fazer</option>
-                                        <option value="em_andamento">Em Andamento</option>
-                                        <option value="concluido">Concluído</option>
-                                    </select>
+                                    <CustomSelect value={form.status} onChange={v => setForm({...form, status: v as 'a_fazer' | 'em_andamento' | 'concluido'})} options={TAREFA_STATUS_OPTIONS} size="lg" />
                                 </div>
                             </div>
 
                             <div>
                                 <label className="text-xs font-bold text-slate-400 uppercase ml-1">Vincular Paciente (opcional)</label>
-                                <select 
-                                    value={form.paciente_id}
-                                    onChange={e => setForm({...form, paciente_id: e.target.value})}
-                                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700"
-                                >
-                                    <option value="">Nenhum paciente</option>
-                                    {pacientes.map(p => (
-                                        <option key={p.id} value={p.id}>{p.nome}</option>
-                                    ))}
-                                </select>
+                                <CustomSelect value={form.paciente_id} onChange={v => setForm({...form, paciente_id: v})} options={[{ value: '', label: 'Nenhum paciente' }, ...pacientes.map(p => ({ value: p.id, label: p.nome }))]} size="lg" searchable />
                             </div>
                         </div>
                         
