@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { Building2, Users, Plus, Trash2, MapPin, Check, X, Loader2, Edit, UserPlus, Shield, User, FileText, Phone, Mail, Save, Lock, ClipboardList, HelpCircle, FileSignature, Tag, SlidersHorizontal, Database, Download, Upload, Bell, Palette, RotateCcw, AlertTriangle, Clock, DollarSign, Layers3, MessageCircle, CreditCard, Eye } from 'lucide-react';
@@ -9,6 +9,7 @@ import { listarBackups, criarBackupAgora, baixarBackupComoJson, excluirBackup as
 import { fetchUserClinicas } from '@/lib/clinicScoped';
 import { carregarConfig, salvarConfig } from '@/lib/configClinica';
 import CustomSelect from '@/components/ui/CustomSelect';
+import Modal from '@/components/ui/Modal';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
 import { DOCUMENTO_VARIAVEIS, aplicarVariaveisDocumento, buildDocumentoContexto } from '@/lib/documentVariables';
 import {
@@ -16,6 +17,7 @@ import {
   TEMPLATES_COMUNICACAO_PADRAO,
   TAXAS_MAQUININHA_PADRAO,
   normalizarCategoriasFinanceiras,
+  normalizarTaxasMaquininha,
   type CategoriaFinanceira,
   type TemplateComunicacao,
   type TaxaMaquininha,
@@ -49,7 +51,7 @@ const DOCS_PADRAO: ModeloDocumento[] = [
 
 export default function Configuracoes() {
   const router = useRouter();
-  const [abaAtiva, setAbaAtiva] = useState('clinicas');
+  const [abaAtiva, setAbaAtiva] = useState('geral');
   const [loading, setLoading] = useState(true);
   const { showAlert, showConfirm } = useCustomAlert();
   // Gate de acesso: só admin de tenant ou super admin podem entrar.
@@ -91,14 +93,16 @@ export default function Configuracoes() {
   const [modelos, setModelos] = useState<ModeloAnamnese[]>([]);
   const [modalModelo, setModalModelo] = useState(false);
   const [modeloEdit, setModeloEdit] = useState<ModeloAnamnese | null>(null);
+  const perguntasListRef = useRef<HTMLDivElement>(null);
 
   // GERAL / Preferências
   const [prefs, setPrefs] = useState<any>(PREFS_PADRAO);
 
   // CATEGORIAS FINANCEIRAS
   const [catsFin, setCatsFin] = useState<CategoriaFinanceira[]>(CATEGORIAS_FINANCEIRAS_PADRAO);
-  const [novaCatFin, setNovaCatFin] = useState('');
-  const [novaCatTipo, setNovaCatTipo] = useState<'receita' | 'despesa'>('despesa');
+  const [buscaCatFin, setBuscaCatFin] = useState('');
+  const [modalCatFin, setModalCatFin] = useState(false);
+  const [catFinEdit, setCatFinEdit] = useState<CategoriaFinanceira | null>(null);
 
   // COMUNICAÇÃO
   const [templatesComunicacao, setTemplatesComunicacao] = useState<TemplateComunicacao[]>(TEMPLATES_COMUNICACAO_PADRAO);
@@ -143,7 +147,11 @@ export default function Configuracoes() {
       carregarConfig(cid, 'categorias_financeiro', 'ortus_categorias_financeiro', CATEGORIAS_FINANCEIRAS_PADRAO).then(c => setCatsFin(normalizarCategoriasFinanceiras(c)));
       carregarConfig(cid, 'modelos_documentos', 'ortus_modelos_documentos', DOCS_PADRAO).then(d => setDocs(d && d.length ? d : DOCS_PADRAO));
       carregarConfig(cid, 'templates_comunicacao', 'ortus_templates_comunicacao', TEMPLATES_COMUNICACAO_PADRAO).then(t => setTemplatesComunicacao(Array.isArray(t) && t.length ? t : TEMPLATES_COMUNICACAO_PADRAO));
-      carregarConfig(cid, 'taxas_maquininha', 'ortus_taxas_maquininha', TAXAS_MAQUININHA_PADRAO).then(t => setTaxasMaquininha(Array.isArray(t) && t.length ? t : TAXAS_MAQUININHA_PADRAO));
+      carregarConfig(cid, 'taxas_maquininha', 'ortus_taxas_maquininha', TAXAS_MAQUININHA_PADRAO).then(t => {
+          const norm = normalizarTaxasMaquininha(t);
+          setTaxasMaquininha(norm);
+          if (JSON.stringify(t) !== JSON.stringify(norm)) salvarConfig(cid, 'taxas_maquininha', norm);
+      });
       carregarModelosAsync(cid).then(setModelos);
   }, [clinicas]);
 
@@ -203,23 +211,63 @@ export default function Configuracoes() {
       salvarConfig(cid, 'categorias_financeiro', lista);
   }
 
-  function adicionarCatFin() {
-      const n = novaCatFin.trim();
-      if (!n) return;
-      if (catsFin.find(c => c.nome.toLowerCase() === n.toLowerCase())) {
+  function abrirNovaCatFin() {
+      setCatFinEdit({ id: `cat_${Date.now()}`, nome: '', tipo: 'despesa', cor: '#64748b', ativo: true });
+      setModalCatFin(true);
+  }
+
+  function abrirEditarCatFin(cat: CategoriaFinanceira) {
+      setCatFinEdit({ ...cat });
+      setModalCatFin(true);
+  }
+
+  function salvarCatFinModal() {
+      if (!catFinEdit?.nome.trim()) {
+          showAlert('Informe o nome da categoria.', { type: 'warning' });
+          return;
+      }
+      const nome = catFinEdit.nome.trim();
+      const duplicada = catsFin.find(c => c.nome.toLowerCase() === nome.toLowerCase() && c.id !== catFinEdit.id);
+      if (duplicada) {
           showAlert('Categoria já existe.', { type: 'warning' });
           return;
       }
-      const nova: CategoriaFinanceira = {
-          id: `cat_${Date.now()}`,
-          nome: n,
-          tipo: novaCatTipo,
-          cor: novaCatTipo === 'receita' ? '#10b981' : '#64748b',
-          ativo: true,
-      };
-      persistirCategorias([...catsFin, nova].sort((a, b) => a.nome.localeCompare(b.nome)));
-      setNovaCatFin('');
+      const idx = catsFin.findIndex(c => c.id === catFinEdit.id);
+      const novos = idx >= 0
+          ? catsFin.map(c => c.id === catFinEdit.id ? catFinEdit : c)
+          : [...catsFin, catFinEdit];
+      persistirCategorias(novos.sort((a, b) => a.nome.localeCompare(b.nome)));
+      setModalCatFin(false);
+      setCatFinEdit(null);
   }
+
+  const catsFinFiltradas = useMemo(() => {
+      const q = buscaCatFin.trim().toLowerCase();
+      if (!q) return catsFin;
+      return catsFin.filter(c => c.nome.toLowerCase().includes(q) || c.tipo.includes(q));
+  }, [catsFin, buscaCatFin]);
+
+  const taxasPorBandeira = useMemo(() => {
+      const map = new Map<string, TaxaMaquininha[]>();
+      taxasMaquininha.forEach(t => {
+          if (!map.has(t.bandeira)) map.set(t.bandeira, []);
+          map.get(t.bandeira)!.push(t);
+      });
+      map.forEach(list => {
+          list.sort((a, b) => {
+              const ordemTipo = (x: TaxaMaquininha) => {
+                  if (x.tipo === 'pix') return 0;
+                  if (x.tipo === 'debito') return 1;
+                  if (x.tipo === 'credito_vista') return 2;
+                  return 3;
+              };
+              const diff = ordemTipo(a) - ordemTipo(b);
+              if (diff !== 0) return diff;
+              return (a.parcela ?? 0) - (b.parcela ?? 0);
+          });
+      });
+      return Array.from(map.entries());
+  }, [taxasMaquininha]);
 
   async function removerCatFin(id: string) {
       const cat = catsFin.find(c => c.id === id);
@@ -295,18 +343,6 @@ export default function Configuracoes() {
       setDocs(novos); const cidD2 = clinicas[0]?.id || '0'; salvarConfig(cidD2, 'modelos_documentos', novos);
   }
 
-  function renomearCatFin(id: string) {
-      const cat = catsFin.find(c => c.id === id);
-      if (!cat) return;
-      const nova = prompt('Novo nome:', cat.nome);
-      if (!nova || nova.trim() === cat.nome) return;
-      persistirCategorias(catsFin.map(c => c.id === id ? { ...c, nome: nova.trim() } : c).sort((a, b) => a.nome.localeCompare(b.nome)));
-  }
-
-  function atualizarCatFin(id: string, patch: Partial<CategoriaFinanceira>) {
-      persistirCategorias(catsFin.map(c => c.id === id ? { ...c, ...patch } : c));
-  }
-
   function inserirVariavelDoc(chave: string) {
       if (!docEdit) return;
       setDocEdit({ ...docEdit, conteudo: `${docEdit.conteudo}{{${chave}}}` });
@@ -359,7 +395,11 @@ export default function Configuracoes() {
                   salvarConfig(cidB, 'categorias_financeiro', norm);
               }
               if (obj.templates_comunicacao) { setTemplatesComunicacao(obj.templates_comunicacao); salvarConfig(cidB, 'templates_comunicacao', obj.templates_comunicacao); }
-              if (obj.taxas_maquininha) { setTaxasMaquininha(obj.taxas_maquininha); salvarConfig(cidB, 'taxas_maquininha', obj.taxas_maquininha); }
+              if (obj.taxas_maquininha) {
+                  const norm = normalizarTaxasMaquininha(obj.taxas_maquininha);
+                  setTaxasMaquininha(norm);
+                  salvarConfig(cidB, 'taxas_maquininha', norm);
+              }
               if (obj.modelos_anamnese) { setModelos(obj.modelos_anamnese); salvarModelos(obj.modelos_anamnese); }
               if (obj.modelos_documentos) { setDocs(obj.modelos_documentos); salvarConfig(cidB, 'modelos_documentos', obj.modelos_documentos); }
               if (obj.lancamentos_meta) { salvarConfig(cidB, 'lancamentos_meta', obj.lancamentos_meta); }
@@ -382,14 +422,23 @@ export default function Configuracoes() {
   function adicionarPergunta() {
       if (!modeloEdit) return;
       setModeloEdit({ ...modeloEdit, perguntas: [...modeloEdit.perguntas, { id: novoIdPergunta(), label: '', tipo: 'texto' }] });
+      setTimeout(() => {
+          perguntasListRef.current?.lastElementChild?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }, 50);
   }
   function atualizarPergunta(idx: number, patch: Partial<PerguntaAnamnese>) {
       if (!modeloEdit) return;
       const novas = modeloEdit.perguntas.map((p, i) => i === idx ? { ...p, ...patch } : p);
       setModeloEdit({ ...modeloEdit, perguntas: novas });
   }
-  function removerPergunta(idx: number) {
+  async function removerPergunta(idx: number) {
       if (!modeloEdit) return;
+      const pergunta = modeloEdit.perguntas[idx];
+      if (pergunta?.label.trim() && !(await showConfirm('Excluir esta pergunta?', { title: 'Excluir pergunta', type: 'warning', confirmLabel: 'Excluir' }))) return;
+      if (!pergunta?.label.trim() && modeloEdit.perguntas.length <= 1) {
+          showAlert('O modelo precisa de pelo menos uma pergunta.', { type: 'warning' });
+          return;
+      }
       setModeloEdit({ ...modeloEdit, perguntas: modeloEdit.perguntas.filter((_, i) => i !== idx) });
   }
   async function salvarModelo() {
@@ -773,16 +822,13 @@ export default function Configuracoes() {
 
       <div className="flex gap-4 border-b border-slate-200">
           <div className="flex gap-1 overflow-x-auto pb-1 -mb-1">
-              <button onClick={() => setAbaAtiva('clinicas')} className={`pb-4 px-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${abaAtiva === 'clinicas' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><Building2 size={16}/> Clínicas</button>
-              {(perfilCaller?.nivel_acesso === 'admin' || perfilCaller?.is_super_admin) && (
-                <button onClick={() => setAbaAtiva('planos')} className={`pb-4 px-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${abaAtiva === 'planos' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><Layers3 size={16}/> Planos</button>
-              )}
               <button onClick={() => setAbaAtiva('geral')} className={`pb-4 px-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${abaAtiva === 'geral' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><SlidersHorizontal size={16}/> Geral</button>
+              <button onClick={() => setAbaAtiva('clinicas')} className={`pb-4 px-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${abaAtiva === 'clinicas' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><Building2 size={16}/> Clínicas</button>
               <button onClick={() => setAbaAtiva('anamnese')} className={`pb-4 px-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${abaAtiva === 'anamnese' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><ClipboardList size={16}/> Anamnese</button>
               <button onClick={() => setAbaAtiva('documentos')} className={`pb-4 px-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${abaAtiva === 'documentos' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><FileSignature size={16}/> Contratos & Docs</button>
               <button onClick={() => setAbaAtiva('categorias')} className={`pb-4 px-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${abaAtiva === 'categorias' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><Tag size={16}/> Categorias Fin.</button>
-              <button onClick={() => setAbaAtiva('comunicacao')} className={`pb-4 px-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${abaAtiva === 'comunicacao' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><MessageCircle size={16}/> Comunicação</button>
               <button onClick={() => setAbaAtiva('taxas')} className={`pb-4 px-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${abaAtiva === 'taxas' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><CreditCard size={16}/> Taxas</button>
+              <button onClick={() => setAbaAtiva('comunicacao')} className={`pb-4 px-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${abaAtiva === 'comunicacao' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><MessageCircle size={16}/> Comunicação</button>
               <button onClick={() => setAbaAtiva('backup')} className={`pb-4 px-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${abaAtiva === 'backup' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><Database size={16}/> Backup</button>
           </div>
       </div>
@@ -820,12 +866,7 @@ export default function Configuracoes() {
                 </div>
             )}
 
-            {/* ABA PLANOS */}
-            {abaAtiva === 'planos' && (perfilCaller?.nivel_acesso === 'admin' || perfilCaller?.is_super_admin) && (
-                <div className="space-y-6 animate-in fade-in">
-                    <PlanosEmbedded />
-                </div>
-            )}
+            {/* ABA PLANOS — removida; planos ficam em Contratos & Docs */}
 
             {/* ABA ANAMNESE */}
             {abaAtiva === 'anamnese' && (
@@ -907,6 +948,25 @@ export default function Configuracoes() {
                         </div>
                     </div>
 
+                    <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+                        <h3 className="font-bold text-slate-700 text-lg flex items-center gap-2"><Palette size={18} className="text-indigo-500"/> Aparência do Sistema</h3>
+                        <div className="max-w-xs">
+                            <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Cor do tema</label>
+                            <CustomSelect
+                                value={prefs.cor_tema || 'blue'}
+                                onChange={v => atualizarPref('cor_tema', v)}
+                                options={[
+                                    { value: 'blue', label: 'Azul (padrão)' },
+                                    { value: 'emerald', label: 'Verde' },
+                                    { value: 'purple', label: 'Roxo' },
+                                    { value: 'rose', label: 'Rosa' },
+                                    { value: 'slate', label: 'Cinza' },
+                                ]}
+                                size="lg"
+                            />
+                        </div>
+                    </div>
+
                     <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-3">
                         <h3 className="font-bold text-slate-700 text-lg flex items-center gap-2"><Bell size={18} className="text-amber-500"/> Notificações</h3>
                         {[
@@ -932,7 +992,7 @@ export default function Configuracoes() {
                         <div className="flex justify-between items-center mb-4">
                             <div>
                                 <h3 className="font-bold text-slate-700 text-lg flex items-center gap-2"><FileSignature size={20} className="text-purple-500"/> Modelos de Contratos & Documentos</h3>
-                                <p className="text-xs text-slate-400 font-medium mt-1">Crie modelos reutilizáveis de contratos, termos e outros documentos. Use <code className="bg-slate-100 px-1 rounded">{`{{paciente_nome}}`}</code>, <code className="bg-slate-100 px-1 rounded">{`{{paciente_cpf}}`}</code>, <code className="bg-slate-100 px-1 rounded">{`{{data}}`}</code> como variáveis.</p>
+                                <p className="text-xs text-slate-400 font-medium mt-1">Crie modelos reutilizáveis de contratos, termos e outros documentos. Use variáveis como <code className="bg-slate-100 px-1 rounded">{`{{paciente_nome}}`}</code> — veja os rótulos abaixo ao editar.</p>
                             </div>
                             <button onClick={abrirNovoDoc} className="bg-purple-600 text-white px-4 py-2 rounded-xl font-bold text-sm hover:bg-purple-700 flex items-center gap-2 shadow-lg shadow-purple-200"><Plus size={16}/> Novo Modelo</button>
                         </div>
@@ -965,6 +1025,16 @@ export default function Configuracoes() {
                             )}
                         </div>
                     </div>
+
+                    {(perfilCaller?.nivel_acesso === 'admin' || perfilCaller?.is_super_admin) && (
+                        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+                            <div className="mb-6">
+                                <h3 className="font-bold text-slate-700 text-lg flex items-center gap-2"><Layers3 size={20} className="text-blue-500"/> Planos e Convênios</h3>
+                                <p className="text-xs text-slate-400 font-medium mt-1">Gerencie tabelas de preços vinculadas a contratos e documentos do paciente.</p>
+                            </div>
+                            <PlanosEmbedded />
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -972,32 +1042,45 @@ export default function Configuracoes() {
             {abaAtiva === 'categorias' && (
                 <div className="space-y-6 animate-in fade-in">
                     <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
-                        <h3 className="font-bold text-slate-700 text-lg flex items-center gap-2 mb-4"><Tag size={20} className="text-emerald-500"/> Categorias Financeiras</h3>
-                        <p className="text-xs text-slate-400 mb-4">Organize receitas e despesas por tipo. Categorias inativas não aparecem no Financeiro.</p>
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                            <div>
+                                <h3 className="font-bold text-slate-700 text-lg flex items-center gap-2"><Tag size={20} className="text-emerald-500"/> Categorias Financeiras</h3>
+                                <p className="text-xs text-slate-400">Organize receitas e despesas por tipo. Categorias inativas não aparecem no Financeiro.</p>
+                            </div>
+                            <button onClick={abrirNovaCatFin} className="px-4 py-2 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 flex items-center gap-1.5 text-sm shrink-0"><Plus size={14}/> Adicionar</button>
+                        </div>
 
-                        <div className="flex flex-col sm:flex-row gap-2 mb-4">
-                            <input value={novaCatFin} onChange={e => setNovaCatFin(e.target.value)} onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), adicionarCatFin())} placeholder="Nome da nova categoria..." className="flex-1 min-w-0 p-2.5 sm:p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-sm"/>
-                            <CustomSelect value={novaCatTipo} onChange={v => setNovaCatTipo(v as 'receita' | 'despesa')} options={[{ value: 'receita', label: 'Receita' }, { value: 'despesa', label: 'Despesa' }]} size="md"/>
-                            <button onClick={adicionarCatFin} disabled={!novaCatFin.trim()} className="px-3 sm:px-4 py-2.5 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 disabled:opacity-40 flex items-center justify-center gap-1.5 text-xs sm:text-sm shrink-0"><Plus size={14}/> Adicionar</button>
+                        <div className="flex items-center gap-2 mb-4">
+                            <input
+                                value={buscaCatFin}
+                                onChange={e => setBuscaCatFin(e.target.value)}
+                                placeholder="Buscar categorias..."
+                                className="flex-1 p-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-sm"
+                            />
+                            <span className="text-xs font-bold text-slate-400 whitespace-nowrap px-2">
+                                {catsFinFiltradas.length} de {catsFin.length}
+                            </span>
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                            {catsFin.length === 0 ? (
-                                <div className="col-span-2 text-center py-8 text-slate-400 border-2 border-dashed border-slate-200 rounded-xl text-sm">Nenhuma categoria cadastrada ainda.</div>
-                            ) : catsFin.map(c => (
+                            {catsFinFiltradas.length === 0 ? (
+                                <div className="col-span-2 text-center py-8 text-slate-400 border-2 border-dashed border-slate-200 rounded-xl text-sm">
+                                    {buscaCatFin.trim() ? 'Nenhuma categoria encontrada.' : 'Nenhuma categoria cadastrada ainda.'}
+                                </div>
+                            ) : catsFinFiltradas.map(c => (
                                 <div key={c.id} className={`p-3 border rounded-xl group transition-all ${c.ativo ? 'bg-slate-50 border-slate-200 hover:bg-white' : 'bg-slate-100 border-slate-100 opacity-60'}`}>
                                     <div className="flex items-center justify-between gap-2 mb-2">
                                         <div className="flex items-center gap-2 min-w-0 flex-1">
-                                            <input type="color" value={c.cor} onChange={e => atualizarCatFin(c.id, { cor: e.target.value })} className="w-8 h-8 rounded cursor-pointer shrink-0 border-0" title="Cor"/>
+                                            <span className="w-4 h-4 rounded shrink-0 border border-slate-200" style={{ backgroundColor: c.cor }} title={c.cor}/>
                                             <span className="font-bold text-slate-700 text-sm truncate">{c.nome}</span>
+                                            <span className={`text-[9px] uppercase font-black px-1.5 py-0.5 rounded shrink-0 ${c.tipo === 'receita' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'}`}>{c.tipo}</span>
                                         </div>
                                         <div className="flex gap-1 shrink-0">
                                             <button onClick={() => toggleCatFinAtiva(c.id)} className={`p-1 rounded ${c.ativo ? 'text-emerald-600 hover:bg-emerald-50' : 'text-slate-400 hover:bg-slate-200'}`} title={c.ativo ? 'Desativar' : 'Ativar'}><Check size={14}/></button>
-                                            <button onClick={() => renomearCatFin(c.id)} className="p-1 text-slate-400 hover:text-blue-600"><Edit size={14}/></button>
+                                            <button onClick={() => abrirEditarCatFin(c)} className="p-1 text-slate-400 hover:text-blue-600"><Edit size={14}/></button>
                                             <button onClick={() => removerCatFin(c.id)} className="p-1 text-slate-400 hover:text-rose-600"><Trash2 size={14}/></button>
                                         </div>
                                     </div>
-                                    <CustomSelect value={c.tipo} onChange={v => atualizarCatFin(c.id, { tipo: v as 'receita' | 'despesa' })} options={[{ value: 'receita', label: 'Receita' }, { value: 'despesa', label: 'Despesa' }]} size="sm"/>
                                 </div>
                             ))}
                         </div>
@@ -1049,40 +1132,39 @@ export default function Configuracoes() {
                 <div className="space-y-6 animate-in fade-in">
                     <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
                         <h3 className="font-bold text-slate-700 text-lg flex items-center gap-2 mb-2"><CreditCard size={20} className="text-indigo-500"/> Taxas de Maquininha</h3>
-                        <p className="text-xs text-slate-400 mb-6">Configure as taxas por bandeira e tipo de pagamento para calcular o valor líquido recebido.</p>
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-sm">
-                                <thead>
-                                    <tr className="text-left text-[10px] uppercase font-black text-slate-400 border-b border-slate-100">
-                                        <th className="pb-3 pr-4">Nome</th>
-                                        <th className="pb-3 pr-4">Bandeira</th>
-                                        <th className="pb-3 pr-4">Tipo</th>
-                                        <th className="pb-3 pr-4">Taxa (%)</th>
-                                        <th className="pb-3 pr-4">Prazo (dias)</th>
-                                        <th className="pb-3">Ativo</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100">
-                                    {taxasMaquininha.map(t => (
-                                        <tr key={t.id} className={t.ativo ? '' : 'opacity-50'}>
-                                            <td className="py-3 pr-4 font-bold text-slate-700">{t.nome}</td>
-                                            <td className="py-3 pr-4 text-slate-600">{t.bandeira}</td>
-                                            <td className="py-3 pr-4">
-                                                <span className="text-[10px] font-bold uppercase bg-slate-100 px-2 py-0.5 rounded">{t.tipo.replace('_', ' ')}</span>
-                                            </td>
-                                            <td className="py-3 pr-4">
-                                                <input type="number" step="0.01" min="0" max="100" value={t.taxa_percentual} onChange={e => atualizarTaxa(t.id, 'taxa_percentual', parseFloat(e.target.value) || 0)} className="w-20 p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold"/>
-                                            </td>
-                                            <td className="py-3 pr-4">
-                                                <input type="number" min="0" value={t.prazo_recebimento_dias} onChange={e => atualizarTaxa(t.id, 'prazo_recebimento_dias', parseInt(e.target.value) || 0)} className="w-16 p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold"/>
-                                            </td>
-                                            <td className="py-3">
+                        <p className="text-xs text-slate-400 mb-6">Configure taxas por bandeira e parcela (1–12x) para calcular o valor líquido recebido.</p>
+                        <div className="space-y-6">
+                            {taxasPorBandeira.map(([bandeira, taxas]) => (
+                                <div key={bandeira} className="border border-slate-100 rounded-2xl overflow-hidden">
+                                    <div className="px-4 py-3 bg-slate-50 border-b border-slate-100">
+                                        <h4 className="font-black text-sm text-slate-700">{bandeira}</h4>
+                                    </div>
+                                    <div className="divide-y divide-slate-50">
+                                        {taxas.map(t => (
+                                            <div key={t.id} className={`flex flex-wrap items-center gap-3 px-4 py-3 ${t.ativo ? '' : 'opacity-50'}`}>
+                                                <div className="flex-1 min-w-[120px]">
+                                                    <p className="text-sm font-bold text-slate-700">
+                                                        {t.tipo === 'credito_parcelado' && t.parcela
+                                                            ? (t.parcela === 1 ? 'Crédito à vista' : `${t.parcela}x`)
+                                                            : t.nome}
+                                                    </p>
+                                                    <p className="text-[10px] uppercase font-bold text-slate-400">{t.tipo.replace(/_/g, ' ')}</p>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <label className="text-[10px] font-black uppercase text-slate-400">Taxa %</label>
+                                                    <input type="number" step="0.01" min="0" max="100" value={t.taxa_percentual} onChange={e => atualizarTaxa(t.id, 'taxa_percentual', parseFloat(e.target.value) || 0)} className="w-20 p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold"/>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <label className="text-[10px] font-black uppercase text-slate-400">Prazo</label>
+                                                    <input type="number" min="0" value={t.prazo_recebimento_dias} onChange={e => atualizarTaxa(t.id, 'prazo_recebimento_dias', parseInt(e.target.value) || 0)} className="w-16 p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold"/>
+                                                    <span className="text-[10px] text-slate-400">dias</span>
+                                                </div>
                                                 <button onClick={() => atualizarTaxa(t.id, 'ativo', !t.ativo)} className={`p-1.5 rounded-lg ${t.ativo ? 'text-emerald-600 bg-emerald-50' : 'text-slate-400 bg-slate-100'}`}><Check size={16}/></button>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            ))}
                         </div>
                         <p className="text-[11px] text-slate-400 mt-4">Exemplo: R$ 1.000 com taxa de 2,5% = líquido de R$ 975,00</p>
                     </div>
@@ -1169,9 +1251,9 @@ export default function Configuracoes() {
       )}
 
       {/* MODAL RESTAURAR BACKUP - Confirmação Dupla */}
-      {modalRestaurar && (
-          <div className="fixed inset-0 z-[70] bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
-              <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden border-4 border-rose-300 animate-in zoom-in-95">
+      <Modal open={!!modalRestaurar} onClose={() => setModalRestaurar(null)} maxWidth="lg" zIndex={70} hideCloseButton>
+          {modalRestaurar && (
+          <div className="bg-white w-full rounded-3xl shadow-2xl overflow-hidden border-4 border-rose-300 animate-in zoom-in-95">
                   <div className="p-5 bg-gradient-to-br from-rose-500 to-rose-600 text-white flex items-start gap-3">
                       <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center shrink-0 backdrop-blur-sm">
                           <AlertTriangle size={28}/>
@@ -1233,13 +1315,13 @@ export default function Configuracoes() {
                       </button>
                   </div>
               </div>
-          </div>
-      )}
+          )}
+      </Modal>
 
       {/* MODAL EDITAR DOCUMENTO */}
-      {modalDoc && docEdit && (
-          <div className="fixed inset-0 z-[60] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
-              <div className="bg-white w-full max-w-3xl rounded-3xl shadow-2xl flex flex-col max-h-[90vh] animate-in zoom-in-95 border border-slate-100">
+      <Modal open={modalDoc && !!docEdit} onClose={() => setModalDoc(false)} maxWidth="2xl" hideCloseButton>
+          {docEdit && (
+          <div className="bg-white w-full rounded-3xl shadow-2xl flex flex-col max-h-[90vh] animate-in zoom-in-95 border border-slate-100">
                   <div className="p-5 border-b bg-slate-50 flex justify-between items-center rounded-t-3xl">
                       <h3 className="font-black text-lg text-slate-800 flex items-center gap-2"><FileSignature size={18} className="text-purple-500"/> {docs.find(d => d.id === docEdit.id) ? 'Editar' : 'Novo'} Modelo</h3>
                       <button onClick={() => setModalDoc(false)} className="p-2 hover:bg-slate-100 rounded-full text-slate-400"><X size={18}/></button>
@@ -1259,7 +1341,7 @@ export default function Configuracoes() {
                           <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Conteúdo</label>
                           <div className="flex flex-wrap gap-1.5 mb-2">
                               {DOCUMENTO_VARIAVEIS.map(v => (
-                                  <button key={v.chave} type="button" onClick={() => inserirVariavelDoc(String(v.chave))} className="text-[10px] font-bold px-2 py-1 bg-purple-50 text-purple-700 border border-purple-100 rounded-lg hover:bg-purple-100">{`{{${v.chave}}}`}</button>
+                                  <button key={v.chave} type="button" onClick={() => inserirVariavelDoc(String(v.chave))} title={`{{${v.chave}}}`} className="text-[10px] font-bold px-2 py-1 bg-purple-50 text-purple-700 border border-purple-100 rounded-lg hover:bg-purple-100">{v.label}</button>
                               ))}
                           </div>
                           <textarea value={docEdit.conteudo} onChange={e => setDocEdit({...docEdit, conteudo: e.target.value})} className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-purple-500 font-mono text-sm h-48 resize-none" placeholder="Texto do modelo com variáveis {{paciente_nome}}, {{clinica_cnpj}}, etc."/>
@@ -1274,13 +1356,13 @@ export default function Configuracoes() {
                       <button onClick={salvarDocEdit} className="flex-1 py-3 bg-purple-600 text-white font-bold rounded-xl hover:bg-purple-700 shadow-lg shadow-purple-200 flex items-center justify-center gap-2"><Save size={16}/> Salvar</button>
                   </div>
               </div>
-          </div>
-      )}
+          )}
+      </Modal>
 
       {/* MODAL TEMPLATE COMUNICAÇÃO */}
-      {modalTemplateCom && templateComEdit && (
-          <div className="fixed inset-0 z-[60] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
-              <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl flex flex-col max-h-[90vh] animate-in zoom-in-95 border border-slate-100">
+      <Modal open={modalTemplateCom && !!templateComEdit} onClose={() => setModalTemplateCom(false)} maxWidth="2xl" hideCloseButton>
+          {templateComEdit && (
+          <div className="bg-white w-full rounded-3xl shadow-2xl flex flex-col max-h-[90vh] animate-in zoom-in-95 border border-slate-100">
                   <div className="p-5 border-b bg-slate-50 flex justify-between items-center rounded-t-3xl">
                       <h3 className="font-black text-lg text-slate-800 flex items-center gap-2"><MessageCircle size={18} className="text-green-500"/> {templatesComunicacao.find(t => t.id === templateComEdit.id) ? 'Editar' : 'Novo'} Template</h3>
                       <button onClick={() => setModalTemplateCom(false)} className="p-2 hover:bg-slate-100 rounded-full text-slate-400"><X size={18}/></button>
@@ -1312,13 +1394,45 @@ export default function Configuracoes() {
                       <button onClick={salvarTemplateComEdit} className="flex-1 py-3 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 shadow-lg flex items-center justify-center gap-2"><Save size={16}/> Salvar</button>
                   </div>
               </div>
+          )}
+      </Modal>
+
+      {/* MODAL CATEGORIA FINANCEIRA */}
+      <Modal open={modalCatFin && !!catFinEdit} onClose={() => { setModalCatFin(false); setCatFinEdit(null); }} maxWidth="md" hideCloseButton>
+          {catFinEdit && (
+          <div className="bg-white w-full rounded-3xl shadow-2xl border border-slate-100 overflow-hidden">
+              <div className="p-5 border-b bg-slate-50 flex justify-between items-center">
+                  <h3 className="font-black text-lg text-slate-800 flex items-center gap-2"><Tag size={18} className="text-emerald-500"/> {catsFin.find(c => c.id === catFinEdit.id) ? 'Editar' : 'Nova'} Categoria</h3>
+                  <button onClick={() => { setModalCatFin(false); setCatFinEdit(null); }} className="p-2 hover:bg-slate-100 rounded-full text-slate-400"><X size={18}/></button>
+              </div>
+              <div className="p-6 space-y-4">
+                  <div>
+                      <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Nome</label>
+                      <input value={catFinEdit.nome} onChange={e => setCatFinEdit({ ...catFinEdit, nome: e.target.value })} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 font-bold"/>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                      <div>
+                          <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Tipo</label>
+                          <CustomSelect value={catFinEdit.tipo} onChange={v => setCatFinEdit({ ...catFinEdit, tipo: v as 'receita' | 'despesa', cor: v === 'receita' ? '#10b981' : catFinEdit.cor })} options={[{ value: 'receita', label: 'Receita' }, { value: 'despesa', label: 'Despesa' }]} size="lg"/>
+                      </div>
+                      <div>
+                          <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Cor</label>
+                          <input type="color" value={catFinEdit.cor} onChange={e => setCatFinEdit({ ...catFinEdit, cor: e.target.value })} className="w-full h-12 rounded-xl cursor-pointer border border-slate-200"/>
+                      </div>
+                  </div>
+              </div>
+              <div className="p-5 border-t bg-slate-50 flex gap-3">
+                  <button onClick={() => { setModalCatFin(false); setCatFinEdit(null); }} className="flex-1 py-3 text-slate-500 font-bold hover:bg-slate-200 rounded-xl">Cancelar</button>
+                  <button onClick={salvarCatFinModal} className="flex-1 py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 shadow-lg flex items-center justify-center gap-2"><Save size={16}/> Salvar</button>
+              </div>
           </div>
-      )}
+          )}
+      </Modal>
 
       {/* MODAL CRIAR/EDITAR MODELO ANAMNESE */}
-      {modalModelo && modeloEdit && (
-          <div className="fixed inset-0 z-[60] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
-              <div className="bg-white w-full max-w-3xl rounded-3xl shadow-2xl flex flex-col max-h-[90vh] animate-in zoom-in-95 border border-slate-100">
+      <Modal open={modalModelo && !!modeloEdit} onClose={() => setModalModelo(false)} maxWidth="2xl" hideCloseButton>
+          {modeloEdit && (
+          <div className="bg-white w-full rounded-3xl shadow-2xl flex flex-col max-h-[90vh] animate-in zoom-in-95 border border-slate-100">
                   <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 rounded-t-3xl flex-none">
                       <div>
                           <h3 className="font-black text-xl text-slate-800 flex items-center gap-2"><ClipboardList size={20} className="text-blue-500"/> {modelos.find(m => m.id === modeloEdit.id) ? 'Editar' : 'Novo'} Modelo de Anamnese</h3>
@@ -1344,7 +1458,7 @@ export default function Configuracoes() {
                               <button onClick={adicionarPergunta} className="text-xs font-bold text-blue-600 hover:underline flex items-center gap-1"><Plus size={14}/> Adicionar Pergunta</button>
                           </div>
 
-                          <div className="space-y-3">
+                          <div className="space-y-3" ref={perguntasListRef}>
                               {modeloEdit.perguntas.map((p, idx) => (
                                   <div key={p.id} className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
                                       <div className="flex items-start gap-3">
@@ -1363,6 +1477,7 @@ export default function Configuracoes() {
                                   </div>
                               ))}
                           </div>
+                          <button onClick={adicionarPergunta} className="mt-3 w-full py-2.5 text-xs font-bold text-blue-600 border-2 border-dashed border-blue-200 rounded-xl hover:bg-blue-50 flex items-center justify-center gap-1"><Plus size={14}/> Adicionar Pergunta</button>
                       </div>
                   </div>
                   <div className="p-5 border-t border-slate-100 bg-slate-50 flex gap-3 rounded-b-3xl flex-none">
@@ -1370,12 +1485,11 @@ export default function Configuracoes() {
                       <button onClick={salvarModelo} className="flex-1 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-200 flex items-center justify-center gap-2"><Save size={16}/> Salvar Modelo</button>
                   </div>
               </div>
-          </div>
-      )}
+          )}
+      </Modal>
 
-      {modalProf && (
-          <div className="fixed inset-0 z-[60] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
-              <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl flex flex-col max-h-[90vh] animate-in zoom-in-95 border border-slate-100">
+      <Modal open={modalProf} onClose={() => setModalProf(false)} maxWidth="2xl" hideCloseButton>
+          <div className="bg-white w-full rounded-3xl shadow-2xl flex flex-col max-h-[90vh] animate-in zoom-in-95 border border-slate-100">
                   <div className="p-6 border-b border-slate-100 flex justify-between items-start bg-slate-50/50 rounded-t-3xl flex-none">
                       <div><h3 className="font-black text-2xl text-slate-800">{editandoProf ? 'Editar Perfil' : 'Novo Acesso'}</h3><p className="text-slate-500 font-medium text-sm">Dados profissionais e de acesso.</p></div>
                       {editandoProf && (<button onClick={excluirProfissional} className="p-2 text-red-400 hover:bg-red-50 rounded-lg hover:text-red-600 transition-colors"><Trash2 size={20}/></button>)}
@@ -1407,13 +1521,12 @@ export default function Configuracoes() {
                   </div>
                   <div className="p-6 border-t border-slate-100 bg-slate-50 flex gap-3 rounded-b-3xl flex-none"><button onClick={() => setModalProf(false)} className="flex-1 py-4 text-slate-500 font-bold hover:bg-slate-200 rounded-xl transition-colors">Cancelar</button><button onClick={salvarProfissional} disabled={salvandoProf} className="flex-1 py-4 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all active:scale-95 flex items-center justify-center gap-2">{salvandoProf ? <Loader2 className="animate-spin"/> : <><Save size={18}/> Salvar Acesso</>}</button></div>
               </div>
-          </div>
-      )}
+      </Modal>
 
       {/* MODAL VINCULOS */}
-      {modalVinculo && profSelecionado && (
-          <div className="fixed inset-0 z-[60] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-              <div className="bg-white p-6 rounded-2xl w-full max-w-md shadow-2xl animate-in zoom-in-95">
+      <Modal open={modalVinculo && !!profSelecionado} onClose={() => setModalVinculo(false)} maxWidth="md" hideCloseButton>
+          {profSelecionado && (
+              <div className="bg-white p-6 rounded-2xl w-full shadow-2xl animate-in zoom-in-95">
                   <div className="flex justify-between items-center mb-6"><div><h3 className="font-bold text-lg">Onde {profSelecionado.nome.split(' ')[0]} atende?</h3><p className="text-xs text-slate-400">Marque as clínicas permitidas.</p></div><button onClick={() => setModalVinculo(false)} className="p-2 hover:bg-slate-100 rounded-full"><X size={20}/></button></div>
                   <div className="space-y-2 mb-6 max-h-60 overflow-y-auto">
                       {clinicas.map(c => {
@@ -1425,13 +1538,12 @@ export default function Configuracoes() {
                   </div>
                   <button onClick={() => setModalVinculo(false)} className="w-full py-3 bg-slate-900 text-white font-bold rounded-xl">Concluir</button>
               </div>
-          </div>
-      )}
+          )}
+      </Modal>
 
       {/* MODAL EDIÇÃO COMPLETA CLÍNICA */}
-      {modalClinicaCompleto && (
-          <div className="fixed inset-0 z-[60] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
-              <div className="bg-white w-full max-w-3xl rounded-3xl shadow-2xl flex flex-col max-h-[90vh] animate-in zoom-in-95 border border-slate-100">
+      <Modal open={modalClinicaCompleto} onClose={() => { setModalClinicaCompleto(false); setClinicaEditando(null); }} maxWidth="2xl" hideCloseButton>
+          <div className="bg-white w-full rounded-3xl shadow-2xl flex flex-col max-h-[90vh] animate-in zoom-in-95 border border-slate-100">
                   <div className="p-6 border-b border-slate-100 flex justify-between items-start bg-gradient-to-r from-blue-50 to-white rounded-t-3xl flex-none">
                       <div>
                           <h3 className="font-black text-2xl text-slate-800">{clinicaEditando ? 'Editar Clínica' : 'Nova Clínica'}</h3>
@@ -1605,8 +1717,7 @@ export default function Configuracoes() {
                       </button>
                   </div>
               </div>
-          </div>
-      )}
+      </Modal>
 
     </div>
   );

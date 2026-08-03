@@ -15,6 +15,7 @@ import {
     ToggleRight,
     DollarSign,
 } from 'lucide-react';
+import Modal from '@/components/ui/Modal';
 
 interface Especialidade {
     id: string;
@@ -539,47 +540,41 @@ export default function TratamentosBasePage() {
                 </section>
             </div>
 
-            {especialidadeModalAberto && (
-                <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
-                    <div className="bg-white w-full max-w-md rounded-3xl border border-slate-100 shadow-2xl overflow-hidden">
-                        <div className="px-6 py-4 border-b border-slate-100">
-                            <h2 className="text-lg font-bold text-slate-800">{especialidadeEditando ? 'Editar especialidade' : 'Nova especialidade'}</h2>
-                            <p className="text-xs text-slate-500">Defina as áreas clínicas utilizadas para organizar o catálogo.</p>
-                        </div>
-                        <form onSubmit={handleSubmitEspecialidade} className="p-6 space-y-4">
-                            <div>
-                                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Nome</label>
-                                <input
-                                    value={especialidadeFormNome}
-                                    onChange={(e) => setEspecialidadeFormNome(e.target.value)}
-                                    className="w-full mt-1 px-3 py-2.5 rounded-2xl border border-slate-200 bg-slate-50 text-sm font-bold text-slate-700 focus:bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
-                                    placeholder="Ex.: Cirurgia, Endodontia, Periodontia"
-                                />
-                            </div>
-                            <div className="flex items-center justify-end gap-2 pt-2">
-                                <button type="button" onClick={fecharModalEspecialidade} className="px-4 py-2 rounded-xl text-sm font-bold text-slate-500 hover:bg-slate-50">Cancelar</button>
-                                <button
-                                    type="submit"
-                                    disabled={especialidadeSalvando}
-                                    className="px-5 py-2 rounded-xl text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
-                                >
-                                    {especialidadeSalvando ? <Loader2 size={16} className="animate-spin" /> : null}
-                                    {especialidadeEditando ? 'Salvar alterações' : 'Criar especialidade'}
-                                </button>
-                            </div>
-                        </form>
+            <Modal open={especialidadeModalAberto} onClose={fecharModalEspecialidade} maxWidth="md" hideCloseButton panelClassName="bg-white rounded-3xl border border-slate-100 shadow-2xl overflow-hidden">
+                    <div className="px-6 py-4 border-b border-slate-100">
+                        <h2 className="text-lg font-bold text-slate-800">{especialidadeEditando ? 'Editar especialidade' : 'Nova especialidade'}</h2>
+                        <p className="text-xs text-slate-500">Defina as áreas clínicas utilizadas para organizar o catálogo.</p>
                     </div>
-                </div>
-            )}
-
-            {tratamentoModalAberto && (
-                <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
-                    <div className="bg-white w-full max-w-2xl rounded-3xl border border-slate-100 shadow-2xl overflow-hidden">
-                        <div className="px-6 py-4 border-b border-slate-100">
-                            <h2 className="text-lg font-bold text-slate-800">{tratamentoEditando ? 'Editar tratamento' : 'Novo tratamento base'}</h2>
-                            <p className="text-xs text-slate-500">Defina o procedimento padrão para {especialidadeSelecionada?.nome || 'a especialidade selecionada'}.</p>
+                    <form onSubmit={handleSubmitEspecialidade} className="p-6 space-y-4">
+                        <div>
+                            <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Nome</label>
+                            <input
+                                value={especialidadeFormNome}
+                                onChange={(e) => setEspecialidadeFormNome(e.target.value)}
+                                className="w-full mt-1 px-3 py-2.5 rounded-2xl border border-slate-200 bg-slate-50 text-sm font-bold text-slate-700 focus:bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                                placeholder="Ex.: Cirurgia, Endodontia, Periodontia"
+                            />
                         </div>
-                        <form onSubmit={handleSubmitTratamento} className="p-6 space-y-4">
+                        <div className="flex items-center justify-end gap-2 pt-2">
+                            <button type="button" onClick={fecharModalEspecialidade} className="px-4 py-2 rounded-xl text-sm font-bold text-slate-500 hover:bg-slate-50">Cancelar</button>
+                            <button
+                                type="submit"
+                                disabled={especialidadeSalvando}
+                                className="px-5 py-2 rounded-xl text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+                            >
+                                {especialidadeSalvando ? <Loader2 size={16} className="animate-spin" /> : null}
+                                {especialidadeEditando ? 'Salvar alterações' : 'Criar especialidade'}
+                            </button>
+                        </div>
+                    </form>
+            </Modal>
+
+            <Modal open={tratamentoModalAberto} onClose={fecharModalTratamento} maxWidth="2xl" hideCloseButton panelClassName="bg-white rounded-3xl border border-slate-100 shadow-2xl overflow-hidden">
+                    <div className="px-6 py-4 border-b border-slate-100">
+                        <h2 className="text-lg font-bold text-slate-800">{tratamentoEditando ? 'Editar tratamento' : 'Novo tratamento base'}</h2>
+                        <p className="text-xs text-slate-500">Defina o procedimento padrão para {especialidadeSelecionada?.nome || 'a especialidade selecionada'}.</p>
+                    </div>
+                    <form onSubmit={handleSubmitTratamento} className="p-6 space-y-4">
                             <div>
                                 <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Nome do tratamento</label>
                                 <input
@@ -644,9 +639,7 @@ export default function TratamentosBasePage() {
                                 </button>
                             </div>
                         </form>
-                    </div>
-                </div>
-            )}
+            </Modal>
         </div>
     );
 }

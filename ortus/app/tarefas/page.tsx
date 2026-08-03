@@ -9,6 +9,7 @@ import {
 import { useClinica } from '@/app/context/ClinicaContext';
 import { fetchUserClinicas } from '@/lib/clinicScoped';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
+import Modal from '@/components/ui/Modal';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
@@ -552,10 +553,8 @@ export default function Tarefas() {
             </div>
 
             {/* Modal Criar/Editar */}
-            {modalOpen && (
-                <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
-                    <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl flex flex-col max-h-[90vh] animate-in zoom-in-95 border border-slate-100">
-                        <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-gradient-to-r from-blue-50 to-white rounded-t-3xl">
+            <Modal open={modalOpen} onClose={() => setModalOpen(false)} maxWidth="lg" hideCloseButton panelClassName="bg-white rounded-3xl shadow-2xl flex flex-col max-h-[90vh] border border-slate-100">
+                        <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-gradient-to-r from-blue-50 to-white rounded-t-3xl shrink-0">
                             <h3 className="font-black text-xl text-slate-800">
                                 {tarefaEditando ? 'Editar Tarefa' : 'Nova Tarefa'}
                             </h3>
@@ -673,9 +672,7 @@ export default function Tarefas() {
                                 {salvando ? <Loader2 className="animate-spin"/> : <><Save size={18}/> Salvar</>}
                             </button>
                         </div>
-                    </div>
-                </div>
-            )}
+            </Modal>
         </div>
     );
 }

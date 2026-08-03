@@ -5,8 +5,10 @@ import { useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { usePatientSlideOver } from '@/components/PatientSlideOver';
 import { useClinica } from '@/app/context/ClinicaContext';
-import { AlertTriangle, Check, CheckCircle2, ChevronDown, ChevronRight, CircleDot, ClipboardList, Edit3, Eye, Filter, FlaskConical, Gem, GripVertical, Heart, Loader2, Package, Paintbrush, Plus, Scissors, Search, Shield, Smile, Sparkles, Star, Trash2, Truck, Wrench, X, Zap } from 'lucide-react';
+import { AlertTriangle, Check, CheckCircle2, ChevronDown, ChevronRight, CircleDot, ClipboardList, Edit3, Eye, FlaskConical, Gem, GripVertical, Heart, Loader2, Package, Paintbrush, Plus, Scissors, Search, Shield, Smile, Sparkles, Star, Trash2, Truck, Wrench, X, Zap } from 'lucide-react';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
+import CustomSelect from '@/components/ui/CustomSelect';
+import Modal from '@/components/ui/Modal';
 
 type ColumnTitle = 'Solicitado' | 'No Laboratório' | 'Em Prova Clínica' | 'Aguardando Ajuste' | 'Finalizado / Entregue';
 type Category = 'Removível' | 'Fixa' | '';
@@ -157,7 +159,7 @@ export default function KanbanProtesesInteligente() {
   const [toast, setToast] = useState<{ type: 'warning' | 'success'; message: string } | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [periodFilter, setPeriodFilter] = useState<'all' | '7d' | '30d' | '90d'>('all');
-  const [statusFilter, setStatusFilter] = useState<StatusKey[]>([]);
+  const [statusFilter, setStatusFilter] = useState<StatusKey | 'all'>('all');
   const [flowDropdownOpen, setFlowDropdownOpen] = useState(false);
 
   // Mapa de ícones por slug (persiste no DB como string)
@@ -487,7 +489,7 @@ export default function KanbanProtesesInteligente() {
         const created = card.created_at ? new Date(card.created_at).getTime() : 0;
         if (!created || created < cutoff) return false;
       }
-      if (statusFilter.length > 0 && !statusFilter.includes(cardStatus(card))) return false;
+      if (statusFilter !== 'all' && cardStatus(card) !== statusFilter) return false;
       if (!query) return true;
       const haystack = [card.paciente_nome, card.tipo_protese, card.categoria, card.descricao, card.cor_dente, card.posicao]
         .filter(Boolean)
@@ -496,12 +498,6 @@ export default function KanbanProtesesInteligente() {
       return haystack.includes(query);
     });
   }, [cards, searchQuery, periodFilter, statusFilter]);
-
-  function toggleStatusFilter(key: StatusKey) {
-    setStatusFilter((current) =>
-      current.includes(key) ? current.filter((k) => k !== key) : [...current, key]
-    );
-  }
 
   function cardsByColumn(columnId: number) {
     return filteredCards.filter((card) => card.coluna_id === columnId);
@@ -617,54 +613,29 @@ export default function KanbanProtesesInteligente() {
           )}
         </div>
 
-        <div className="flex items-center gap-1.5 text-[11px] font-black text-slate-400 uppercase tracking-wider shrink-0">
-          <Filter size={13} /> Período:
-        </div>
-        <div className="flex bg-slate-100 p-1 rounded-xl gap-0.5 shrink-0">
-          {([
-            { id: 'all', label: 'Todos' },
-            { id: '7d', label: '7 dias' },
-            { id: '30d', label: '30 dias' },
-            { id: '90d', label: '90 dias' },
-          ] as const).map((p) => (
-            <button
-              key={p.id}
-              onClick={() => setPeriodFilter(p.id)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${periodFilter === p.id ? 'bg-white text-pink-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-            >
-              {p.label}
-            </button>
-          ))}
-        </div>
-
-        {/* FILTRO DE STATUS (chips clicáveis com cor) */}
-        <div className="flex items-center gap-1.5 lg:ml-auto pl-0 lg:pl-3 lg:border-l border-slate-200 shrink-0 flex-wrap">
-          <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider mr-1">Status:</span>
-          {(['espera', 'lab', 'clinica', 'feito'] as StatusKey[]).map((k) => {
-            const active = statusFilter.includes(k);
-            const noneSelected = statusFilter.length === 0;
-            const dim = !active && !noneSelected;
-            return (
-              <button
-                key={k}
-                onClick={() => toggleStatusFilter(k)}
-                className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 border transition-all ${active ? `${STATUS_TOKENS[k].pill} border-current shadow-sm` : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300'} ${dim ? 'opacity-40' : ''}`}
-                title={active ? 'Remover filtro' : 'Filtrar por este status'}
-              >
-                <span className={`w-2 h-2 rounded-full ${STATUS_TOKENS[k].dot}`}></span>
-                {STATUS_TOKENS[k].label}
-              </button>
-            );
-          })}
-          {statusFilter.length > 0 && (
-            <button
-              onClick={() => setStatusFilter([])}
-              className="px-2 py-1 rounded-lg text-[10px] font-black text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center gap-1"
-              title="Limpar filtro de status"
-            >
-              <X size={11} /> Limpar
-            </button>
-          )}
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <CustomSelect
+            value={periodFilter}
+            onChange={(v) => setPeriodFilter(v as typeof periodFilter)}
+            options={[
+              { value: 'all', label: 'Todos os períodos' },
+              { value: '7d', label: 'Últimos 7 dias' },
+              { value: '30d', label: 'Últimos 30 dias' },
+              { value: '90d', label: 'Últimos 90 dias' },
+            ]}
+            size="sm"
+            className="w-40"
+          />
+          <CustomSelect
+            value={statusFilter}
+            onChange={(v) => setStatusFilter(v as StatusKey | 'all')}
+            options={[
+              { value: 'all', label: 'Todos os status' },
+              ...(['espera', 'lab', 'clinica', 'feito'] as StatusKey[]).map(k => ({ value: k, label: STATUS_TOKENS[k].label })),
+            ]}
+            size="sm"
+            className="w-44"
+          />
         </div>
 
         <div className="text-[11px] font-bold text-slate-400 shrink-0">
@@ -855,10 +826,8 @@ export default function KanbanProtesesInteligente() {
         )}
       </div>
 
-      {modalOpen && (
-        <div className="fixed inset-0 z-[85] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-3xl max-h-[92vh] overflow-hidden rounded-3xl shadow-2xl border border-slate-100 flex flex-col animate-in zoom-in-95 duration-200">
-            <div className="p-5 border-b border-slate-100 flex items-start justify-between gap-4 bg-gradient-to-br from-pink-50 to-white">
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)} maxWidth="2xl" zIndex={85} hideCloseButton panelClassName="bg-white rounded-3xl shadow-2xl border border-slate-100 flex flex-col max-h-[92vh] overflow-hidden animate-in zoom-in-95 duration-200">
+          <div className="p-5 border-b border-slate-100 flex items-start justify-between gap-4 bg-gradient-to-br from-pink-50 to-white shrink-0">
               <div>
                 <p className="text-[10px] font-black uppercase tracking-wider text-pink-600">{editingCard ? 'Editar pedido' : 'Novo pedido'}</p>
                 <h2 className="text-xl font-black text-slate-900">{editingCard ? 'Ajustar dados da prótese' : 'Prótese em menos de 30 segundos'}</h2>
@@ -989,14 +958,10 @@ export default function KanbanProtesesInteligente() {
                 {saving ? <Loader2 className="animate-spin" size={18} /> : <Plus size={18} />} {editingCard ? 'Salvar Pedido' : 'Criar Pedido'}
               </button>
             </div>
-          </div>
-        </div>
-      )}
+      </Modal>
 
-      {columnModalOpen && (
-        <div className="fixed inset-0 z-[86] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-200 flex flex-col max-h-[85vh]">
-            <div className="p-5 border-b border-slate-100 flex items-start justify-between gap-4 shrink-0">
+      <Modal open={columnModalOpen} onClose={() => setColumnModalOpen(false)} maxWidth="md" zIndex={86} hideCloseButton panelClassName="bg-white rounded-3xl shadow-2xl border border-slate-100 flex flex-col max-h-[85vh] overflow-hidden animate-in zoom-in-95 duration-200">
+          <div className="p-5 border-b border-slate-100 flex items-start justify-between gap-4 shrink-0">
               <div>
                 <p className="text-[10px] font-black uppercase tracking-wider text-pink-600">{editingColumn ? 'Editar quadro' : 'Novo quadro'}</p>
                 <h2 className="text-xl font-black text-slate-900">{editingColumn ? 'Configurar etapa' : 'Criar nova etapa'}</h2>
@@ -1048,9 +1013,7 @@ export default function KanbanProtesesInteligente() {
                 {editingColumn ? 'Salvar Quadro' : 'Criar Quadro'}
               </button>
             </div>
-          </div>
-        </div>
-      )}
+      </Modal>
     </div>
   );
 }

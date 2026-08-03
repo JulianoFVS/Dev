@@ -16,6 +16,8 @@ type Props = {
   contexto?: Partial<DocumentoContexto>;
   className?: string;
   onEnviado?: (canal: 'whatsapp' | 'email' | 'sms') => void;
+  /** Canais exibidos — padrão todos */
+  channels?: Array<'whatsapp' | 'email' | 'sms'>;
 };
 
 export default function PatientContactButtons({
@@ -27,6 +29,7 @@ export default function PatientContactButtons({
   contexto = {},
   className = '',
   onEnviado,
+  channels = ['whatsapp', 'email', 'sms'],
 }: Props) {
   const [loading, setLoading] = useState<'whatsapp' | 'email' | 'sms' | null>(null);
 
@@ -74,9 +77,9 @@ export default function PatientContactButtons({
   if (variant === 'icons') {
     return (
       <div className={`flex items-center gap-2 ${className}`}>
-        {iconBtn('whatsapp', MessageCircle, 'bg-green-500 hover:bg-green-600', 'WhatsApp')}
-        {iconBtn('email', Mail, 'bg-blue-600 hover:bg-blue-700', 'E-mail')}
-        {iconBtn('sms', Smartphone, 'bg-slate-600 hover:bg-slate-700', 'SMS')}
+        {channels.includes('whatsapp') && iconBtn('whatsapp', MessageCircle, 'bg-green-500 hover:bg-green-600', 'WhatsApp')}
+        {channels.includes('email') && iconBtn('email', Mail, 'bg-blue-600 hover:bg-blue-700', 'E-mail')}
+        {channels.includes('sms') && iconBtn('sms', Smartphone, 'bg-slate-600 hover:bg-slate-700', 'SMS')}
       </div>
     );
   }

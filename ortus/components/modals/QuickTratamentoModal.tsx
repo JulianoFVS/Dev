@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Loader2, Plus, X } from 'lucide-react';
 import CustomSelect from '@/components/ui/CustomSelect';
+import Modal from '@/components/ui/Modal';
 
 export type TratamentoCriado = {
   id: number | string;
@@ -168,16 +169,13 @@ export default function QuickTratamentoModal({ open, onClose, clinicaId, variant
     setLoading(false);
   }
 
-  if (!open) return null;
-
   const titulo = variant === 'quick' ? 'Novo serviço' : 'Novo tratamento base';
   const subtitulo = variant === 'quick'
-    ? 'Cadastro rápido — já fica disponível no agendamento.'
+    ? 'Cadastro rápido no catálogo da clínica.'
     : 'Procedimento completo no catálogo da clínica.';
 
   return (
-    <div className="fixed inset-0 z-[100] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-150">
-      <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-200">
+    <Modal open={open} onClose={onClose} zIndex={100} maxWidth="lg" hideCloseButton panelClassName="bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden">
         <div className="px-5 py-4 border-b bg-slate-50 flex justify-between items-start gap-3">
           <div>
             <h3 className="font-bold text-slate-800">{titulo}</h3>
@@ -303,7 +301,6 @@ export default function QuickTratamentoModal({ open, onClose, clinicaId, variant
             </button>
           </div>
         </form>
-      </div>
-    </div>
+    </Modal>
   );
 }

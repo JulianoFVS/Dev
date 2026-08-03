@@ -9,11 +9,13 @@ import {
 import { useClinica, getClinicLabel } from '@/app/context/ClinicaContext';
 import { carregarConfig, salvarConfig } from '@/lib/configClinica';
 import CustomSelect from '@/components/ui/CustomSelect';
+import Modal from '@/components/ui/Modal';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
 import {
     CATEGORIAS_FINANCEIRAS_PADRAO,
     TAXAS_MAQUININHA_PADRAO,
     normalizarCategoriasFinanceiras,
+    normalizarTaxasMaquininha,
     nomesCategoriasAtivas,
     calcularValorLiquido,
     type CategoriaFinanceira,
@@ -79,14 +81,16 @@ export default function Financeiro() {
           setCategorias(nomesCategoriasAtivas(norm));
       });
       carregarConfig<TaxaMaquininha[]>(cid, 'taxas_maquininha', 'ortus_taxas_maquininha', TAXAS_MAQUININHA_PADRAO).then(t => {
-          setTaxasMaquininha(Array.isArray(t) && t.length ? t.filter(x => x.ativo) : TAXAS_MAQUININHA_PADRAO.filter(x => x.ativo));
+          const norm = normalizarTaxasMaquininha(t);
+          setTaxasMaquininha(norm.filter(x => x.ativo));
       });
       carregarConfig<Record<string, any>>(cid, 'lancamentos_meta', 'ortus_lancamentos_meta', {}).then(m => setMeta(m || {}));
   }, [clinicLoading, activeClinicId]);
 
   useEffect(() => { if (dataInicio && dataFim && !clinicLoading) carregarDados(); }, [mesSelecionado, dataInicio, dataFim, modoData, clinicLoading, activeClinicId]);
 
-  async function carregarDados() {
+  async function carregarDados(metaOverride?: Record<string, any>) {
+    const metaAtual = metaOverride ?? meta;
     setLoading(true);
     const clinicaId = activeClinicId;
     const filtrarClinica = clinicaId && clinicaId !== 'all';
@@ -116,7 +120,7 @@ export default function Financeiro() {
         const listaAg = (agendamentos || [])
             .filter((e: any) => e.status === 'concluido' || e.status === 'fiado')
             .map((e: any) => {
-                const metaAg = meta[`ag_${e.id}`] as { valor_liquido?: number; taxa_nome?: string; valor_bruto?: number } | undefined;
+                const metaAg = metaAtual[`ag_${e.id}`] as { valor_liquido?: number; taxa_nome?: string; valor_bruto?: number } | undefined;
                 const bruto = parseFloat(e.valor_final || '0');
                 const liquido = metaAg?.valor_liquido ?? bruto;
                 return {
@@ -133,7 +137,7 @@ export default function Financeiro() {
 
         const listaMan = (manuais || []).map((s: any) => {
             const id = 'man_' + s.id;
-            const m = meta[id] || {};
+            const m = metaAtual[id] || {};
             const status = (m.status || s.status || 'concluido') as string;
             return {
                 id, refId: s.id, origem: 'manual',
@@ -224,12 +228,13 @@ export default function Financeiro() {
       const { data: ins, error } = await supabase.from('despesas').insert([payload]).select().single();
       if (error) { await showAlert('Erro: ' + error.message, { type: 'error' }); setSalvando(false); return; }
 
+      let metaParaReload = meta;
       if (novoLancamento.tipo === 'entrada' && novoLancamento.taxa_id) {
           const taxa = taxasMaquininha.find(t => t.id === novoLancamento.taxa_id);
           if (taxa) {
               const bruto = parseFloat(novoLancamento.valor) || 0;
               const liquido = calcularValorLiquido(bruto, taxa.taxa_percentual);
-              const updMeta = {
+              metaParaReload = {
                   ...meta,
                   [`manual_${ins.id}`]: {
                       taxa_id: taxa.id,
@@ -239,13 +244,13 @@ export default function Financeiro() {
                       valor_liquido: liquido,
                   },
               };
-              setMeta(updMeta);
-              salvarConfig(String(clinicaId), 'lancamentos_meta', updMeta);
+              setMeta(metaParaReload);
+              salvarConfig(String(clinicaId), 'lancamentos_meta', metaParaReload);
           }
       }
 
       setModalAberto(false);
-      carregarDados();
+      carregarDados(metaParaReload);
       setSalvando(false);
   }
 
@@ -270,7 +275,7 @@ export default function Financeiro() {
       } catch {}
       setModalCancelar(null);
       setMotivoCancelar('');
-      carregarDados();
+      carregarDados(updMeta);
   }
 
   async function restaurarCancelado(t: any) {
@@ -281,7 +286,7 @@ export default function Financeiro() {
       const cid3 = (activeClinicId && activeClinicId !== 'all' ? String(activeClinicId) : '0');
       salvarConfig(cid3, 'lancamentos_meta', updMeta);
       try { await supabase.from('despesas').update({ status: 'concluido', motivo_cancelamento: null, cancelado_em: null }).eq('id', t.refId); } catch {}
-      carregarDados();
+      carregarDados(updMeta);
   }
 
   async function excluirDefinitivo(t: any) {
@@ -292,7 +297,7 @@ export default function Financeiro() {
       const cid4 = (activeClinicId && activeClinicId !== 'all' ? String(activeClinicId) : '0');
       salvarConfig(cid4, 'lancamentos_meta', updMeta);
       if (t.origem === 'manual') await supabase.from('despesas').delete().eq('id', t.refId);
-      carregarDados();
+      carregarDados(updMeta);
   }
 
   async function concluirAndamento(t: any) {
@@ -303,7 +308,7 @@ export default function Financeiro() {
       const cid5 = (activeClinicId && activeClinicId !== 'all' ? String(activeClinicId) : '0');
       salvarConfig(cid5, 'lancamentos_meta', updMeta);
       try { await supabase.from('despesas').update({ status: 'concluido' }).eq('id', t.refId); } catch {}
-      carregarDados();
+      carregarDados(updMeta);
   }
 
   // ===== IMPRESSÃO BONITA =====
@@ -579,9 +584,8 @@ export default function Financeiro() {
       </div>
 
       {/* MODAL DE LANÇAMENTO */}
-      {modalAberto && (
-        <div className="fixed inset-0 bg-slate-900/30 z-50 flex items-center justify-center p-4 animate-fade-in">
-            <div className="bg-white w-full max-w-md max-h-[90vh] rounded-3xl shadow-2xl overflow-hidden flex flex-col animate-zoom-in border border-slate-100">
+      <Modal open={modalAberto} onClose={() => setModalAberto(false)} maxWidth="md" hideCloseButton>
+            <div className="bg-white w-full max-h-[90vh] rounded-3xl shadow-2xl overflow-hidden flex flex-col animate-zoom-in border border-slate-100">
                 <div className="p-5 border-b bg-slate-50 flex justify-between items-center shrink-0">
                     <h3 className="font-black text-xl text-slate-800">Novo Lançamento</h3>
                     <button onClick={() => setModalAberto(false)} className="text-slate-400 hover:text-red-500 p-1 bg-white rounded-full border border-slate-200 hover:border-red-200 transition-colors"><X size={20}/></button>
@@ -695,13 +699,11 @@ export default function Financeiro() {
                   </div>
                 </form>
             </div>
-        </div>
-      )}
+      </Modal>
 
       {/* MODAL CANCELAR */}
-      {modalCancelar && (
-        <div className="fixed inset-0 bg-slate-900/30 z-50 flex items-center justify-center p-4">
-            <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden border border-slate-100">
+      <Modal open={!!modalCancelar} onClose={() => setModalCancelar(null)} maxWidth="md" hideCloseButton>
+            <div className="bg-white w-full rounded-3xl shadow-2xl overflow-hidden border border-slate-100">
                 <div className="p-5 border-b bg-rose-50 flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-rose-500 text-white flex items-center justify-center"><Ban size={20}/></div>
                     <div>
@@ -719,8 +721,7 @@ export default function Financeiro() {
                     <button onClick={confirmarCancelamento} disabled={!motivoCancelar.trim()} className="px-5 py-2 bg-rose-600 text-white font-bold rounded-lg hover:bg-rose-700 disabled:opacity-40 flex items-center gap-2"><Ban size={14}/> Confirmar Cancelamento</button>
                 </div>
             </div>
-        </div>
-      )}
+      </Modal>
     </div>
   );
 }

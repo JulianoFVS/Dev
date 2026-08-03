@@ -11,7 +11,10 @@ import TreatmentForm from '@/components/forms/TreatmentForm';
 import { validarPaciente, isMenorDeIdade } from '@/lib/pacienteValidation';
 import { buildDocumentoContexto } from '@/lib/documentVariables';
 import PatientContactButtons from '@/components/PatientContactButtons';
-import { receberAgendamento } from '@/lib/recebimentoAgendamento';
+import { receberAgendamento, carregarTaxasAtivas } from '@/lib/recebimentoAgendamento';
+import Modal from '@/components/ui/Modal';
+import CustomSelect from '@/components/ui/CustomSelect';
+import { calcularValorLiquido, type TaxaMaquininha } from '@/lib/configDefaults';
 
 type PatientActionModalContextValue = {
   openPatientActions: (patientId: string | number | null | undefined) => void;
@@ -73,6 +76,9 @@ export function PatientActionModalProvider({ children }: { children: React.React
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [receiving, setReceiving] = useState(false);
+  const [receiveModalOpen, setReceiveModalOpen] = useState(false);
+  const [taxasRecebimento, setTaxasRecebimento] = useState<TaxaMaquininha[]>([]);
+  const [taxaRecebimento, setTaxaRecebimento] = useState('');
   const [patient, setPatient] = useState<PatientData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [activeFlow, setActiveFlow] = useState<ActiveFlow>('idle');
@@ -306,13 +312,23 @@ export function PatientActionModalProvider({ children }: { children: React.React
     setActiveFlow('idle');
   }
 
-  async function receiveOpenBalance() {
+  async function abrirModalReceber() {
     if (!debtAppointments.length || !patient) return;
     const clinicaId = patient.clinica_id ?? activeClinicId;
-    if (!clinicaId) {
+    if (!clinicaId || clinicaId === 'all') {
       alert('Selecione uma clínica para registrar o recebimento.');
       return;
     }
+    const taxas = await carregarTaxasAtivas(clinicaId);
+    setTaxasRecebimento(taxas);
+    setTaxaRecebimento(taxas[0]?.id || '');
+    setReceiveModalOpen(true);
+  }
+
+  async function confirmarRecebimento() {
+    if (!debtAppointments.length || !patient) return;
+    const clinicaId = patient.clinica_id ?? activeClinicId;
+    if (!clinicaId || clinicaId === 'all') return;
     setReceiving(true);
     try {
       for (const item of debtAppointments) {
@@ -323,7 +339,7 @@ export function PatientActionModalProvider({ children }: { children: React.React
           paciente_id: String(patient.id),
           procedimento: (item as any).procedimento,
           valor_final: item.valor_final ?? item.valor,
-        });
+        }, taxaRecebimento || undefined, taxasRecebimento);
       }
       setPatient((current) => current ? {
         ...current,
@@ -331,6 +347,7 @@ export function PatientActionModalProvider({ children }: { children: React.React
           debtAppointments.some((d) => d.id === item.id) ? { ...item, status: 'concluido' } : item,
         ),
       } : current);
+      setReceiveModalOpen(false);
       setToast({ message: 'Saldo recebido. Comissões registradas.', tone: 'success' });
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('ortus:agenda-changed'));
@@ -376,11 +393,8 @@ export function PatientActionModalProvider({ children }: { children: React.React
     <PatientActionModalContext.Provider value={value}>
       {children}
 
-      {open && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-900/30 animate-in fade-in">
-          <button aria-label="Fechar" className="absolute inset-0" onClick={closePatientActions} />
-          <div className="relative bg-white w-full max-w-lg rounded-3xl shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[92vh] animate-in zoom-in-95 duration-200">
-            <div className={`p-5 border-b border-slate-100 bg-gradient-to-br ${quickCapture ? 'from-indigo-50 to-white' : (flowMeta?.gradient || 'from-blue-50 to-white')} flex items-start justify-between gap-4 shrink-0`}>
+      <Modal open={open} onClose={closePatientActions} maxWidth="lg" zIndex={80} hideCloseButton panelClassName="bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[92vh] animate-in zoom-in-95 duration-200">
+          <div className={`p-5 border-b border-slate-100 bg-gradient-to-br ${quickCapture ? 'from-indigo-50 to-white' : (flowMeta?.gradient || 'from-blue-50 to-white')} flex items-start justify-between gap-4 shrink-0`}>
               <div className="flex items-center gap-3 min-w-0">
                 {activeFlow !== 'idle' ? (
                   <button onClick={() => setActiveFlow('idle')} className="w-11 h-11 rounded-2xl bg-white border border-slate-200 text-slate-500 hover:text-slate-800 hover:bg-slate-50 flex items-center justify-center shrink-0 transition-colors" aria-label="Voltar">
@@ -782,7 +796,7 @@ export function PatientActionModalProvider({ children }: { children: React.React
                       <p className="font-black text-rose-800 text-sm truncate">{currency(openBalance)} · {debtAppointments.length} lançamento(s)</p>
                     </div>
                     <button
-                      onClick={receiveOpenBalance}
+                      onClick={abrirModalReceber}
                       disabled={receiving}
                       className="px-4 py-2 rounded-xl bg-rose-600 text-white text-xs font-black hover:bg-rose-700 disabled:bg-rose-300 disabled:cursor-not-allowed transition-colors shrink-0"
                     >
@@ -794,9 +808,41 @@ export function PatientActionModalProvider({ children }: { children: React.React
             )}
 
             {/* fluxos in-place removidos — navegação direta para as telas dedicadas */}
+      </Modal>
+
+      <Modal open={receiveModalOpen} onClose={() => setReceiveModalOpen(false)} maxWidth="md" zIndex={90} hideCloseButton panelClassName="bg-white rounded-3xl shadow-2xl overflow-hidden">
+        <div className="p-6">
+          <h3 className="text-lg font-black text-slate-800 mb-1">Registrar recebimento</h3>
+          <p className="text-sm text-slate-500 mb-2">{debtAppointments.length} lançamento(s) em aberto</p>
+          <p className="text-2xl font-black text-emerald-700 mb-4">{currency(openBalance)}</p>
+          {taxasRecebimento.length > 0 && (
+            <div className="mb-4">
+              <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Forma de pagamento</label>
+              <CustomSelect
+                value={taxaRecebimento}
+                onChange={setTaxaRecebimento}
+                options={[{ value: '', label: 'Sem taxa' }, ...taxasRecebimento.map(t => ({ value: t.id, label: `${t.nome} (${t.taxa_percentual}%)` }))]}
+                size="lg"
+              />
+              {taxaRecebimento && (() => {
+                const taxa = taxasRecebimento.find(t => t.id === taxaRecebimento);
+                if (!taxa) return null;
+                return (
+                  <p className="text-xs text-emerald-700 mt-2 font-bold">
+                    Líquido: {currency(calcularValorLiquido(openBalance, taxa.taxa_percentual))}
+                  </p>
+                );
+              })()}
+            </div>
+          )}
+          <div className="flex gap-2">
+            <button onClick={() => setReceiveModalOpen(false)} disabled={receiving} className="flex-1 py-3 rounded-xl font-bold text-slate-500 hover:bg-slate-100">Cancelar</button>
+            <button onClick={confirmarRecebimento} disabled={receiving} className="flex-1 py-3 rounded-xl font-bold text-white bg-emerald-600 hover:bg-emerald-700 flex items-center justify-center gap-2">
+              {receiving ? 'Recebendo...' : 'Confirmar'}
+            </button>
           </div>
         </div>
-      )}
+      </Modal>
 
       {toast && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[90] animate-in slide-in-from-bottom duration-200">

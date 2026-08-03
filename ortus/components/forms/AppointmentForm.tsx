@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import QuickTratamentoModal, { type TratamentoCriado } from '@/components/modals/QuickTratamentoModal';
-import { Building2, Calendar, Clock, DollarSign, ExternalLink, Loader2, Plus, Save, User } from 'lucide-react';
+import ProcedureCombobox from '@/components/forms/ProcedureCombobox';
+import { Building2, Calendar, Clock, DollarSign, Loader2, Save, User } from 'lucide-react';
 import { fetchUserClinicas } from '@/lib/clinicScoped';
 import CustomSelect from '@/components/ui/CustomSelect';
 import { validarAgendamentoCompleto } from '@/lib/horarioProfissional';
@@ -14,7 +14,7 @@ export type AppointmentPatient = {
   clinica_id?: string | null;
 };
 
-type TratamentoBase = { id: string | number; nome: string; valor_sugerido?: number | string | null };
+type TratamentoBase = { id: string | number; nome: string; valor_sugerido?: number | string | null; especialidade_id?: string | null };
 type Clinica = { id: string | number; nome: string };
 type Profissional = {
   id: string | number;
@@ -33,13 +33,13 @@ type AppointmentFormProps = {
 
 export default function AppointmentForm({ paciente, defaultDate, defaultTime, onSuccess, onCancel }: AppointmentFormProps) {
   const [tratamentosBase, setTratamentosBase] = useState<TratamentoBase[]>([]);
-  const [tratamentoSelecionadoId, setTratamentoSelecionadoId] = useState('');
-  const [tratamentoModal, setTratamentoModal] = useState<'quick' | 'full' | null>(null);
+  const [especialidades, setEspecialidades] = useState<{ id: string; nome: string }[]>([]);
   const [clinicas, setClinicas] = useState<Clinica[]>([]);
   const [profissionais, setProfissionais] = useState<Profissional[]>([]);
   const [usuarioNivel, setUsuarioNivel] = useState<'admin' | 'user'>('admin');
   const [meuProfissionalId, setMeuProfissionalId] = useState<string | number | null>(null);
   const [loadingDeps, setLoadingDeps] = useState(true);
+  const [pagamentoPendente, setPagamentoPendente] = useState(false);
 
   const today = new Date();
   const [form, setForm] = useState({
@@ -89,51 +89,28 @@ export default function AppointmentForm({ paciente, defaultDate, defaultTime, on
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const carregarTratamentosBase = useCallback(async (clinicaId: string) => {
-    const { data } = await supabase
-      .from('tratamentos_base')
-      .select('id, nome, valor_sugerido')
-      .eq('clinica_id', clinicaId)
-      .eq('ativo', true)
-      .order('nome');
-    setTratamentosBase(data || []);
+  const carregarCatalogo = useCallback(async (clinicaId: string) => {
+    const [{ data: tr }, { data: esp }] = await Promise.all([
+      supabase.from('tratamentos_base').select('id, nome, valor_sugerido, especialidade_id').eq('clinica_id', clinicaId).eq('ativo', true).order('nome'),
+      supabase.from('especialidades').select('id, nome').eq('clinica_id', Number(clinicaId)).eq('ativo', true).order('nome'),
+    ]);
+    setTratamentosBase(tr || []);
+    setEspecialidades(esp || []);
   }, []);
 
   useEffect(() => {
     if (!form.clinica_id) {
       setTratamentosBase([]);
-      setTratamentoSelecionadoId('');
+      setEspecialidades([]);
       return;
     }
-    carregarTratamentosBase(form.clinica_id);
-  }, [form.clinica_id, carregarTratamentosBase]);
+    carregarCatalogo(form.clinica_id);
+  }, [form.clinica_id, carregarCatalogo]);
 
   const profissionaisFiltrados = useMemo(() => {
     if (!form.clinica_id) return [] as Profissional[];
     return profissionais.filter((p) => p.profissionais_clinicas?.some((v) => String(v.clinica_id) === String(form.clinica_id)));
   }, [form.clinica_id, profissionais]);
-
-  function pickTratamento(trat: TratamentoBase) {
-    setTratamentoSelecionadoId(String(trat.id));
-    setForm((current) => ({ ...current, procedimento: trat.nome, valor: String(trat.valor_sugerido ?? current.valor) }));
-  }
-
-  function abrirModalTratamento(variant: 'quick' | 'full') {
-    if (!form.clinica_id) {
-      setError('Selecione a clínica antes de cadastrar um procedimento.');
-      return;
-    }
-    setError(null);
-    setTratamentoModal(variant);
-  }
-
-  function handleTratamentoCriado(t: TratamentoCriado) {
-    setTratamentosBase((prev) => {
-      if (prev.some((x) => String(x.id) === String(t.id))) return prev;
-      return [...prev, t].sort((a, b) => a.nome.localeCompare(b.nome));
-    });
-    pickTratamento(t);
-  }
 
   async function submit() {
     setError(null);
@@ -165,7 +142,7 @@ export default function AppointmentForm({ paciente, defaultDate, defaultTime, on
       desconto,
       valor_final: valor - desconto,
       observacoes: '',
-      status: form.status,
+      status: pagamentoPendente ? 'fiado' : form.status,
     };
 
     const { data, error: insertError } = await supabase
@@ -202,34 +179,27 @@ export default function AppointmentForm({ paciente, defaultDate, defaultTime, on
         </div>
 
         <div>
-          <div className="flex items-center justify-between mb-1.5">
-            <label className="text-[11px] font-black uppercase tracking-wider text-slate-500">Procedimento <span className="text-rose-500">*</span></label>
-            <div className="flex items-center gap-2">
-              <button type="button" onClick={() => abrirModalTratamento('quick')} className="text-[10px] font-bold text-purple-600 hover:underline flex items-center gap-1 uppercase">
-                <Plus size={12}/> Novo serviço
-              </button>
-              <button type="button" onClick={() => abrirModalTratamento('full')} className="text-[10px] font-bold text-slate-500 hover:underline flex items-center gap-1 uppercase">
-                <ExternalLink size={12}/> Tratamento Base
-              </button>
-            </div>
-          </div>
-          {tratamentosBase.length > 0 && (
-            <div className="mb-2 flex flex-wrap gap-1.5">
-              {tratamentosBase.slice(0, 8).map((t) => (
-                <button key={t.id} type="button" onClick={() => pickTratamento(t)} className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-colors ${tratamentoSelecionadoId === String(t.id) ? 'bg-blue-100 text-blue-700 border border-blue-200' : 'bg-slate-100 hover:bg-blue-100 text-slate-600 hover:text-blue-700'}`}>
-                  {t.nome}
-                </button>
-              ))}
-            </div>
-          )}
-          <input
-            autoFocus
+          <label className="text-[11px] font-black uppercase tracking-wider text-slate-500 mb-1.5 block">Procedimento <span className="text-rose-500">*</span></label>
+          <ProcedureCombobox
+            clinicaId={form.clinica_id}
+            especialidades={especialidades}
+            tratamentos={tratamentosBase}
             value={form.procedimento}
-            onChange={(e) => { setTratamentoSelecionadoId(''); setForm({ ...form, procedimento: e.target.value }); }}
-            className="w-full p-3 rounded-2xl bg-slate-50 border border-slate-200 font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Ex: Limpeza, Restauração, Consulta..."
+            onChange={(nome, t) => {
+              setForm((current) => ({
+                ...current,
+                procedimento: nome,
+                valor: t ? String(t.valor_sugerido ?? current.valor) : current.valor,
+              }));
+            }}
+            disabled={!form.clinica_id}
           />
         </div>
+
+        <label className="flex items-center gap-2 p-3 rounded-xl bg-rose-50 border border-rose-100 cursor-pointer">
+          <input type="checkbox" checked={pagamentoPendente} onChange={(e) => setPagamentoPendente(e.target.checked)} className="rounded border-rose-300 text-rose-600"/>
+          <span className="text-sm font-bold text-rose-700">Pagamento pendente (débito)</span>
+        </label>
 
         <div className="grid grid-cols-2 gap-3">
           <div>
@@ -276,14 +246,6 @@ export default function AppointmentForm({ paciente, defaultDate, defaultTime, on
           {saving ? <Loader2 className="animate-spin" size={16} /> : <><Save size={16} /> Agendar</>}
         </button>
       </div>
-
-      <QuickTratamentoModal
-        open={tratamentoModal !== null}
-        variant={tratamentoModal ?? 'quick'}
-        clinicaId={form.clinica_id || null}
-        onClose={() => setTratamentoModal(null)}
-        onCreated={handleTratamentoCriado}
-      />
     </div>
   );
 }

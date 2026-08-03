@@ -1,10 +1,9 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Search, Plus, LayoutGrid, List as ListIcon, User, Phone, Edit, Trash2, Activity, Loader2, ChevronRight, Building2, Download, Filter, AlertCircle, Calendar, Clock, X } from 'lucide-react';
+import { Search, Plus, LayoutGrid, List as ListIcon, User, Phone, Edit, Trash2, Activity, Loader2, ChevronRight, Building2, Download, Filter, AlertCircle, Calendar, Clock, X, Smile } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { usePatientSlideOver } from '@/components/PatientSlideOver';
 import { usePatientActionModal } from '@/components/PatientActionModal';
 import { useClinica } from '@/app/context/ClinicaContext';
 import { fetchUserClinicas } from '@/lib/clinicScoped';
@@ -30,8 +29,7 @@ export default function Pacientes() {
   const [showFiltros, setShowFiltros] = useState(false);
 
   const router = useRouter();
-  const { openPatient } = usePatientSlideOver();
-  const { openPatientActions, openQuickCapture } = usePatientActionModal();
+  const { openQuickCapture } = usePatientActionModal();
   const { activeClinicId, loading: clinicLoading } = useClinica();
 
   // Sincroniza filtro de clínica com contexto global
@@ -117,8 +115,13 @@ export default function Pacientes() {
 
       const rows = filtrados.map((p: any) => {
           const fm = p.ficha_medica || {};
-          const condicoes = ['Diabetes','Hipertensão','Cardiopatia','Asma/Bronquite','Alergia Antibiótico','Alergia Anestésico','Gestante','Fumante','Uso de Anticoagulante']
-              .filter(k => fm[k]).join('; ');
+          const condicoes = Array.isArray(fm.condicoes)
+              ? fm.condicoes.join('; ')
+              : ['Diabetes','Hipertensão','Cardiopatia','Asma/Bronquite','Alergia Antibiótico','Alergia Anestésico','Gestante','Fumante','Uso de Anticoagulante']
+                  .filter(k => fm[k]).join('; ');
+          const medicamentosStr = Array.isArray(fm.medicamentos)
+              ? fm.medicamentos.join('; ')
+              : (fm.medicamentos || '');
           const totalAnamneses = (p.paciente_anamneses || []).length || (fm.anamneses || []).length;
           const totalTratamentos = (p.paciente_tratamentos || []).length || (fm.tratamentos || []).length;
           const totalDocumentos = (p.paciente_documentos || []).length || (fm.documentos || []).length;
@@ -127,7 +130,7 @@ export default function Pacientes() {
               p.sexo, p.endereco, p.nome_clinica, p.status,
               p.created_at ? new Date(p.created_at).toLocaleDateString('pt-BR') : '',
               condicoes,
-              fm.medicamentos || '',
+              medicamentosStr,
               p.anamnese || '',
               totalAnamneses,
               totalTratamentos,
@@ -254,7 +257,7 @@ export default function Pacientes() {
             <table className="w-full text-left min-w-[480px]">
                 <thead className="bg-slate-50 border-b border-slate-100"><tr><th className="p-3 sm:p-4 pl-4 sm:pl-6 text-xs font-bold text-slate-400 uppercase">Nome</th><th className="p-3 sm:p-4 text-xs font-bold text-slate-400 uppercase hidden sm:table-cell">Clínica</th><th className="p-3 sm:p-4 text-xs font-bold text-slate-400 uppercase">Plano</th><th className="p-3 sm:p-4 text-xs font-bold text-slate-400 uppercase hidden md:table-cell">Responsável</th><th className="p-3 sm:p-4 text-xs font-bold text-slate-400 uppercase">Telefone</th><th className="p-3 sm:p-4 text-xs font-bold text-slate-400 uppercase hidden sm:table-cell">Status</th><th className="p-3 sm:p-4 text-right"></th></tr></thead>
                 <tbody className="divide-y divide-slate-50">{filtrados.map((p: any) => (
-                    <tr key={p.id} onClick={() => openPatientActions(p.id)} className="hover:bg-blue-50 cursor-pointer transition-colors group">
+                    <tr key={p.id} onClick={() => router.push(`/pacientes/${p.id}`)} className="hover:bg-blue-50 cursor-pointer transition-colors group">
                         <td className="p-3 sm:p-4 pl-4 sm:pl-6 font-bold text-slate-700 text-sm">{p.nome}</td>
                         <td className="p-3 sm:p-4 text-sm text-slate-500 hidden sm:table-cell">{p.nome_clinica ? <span className="bg-slate-100 px-2 py-0.5 rounded text-xs font-bold text-slate-600">{p.nome_clinica}</span> : <span className="text-slate-300 italic">--</span>}</td>
                         <td className="p-3 sm:p-4 text-sm text-slate-500">{p.planos ? <span className={`text-[10px] font-bold uppercase px-2 py-1 rounded ${p.planos.tipo === 'particular' ? 'bg-slate-100 text-slate-600' : 'bg-blue-50 text-blue-600'}`}>{p.planos.tipo === 'particular' ? 'Particular' : p.planos.nome}</span> : <span className="text-[10px] font-bold uppercase bg-slate-100 text-slate-500 px-2 py-1 rounded">Particular</span>}</td>
@@ -262,9 +265,10 @@ export default function Pacientes() {
                         <td className="p-3 sm:p-4 text-sm text-slate-500">{p.telefone}</td>
                         <td className="p-3 sm:p-4 hidden sm:table-cell"><span className="text-[10px] font-bold uppercase bg-slate-100 text-slate-500 px-2 py-1 rounded">{p.status}</span></td>
                         <td className="p-3 sm:p-4 text-right pr-4 sm:pr-6">
-                            <div className="flex items-center justify-end gap-2" onClick={stopRowClick}>
+                            <div className="flex items-center justify-end gap-1.5" onClick={stopRowClick}>
                                 <PatientContactButtons
                                     variant="icons"
+                                    channels={['whatsapp']}
                                     telefone={p.telefone}
                                     email={p.email}
                                     clinicaId={p.clinica_id}
@@ -274,6 +278,8 @@ export default function Pacientes() {
                                         clinica_nome: p.nome_clinica,
                                     })}
                                 />
+                                <button type="button" onClick={() => router.push(`/agenda?paciente=${p.id}`)} className="p-2 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-100" title="Agendar consulta"><Calendar size={16}/></button>
+                                <button type="button" onClick={() => router.push(`/proteses?paciente=${p.id}`)} className="p-2 rounded-xl bg-violet-50 text-violet-600 hover:bg-violet-100 border border-violet-100" title="Nova prótese"><Smile size={16}/></button>
                                 <span className="text-slate-300 group-hover:text-blue-500"><ChevronRight size={20}/></span>
                             </div>
                         </td>
@@ -284,20 +290,12 @@ export default function Pacientes() {
         </div>
        ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">{filtrados.map((p: any) => (
-            <div key={p.id} onClick={() => openPatientActions(p.id)} className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm hover:shadow-md cursor-pointer transition-all hover:border-blue-200 group">
+            <div key={p.id} onClick={() => router.push(`/pacientes/${p.id}`)} className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm hover:shadow-md cursor-pointer transition-all hover:border-blue-200 group">
                 <div className="flex items-center gap-4 mb-4"><div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center font-bold text-lg group-hover:bg-blue-600 group-hover:text-white transition-colors">{p.nome.charAt(0)}</div><div className="flex-1 min-w-0"><h3 className="font-bold text-slate-800 truncate">{p.nome}</h3><p className="text-xs text-slate-400 uppercase font-bold">{p.nome_clinica || 'Sem Clínica'}</p></div>
-                    <div onClick={stopRowClick}>
-                        <PatientContactButtons
-                            variant="icons"
-                            telefone={p.telefone}
-                            email={p.email}
-                            clinicaId={p.clinica_id}
-                            evento="pos_consulta"
-                            contexto={buildDocumentoContexto({
-                                paciente_nome: p.nome?.split(' ')[0],
-                                clinica_nome: p.nome_clinica,
-                            })}
-                        />
+                    <div className="flex items-center gap-1.5" onClick={stopRowClick}>
+                        <PatientContactButtons variant="icons" channels={['whatsapp']} telefone={p.telefone} email={p.email} clinicaId={p.clinica_id} evento="pos_consulta" contexto={buildDocumentoContexto({ paciente_nome: p.nome?.split(' ')[0], clinica_nome: p.nome_clinica })} />
+                        <button type="button" onClick={() => router.push(`/agenda?paciente=${p.id}`)} className="p-2 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100" title="Agendar"><Calendar size={16}/></button>
+                        <button type="button" onClick={() => router.push(`/proteses?paciente=${p.id}`)} className="p-2 rounded-xl bg-violet-50 text-violet-600 hover:bg-violet-100" title="Nova prótese"><Smile size={16}/></button>
                     </div>
                 </div>
                 <div className="space-y-2">

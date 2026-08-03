@@ -20,6 +20,8 @@ export type TaxaMaquininha = {
   nome: string;
   bandeira: string;
   tipo: 'debito' | 'credito_vista' | 'credito_parcelado' | 'pix';
+  /** Número de parcelas (1–12) quando tipo = credito_parcelado */
+  parcela?: number;
   taxa_percentual: number;
   prazo_recebimento_dias: number;
   ativo: boolean;
@@ -112,14 +114,101 @@ export const TEMPLATES_COMUNICACAO_PADRAO: TemplateComunicacao[] = [
   },
 ];
 
+function taxaPadraoPorParcela(parcela: number): number {
+  if (parcela === 1) return 2.5;
+  if (parcela <= 6) return 3.2;
+  return 4.5;
+}
+
+function gerarParcelasBandeira(bandeira: string, prefixo: string): TaxaMaquininha[] {
+  return Array.from({ length: 12 }, (_, i) => {
+    const parcela = i + 1;
+    return {
+      id: `${prefixo}_parc_${parcela}`,
+      nome: parcela === 1 ? 'Crédito à vista' : `Crédito ${parcela}x`,
+      bandeira,
+      tipo: 'credito_parcelado' as const,
+      parcela,
+      taxa_percentual: taxaPadraoPorParcela(parcela),
+      prazo_recebimento_dias: 30,
+      ativo: true,
+    };
+  });
+}
+
 export const TAXAS_MAQUININHA_PADRAO: TaxaMaquininha[] = [
   { id: 'pix', nome: 'PIX', bandeira: 'PIX', tipo: 'pix', taxa_percentual: 0, prazo_recebimento_dias: 0, ativo: true },
-  { id: 'deb_visa', nome: 'Débito Visa/Master', bandeira: 'Visa/Master', tipo: 'debito', taxa_percentual: 1.5, prazo_recebimento_dias: 1, ativo: true },
-  { id: 'cred_vista', nome: 'Crédito à vista', bandeira: 'Visa/Master', tipo: 'credito_vista', taxa_percentual: 2.5, prazo_recebimento_dias: 30, ativo: true },
-  { id: 'cred_parc_2_6', nome: 'Crédito 2–6x', bandeira: 'Visa/Master', tipo: 'credito_parcelado', taxa_percentual: 3.2, prazo_recebimento_dias: 30, ativo: true },
-  { id: 'cred_parc_7_12', nome: 'Crédito 7–12x', bandeira: 'Visa/Master', tipo: 'credito_parcelado', taxa_percentual: 4.5, prazo_recebimento_dias: 30, ativo: true },
-  { id: 'elo_deb', nome: 'Débito Elo', bandeira: 'Elo', tipo: 'debito', taxa_percentual: 1.8, prazo_recebimento_dias: 1, ativo: true },
+  { id: 'deb_visa', nome: 'Débito', bandeira: 'Visa/Master', tipo: 'debito', taxa_percentual: 1.5, prazo_recebimento_dias: 1, ativo: true },
+  ...gerarParcelasBandeira('Visa/Master', 'visa'),
+  { id: 'elo_deb', nome: 'Débito', bandeira: 'Elo', tipo: 'debito', taxa_percentual: 1.8, prazo_recebimento_dias: 1, ativo: true },
+  ...gerarParcelasBandeira('Elo', 'elo'),
 ];
+
+function parseFaixaParcelas(item: TaxaMaquininha): [number, number] | null {
+  const match = item.nome.match(/(\d+)\s*[–-]\s*(\d+)\s*x/i);
+  if (match) return [parseInt(match[1], 10), parseInt(match[2], 10)];
+  if (item.id.includes('2_6') || item.id.includes('parc_2_6')) return [2, 6];
+  if (item.id.includes('7_12') || item.id.includes('parc_7_12')) return [7, 12];
+  return null;
+}
+
+/** Converte faixas antigas (2–6x, 7–12x) em entradas individuais por parcela. */
+export function normalizarTaxasMaquininha(raw: unknown): TaxaMaquininha[] {
+  if (!Array.isArray(raw) || raw.length === 0) return TAXAS_MAQUININHA_PADRAO;
+
+  const resultado: TaxaMaquininha[] = [];
+  const vistos = new Set<string>();
+
+  for (const item of raw as TaxaMaquininha[]) {
+    if (item.tipo === 'credito_vista') {
+      const slug = `${item.bandeira}_parc_1`;
+      if (!vistos.has(slug)) {
+        vistos.add(slug);
+        resultado.push({
+          ...item,
+          id: item.id.replace('vista', 'parc_1'),
+          nome: 'Crédito à vista',
+          tipo: 'credito_parcelado',
+          parcela: 1,
+        });
+      }
+      continue;
+    }
+
+    if (item.tipo === 'credito_parcelado' && item.parcela != null) {
+      const slug = `${item.bandeira}_${item.parcela}`;
+      if (!vistos.has(slug)) {
+        vistos.add(slug);
+        resultado.push(item);
+      }
+      continue;
+    }
+
+    if (item.tipo === 'credito_parcelado') {
+      const faixa = parseFaixaParcelas(item);
+      if (faixa) {
+        const [ini, fim] = faixa;
+        const prefixo = item.bandeira.toLowerCase().replace(/[^a-z0-9]+/g, '_');
+        for (let p = ini; p <= fim; p++) {
+          const slug = `${item.bandeira}_${p}`;
+          if (vistos.has(slug)) continue;
+          vistos.add(slug);
+          resultado.push({
+            ...item,
+            id: `${prefixo}_parc_${p}`,
+            nome: p === 1 ? 'Crédito à vista' : `Crédito ${p}x`,
+            parcela: p,
+          });
+        }
+        continue;
+      }
+    }
+
+    resultado.push(item);
+  }
+
+  return resultado.length ? resultado : TAXAS_MAQUININHA_PADRAO;
+}
 
 export function normalizarCategoriasFinanceiras(raw: unknown): CategoriaFinanceira[] {
   if (!Array.isArray(raw) || raw.length === 0) return CATEGORIAS_FINANCEIRAS_PADRAO;

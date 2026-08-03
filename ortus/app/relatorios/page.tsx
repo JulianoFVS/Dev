@@ -3,16 +3,31 @@ import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useClinica } from '@/app/context/ClinicaContext';
 import { fetchUserClinicas } from '@/lib/clinicScoped';
+import { carregarConfig } from '@/lib/configClinica';
+import CustomSelect from '@/components/ui/CustomSelect';
 import {
-    BarChart3, TrendingUp, TrendingDown, Calendar, Users, DollarSign,
-    Loader2, Activity, CheckCircle, XCircle, Clock, ArrowUpRight, ArrowDownRight, Printer
+    BarChart3, TrendingDown, Users, DollarSign,
+    Loader2, Activity, CheckCircle, XCircle, Clock, ArrowUpRight, ArrowDownRight, Printer, Filter, Tag
 } from 'lucide-react';
 
 type Agendamento = {
     id: string; data_hora: string; procedimento: string; status: string;
     valor_final: number; paciente_id: string; clinica_id: number;
-    pacientes?: { nome: string };
+    profissional_id?: number | null;
+    pacientes?: { nome: string } | { nome: string }[];
+    profissionais?: { nome: string };
 };
+
+function nomePaciente(p?: Agendamento['pacientes']) {
+    if (!p) return 'Paciente';
+    if (Array.isArray(p)) return p[0]?.nome || 'Paciente';
+    return p.nome || 'Paciente';
+}
+
+function despesaCancelada(d: { id: string | number; status?: string }, meta: Record<string, unknown>) {
+    const m = meta[`man_${d.id}`] as { status?: string } | undefined;
+    return (m?.status || d.status) === 'cancelado';
+}
 
 export default function Relatorios() {
     const { activeClinicId, loading: clinicLoading } = useClinica();
@@ -20,8 +35,13 @@ export default function Relatorios() {
     const [agendamentos, setAgendamentos] = useState<Agendamento[]>([]);
     const [pacientesTotal, setPacientesTotal] = useState(0);
     const [despesas, setDespesas] = useState<any[]>([]);
+    const [profissionais, setProfissionais] = useState<{ id: number; nome: string }[]>([]);
+    const [meta, setMeta] = useState<Record<string, unknown>>({});
 
     const [periodo, setPeriodo] = useState<'mes' | '3meses' | '6meses' | 'ano'>('mes');
+    const [filtroProfissional, setFiltroProfissional] = useState('todos');
+    const [filtroStatus, setFiltroStatus] = useState('todos');
+    const [filtroCategoria, setFiltroCategoria] = useState('todos');
 
     useEffect(() => { if (!clinicLoading) carregar(); }, [clinicLoading, activeClinicId, periodo]);
 
@@ -45,39 +65,77 @@ export default function Relatorios() {
         else dataInicio = new Date(agora.getFullYear(), 0, 1);
 
         const inicioISO = dataInicio.toISOString();
+        const cidMeta = activeClinicId && activeClinicId !== 'all' ? String(activeClinicId) : String(filtrosIds[0]);
 
-        const [agRes, pacRes, despRes] = await Promise.all([
-            supabase.from('agendamentos').select('id, data_hora, procedimento, status, valor_final, paciente_id, clinica_id, pacientes(nome)')
+        const [agRes, pacRes, despRes, metaRes] = await Promise.all([
+            supabase.from('agendamentos').select('id, data_hora, procedimento, status, valor_final, paciente_id, clinica_id, profissional_id, pacientes(nome), profissionais(nome)')
                 .gte('data_hora', inicioISO).in('clinica_id', filtrosIds).order('data_hora', { ascending: false }),
             supabase.from('pacientes').select('*', { count: 'exact', head: true }).in('clinica_id', filtrosIds),
             supabase.from('despesas').select('*').gte('data', inicioISO.split('T')[0]).in('clinica_id', filtrosIds),
+            carregarConfig<Record<string, unknown>>(cidMeta, 'lancamentos_meta', 'ortus_lancamentos_meta', {}),
         ]);
 
         setAgendamentos((agRes.data || []) as unknown as Agendamento[]);
         setPacientesTotal(pacRes.count || 0);
         setDespesas(despRes.data || []);
+        setMeta(metaRes || {});
+
+        const profIds = [...new Set((agRes.data || []).map((a: { profissional_id?: number }) => a.profissional_id).filter(Boolean))] as number[];
+        if (profIds.length > 0) {
+            const { data: profData } = await supabase.from('profissionais').select('id, nome').in('id', profIds).order('nome');
+            setProfissionais((profData || []) as { id: number; nome: string }[]);
+        } else {
+            setProfissionais([]);
+        }
+
         setLoading(false);
     }
 
-    // ===== Métricas calculadas =====
+    const categoriasDisponiveis = useMemo(() => {
+        const cats = new Set<string>();
+        despesas.filter(d => !despesaCancelada(d, meta)).forEach(d => { if (d.categoria) cats.add(d.categoria); });
+        cats.add('Atendimento');
+        cats.add('Fiado / A Receber');
+        return [...cats].sort();
+    }, [despesas, meta]);
+
+    const agendamentosFiltrados = useMemo(() => {
+        return agendamentos.filter(a => {
+            if (filtroProfissional !== 'todos' && String(a.profissional_id) !== filtroProfissional) return false;
+            if (filtroStatus !== 'todos' && a.status !== filtroStatus) return false;
+            if (filtroCategoria !== 'todos') {
+                const catAg = a.status === 'fiado' ? 'Fiado / A Receber' : 'Atendimento';
+                if (catAg !== filtroCategoria) return false;
+            }
+            return true;
+        });
+    }, [agendamentos, filtroProfissional, filtroStatus, filtroCategoria]);
+
+    const despesasAtivas = useMemo(() => {
+        return despesas.filter(d => {
+            if (despesaCancelada(d, meta)) return false;
+            if (filtroCategoria !== 'todos' && d.categoria !== filtroCategoria) return false;
+            return true;
+        });
+    }, [despesas, meta, filtroCategoria]);
+
     const metricas = useMemo(() => {
-        const concluidos = agendamentos.filter(a => a.status === 'concluido');
-        const cancelados = agendamentos.filter(a => a.status === 'cancelado');
-        const faltou = agendamentos.filter(a => a.status === 'faltou');
-        const fiados = agendamentos.filter(a => a.status === 'fiado');
-        const total = agendamentos.length;
+        const concluidos = agendamentosFiltrados.filter(a => a.status === 'concluido');
+        const cancelados = agendamentosFiltrados.filter(a => a.status === 'cancelado');
+        const faltou = agendamentosFiltrados.filter(a => a.status === 'faltou');
+        const fiados = agendamentosFiltrados.filter(a => a.status === 'fiado');
+        const total = agendamentosFiltrados.length;
 
         const faturamento = concluidos.reduce((s, a) => s + (a.valor_final || 0), 0);
         const fiado = fiados.reduce((s, a) => s + (a.valor_final || 0), 0);
-        const despesaTotal = despesas.filter(d => d.tipo === 'saida').reduce((s, d) => s + (d.valor || 0), 0);
-        const receitaManual = despesas.filter(d => d.tipo === 'entrada').reduce((s, d) => s + (d.valor || 0), 0);
+        const despesaTotal = despesasAtivas.filter(d => d.tipo === 'saida').reduce((s, d) => s + (d.valor || 0), 0);
+        const receitaManual = despesasAtivas.filter(d => d.tipo === 'entrada').reduce((s, d) => s + (d.valor || 0), 0);
         const receitaTotal = faturamento + receitaManual;
         const lucro = receitaTotal - despesaTotal;
 
         const taxaComparecimento = total > 0 ? Math.round(((concluidos.length + fiados.length) / total) * 100) : 0;
         const taxaCancelamento = total > 0 ? Math.round(((cancelados.length + faltou.length) / total) * 100) : 0;
 
-        // Procedimentos mais realizados
         const procMap: Record<string, { count: number; valor: number }> = {};
         concluidos.forEach(a => {
             const key = a.procedimento || 'Não especificado';
@@ -87,7 +145,25 @@ export default function Relatorios() {
         });
         const topProcedimentos = Object.entries(procMap).sort((a, b) => b[1].count - a[1].count).slice(0, 8);
 
-        // Faturamento por mês (para gráfico de barras simples)
+        const catMap: Record<string, { entrada: number; saida: number }> = {};
+        concluidos.forEach(a => {
+            const cat = 'Atendimento';
+            if (!catMap[cat]) catMap[cat] = { entrada: 0, saida: 0 };
+            catMap[cat].entrada += a.valor_final || 0;
+        });
+        fiados.forEach(a => {
+            const cat = 'Fiado / A Receber';
+            if (!catMap[cat]) catMap[cat] = { entrada: 0, saida: 0 };
+            catMap[cat].entrada += a.valor_final || 0;
+        });
+        despesasAtivas.forEach(d => {
+            const cat = d.categoria || 'Geral';
+            if (!catMap[cat]) catMap[cat] = { entrada: 0, saida: 0 };
+            if (d.tipo === 'entrada') catMap[cat].entrada += d.valor || 0;
+            else catMap[cat].saida += d.valor || 0;
+        });
+        const categoriasBreakdown = Object.entries(catMap).sort((a, b) => (b[1].entrada + b[1].saida) - (a[1].entrada + a[1].saida));
+
         const fatMensal: Record<string, number> = {};
         concluidos.forEach(a => {
             const mesKey = a.data_hora.slice(0, 7);
@@ -96,16 +172,26 @@ export default function Relatorios() {
         const meses = Object.keys(fatMensal).sort();
         const maxFat = Math.max(...Object.values(fatMensal), 1);
 
-        // Pacientes únicos atendidos
         const pacientesUnicos = new Set(concluidos.map(a => a.paciente_id)).size;
+
+        const fiadosEmAberto = fiados
+            .sort((a, b) => new Date(b.data_hora).getTime() - new Date(a.data_hora).getTime())
+            .map(a => ({
+                id: a.id,
+                paciente: nomePaciente(a.pacientes),
+                procedimento: a.procedimento,
+                valor: a.valor_final || 0,
+                data: a.data_hora,
+                profissional: a.profissionais?.nome,
+            }));
 
         return {
             total, concluidos: concluidos.length, cancelados: cancelados.length + faltou.length,
             fiados: fiados.length, faturamento, fiado, despesaTotal, receitaTotal, lucro,
             taxaComparecimento, taxaCancelamento, topProcedimentos, fatMensal, meses, maxFat,
-            pacientesUnicos, receitaManual,
+            pacientesUnicos, receitaManual, categoriasBreakdown, fiadosEmAberto,
         };
-    }, [agendamentos, despesas]);
+    }, [agendamentosFiltrados, despesasAtivas]);
 
     const fmt = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
     const fmtMes = (m: string) => {
@@ -124,7 +210,7 @@ export default function Relatorios() {
                     <h1 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-2"><BarChart3 size={24} className="text-cyan-500"/> Relatórios</h1>
                     <p className="text-slate-500 text-sm font-medium">Acompanhe o desempenho da sua clínica.</p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                     {(['mes', '3meses', '6meses', 'ano'] as const).map(p => (
                         <button key={p} onClick={() => setPeriodo(p)}
                             className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${periodo === p ? 'bg-cyan-600 text-white shadow-sm' : 'bg-white text-slate-500 border border-slate-200 hover:border-cyan-300'}`}
@@ -136,10 +222,53 @@ export default function Relatorios() {
                 </div>
             </div>
 
+            {/* Filtros avançados */}
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-end gap-3">
+                <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase shrink-0">
+                    <Filter size={14}/> Filtros
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 flex-1">
+                    <div>
+                        <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Profissional</label>
+                        <CustomSelect
+                            value={filtroProfissional}
+                            onChange={setFiltroProfissional}
+                            options={[{ value: 'todos', label: 'Todos os profissionais' }, ...profissionais.map(p => ({ value: String(p.id), label: p.nome }))]}
+                            size="sm"
+                        />
+                    </div>
+                    <div>
+                        <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Status</label>
+                        <CustomSelect
+                            value={filtroStatus}
+                            onChange={setFiltroStatus}
+                            options={[
+                                { value: 'todos', label: 'Todos os status' },
+                                { value: 'concluido', label: 'Concluído' },
+                                { value: 'fiado', label: 'Fiado' },
+                                { value: 'agendado', label: 'Agendado' },
+                                { value: 'cancelado', label: 'Cancelado' },
+                                { value: 'faltou', label: 'Faltou' },
+                            ]}
+                            size="sm"
+                        />
+                    </div>
+                    <div>
+                        <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Categoria</label>
+                        <CustomSelect
+                            value={filtroCategoria}
+                            onChange={setFiltroCategoria}
+                            options={[{ value: 'todos', label: 'Todas as categorias' }, ...categoriasDisponiveis.map(c => ({ value: c, label: c }))]}
+                            size="sm"
+                        />
+                    </div>
+                </div>
+            </div>
+
             {/* KPIs */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <KPI icon={<DollarSign size={20}/>} iconBg="bg-emerald-50 text-emerald-600" label="Receita Total" value={fmt(metricas.receitaTotal)} sub={`${metricas.concluidos} consultas concluídas`} trend="up"/>
-                <KPI icon={<TrendingDown size={20}/>} iconBg="bg-rose-50 text-rose-600" label="Despesas" value={fmt(metricas.despesaTotal)} sub={`${despesas.filter(d => d.tipo === 'saida').length} lançamentos`} trend="down"/>
+                <KPI icon={<TrendingDown size={20}/>} iconBg="bg-rose-50 text-rose-600" label="Despesas" value={fmt(metricas.despesaTotal)} sub={`${despesasAtivas.filter(d => d.tipo === 'saida').length} lançamentos (exc. cancelados)`} trend="down"/>
                 <KPI icon={<Activity size={20}/>} iconBg="bg-cyan-50 text-cyan-600" label="Lucro Líquido" value={fmt(metricas.lucro)} sub={metricas.receitaTotal > 0 ? `Margem ${Math.round((metricas.lucro / metricas.receitaTotal) * 100)}%` : ''} trend={metricas.lucro >= 0 ? 'up' : 'down'}/>
                 <KPI icon={<Users size={20}/>} iconBg="bg-indigo-50 text-indigo-600" label="Pacientes Atendidos" value={String(metricas.pacientesUnicos)} sub={`De ${pacientesTotal} cadastrados`}/>
             </div>
@@ -170,7 +299,7 @@ export default function Relatorios() {
                     <div className="text-[10px] font-bold text-slate-400 uppercase mb-3">Valores em Aberto (Fiados)</div>
                     <div className="text-3xl font-black text-amber-600 mb-2">{fmt(metricas.fiado)}</div>
                     <div className="text-xs text-slate-500">{metricas.fiados} atendimento{metricas.fiados !== 1 ? 's' : ''} pendente{metricas.fiados !== 1 ? 's' : ''} de pagamento</div>
-                    {metricas.fiado > 0 && <div className="mt-3 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-[11px] text-amber-700 font-semibold">⚠️ Valor a receber acumulado no período</div>}
+                    {metricas.fiado > 0 && <div className="mt-3 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-[11px] text-amber-700 font-semibold">Valor a receber acumulado no período</div>}
                 </div>
 
                 <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
@@ -181,6 +310,60 @@ export default function Relatorios() {
                     <div className="text-xs text-slate-500">Valor médio por consulta concluída</div>
                     {metricas.receitaManual > 0 && <div className="mt-3 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg text-[11px] text-blue-700 font-semibold">+ {fmt(metricas.receitaManual)} em receitas manuais</div>}
                 </div>
+            </div>
+
+            {/* Fiados em aberto — lista detalhada */}
+            {metricas.fiadosEmAberto.length > 0 && (
+                <div className="bg-white p-6 rounded-2xl border border-amber-200 shadow-sm">
+                    <div className="text-[10px] font-bold text-amber-600 uppercase mb-4 flex items-center gap-2">
+                        <Clock size={14}/> Fiados em Aberto ({metricas.fiadosEmAberto.length})
+                    </div>
+                    <div className="divide-y divide-slate-100">
+                        {metricas.fiadosEmAberto.map(f => (
+                            <div key={f.id} className="py-3 flex items-center justify-between gap-4">
+                                <div className="min-w-0">
+                                    <p className="font-bold text-slate-800 text-sm truncate">{f.paciente}</p>
+                                    <p className="text-xs text-slate-500 truncate">{f.procedimento}{f.profissional ? ` · ${f.profissional}` : ''}</p>
+                                    <p className="text-[10px] text-slate-400 mt-0.5">{new Date(f.data).toLocaleDateString('pt-BR')}</p>
+                                </div>
+                                <span className="font-black text-amber-600 whitespace-nowrap">{fmt(f.valor)}</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* Breakdown por categoria */}
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                <div className="text-[10px] font-bold text-slate-400 uppercase mb-4 flex items-center gap-2">
+                    <Tag size={14}/> Resumo por Categoria
+                </div>
+                {metricas.categoriasBreakdown.length === 0 ? (
+                    <p className="text-sm text-slate-400 italic">Nenhum lançamento no período.</p>
+                ) : (
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                            <thead>
+                                <tr className="text-[10px] font-bold text-slate-400 uppercase border-b border-slate-100">
+                                    <th className="text-left py-2 pr-4">Categoria</th>
+                                    <th className="text-right py-2 px-2">Entradas</th>
+                                    <th className="text-right py-2 px-2">Saídas</th>
+                                    <th className="text-right py-2 pl-2">Saldo</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {metricas.categoriasBreakdown.map(([nome, v]) => (
+                                    <tr key={nome} className="border-b border-slate-50 hover:bg-slate-50/50">
+                                        <td className="py-2.5 pr-4 font-bold text-slate-700">{nome}</td>
+                                        <td className="py-2.5 px-2 text-right text-emerald-600 font-bold">{fmt(v.entrada)}</td>
+                                        <td className="py-2.5 px-2 text-right text-rose-600 font-bold">{fmt(v.saida)}</td>
+                                        <td className={`py-2.5 pl-2 text-right font-black ${v.entrada - v.saida >= 0 ? 'text-slate-800' : 'text-rose-600'}`}>{fmt(v.entrada - v.saida)}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
             </div>
 
             {/* Faturamento mensal (bar chart via CSS) */}

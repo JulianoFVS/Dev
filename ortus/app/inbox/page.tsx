@@ -1,35 +1,47 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Bell, Mail, Calendar, AlertTriangle, Info, CheckSquare, Trash2, History } from 'lucide-react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
 
+const TIPOS_ALERTA = new Set(['agenda', 'alerta', 'sistema', 'aviso']);
+const TIPOS_MENSAGEM = new Set(['mensagem']);
+
+type AbaInbox = 'alertas' | 'mensagens';
+
 export default function Inbox() {
-  const [todos, setTodos] = useState<any[]>([]); // FIX: any[]
-  const [abaAtiva, setAbaAtiva] = useState('alertas');
+  const [todos, setTodos] = useState<any[]>([]);
+  const [abaAtiva, setAbaAtiva] = useState<AbaInbox>('alertas');
   const [escopo, setEscopo] = useState<'ativas' | 'historico'>('ativas');
   const [loading, setLoading] = useState(true);
   const searchParams = useSearchParams();
+  const router = useRouter();
   const { showConfirm } = useCustomAlert();
 
-  useEffect(() => { 
-      const tab = searchParams.get('tab');
-      if (tab === 'mensagens') setAbaAtiva('mensagens');
-      else setAbaAtiva('alertas');
-      carregar(); 
-  }, [searchParams, escopo]);
+  const sincronizarAba = useCallback((tab: string | null) => {
+      setAbaAtiva(tab === 'mensagens' ? 'mensagens' : 'alertas');
+  }, []);
+
+  useEffect(() => {
+      sincronizarAba(searchParams.get('tab'));
+      carregar();
+  }, [searchParams, escopo, sincronizarAba]);
+
+  function trocarAba(tab: AbaInbox) {
+      setAbaAtiva(tab);
+      router.replace(`/inbox?tab=${tab}`, { scroll: false });
+  }
 
   async function carregar() {
+    setLoading(true);
     const { data: { user } } = await supabase.auth.getUser();
     if(user) {
         const agoraIso = new Date().toISOString();
         let query = supabase.from('notificacoes').select('*').eq('user_id', user.id);
         if (escopo === 'ativas') {
-            // Mostrar apenas não expiradas (lidas ou não), mantendo limpeza automática por validade
             query = query.or(`expires_at.is.null,expires_at.gt.${agoraIso}`);
         } else {
-            // Histórico: expiradas OU lidas, limitado
             query = query.or(`lida.eq.true,expires_at.lte.${agoraIso}`).limit(200);
         }
         const { data } = await query.order('created_at', { ascending: false });
@@ -49,8 +61,8 @@ export default function Inbox() {
       await supabase.from('notificacoes').delete().eq('id', id);
   }
 
-  const alertas = todos.filter((n: any) => ['agenda', 'alerta', 'sistema', 'aviso'].includes(n.tipo));
-  const mensagens = todos.filter((n: any) => !['agenda', 'alerta', 'sistema', 'aviso'].includes(n.tipo));
+  const alertas = todos.filter((n: any) => TIPOS_ALERTA.has(n.tipo));
+  const mensagens = todos.filter((n: any) => TIPOS_MENSAGEM.has(n.tipo));
   const listaAtual = abaAtiva === 'alertas' ? alertas : mensagens;
 
   const getIcon = (tipo: string) => {
@@ -69,8 +81,14 @@ export default function Inbox() {
         </div>
         <div className="flex items-center gap-3">
           <div className="flex bg-white p-1 rounded-xl shadow-sm border border-slate-200">
-            <button onClick={() => setAbaAtiva('alertas')} className={`px-4 sm:px-6 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all ${abaAtiva === 'alertas' ? 'bg-blue-50 text-blue-700 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}><Bell size={16}/> Notificações</button>
-            <button onClick={() => setAbaAtiva('mensagens')} className={`px-4 sm:px-6 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all ${abaAtiva === 'mensagens' ? 'bg-purple-50 text-purple-700 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}><Mail size={16}/> Mensagens</button>
+            <button onClick={() => trocarAba('alertas')} className={`px-4 sm:px-6 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all ${abaAtiva === 'alertas' ? 'bg-blue-50 text-blue-700 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>
+              <Bell size={16}/> Notificações
+              {alertas.length > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700">{alertas.length}</span>}
+            </button>
+            <button onClick={() => trocarAba('mensagens')} className={`px-4 sm:px-6 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all ${abaAtiva === 'mensagens' ? 'bg-purple-50 text-purple-700 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>
+              <Mail size={16}/> Mensagens
+              {mensagens.length > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-700">{mensagens.length}</span>}
+            </button>
           </div>
           <div className="flex bg-white p-1 rounded-xl shadow-sm border border-slate-200">
             <button onClick={() => setEscopo('ativas')} className={`px-3 py-2 rounded-lg text-xs font-black uppercase tracking-wider flex items-center gap-2 transition-all ${escopo === 'ativas' ? 'bg-emerald-50 text-emerald-700 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>Ativas</button>
@@ -79,8 +97,31 @@ export default function Inbox() {
         </div>
       </div>
       <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden min-h-[400px]">
-        {listaAtual.length === 0 && (<div className="h-full flex flex-col items-center justify-center py-20 text-center"><h3 className="text-slate-800 font-bold">Tudo limpo!</h3></div>)}
-        <div className="divide-y divide-slate-100">{listaAtual.map((n:any) => (<div key={n.id} className="p-5 flex gap-4"><div className="mt-1 bg-white p-2 rounded-xl border">{getIcon(n.tipo)}</div><div className="flex-1"><h4>{n.titulo}</h4><p>{n.mensagem}</p></div><div className="flex gap-2"><button onClick={() => marcarLida(n.id)}><CheckSquare size={18}/></button><button onClick={() => excluir(n.id)}><Trash2 size={18}/></button></div></div>))}</div>
+        {loading ? (
+          <div className="h-full flex flex-col items-center justify-center py-20 text-slate-400">Carregando...</div>
+        ) : listaAtual.length === 0 ? (
+          <div className="h-full flex flex-col items-center justify-center py-20 text-center">
+            <h3 className="text-slate-800 font-bold">{abaAtiva === 'alertas' ? 'Nenhuma notificação' : 'Nenhuma mensagem'}</h3>
+            <p className="text-slate-400 text-sm mt-1">Tudo limpo por aqui!</p>
+          </div>
+        ) : (
+          <div className="divide-y divide-slate-100">
+            {listaAtual.map((n: any) => (
+              <div key={n.id} className={`p-5 flex gap-4 ${!n.lida ? 'bg-blue-50/30' : ''}`}>
+                <div className="mt-1 bg-white p-2 rounded-xl border">{getIcon(n.tipo)}</div>
+                <div className="flex-1 min-w-0">
+                  <h4 className="font-bold text-slate-800">{n.titulo}</h4>
+                  <p className="text-sm text-slate-500 mt-0.5">{n.mensagem}</p>
+                  <p className="text-[10px] text-slate-400 mt-1">{new Date(n.created_at).toLocaleString('pt-BR')}</p>
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  {!n.lida && <button onClick={() => marcarLida(n.id)} className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg" title="Marcar como lida"><CheckSquare size={18}/></button>}
+                  <button onClick={() => excluir(n.id)} className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg" title="Excluir"><Trash2 size={18}/></button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

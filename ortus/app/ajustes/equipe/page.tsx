@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { useClinica, getClinicLabel } from '@/app/context/ClinicaContext';
 import { fetchUserEquipe } from '@/lib/clinicScoped';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
+import Modal from '@/components/ui/Modal';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/Tabs';
 import {
     Users, UserPlus, Loader2, X, Mail, Building2, ShieldCheck, Copy, Check,
@@ -1046,9 +1047,8 @@ export default function EquipePage() {
             </div>
 
             {/* Editor avançado */}
-            {editorAberto && profissionalSelecionado && (
-                <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
-                    <div className="bg-white w-full max-w-4xl rounded-3xl shadow-2xl border border-slate-100 max-h-[92vh] flex flex-col overflow-hidden">
+            <Modal open={!!(editorAberto && profissionalSelecionado)} onClose={fecharEditorAvancado} maxWidth="2xl" hideCloseButton panelClassName="bg-white rounded-3xl shadow-2xl border border-slate-100 max-h-[92vh] flex flex-col overflow-hidden">
+                        {profissionalSelecionado && (<>
                         <div className="px-6 py-4 border-b border-slate-100 flex items-start justify-between gap-4">
                             <div>
                                 <p className="text-[10px] font-black uppercase tracking-wider text-blue-500">Edição avançada</p>
@@ -1078,14 +1078,10 @@ export default function EquipePage() {
                                 <TabsContent value="comissao" className="m-0">{renderComissoesTab()}</TabsContent>
                             </div>
                         </Tabs>
-                    </div>
-                </div>
-            )}
+                        </>)}
+            </Modal>
 
-            {/* Modal de criação */}
-            {modalOpen && (
-                <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                    <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl border border-slate-100 max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200">
+            <Modal open={modalOpen} onClose={() => setModalOpen(false)} maxWidth="lg" hideCloseButton panelClassName="bg-white rounded-2xl shadow-2xl border border-slate-100 max-h-[90vh] overflow-y-auto">
                         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
                             <h2 className="font-bold text-slate-800 flex items-center gap-2"><UserPlus size={18} className="text-blue-600" /> Novo funcionário</h2>
                             <button onClick={() => setModalOpen(false)} className="touch-target text-slate-400 hover:text-slate-700 p-1 rounded-lg hover:bg-slate-50"><X size={18} /></button>
@@ -1166,14 +1162,10 @@ export default function EquipePage() {
                                 </button>
                             </div>
                         </form>
-                    </div>
-                </div>
-            )}
+            </Modal>
 
-            {/* Modal de credenciais */}
-            {credenciais && (
-                <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                    <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-200">
+            <Modal open={!!credenciais} onClose={() => setCredenciais(null)} maxWidth="md" hideCloseButton panelClassName="bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden">
+                        {credenciais && (<>
                         <div className="bg-gradient-to-br from-emerald-500 to-emerald-600 text-white px-6 py-5">
                             <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center mb-2">
                                 <Check size={24} />
@@ -1220,9 +1212,8 @@ export default function EquipePage() {
                                 Concluir
                             </button>
                         </div>
-                    </div>
-                </div>
-            )}
+                        </>)}
+            </Modal>
         </div>
     );
 }

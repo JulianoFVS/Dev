@@ -339,7 +339,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     <PatientSlideOverProvider>
     <PatientActionModalProvider>
     <div className="flex min-h-screen bg-slate-50 font-sans">
-      <aside className={`bg-white border-r border-slate-200 fixed h-full hidden md:flex flex-col z-30 shadow-sm transition-all duration-300 overflow-x-hidden ${menuRecolhido ? 'w-20 items-center' : 'w-64'}`}>
+      <aside className={`bg-white border-r border-slate-200 fixed h-full hidden md:flex flex-col z-30 shadow-sm transition-all duration-300 ${menuRecolhido ? 'w-20 items-center' : 'w-64'}`}>
         <div className={`h-20 flex items-center border-b border-slate-50 ${menuRecolhido ? 'justify-center px-0' : 'px-6 gap-3'}`}>
             <Link href="/dashboard" className="cursor-pointer hover:opacity-80 transition-opacity flex items-center gap-3">
                 <img src="/logo.png" alt="Ortus Logo" className="h-10 w-auto object-contain"/>
@@ -347,41 +347,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
             </Link>
         </div>
         
-        <div className={`mt-6 mb-2 ${menuRecolhido ? 'px-1 w-full flex justify-center' : 'px-3'}`}>
-            <div className="relative">
-                <button onClick={() => !menuRecolhido && setMenuClinicaAberto(!menuClinicaAberto)} className={`w-full flex items-center p-2.5 bg-slate-50 border border-slate-200 rounded-xl hover:border-blue-300 transition-all group ${menuRecolhido ? 'justify-center bg-transparent border-transparent' : 'justify-between'}`}>
-                    <div className="flex items-center gap-3 overflow-hidden">
-                        <div className={`w-9 h-9 rounded-lg flex-none flex items-center justify-center border shadow-sm transition-colors ${clinicaAtual?.id === 'todas' ? 'bg-slate-800 text-white border-slate-900 shadow-md ring-2 ring-slate-100' : 'bg-white text-blue-600 border-slate-200'}`}>
-                            {clinicaAtual?.id === 'todas' ? <Globe size={18}/> : <Building2 size={18}/>}
-                        </div>
-                        {!menuRecolhido && (
-                            <div className="text-left truncate">
-                                <p className="text-[10px] font-bold text-slate-400 uppercase leading-none mb-0.5">Clínica Atual</p>
-                                <p className="text-sm font-bold text-slate-800 truncate w-28">{clinicaAtual?.nome || 'Selecione'}</p>
-                            </div>
-                        )}
-                    </div>
-                    {!menuRecolhido && <ChevronsUpDown size={16} className="text-slate-400 group-hover:text-blue-500"/>}
-                </button>
-                
-                {menuClinicaAberto && !menuRecolhido && (
-                    <div className="absolute top-full left-0 w-full mt-2 bg-white border border-slate-100 rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2">
-                        <p className="px-4 py-2 text-[10px] font-bold text-slate-400 uppercase bg-slate-50 border-b border-slate-100">Trocar Unidade</p>
-                        {minhasClinicas.map(c => (
-                            <button key={c.id} onClick={() => trocarClinica(c)} className={`w-full text-left px-4 py-3 text-sm font-bold flex items-center justify-between border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors ${c.id === 'todas' ? 'text-slate-900 bg-slate-50/50 hover:bg-slate-100' : 'text-slate-600'}`}>
-                                <div className="flex items-center gap-2">
-                                    {c.id === 'todas' && <Globe size={14} className="text-slate-600"/>}
-                                    {c.nome}
-                                </div>
-                                {clinicaAtual?.id === c.id && <Check size={16} className="text-blue-600"/>}
-                            </button>
-                        ))}
-                    </div>
-                )}
-            </div>
-        </div>
-
-        <nav className={`flex-1 space-y-1 mt-4 overflow-y-auto overflow-x-hidden custom-scrollbar ${menuRecolhido ? 'px-1 flex flex-col items-center' : 'px-3'}`}>
+        <nav className={`flex-1 space-y-1 mt-4 overflow-y-auto custom-scrollbar ${menuRecolhido ? 'px-1 flex flex-col items-center' : 'px-3'}`}>
             {!menuRecolhido ? (
                 <button onClick={() => { const e = new KeyboardEvent('keydown', { key: 'k', metaKey: true, ctrlKey: true, bubbles: true }); window.dispatchEvent(e); }} className="w-full flex items-center gap-3 px-3 py-2.5 mb-2 rounded-xl text-sm font-semibold text-slate-400 bg-slate-50 border border-slate-200 hover:border-blue-300 hover:text-blue-500 transition-all">
                     <Search size={16}/> Buscar...
@@ -478,15 +444,6 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
                 <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
                     <h3 className="font-black text-slate-800 text-lg">Menu</h3>
                     <button onClick={() => setMenuMobileAberto(false)} className="p-2 bg-white rounded-full text-slate-400 shadow-sm border"><X size={20}/></button>
-                </div>
-                <div className="p-4 bg-slate-50 border-b border-slate-100">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Unidade Atual</p>
-                    {minhasClinicas.map(c => (
-                        <button key={c.id} onClick={() => trocarClinica(c)} className={`w-full text-left px-4 py-3 mb-2 rounded-xl text-sm font-bold flex items-center justify-between border ${clinicaAtual?.id === c.id ? 'bg-white border-blue-500 text-blue-700 shadow-sm' : 'bg-transparent border-transparent text-slate-500'}`}>
-                            {c.nome}
-                            {clinicaAtual?.id === c.id && <Check size={16} className="text-blue-600"/>}
-                        </button>
-                    ))}
                 </div>
                 <div className="p-4 space-y-1 flex-1 overflow-y-auto">
                     {filteredNavLinks.map((link) => (

@@ -17,13 +17,14 @@ import {
   Plus, X, Loader2, CheckCircle, 
   Calendar as CalIcon, 
   UserPlus, DollarSign, Phone, Trash2,
-  Clock, Ban, ExternalLink, PlusCircle, Bell
+  Clock, Ban, Bell
 } from 'lucide-react';
 import CustomSelect from '@/components/ui/CustomSelect';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
 import { validarAgendamentoCompleto } from '@/lib/horarioProfissional';
 import PatientContactButtons from '@/components/PatientContactButtons';
-import QuickTratamentoModal, { type TratamentoCriado } from '@/components/modals/QuickTratamentoModal';
+import Modal from '@/components/ui/Modal';
+import ProcedureCombobox from '@/components/forms/ProcedureCombobox';
 import {
   buscarAgendamentosLembrete24h,
   filtrarPendentesLembrete,
@@ -58,8 +59,8 @@ export default function Agenda() {
   const [profissionaisFiltrados, setProfissionaisFiltrados] = useState<any[]>([]);
   const [pacientes, setPacientes] = useState<any[]>([]);
   const [tratamentosBase, setTratamentosBase] = useState<any[]>([]);
-  const [tratamentoSelecionadoId, setTratamentoSelecionadoId] = useState('');
-  const [tratamentoModal, setTratamentoModal] = useState<'quick' | 'full' | null>(null);
+  const [especialidades, setEspecialidades] = useState<{ id: string; nome: string }[]>([]);
+  const [pagamentoPendente, setPagamentoPendente] = useState(false);
   
   const [clinicaFiltro, setClinicaFiltro] = useState('todas');
   const [clinicaGlobal, setClinicaGlobal] = useState<string | null>(null);
@@ -137,11 +138,12 @@ export default function Agenda() {
       if (!formData.clinica_id) { 
           setProfissionaisFiltrados([]); 
           setTratamentosBase([]);
-          setTratamentoSelecionadoId('');
+          setEspecialidades([]);
       } else { 
           const filtrados = profissionais.filter((p:any) => p.profissionais_clinicas?.some((vinculo:any) => vinculo.clinica_id == formData.clinica_id)); 
           setProfissionaisFiltrados(filtrados);
           carregarTratamentosBase(formData.clinica_id);
+          carregarEspecialidades(formData.clinica_id);
       } 
   }, [formData.clinica_id, profissionais]);
 
@@ -163,11 +165,21 @@ export default function Agenda() {
   async function carregarTratamentosBase(clinicaId: string) {
       const { data } = await supabase
           .from('tratamentos_base')
-          .select('id, nome, valor_sugerido')
+          .select('id, nome, valor_sugerido, especialidade_id')
           .eq('clinica_id', clinicaId)
           .eq('ativo', true)
           .order('nome');
       setTratamentosBase(data || []);
+  }
+
+  async function carregarEspecialidades(clinicaId: string) {
+      const { data } = await supabase
+          .from('especialidades')
+          .select('id, nome')
+          .eq('clinica_id', Number(clinicaId))
+          .eq('ativo', true)
+          .order('nome');
+      setEspecialidades(data || []);
   }
 
   useEffect(() => {
@@ -246,16 +258,16 @@ export default function Agenda() {
       const min = String(d.getMinutes()).padStart(2, '0'); 
       const preClinica = clinicaFiltro !== 'todas' ? clinicaFiltro : ''; 
       const preProfissional = (usuarioAtual?.nivel !== 'admin' && usuarioAtual?.profissional_id) ? usuarioAtual.profissional_id : ''; 
-      setTratamentoSelecionadoId('');
-      setFormData(prev => ({ ...prev, id: null, title: '', date: d.toISOString().split('T')[0], time: `${h}:${min}`, status: 'agendado', desconto: '0', valor: '0', clinica_id: preClinica, profissional_id: preProfissional })); 
+      setPagamentoPendente(false);
+      setFormData(prev => ({ ...prev, id: null, title: '', date: d.toISOString().split('T')[0], time: `${h}:${min}`, status: 'agendado', desconto: '0', valor: '0', clinica_id: preClinica, profissional_id: preProfissional }));
       setOpenModal(true); 
   };
 
   const handleEventClick = (info:any) => { 
       const r = info.event.extendedProps; 
       const localDate = new Date(r.data_hora); 
-      setTratamentoSelecionadoId('');
-      setFormData({ 
+      setPagamentoPendente(r.status === 'fiado');
+      setFormData({
           id: r.id, 
           title: r.procedimento, 
           date: localDate.toISOString().split('T')[0], 
@@ -288,7 +300,7 @@ export default function Agenda() {
 
       setLoading(true); 
       
-      const finalStatus = overrideStatus || formData.status; 
+      const finalStatus = pagamentoPendente ? 'fiado' : (overrideStatus || formData.status);
       const dataLocal = new Date(`${formData.date}T${formData.time}:00`); 
       const dataHoraISO = dataLocal.toISOString(); 
       
@@ -325,24 +337,6 @@ export default function Agenda() {
   function abrirCadastroPaciente() {
       const clinicaId = formData.clinica_id || (clinicaFiltro !== 'todas' ? clinicaFiltro : null);
       openQuickCapture(clinicaId);
-  }
-
-  async function abrirModalTratamento(variant: 'quick' | 'full') {
-      const clinicaId = formData.clinica_id || (clinicaFiltro !== 'todas' ? clinicaFiltro : null);
-      if (!clinicaId) {
-          await showAlert('Selecione a clínica antes de cadastrar um procedimento.', { type: 'warning' });
-          return;
-      }
-      setTratamentoModal(variant);
-  }
-
-  function handleTratamentoCriado(t: TratamentoCriado) {
-      setTratamentosBase((prev) => {
-          if (prev.some((x) => String(x.id) === String(t.id))) return prev;
-          return [...prev, t].sort((a, b) => a.nome.localeCompare(b.nome));
-      });
-      setTratamentoSelecionadoId(String(t.id));
-      setFormData((p) => ({ ...p, title: t.nome, valor: String(t.valor_sugerido ?? 0) }));
   }
 
   const renderEventContent = (eventInfo:any) => {
@@ -614,14 +608,12 @@ export default function Agenda() {
       </div>
       
       {/* MODAL PRINCIPAL OMITIDO PARA BREVIDADE (Mantido Igual) */}
-      {openModal && ( 
-          <div className="fixed inset-0 bg-slate-900/30 z-50 flex items-center justify-center p-4 animate-fade-in">
-              <div className="bg-white w-full max-w-lg rounded-2xl shadow-xl overflow-hidden flex flex-col max-h-[95vh] animate-zoom-in border border-slate-100">
-                  <div className="p-5 border-b bg-slate-50 flex justify-between items-center">
+      <Modal open={openModal} onClose={() => setOpenModal(false)} maxWidth="lg" hideCloseButton panelClassName="bg-white rounded-2xl shadow-xl border border-slate-100 flex flex-col max-h-[95vh]">
+                  <div className="p-5 border-b bg-slate-50 flex justify-between items-center shrink-0">
                       <h3 className="font-bold text-slate-800 flex items-center gap-2">{formData.id ? 'Editar Agendamento' : 'Novo Agendamento'}</h3>
                       <button onClick={() => setOpenModal(false)} className="text-slate-400 hover:text-red-500 p-1"><X size={20}/></button>
                   </div>
-                  <div className="p-6 space-y-5 overflow-y-auto">
+                  <div className="p-6 space-y-5 overflow-y-auto flex-1">
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           <div>
                               <label className="text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-1">
@@ -651,35 +643,26 @@ export default function Agenda() {
                           <div><label className="text-xs font-bold text-slate-500 uppercase mb-1">Hora</label><input type="time" value={formData.time} onChange={e => setFormData({...formData, time: e.target.value})} className="w-full p-2.5 border border-slate-200 rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none" /></div>
                       </div>
                       <div>
-                          <div className="flex justify-between items-center mb-1">
-                              <label className="text-xs font-bold text-slate-500 uppercase">Procedimento</label>
-                              <div className="flex items-center gap-2">
-                                  <button type="button" onClick={() => abrirModalTratamento('quick')} className="text-[10px] font-bold text-purple-600 hover:underline flex items-center gap-1 uppercase"><PlusCircle size={12}/> Novo serviço</button>
-                                  <button type="button" onClick={() => abrirModalTratamento('full')} className="text-[10px] font-bold text-slate-500 hover:underline flex items-center gap-1 uppercase"><ExternalLink size={12}/> Tratamento Base</button>
-                              </div>
-                          </div>
-                          <CustomSelect
-                              value={tratamentoSelecionadoId}
-                              onChange={v => {
-                                  const t = tratamentosBase.find((x: any) => String(x.id) === v);
-                                  if (t) {
-                                      setTratamentoSelecionadoId(v);
-                                      setFormData(p => ({ ...p, title: t.nome, valor: String(t.valor_sugerido ?? 0) }));
-                                  }
-                              }}
-                              options={tratamentosBase.map((t: any) => ({ value: String(t.id), label: `${t.nome} - R$ ${Number(t.valor_sugerido || 0).toFixed(2)}` }))}
-                              placeholder={formData.clinica_id ? (tratamentosBase.length ? 'Selecionar do catálogo...' : 'Nenhum tratamento cadastrado') : 'Selecione a clínica primeiro'}
-                              disabled={!formData.clinica_id}
-                              triggerClassName="!bg-blue-50 !border-blue-100 !text-blue-700"
-                              className="mb-2"
-                          />
-                          <input
+                          <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Procedimento</label>
+                          <ProcedureCombobox
+                              clinicaId={formData.clinica_id}
+                              especialidades={especialidades}
+                              tratamentos={tratamentosBase}
                               value={formData.title}
-                              onChange={e => { setTratamentoSelecionadoId(''); setFormData({ ...formData, title: e.target.value }); }}
-                              placeholder="Ou digite o procedimento manualmente..."
-                              className="w-full p-2.5 border border-slate-200 rounded-lg text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500"
+                              onChange={(nome, t) => {
+                                  setFormData((p) => ({
+                                      ...p,
+                                      title: nome,
+                                      valor: t ? String(t.valor_sugerido ?? p.valor) : p.valor,
+                                  }));
+                              }}
+                              disabled={!formData.clinica_id}
                           />
                       </div>
+                      <label className="flex items-center gap-2 p-3 rounded-xl bg-rose-50 border border-rose-100 cursor-pointer">
+                          <input type="checkbox" checked={pagamentoPendente} onChange={(e) => setPagamentoPendente(e.target.checked)} className="rounded border-rose-300 text-rose-600"/>
+                          <span className="text-sm font-bold text-rose-700">Pagamento pendente — registrar em Débitos do paciente</span>
+                      </label>
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200/60">
                           <div>
                               <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Valor (R$)</label>
@@ -727,21 +710,11 @@ export default function Agenda() {
                           </div>
                       )}
                   </div>
-                  <div className="p-5 border-t bg-slate-50 flex justify-end gap-3">
+                  <div className="p-5 border-t bg-slate-50 flex justify-end gap-3 shrink-0">
                       <button onClick={() => setOpenModal(false)} className="px-4 py-2 text-slate-500 font-bold hover:bg-slate-200 rounded-lg text-sm transition-colors">Fechar</button>
                       <button onClick={() => saveOrUpdate()} disabled={loading} className="px-6 py-2 bg-blue-600 text-white rounded-lg font-bold flex items-center gap-2 hover:bg-blue-700 transition-colors shadow-sm">{loading && <Loader2 className="animate-spin" size={16}/>} Salvar</button>
                   </div>
-              </div>
-          </div> 
-      )}
-
-      <QuickTratamentoModal
-          open={tratamentoModal !== null}
-          variant={tratamentoModal ?? 'quick'}
-          clinicaId={formData.clinica_id || (clinicaFiltro !== 'todas' ? clinicaFiltro : null)}
-          onClose={() => setTratamentoModal(null)}
-          onCreated={handleTratamentoCriado}
-      />
+      </Modal>
     </div>
   );
 }

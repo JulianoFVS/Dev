@@ -1,9 +1,9 @@
 ﻿'use client';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import type { MouseEvent, PointerEvent } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { User, Phone, Edit, ArrowLeft, Save, Loader2, FileText, Clock, Trash2, Calendar, CalendarPlus, Pill, AlertTriangle, Stethoscope, X, Check, Building2, Printer, MessageCircle, Smile, Plus, Eraser, CheckCircle, ClipboardList, FolderOpen, AlertCircle, Upload, Download, Image as ImageIcon, DollarSign, Settings, Sparkles, Camera, Bell, ArrowLeftRight, ShieldCheck, Zap } from 'lucide-react';
+import { User, Phone, Edit, ArrowLeft, Save, Loader2, FileText, Clock, Trash2, Calendar, CalendarPlus, Pill, AlertTriangle, Stethoscope, X, Check, Building2, Printer, Smile, Plus, Eraser, CheckCircle, ClipboardList, FolderOpen, AlertCircle, Upload, Download, Image as ImageIcon, DollarSign, Settings, Sparkles, Camera, Bell, ArrowLeftRight, ShieldCheck, Zap } from 'lucide-react';
 import Link from 'next/link';
 import { carregarModelos, formatarRespostaAnamnese, respostaInicial, type ModeloAnamnese, type RespostaAnamnese, type RespostaSimNaoTexto } from '@/lib/anamnese';
 // teeth-data lib no longer needed — using PNG images from /assets/dentes/
@@ -11,6 +11,9 @@ import { fetchUserClinicas } from '@/lib/clinicScoped';
 import { registrarAudit } from '@/lib/auditLog';
 import TabEvolucao from './TabEvolucao';
 import CustomSelect from '@/components/ui/CustomSelect';
+import TagInput from '@/components/ui/TagInput';
+import Modal from '@/components/ui/Modal';
+import { MEDICAMENTOS_CATALOGO } from '@/lib/medicamentosCatalogo';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
 import { validarPaciente, isMenorDeIdade } from '@/lib/pacienteValidation';
 import { carregarConfig } from '@/lib/configClinica';
@@ -55,13 +58,38 @@ const TOOLS: { key: string; label: string; color: string; tipo: 'face' | 'cond' 
 const PATIENT_NAV_SECTIONS = [
   { key: 'dados', label: 'Dados', icon: User },
   { key: 'anamnese', label: 'Anamnese', icon: FileText },
-  { key: 'tratamentos', label: 'Tratamentos', icon: Smile },
+  { key: 'tratamentos', label: 'Tratamentos e Evoluções', icon: Smile },
   { key: 'documentos', label: 'Documentos', icon: FolderOpen },
-  { key: 'evolucao', label: 'Evolução', icon: ClipboardList },
   { key: 'debitos', label: 'Débitos', icon: DollarSign },
   { key: 'hof', label: 'HOF', icon: Sparkles },
   { key: 'historico', label: 'Histórico', icon: Clock },
 ];
+
+const LEGACY_CONDICOES = [
+  'Diabetes', 'Hipertensão', 'Cardiopatia', 'Asma/Bronquite',
+  'Alergia Antibiótico', 'Alergia Anestésico', 'Gestante', 'Fumante', 'Uso de Anticoagulante',
+];
+
+function getCondicoesFromFicha(ficha: Record<string, unknown>): string[] {
+  if (Array.isArray(ficha.condicoes)) return ficha.condicoes as string[];
+  return LEGACY_CONDICOES.filter((k) => Boolean(ficha[k]));
+}
+
+function getMedicamentosFromFicha(ficha: Record<string, unknown>): string[] {
+  if (Array.isArray(ficha.medicamentos)) return ficha.medicamentos as string[];
+  if (typeof ficha.medicamentos === 'string' && ficha.medicamentos.trim()) {
+    return ficha.medicamentos.split(/[,;\n]+/).map((s) => s.trim()).filter(Boolean);
+  }
+  return [];
+}
+
+function normalizarFichaMedica(ficha: Record<string, unknown>): Record<string, unknown> {
+  return {
+    ...ficha,
+    condicoes: getCondicoesFromFicha(ficha),
+    medicamentos: getMedicamentosFromFicha(ficha),
+  };
+}
 
 const QUAD_PERM = {
   sup: [[18,17,16,15,14,13,12,11], [21,22,23,24,25,26,27,28]],
@@ -254,11 +282,16 @@ export default function PacienteDetalhe() {
   const { id } = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const initialTab = searchParams?.get('tab') || 'dados';
+  const rawTab = searchParams?.get('tab') || 'dados';
+  const initialTab = rawTab === 'evolucao' ? 'tratamentos' : rawTab;
   const [loading, setLoading] = useState(true);
   const { showAlert, showConfirm } = useCustomAlert();
   
   const [abaAtiva, setAbaAtiva] = useState(initialTab);
+  const [subAbaTratamentos, setSubAbaTratamentos] = useState<'tratamentos' | 'evolucoes'>(rawTab === 'evolucao' ? 'evolucoes' : 'tratamentos');
+  const [anamnesePreview, setAnamnesePreview] = useState<any>(null);
+  const odontogramaFromServer = useRef(true);
+  const fichaFromServer = useRef(true);
 
   // Revalida quando o Action Hub registrar tratamento in-place neste paciente
   useEffect(() => {
@@ -280,6 +313,9 @@ export default function PacienteDetalhe() {
   const [modeloDocId, setModeloDocId] = useState('');
 
   const [modalReceber, setModalReceber] = useState<any>(null);
+  const [modalDebitoManual, setModalDebitoManual] = useState(false);
+  const [formDebito, setFormDebito] = useState({ procedimento: '', valor: '', date: new Date().toISOString().split('T')[0], time: '12:00' });
+  const [salvandoDebito, setSalvandoDebito] = useState(false);
   const [taxaRecebimento, setTaxaRecebimento] = useState('');
   const [taxasRecebimento, setTaxasRecebimento] = useState<TaxaMaquininha[]>([]);
   const [recebendo, setRecebendo] = useState(false);
@@ -301,7 +337,7 @@ export default function PacienteDetalhe() {
   const [textoOdontogramaLivre, setTextoOdontogramaLivre] = useState('');
   const [modalTrat, setModalTrat] = useState(false);
   const [salvandoTrat, setSalvandoTrat] = useState(false);
-  const [tratEdit, setTratEdit] = useState<any>({ id: null, dente: '', procedimento: '', data: new Date().toISOString().split('T')[0], status: 'concluido', valor: '', observacoes: '', agendarNaAgenda: false, horaAgendamento: '09:00' });
+  const [tratEdit, setTratEdit] = useState<any>({ id: null, dente: '', procedimento: '', data: new Date().toISOString().split('T')[0], status: 'concluido', valor: '', observacoes: '', agendarNaAgenda: false, horaAgendamento: '09:00', pagamentoPendente: false });
   const [odontogramaZoom, setOdontogramaZoom] = useState(1);
   const [odontogramaPan, setOdontogramaPan] = useState({ x: 0, y: 0 });
   const odontogramaSurfaceRef = useRef<HTMLDivElement | null>(null);
@@ -397,6 +433,8 @@ export default function PacienteDetalhe() {
 
   async function carregar() {
       setLoading(true);
+      odontogramaFromServer.current = true;
+      fichaFromServer.current = true;
       const listaClinicas = await fetchUserClinicas();
       setClinicas(listaClinicas);
 
@@ -404,8 +442,10 @@ export default function PacienteDetalhe() {
       if (data) {
           setForm(data);
           const prontuario = await carregarProntuario(String(id));
-          const fm = { ...(data.ficha_medica || {}), ...prontuario.fichaClinica };
+          const fm = normalizarFichaMedica({ ...(data.ficha_medica || {}), ...prontuario.fichaClinica });
           setFicha(fm);
+          odontogramaFromServer.current = true;
+          fichaFromServer.current = true;
           setOdontograma((prontuario.fichaClinica.odontograma || {}) as Record<string, ToothState>);
           setTratamentos(prontuario.tratamentos);
           setTextoOdontogramaLivre(prontuario.fichaClinica.texto_livre || '');
@@ -437,8 +477,10 @@ export default function PacienteDetalhe() {
   async function salvarTudo() {
       const erro = validarPaciente(form);
       if (erro) { await showAlert(erro, { type: 'warning' }); return; }
-      const fichaAtualizada = await salvarFichaClinica(String(id), { odontograma, marcacoes_hof: marcacoesHof }, ficha);
-      const payload = { ...form, plano_id: form.plano_id || null, ficha_medica: { ...ficha, ...fichaAtualizada } };
+      const fichaParaSalvar = { ...ficha };
+      LEGACY_CONDICOES.forEach((k) => delete fichaParaSalvar[k]);
+      const fichaAtualizada = await salvarFichaClinica(String(id), { odontograma, marcacoes_hof: marcacoesHof }, fichaParaSalvar);
+      const payload = { ...form, plano_id: form.plano_id || null, ficha_medica: { ...fichaParaSalvar, ...fichaAtualizada } };
       const { error } = await supabase.from('pacientes').update(payload).eq('id', id);
       if (error) { await showAlert('Erro ao salvar: ' + error.message, { type: 'error' }); return; }
       setFicha({ ...ficha, ...fichaAtualizada });
@@ -523,6 +565,43 @@ export default function PacienteDetalhe() {
       setSavingOdo(false);
   }
 
+  const salvarFichaMedicaRapida = useCallback(async (fichaData: Record<string, unknown>, anamneseTexto: string) => {
+      try {
+          const payload = { ...fichaData };
+          LEGACY_CONDICOES.forEach((k) => delete payload[k]);
+          const { error } = await supabase.from('pacientes').update({
+              ficha_medica: payload,
+              anamnese: anamneseTexto,
+          }).eq('id', id);
+          if (error) throw error;
+      } catch (error: any) {
+          showAlert('Erro ao salvar ficha médica: ' + error.message, { type: 'error' });
+      }
+  }, [id, showAlert]);
+
+  // Autosave odontograma (debounce 800ms)
+  useEffect(() => {
+      if (loading) return;
+      if (odontogramaFromServer.current) {
+          odontogramaFromServer.current = false;
+          return;
+      }
+      const timer = setTimeout(() => { salvarOdontograma(); }, 800);
+      return () => clearTimeout(timer);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [odontograma, textoOdontogramaLivre, loading]);
+
+  // Autosave ficha médica rápida (debounce 800ms)
+  useEffect(() => {
+      if (loading) return;
+      if (fichaFromServer.current) {
+          fichaFromServer.current = false;
+          return;
+      }
+      const timer = setTimeout(() => { salvarFichaMedicaRapida(ficha, form.anamnese || ''); }, 800);
+      return () => clearTimeout(timer);
+  }, [ficha, form.anamnese, loading, salvarFichaMedicaRapida]);
+
   function updateOdontogramaZoom(value: number) {
       const normalized = Number(clampValue(value, ODONTO_ZOOM_RANGE.min, ODONTO_ZOOM_RANGE.max).toFixed(2));
       setOdontogramaZoom(normalized);
@@ -568,7 +647,7 @@ export default function PacienteDetalhe() {
   }
 
   function abrirNovoTratamento() {
-      setTratEdit({ id: null, dente: '', procedimento: '', data: new Date().toISOString().split('T')[0], status: 'concluido', valor: '', observacoes: '', agendarNaAgenda: false, horaAgendamento: '09:00' });
+      setTratEdit({ id: null, dente: '', procedimento: '', data: new Date().toISOString().split('T')[0], status: 'concluido', valor: '', observacoes: '', agendarNaAgenda: false, horaAgendamento: '09:00', pagamentoPendente: false });
       setModalTrat(true);
   }
 
@@ -577,7 +656,7 @@ export default function PacienteDetalhe() {
       if (salvandoTrat) return;
       setSalvandoTrat(true);
       try {
-          const { agendarNaAgenda, horaAgendamento, ...tratSemAgenda } = tratEdit;
+          const { agendarNaAgenda, horaAgendamento, pagamentoPendente, ...tratSemAgenda } = tratEdit;
           let salvo: TratamentoPaciente;
           if (tratSemAgenda.id) {
               salvo = await atualizarTratamento(String(tratSemAgenda.id), {
@@ -618,6 +697,40 @@ export default function PacienteDetalhe() {
           }
 
           let agendado = false;
+          let debitoCriado = false;
+          if (pagamentoPendente && parseFloat(tratSemAgenda.valor) > 0 && form.clinica_id) {
+              try {
+                  const valor = parseFloat(tratSemAgenda.valor) || 0;
+                  const dataBase = tratSemAgenda.data || new Date().toISOString().split('T')[0];
+                  const dataHoraISO = new Date(`${dataBase}T12:00:00`).toISOString();
+                  const { data: { user } } = await supabase.auth.getUser();
+                  let profId: string | null = null;
+                  if (user) {
+                      const { data: prof } = await supabase.from('profissionais').select('id').eq('user_id', user.id).maybeSingle();
+                      profId = prof?.id || null;
+                  }
+                  const payload: Record<string, unknown> = {
+                      paciente_id: id,
+                      clinica_id: form.clinica_id,
+                      data_hora: dataHoraISO,
+                      procedimento: tratSemAgenda.procedimento,
+                      valor,
+                      valor_final: valor,
+                      desconto: 0,
+                      status: 'fiado',
+                      observacoes: 'Pagamento pendente — tratamento',
+                  };
+                  if (profId) payload.profissional_id = profId;
+                  const { data: agFiado, error: fiadoErr } = await supabase.from('agendamentos').insert([payload]).select('*, profissionais(nome)').single();
+                  if (fiadoErr) throw fiadoErr;
+                  setDebitos((prev) => [...prev, agFiado]);
+                  setHistorico((prev) => [agFiado, ...prev]);
+                  debitoCriado = true;
+              } catch (e: any) {
+                  showAlert('Tratamento salvo, mas erro ao registrar débito: ' + (e.message || e), { type: 'warning' });
+              }
+          }
+
           if (agendarNaAgenda && tratEdit.data) {
               try {
                   const { data: { session } } = await supabase.auth.getSession();
@@ -651,7 +764,12 @@ export default function PacienteDetalhe() {
           }
 
           setModalTrat(false);
-          showAlert(agendado ? 'Tratamento salvo e consulta marcada na agenda!' : 'Tratamento salvo com sucesso!', { type: 'success' });
+          const msg = agendado
+              ? 'Tratamento salvo e consulta marcada na agenda!'
+              : debitoCriado
+                  ? 'Tratamento salvo e débito registrado na aba Débitos.'
+                  : 'Tratamento salvo com sucesso!';
+          showAlert(msg, { type: 'success' });
       } finally {
           setSalvandoTrat(false);
       }
@@ -1177,17 +1295,6 @@ export default function PacienteDetalhe() {
       }
   }
 
-  function enviarOrcamentoWhatsapp() {
-      if (!form.telefone) { showAlert('Paciente sem telefone cadastrado.', { type: 'warning' }); return; }
-      const linhas = tratamentos.map((t: any) => {
-          const val = parseFloat(t.valor) || 0;
-          return `▸ Dente ${t.dente || '-'}: ${t.procedimento} — ${formatarMoeda(val)}`;
-      }).join('\n');
-      const msg = `*Orçamento Odontológico* 🦷\nPaciente: *${form.nome}*\n\n${linhas || 'Sem tratamentos.'}\n\n*Total: ${formatarMoeda(valorTotalOrcamento)}*\n\n_Gerado pelo ORTUS_`;
-      const numero = form.telefone.replace(/\D/g, '');
-      window.open(`https://wa.me/55${numero}?text=${encodeURIComponent(msg)}`, '_blank');
-  }
-
   // ===== ANAMNESE helpers =====
   function selecionarModeloAnamnese(modelo_id: string) {
       const m = modelosAnamnese.find(x => x.id === modelo_id);
@@ -1374,9 +1481,45 @@ export default function PacienteDetalhe() {
       }
   }
 
-  const toggleCheck = (campo: string) => {
-      setFicha((prev: any) => ({ ...prev, [campo]: !prev[campo] }));
-  };
+  async function salvarDebitoManual() {
+      const procedimento = formDebito.procedimento.trim();
+      const valor = parseFloat(formDebito.valor) || 0;
+      if (!procedimento) return showAlert('Informe o procedimento.', { type: 'warning' });
+      if (!form.clinica_id) return showAlert('Paciente sem clínica vinculada.', { type: 'warning' });
+      if (valor <= 0) return showAlert('Informe um valor maior que zero.', { type: 'warning' });
+
+      setSalvandoDebito(true);
+      const dataHora = new Date(`${formDebito.date}T${formDebito.time}:00`).toISOString();
+      const { data, error } = await supabase.from('agendamentos').insert([{
+          paciente_id: id,
+          clinica_id: form.clinica_id,
+          profissional_id: null,
+          data_hora: dataHora,
+          procedimento,
+          cor: 'red',
+          valor,
+          desconto: 0,
+          valor_final: valor,
+          observacoes: 'Débito manual',
+          status: 'fiado',
+      }]).select('*, profissionais(nome)').single();
+      setSalvandoDebito(false);
+
+      if (error) return showAlert(error.message, { type: 'error' });
+      setDebitos((prev) => [...prev, data]);
+      setHistorico((prev) => [data, ...prev]);
+      setModalDebitoManual(false);
+      setFormDebito({ procedimento: '', valor: '', date: new Date().toISOString().split('T')[0], time: '12:00' });
+      showAlert('Débito registrado com sucesso.', { type: 'success' });
+  }
+
+  function updateCondicoes(condicoes: string[]) {
+      setFicha((prev: Record<string, unknown>) => ({ ...prev, condicoes }));
+  }
+
+  function updateMedicamentos(medicamentos: string[]) {
+      setFicha((prev: Record<string, unknown>) => ({ ...prev, medicamentos }));
+  }
 
   async function excluir() {
       if(!(await showConfirm('Cuidado: Isso apagará o paciente e todo o histórico. Continuar?', { title: 'Excluir Paciente', type: 'error', confirmLabel: 'Excluir' }))) return;
@@ -1518,21 +1661,12 @@ export default function PacienteDetalhe() {
                     evento="pos_consulta"
                     contexto={buildCtxDocumento()}
                 />
-                {modoEdicao ? (
-                    <>
-                        <button onClick={() => setModoEdicao(false)} className="px-4 py-2 text-slate-500 font-bold hover:bg-slate-50 rounded-xl transition-colors">Cancelar</button>
-                        <button onClick={salvarTudo} className="px-6 py-2 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 shadow-lg shadow-blue-200 flex items-center gap-2 transition-all active:scale-95"><Save size={18}/> Salvar</button>
-                    </>
-                ) : (
-                    <button onClick={() => setModoEdicao(true)} className="px-6 py-2 bg-white border border-slate-200 text-slate-600 rounded-xl font-bold hover:bg-slate-50 transition-colors flex items-center gap-2"><Edit size={18}/> Editar</button>
-                )}
             </div>
         </div>
 
         {/* MODAL DE DOCUMENTOS */}
-        {modalDoc && (
-            <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
-                <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl p-8 animate-in zoom-in-95">
+        <Modal open={modalDoc} onClose={() => setModalDoc(false)} maxWidth="2xl" hideCloseButton panelClassName="bg-white rounded-3xl shadow-2xl overflow-y-auto max-h-[90vh]">
+                <div className="p-8 animate-in zoom-in-95">
                     <div className="flex justify-between items-center mb-6">
                         <h3 className="text-xl font-black text-slate-800 flex items-center gap-2"><Printer size={20}/> Emitir Documento</h3>
                         <button onClick={() => setModalDoc(false)} className="p-2 hover:bg-slate-100 rounded-full text-slate-400"><X size={20}/></button>
@@ -1593,15 +1727,13 @@ export default function PacienteDetalhe() {
                         <Printer size={20}/> Imprimir PDF
                     </button>
                 </div>
-            </div>
-        )}
+        </Modal>
 
-        {modalReceber && (
-            <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
-                <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl p-6 animate-in zoom-in-95">
+        <Modal open={!!modalReceber} onClose={() => setModalReceber(null)} maxWidth="md" hideCloseButton panelClassName="bg-white rounded-3xl shadow-2xl overflow-hidden">
+                <div className="p-6 animate-in zoom-in-95">
                     <h3 className="text-lg font-black text-slate-800 mb-1">Registrar recebimento</h3>
-                    <p className="text-sm text-slate-500 mb-4">{modalReceber.procedimento}</p>
-                    <p className="text-2xl font-black text-emerald-700 mb-4">R$ {(Number(modalReceber.valor_final ?? modalReceber.valor) || 0).toFixed(2)}</p>
+                    <p className="text-sm text-slate-500 mb-4">{modalReceber?.procedimento}</p>
+                    <p className="text-2xl font-black text-emerald-700 mb-4">R$ {(Number(modalReceber?.valor_final ?? modalReceber?.valor) || 0).toFixed(2)}</p>
                     {taxasRecebimento.length > 0 && (
                         <div className="mb-4">
                             <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Forma de pagamento</label>
@@ -1613,7 +1745,7 @@ export default function PacienteDetalhe() {
                             />
                             {taxaRecebimento && (() => {
                                 const taxa = taxasRecebimento.find(t => t.id === taxaRecebimento);
-                                const bruto = Number(modalReceber.valor_final ?? modalReceber.valor) || 0;
+                                const bruto = Number(modalReceber?.valor_final ?? modalReceber?.valor) || 0;
                                 if (!taxa) return null;
                                 return (
                                     <p className="text-xs text-emerald-700 mt-2 font-bold">
@@ -1630,8 +1762,7 @@ export default function PacienteDetalhe() {
                         </button>
                     </div>
                 </div>
-            </div>
-        )}
+        </Modal>
 
         {/* Navegação rápida mobile */}
         <div className="lg:hidden sticky top-16 z-30 pb-4 bg-white/95 backdrop-blur border-b border-slate-100">
@@ -1660,32 +1791,52 @@ export default function PacienteDetalhe() {
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
             <div className="hidden lg:block lg:col-span-1 space-y-2">
-                <button onClick={() => setAbaAtiva('dados')} className={`w-full text-left px-5 py-4 rounded-xl font-bold flex items-center gap-3 transition-all ${abaAtiva === 'dados' ? 'bg-white shadow-sm border border-blue-100 text-blue-700' : 'text-slate-500 hover:bg-white/50'}`}><User size={20}/> Dados Pessoais</button>
-                <button onClick={() => setAbaAtiva('anamnese')} className={`w-full text-left px-5 py-4 rounded-xl font-bold flex items-center gap-3 transition-all ${abaAtiva === 'anamnese' ? 'bg-white shadow-sm border border-blue-100 text-blue-700' : 'text-slate-500 hover:bg-white/50'}`}><FileText size={20}/> Anamnese</button>
-                <button onClick={() => setAbaAtiva('tratamentos')} className={`w-full text-left px-5 py-4 rounded-xl font-bold flex items-center gap-3 transition-all ${abaAtiva === 'tratamentos' ? 'bg-white shadow-sm border border-blue-100 text-blue-700' : 'text-slate-500 hover:bg-white/50'}`}><Smile size={20}/> Tratamentos</button>
-                <button onClick={() => setAbaAtiva('documentos')} className={`w-full text-left px-5 py-4 rounded-xl font-bold flex items-center gap-3 transition-all ${abaAtiva === 'documentos' ? 'bg-white shadow-sm border border-blue-100 text-blue-700' : 'text-slate-500 hover:bg-white/50'}`}>
-                    <FolderOpen size={20}/> Documentos
-                    {documentos.length > 0 && <span className="ml-auto text-[10px] font-black px-1.5 py-0.5 rounded bg-slate-200 text-slate-600">{documentos.length}</span>}
-                </button>
-                <button onClick={() => setAbaAtiva('evolucao')} className={`w-full text-left px-5 py-4 rounded-xl font-bold flex items-center gap-3 transition-all ${abaAtiva === 'evolucao' ? 'bg-white shadow-sm border border-teal-100 text-teal-700' : 'text-slate-500 hover:bg-white/50'}`}>
-                    <ClipboardList size={20}/> Evolução
-                    {evolucoes.length > 0 && <span className="ml-auto text-[10px] font-black px-1.5 py-0.5 rounded bg-teal-100 text-teal-600">{evolucoes.length}</span>}
-                </button>
-                <button onClick={() => setAbaAtiva('debitos')} className={`w-full text-left px-5 py-4 rounded-xl font-bold flex items-center gap-3 transition-all ${abaAtiva === 'debitos' ? 'bg-white shadow-sm border border-rose-200 text-rose-700' : 'text-slate-500 hover:bg-white/50'}`}>
-                    <DollarSign size={20}/> Débitos
-                    {debitos.length > 0 && <span className="ml-auto text-[10px] font-black px-1.5 py-0.5 rounded bg-rose-500 text-white animate-pulse">{debitos.length}</span>}
-                </button>
-                <button onClick={() => setAbaAtiva('hof')} className={`w-full text-left px-5 py-4 rounded-xl font-bold flex items-center gap-3 transition-all ${abaAtiva === 'hof' ? 'bg-white shadow-sm border border-purple-100 text-purple-700' : 'text-slate-500 hover:bg-white/50'}`}>
-                    <Sparkles size={20}/> Harmonização (HOF)
-                    {marcacoesHof.length > 0 && <span className="ml-auto text-[10px] font-black px-1.5 py-0.5 rounded bg-purple-100 text-purple-600">{marcacoesHof.length}</span>}
-                </button>
-                <button onClick={() => setAbaAtiva('historico')} className={`w-full text-left px-5 py-4 rounded-xl font-bold flex items-center gap-3 transition-all ${abaAtiva === 'historico' ? 'bg-white shadow-sm border border-blue-100 text-blue-700' : 'text-slate-500 hover:bg-white/50'}`}><Clock size={20}/> Histórico</button>
+                {PATIENT_NAV_SECTIONS.map((section) => {
+                    const Icon = section.icon;
+                    const active = abaAtiva === section.key;
+                    const badge =
+                        section.key === 'documentos' && documentos.length > 0 ? documentos.length
+                        : section.key === 'tratamentos' && evolucoes.length > 0 ? evolucoes.length
+                        : section.key === 'debitos' && debitos.length > 0 ? debitos.length
+                        : section.key === 'hof' && marcacoesHof.length > 0 ? marcacoesHof.length
+                        : null;
+                    const badgeClass =
+                        section.key === 'debitos' ? 'bg-rose-500 text-white animate-pulse'
+                        : section.key === 'tratamentos' ? 'bg-teal-100 text-teal-600'
+                        : section.key === 'hof' ? 'bg-purple-100 text-purple-600'
+                        : 'bg-slate-200 text-slate-600';
+                    return (
+                        <button
+                            key={section.key}
+                            type="button"
+                            onClick={() => setAbaAtiva(section.key)}
+                            className={`w-full text-left px-5 py-4 rounded-xl font-bold flex items-center gap-3 transition-all ${active ? 'bg-white shadow-sm border border-blue-100 text-blue-700' : 'text-slate-500 hover:bg-white/50'}`}
+                        >
+                            <Icon size={20}/> {section.label}
+                            {badge != null && (
+                                <span className={`ml-auto text-[10px] font-black px-1.5 py-0.5 rounded ${badgeClass}`}>{badge}</span>
+                            )}
+                        </button>
+                    );
+                })}
             </div>
 
             <div className="lg:col-span-3">
                 {abaAtiva === 'dados' && (
                     <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm animate-in fade-in">
-                        <h3 className="text-lg font-black text-slate-800 mb-6 flex items-center gap-2"><User size={20} className="text-blue-500"/> Informações do Paciente</h3>
+                        <div className="flex flex-wrap justify-between items-center gap-3 mb-6">
+                            <h3 className="text-lg font-black text-slate-800 flex items-center gap-2"><User size={20} className="text-blue-500"/> Informações do Paciente</h3>
+                            <div className="flex gap-2">
+                                {modoEdicao ? (
+                                    <>
+                                        <button onClick={() => { setModoEdicao(false); carregar(); }} className="px-4 py-2 text-slate-500 font-bold hover:bg-slate-50 rounded-xl transition-colors">Cancelar</button>
+                                        <button onClick={salvarTudo} className="px-5 py-2 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 shadow-lg shadow-blue-200 flex items-center gap-2 transition-all active:scale-95"><Save size={16}/> Salvar</button>
+                                    </>
+                                ) : (
+                                    <button onClick={() => setModoEdicao(true)} className="px-5 py-2 bg-white border border-slate-200 text-slate-600 rounded-xl font-bold hover:bg-slate-50 transition-colors flex items-center gap-2"><Edit size={16}/> Editar</button>
+                                )}
+                            </div>
+                        </div>
                         
                         {/* Dados Básicos */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1699,13 +1850,7 @@ export default function PacienteDetalhe() {
                             </div>
                             <div>
                                 <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Sexo <span className="text-red-500">*</span></label>
-                                <select disabled={!modoEdicao} className={`w-full p-3 rounded-xl border outline-none ${modoEdicao ? 'bg-white border-blue-300' : 'bg-slate-50 border-slate-200'}`} value={form.sexo || ''} onChange={e => setForm({...form, sexo: e.target.value})}>
-                                    <option value="">Selecione...</option>
-                                    <option value="masculino">Masculino</option>
-                                    <option value="feminino">Feminino</option>
-                                    <option value="outro">Outro</option>
-                                    <option value="nao_informar">Prefiro não informar</option>
-                                </select>
+                                <CustomSelect disabled={!modoEdicao} value={form.sexo || ''} onChange={v => setForm({...form, sexo: v})} options={[{value:'',label:'Selecione...'},{value:'masculino',label:'Masculino'},{value:'feminino',label:'Feminino'},{value:'outro',label:'Outro'},{value:'nao_informar',label:'Prefiro não informar'}]} size="lg"/>
                             </div>
                             <div>
                                 <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Data Nascimento</label>
@@ -1803,12 +1948,7 @@ export default function PacienteDetalhe() {
                                 </div>
                                 <div>
                                     <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">UF</label>
-                                    <select disabled={!modoEdicao} className={`w-full p-3 rounded-xl border outline-none ${modoEdicao ? 'bg-white border-blue-300' : 'bg-slate-50 border-slate-200'}`} value={form.uf || ''} onChange={e => setForm({...form, uf: e.target.value})}>
-                                        <option value="">Selecione...</option>
-                                        {['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'].map(uf => (
-                                            <option key={uf} value={uf}>{uf}</option>
-                                        ))}
-                                    </select>
+                                    <CustomSelect disabled={!modoEdicao} value={form.uf || ''} onChange={v => setForm({...form, uf: v})} options={[{value:'',label:'Selecione...'}, ...['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'].map(uf => ({value:uf,label:uf}))]} size="lg"/>
                                 </div>
                             </div>
                             {/* Campo endereco antigo (legado) - apenas visualização */}
@@ -1832,14 +1972,7 @@ export default function PacienteDetalhe() {
                                 </div>
                                 <div>
                                     <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Parentesco</label>
-                                    <select disabled={!modoEdicao} className={`w-full p-3 rounded-xl border outline-none ${modoEdicao ? 'bg-white border-blue-300' : 'bg-slate-50 border-slate-200'}`} value={form.responsavel_parentesco || ''} onChange={e => setForm({...form, responsavel_parentesco: e.target.value})}>
-                                        <option value="">Selecione...</option>
-                                        <option value="pai">Pai</option>
-                                        <option value="mae">Mãe</option>
-                                        <option value="tutor">Tutor</option>
-                                        <option value="avo">Avô/Avó</option>
-                                        <option value="outro">Outro</option>
-                                    </select>
+                                    <CustomSelect disabled={!modoEdicao} value={form.responsavel_parentesco || ''} onChange={v => setForm({...form, responsavel_parentesco: v})} options={[{value:'',label:'Selecione...'},{value:'pai',label:'Pai'},{value:'mae',label:'Mãe'},{value:'tutor',label:'Tutor'},{value:'avo',label:'Avô/Avó'},{value:'outro',label:'Outro'}]} size="lg"/>
                                 </div>
                                 <div>
                                     <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Telefone do Responsável</label>
@@ -1945,7 +2078,14 @@ export default function PacienteDetalhe() {
                                 <h3 className="text-lg font-black text-slate-800 mb-4 flex items-center gap-2"><FileText size={20} className="text-emerald-500"/> Anamneses Salvas ({anamnesesAnteriores.length})</h3>
                                 <div className="space-y-2">
                                     {[...anamnesesAnteriores].sort((a,b) => (b.data||'').localeCompare(a.data||'')).map(a => (
-                                        <div key={a.id} className="flex items-center gap-3 p-3 bg-slate-50 hover:bg-white border border-slate-200 rounded-xl transition-colors">
+                                        <div
+                                            key={a.id}
+                                            role="button"
+                                            tabIndex={0}
+                                            onClick={() => setAnamnesePreview(a)}
+                                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setAnamnesePreview(a); } }}
+                                            className="flex items-center gap-3 p-3 bg-slate-50 hover:bg-white border border-slate-200 rounded-xl transition-colors cursor-pointer"
+                                        >
                                             <div className="w-10 h-10 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center"><ClipboardList size={18}/></div>
                                             <div className="flex-1 min-w-0">
                                                 <div className="font-bold text-sm text-slate-800 truncate">{a.modelo_nome}</div>
@@ -1954,8 +2094,8 @@ export default function PacienteDetalhe() {
                                                     <span className={`px-1.5 py-0.5 rounded text-[9px] uppercase font-black ${a.preenchido_por === 'paciente' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>{a.preenchido_por}</span>
                                                 </div>
                                             </div>
-                                            <button onClick={() => emitirAnamnese(a)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg" title="Emitir"><Printer size={14}/></button>
-                                            <button onClick={() => excluirAnamnese(a.id)} className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg"><Trash2 size={14}/></button>
+                                            <button onClick={(e) => { e.stopPropagation(); emitirAnamnese(a); }} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg" title="Emitir"><Printer size={14}/></button>
+                                            <button onClick={(e) => { e.stopPropagation(); excluirAnamnese(a.id); }} className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg"><Trash2 size={14}/></button>
                                         </div>
                                     ))}
                                 </div>
@@ -1963,14 +2103,54 @@ export default function PacienteDetalhe() {
                         )}
 
                         {/* FICHA MÉDICA (mantida) */}
-                        <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm"><h3 className="text-lg font-black text-slate-800 mb-6 flex items-center gap-2"><Stethoscope size={20} className="text-pink-500"/> Ficha Médica Rápida</h3><div className="grid grid-cols-2 md:grid-cols-3 gap-4">{['Diabetes', 'Hipertensão', 'Cardiopatia', 'Asma/Bronquite', 'Alergia Antibiótico', 'Alergia Anestésico', 'Gestante', 'Fumante', 'Uso de Anticoagulante'].map(item => (<label key={item} className={`flex items-center gap-3 p-3 rounded-xl border transition-all cursor-pointer ${ficha[item] ? 'bg-red-50 border-red-200' : 'bg-slate-50 border-slate-100 hover:border-slate-300'} ${!modoEdicao && 'pointer-events-none opacity-80'}`}><div className={`w-5 h-5 rounded-md border flex items-center justify-center transition-colors ${ficha[item] ? 'bg-red-500 border-red-500 text-white' : 'bg-white border-slate-300'}`}>{ficha[item] && <Check size={14}/>}</div><input type="checkbox" className="hidden" checked={ficha[item] || false} onChange={() => toggleCheck(item)} disabled={!modoEdicao}/><span className={`text-sm font-bold ${ficha[item] ? 'text-red-700' : 'text-slate-600'}`}>{item}</span></label>))}</div></div>
-                        <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm"><h3 className="text-lg font-black text-slate-800 mb-4 flex items-center gap-2"><Pill size={20} className="text-purple-500"/> Medicamentos em Uso</h3><textarea disabled={!modoEdicao} value={ficha.medicamentos || ''} onChange={e => setFicha({...ficha, medicamentos: e.target.value})} className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-purple-200 h-24 resize-none" placeholder="Liste os medicamentos contínuos..." /></div>
-                        <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm"><h3 className="text-lg font-black text-slate-800 mb-4 flex items-center gap-2"><AlertTriangle size={20} className="text-amber-500"/> Observações Clínicas</h3><textarea disabled={!modoEdicao} value={form.anamnese || ''} onChange={e => setForm({...form, anamnese: e.target.value})} className="w-full p-4 bg-yellow-50 border border-yellow-200 rounded-xl outline-none focus:ring-2 focus:ring-yellow-300 h-40 resize-none text-slate-700" placeholder="Histórico detalhado, queixas principais e evolução..." /></div>
+                        <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm">
+                            <h3 className="text-lg font-black text-slate-800 mb-4 flex items-center gap-2"><Stethoscope size={20} className="text-pink-500"/> Ficha Médica Rápida</h3>
+                            <p className="text-xs text-slate-400 mb-3">Digite condições relevantes e pressione Enter para adicionar.</p>
+                            <TagInput
+                                value={getCondicoesFromFicha(ficha)}
+                                onChange={updateCondicoes}
+                                placeholder="Ex: Diabetes, Hipertensão..."
+                            />
+                        </div>
+                        <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm">
+                            <h3 className="text-lg font-black text-slate-800 mb-4 flex items-center gap-2"><Pill size={20} className="text-purple-500"/> Medicamentos em Uso</h3>
+                            <TagInput
+                                value={getMedicamentosFromFicha(ficha)}
+                                onChange={updateMedicamentos}
+                                suggestions={MEDICAMENTOS_CATALOGO}
+                                placeholder="Digite o medicamento e pressione Enter..."
+                            />
+                        </div>
+                        <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm">
+                            <h3 className="text-lg font-black text-slate-800 mb-4 flex items-center gap-2"><AlertTriangle size={20} className="text-amber-500"/> Observações Clínicas</h3>
+                            <textarea value={form.anamnese || ''} onChange={e => setForm({...form, anamnese: e.target.value})} className="w-full p-4 bg-yellow-50 border border-yellow-200 rounded-xl outline-none focus:ring-2 focus:ring-yellow-300 h-40 resize-none text-slate-700" placeholder="Histórico detalhado, queixas principais e evolução..." />
+                        </div>
                     </div>
                 )}
 
                 {abaAtiva === 'tratamentos' && (
                     <div className="space-y-6 animate-in fade-in">
+                        <div className="flex bg-slate-100 border border-slate-200 rounded-xl p-1 w-fit">
+                            <button
+                                type="button"
+                                onClick={() => setSubAbaTratamentos('tratamentos')}
+                                className={`px-5 py-2.5 text-sm font-bold rounded-lg transition-all ${subAbaTratamentos === 'tratamentos' ? 'bg-white text-blue-600 shadow' : 'text-slate-500 hover:text-slate-700'}`}
+                            >
+                                Tratamentos
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setSubAbaTratamentos('evolucoes')}
+                                className={`px-5 py-2.5 text-sm font-bold rounded-lg transition-all ${subAbaTratamentos === 'evolucoes' ? 'bg-white text-teal-600 shadow' : 'text-slate-500 hover:text-slate-700'}`}
+                            >
+                                Evoluções
+                            </button>
+                        </div>
+
+                        {subAbaTratamentos === 'evolucoes' ? (
+                            <TabEvolucao id={id as string} form={form} ficha={ficha} setFicha={setFicha} evolucoes={evolucoes} setEvolucoes={setEvolucoes}/>
+                        ) : (
+                        <>
                         {/* ODONTOGRAMA */}
                         <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-200 shadow-sm">
                             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 mb-5">
@@ -1992,17 +2172,13 @@ export default function PacienteDetalhe() {
                                             onClick={async () => {
                                                 if (await showConfirm('Limpar todo o odontograma?', { title: 'Limpar', type: 'warning', confirmLabel: 'Limpar' })) setOdontograma({});
                                             }}
-                                            className="px-4 py-2 text-sm font-semibold rounded-lg min-h-[44px] bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center gap-1.5"
+                                            className="px-2.5 py-1.5 text-xs font-semibold rounded-md bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center gap-1"
                                         >
-                                            <Eraser size={16}/> Limpar
+                                            <Eraser size={14}/> Limpar
                                         </button>
                                     )}
-                                    <button onClick={imprimirOrcamento} className="px-4 py-2 text-sm font-semibold rounded-lg min-h-[44px] bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center gap-1.5"><Printer size={16}/> PDF</button>
-                                    <button onClick={enviarOrcamentoWhatsapp} className="px-4 py-2 text-sm font-bold rounded-lg min-h-[44px] bg-green-500 text-white hover:bg-green-600 flex items-center gap-1.5 shadow-sm"><MessageCircle size={16}/> WhatsApp</button>
-                                    <button onClick={salvarOdontograma} disabled={savingOdo} className="px-5 py-2 text-sm font-bold rounded-lg min-h-[44px] bg-blue-600 text-white hover:bg-blue-700 flex items-center gap-1.5 shadow-sm disabled:opacity-50">
-                                        {savingOdo ? <Loader2 size={16} className="animate-spin"/> : <Save size={16}/>}
-                                        Salvar
-                                    </button>
+                                    <button onClick={imprimirOrcamento} className="px-2.5 py-1.5 text-xs font-semibold rounded-md bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center gap-1"><Printer size={14}/> PDF</button>
+                                    {savingOdo && <span className="text-xs text-slate-400 font-semibold flex items-center gap-1"><Loader2 size={12} className="animate-spin"/> Salvando...</span>}
                                 </div>
                             </div>
 
@@ -2018,18 +2194,9 @@ export default function PacienteDetalhe() {
                                 </div>
                             ) : (
                             <>
-                            {/* Legenda + Tabs Permanente/Leite */}
+                            {/* Tabs Permanente/Leite */}
                             <div className="mb-4 p-4 bg-gradient-to-br from-slate-50 to-blue-50/30 rounded-xl border border-slate-200">
-                                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-[10px] uppercase font-black text-slate-500 tracking-wider">Legendas:</span>
-                                        {TOOLS.filter(t => t.tipo === 'face').map(t => (
-                                            <span key={t.key} className="flex items-center gap-1 px-2 py-1 bg-white border border-slate-200 rounded-md text-[10px] font-bold text-slate-700">
-                                                <span className="w-3 h-3 rounded border border-slate-400" style={{ background: t.color }}></span>
-                                                {t.label}
-                                            </span>
-                                        ))}
-                                    </div>
+                                <div className="flex justify-end">
                                     <div className="flex bg-white border border-slate-200 rounded-lg p-0.5">
                                         <button onClick={() => setTipoArcada('permanente')} className={`px-4 py-2 text-xs font-bold rounded-md min-h-[44px] transition-all ${tipoArcada === 'permanente' ? 'bg-blue-600 text-white shadow' : 'text-slate-600 hover:bg-slate-50'}`}>Dentes Permanentes</button>
                                         <button onClick={() => setTipoArcada('leite')} className={`px-4 py-2 text-xs font-bold rounded-md min-h-[44px] transition-all ${tipoArcada === 'leite' ? 'bg-blue-600 text-white shadow' : 'text-slate-600 hover:bg-slate-50'}`}>Dentes de Leite</button>
@@ -2186,6 +2353,8 @@ export default function PacienteDetalhe() {
                                 </div>
                             )}
                         </div>
+                        </>
+                        )}
                     </div>
                 )}
 
@@ -2237,20 +2406,19 @@ export default function PacienteDetalhe() {
                     </div>
                 )}
 
-                {abaAtiva === 'evolucao' && (
-                    <TabEvolucao id={id as string} form={form} ficha={ficha} setFicha={setFicha} evolucoes={evolucoes} setEvolucoes={setEvolucoes}/>
-                )}
-
                 {abaAtiva === 'debitos' && (
                     <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-200 shadow-sm animate-in fade-in">
                         <div className="flex justify-between items-center mb-5">
                             <h3 className="text-lg font-black text-slate-800 flex items-center gap-2"><AlertCircle size={20} className="text-rose-500"/> Débitos / Fiados</h3>
+                            <div className="flex items-center gap-3">
                             {debitos.length > 0 && (
                                 <div className="text-right">
                                     <div className="text-[10px] uppercase font-bold text-slate-400">Total em aberto</div>
                                     <div className="text-2xl font-black text-rose-600">R$ {debitos.reduce((s,d) => s + (d.valor_final || d.valor || 0), 0).toFixed(2)}</div>
                                 </div>
                             )}
+                            <button type="button" onClick={() => setModalDebitoManual(true)} className="px-4 py-2 bg-rose-600 text-white rounded-xl font-bold text-xs hover:bg-rose-700 flex items-center gap-1.5"><Plus size={14}/> Adicionar débito</button>
+                            </div>
                         </div>
 
                         {debitos.length === 0 ? (
@@ -2608,9 +2776,8 @@ export default function PacienteDetalhe() {
         </div>
 
         {/* MODAL TRATAMENTO */}
-        {modalTrat && (
-            <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
-                <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl p-6 animate-in zoom-in-95">
+        <Modal open={modalTrat} onClose={() => setModalTrat(false)} maxWidth="lg" hideCloseButton panelClassName="bg-white rounded-3xl shadow-2xl overflow-y-auto max-h-[90vh]">
+                <div className="p-6 animate-in zoom-in-95">
                     <div className="flex justify-between items-center mb-5">
                         <h3 className="text-lg font-black text-slate-800 flex items-center gap-2"><Smile size={20} className="text-emerald-500"/> {tratEdit.id ? 'Editar' : 'Novo'} Tratamento</h3>
                         <button onClick={() => setModalTrat(false)} className="p-2 hover:bg-slate-100 rounded-full text-slate-400"><X size={18}/></button>
@@ -2664,19 +2831,35 @@ export default function PacienteDetalhe() {
                                 </div>
                             )}
                         </div>
+                        {/* Pagamento pendente */}
+                        {parseFloat(tratEdit.valor) > 0 && (
+                        <div className={`p-3 rounded-xl border transition-all ${tratEdit.pagamentoPendente ? 'bg-rose-50 border-rose-200' : 'bg-slate-50 border-slate-200'}`}>
+                            <label className="flex items-center gap-3 cursor-pointer">
+                                <div className={`w-5 h-5 rounded-md border flex items-center justify-center transition-colors ${tratEdit.pagamentoPendente ? 'bg-rose-600 border-rose-600 text-white' : 'bg-white border-slate-300'}`}>
+                                    {tratEdit.pagamentoPendente && <Check size={14}/>}
+                                </div>
+                                <input type="checkbox" className="hidden" checked={tratEdit.pagamentoPendente || false} onChange={e => setTratEdit({...tratEdit, pagamentoPendente: e.target.checked})} />
+                                <div className="flex items-center gap-2">
+                                    <DollarSign size={16} className={tratEdit.pagamentoPendente ? 'text-rose-600' : 'text-slate-400'}/>
+                                    <span className={`text-sm font-bold ${tratEdit.pagamentoPendente ? 'text-rose-700' : 'text-slate-600'}`}>Registrar como pagamento pendente (fiado)</span>
+                                </div>
+                            </label>
+                            {tratEdit.pagamentoPendente && (
+                                <p className="text-[10px] text-rose-600 mt-2 ml-8 font-semibold">O valor aparecerá na aba Débitos até ser recebido.</p>
+                            )}
+                        </div>
+                        )}
                     </div>
                     <div className="flex gap-2 justify-end mt-5">
                         <button onClick={() => setModalTrat(false)} className="px-4 py-2 text-slate-500 font-bold hover:bg-slate-100 rounded-lg">Cancelar</button>
                         <button onClick={salvarTratamento} disabled={salvandoTrat} className="px-5 py-2 bg-emerald-600 text-white font-bold rounded-lg hover:bg-emerald-700 shadow-sm flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"><Save size={14}/> {salvandoTrat ? 'Salvando...' : (tratEdit.agendarNaAgenda ? 'Salvar e Agendar' : 'Salvar')}</button>
                     </div>
                 </div>
-            </div>
-        )}
+        </Modal>
 
         {/* MODAL PROTOCOLOS HOF */}
-        {modalProtocolo && (
-            <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setModalProtocolo(false)}>
-                <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl p-6 animate-in zoom-in-95 max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <Modal open={modalProtocolo} onClose={() => setModalProtocolo(false)} maxWidth="lg" hideCloseButton panelClassName="bg-white rounded-3xl shadow-2xl overflow-y-auto max-h-[80vh]">
+                <div className="p-6 animate-in zoom-in-95">
                     <div className="flex justify-between items-center mb-5">
                         <h3 className="text-lg font-black text-slate-800 flex items-center gap-2"><Zap size={20} className="text-amber-500"/> Protocolos Pré-definidos</h3>
                         <button onClick={() => setModalProtocolo(false)} className="p-2 hover:bg-slate-100 rounded-full text-slate-400"><X size={18}/></button>
@@ -2709,8 +2892,70 @@ export default function PacienteDetalhe() {
                         })}
                     </div>
                 </div>
+        </Modal>
+
+        <Modal open={!!anamnesePreview} onClose={() => setAnamnesePreview(null)} maxWidth="2xl">
+            {anamnesePreview && (
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden">
+                    <div className="p-6 border-b border-slate-100">
+                        <h3 className="text-lg font-black text-slate-800 pr-8">{anamnesePreview.modelo_nome}</h3>
+                        <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-slate-500 font-semibold">
+                            <span className="flex items-center gap-1"><Calendar size={12}/> {new Date(anamnesePreview.data).toLocaleDateString('pt-BR')}</span>
+                            <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-black ${anamnesePreview.preenchido_por === 'paciente' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
+                                {anamnesePreview.preenchido_por === 'paciente' ? 'Paciente' : 'Profissional'}
+                            </span>
+                        </div>
+                    </div>
+                    <div className="p-6 max-h-[60vh] overflow-y-auto space-y-4">
+                        {(anamnesePreview.perguntas_snapshot || []).map((p: { id: string; label: string }, i: number) => (
+                            <div key={p.id} className="space-y-1">
+                                <p className="text-xs font-black uppercase tracking-wide text-slate-400">{i + 1}. {p.label}</p>
+                                <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap bg-slate-50 border border-slate-100 rounded-xl p-3">
+                                    {formatarRespostaAnamnese(anamnesePreview.respostas?.[p.id])}
+                                </p>
+                            </div>
+                        ))}
+                    </div>
+                    <div className="p-4 border-t border-slate-100 flex justify-end gap-2 bg-slate-50">
+                        <button onClick={() => emitirAnamnese(anamnesePreview)} className="px-4 py-2 bg-slate-800 text-white rounded-xl font-bold text-sm hover:bg-black flex items-center gap-2"><Printer size={14}/> Imprimir</button>
+                        <button onClick={() => setAnamnesePreview(null)} className="px-4 py-2 text-slate-500 font-bold hover:bg-slate-100 rounded-xl">Fechar</button>
+                    </div>
+                </div>
+            )}
+        </Modal>
+
+        <Modal open={modalDebitoManual} onClose={() => setModalDebitoManual(false)} maxWidth="md" hideCloseButton panelClassName="bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden">
+            <div className="p-5 border-b bg-rose-50">
+                <h3 className="font-black text-slate-800">Adicionar débito manual</h3>
+                <p className="text-xs text-slate-500 mt-1">Registra um valor em aberto na aba Débitos.</p>
             </div>
-        )}
+            <div className="p-5 space-y-4">
+                <div>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Procedimento</label>
+                    <input value={formDebito.procedimento} onChange={(e) => setFormDebito({ ...formDebito, procedimento: e.target.value })} className="w-full p-3 border border-slate-200 rounded-xl font-bold outline-none focus:ring-2 focus:ring-rose-200" placeholder="Ex.: Restauração, Consulta..." />
+                </div>
+                <div>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Valor (R$)</label>
+                    <input type="number" min="0" step="0.01" value={formDebito.valor} onChange={(e) => setFormDebito({ ...formDebito, valor: e.target.value })} className="w-full p-3 border border-slate-200 rounded-xl font-bold outline-none focus:ring-2 focus:ring-rose-200" />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                    <div>
+                        <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Data</label>
+                        <input type="date" value={formDebito.date} onChange={(e) => setFormDebito({ ...formDebito, date: e.target.value })} className="w-full p-3 border border-slate-200 rounded-xl font-bold outline-none" />
+                    </div>
+                    <div>
+                        <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Hora</label>
+                        <input type="time" value={formDebito.time} onChange={(e) => setFormDebito({ ...formDebito, time: e.target.value })} className="w-full p-3 border border-slate-200 rounded-xl font-bold outline-none" />
+                    </div>
+                </div>
+            </div>
+            <div className="p-4 border-t bg-slate-50 flex justify-end gap-2">
+                <button type="button" onClick={() => setModalDebitoManual(false)} className="px-4 py-2 text-slate-500 font-bold hover:bg-slate-100 rounded-xl">Cancelar</button>
+                <button type="button" onClick={salvarDebitoManual} disabled={salvandoDebito} className="px-5 py-2 bg-rose-600 text-white rounded-xl font-bold flex items-center gap-2 disabled:opacity-50">
+                    {salvandoDebito && <Loader2 size={16} className="animate-spin"/>} Salvar débito
+                </button>
+            </div>
+        </Modal>
     </div>
   );
 }
