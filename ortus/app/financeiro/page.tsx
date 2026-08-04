@@ -77,9 +77,14 @@ export default function Financeiro() {
       if (clinicLoading || !activeClinicId) return;
       const cid = (activeClinicId && activeClinicId !== 'all' ? String(activeClinicId) : '0');
       carregarConfig<unknown>(cid, 'categorias_financeiro', 'ortus_categorias_financeiro', CATEGORIAS_FINANCEIRAS_PADRAO).then(c => {
-          const norm = normalizarCategoriasFinanceiras(c);
-          setCategoriasObj(norm);
-          setCategorias(nomesCategoriasAtivas(norm));
+          try {
+              const norm = normalizarCategoriasFinanceiras(c);
+              setCategoriasObj(norm);
+              setCategorias(nomesCategoriasAtivas(norm));
+          } catch {
+              setCategoriasObj(CATEGORIAS_FINANCEIRAS_PADRAO);
+              setCategorias(CATS_PADRAO);
+          }
       });
       carregarConfig<TaxaMaquininha[]>(cid, 'taxas_maquininha', 'ortus_taxas_maquininha', TAXAS_MAQUININHA_PADRAO).then(t => {
           try {
@@ -527,7 +532,7 @@ export default function Financeiro() {
                                       isCancel ? 'text-slate-400 line-through'
                                       : t.tipo === 'entrada' ? 'text-green-600' : 'text-red-600'
                                   }`}>
-                                      {t.tipo === 'entrada' ? '+' : '-'} R$ {t.valor.toLocaleString('pt-BR', {minimumFractionDigits: 2})}
+                                      {t.tipo === 'entrada' ? '+' : '-'} R$ {(Number(t.valor) || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}
                                   </span>
                                   <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                                       {abaStatus === 'andamento' && t.origem === 'manual' && (
@@ -670,7 +675,8 @@ export default function Financeiro() {
       </Modal>
 
       {/* MODAL CANCELAR */}
-      <Modal open={!!modalCancelar} onClose={() => setModalCancelar(null)} maxWidth="md" hideCloseButton>
+      {modalCancelar && (
+      <Modal open onClose={() => setModalCancelar(null)} maxWidth="md" hideCloseButton>
             <div className="bg-white w-full rounded-3xl shadow-2xl overflow-hidden border border-slate-100">
                 <div className="p-5 border-b bg-rose-50 flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-rose-500 text-white flex items-center justify-center"><Ban size={20}/></div>
@@ -690,6 +696,7 @@ export default function Financeiro() {
                 </div>
             </div>
       </Modal>
+      )}
     </div>
   );
 }
