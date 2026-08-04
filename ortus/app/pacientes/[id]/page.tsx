@@ -25,7 +25,7 @@ import { criarDebitoManual, listarDebitosPaciente, listarOpcoesMarcarNaoPago, ma
 import { calcularValorLiquido, type TaxaMaquininha } from '@/lib/configDefaults';
 import { registrarComissaoTratamentoFinalizado } from '@/lib/comissao';
 import { carregarProntuario } from '@/lib/fichaPaciente';
-import { criarAnamnese, atualizarAnamnese, excluirAnamnese as excluirAnamneseDb, gerarLinkAnamnesePaciente } from '@/lib/db/anamneses';
+import { criarAnamnese, atualizarAnamnese, excluirAnamnese as excluirAnamneseDb, gerarLinkAnamnesePaciente as gerarLinkAnamnesePacienteApi } from '@/lib/db/anamneses';
 import { criarDocumento, excluirDocumento as excluirDocumentoDb } from '@/lib/db/documentos';
 import { salvarFichaClinica } from '@/lib/db/fichaClinica';
 import { atualizarTratamento, criarTratamento, excluirTratamento as excluirTratamentoDb } from '@/lib/db/tratamentos';
@@ -281,7 +281,8 @@ function Tooth({ num, state, ferramenta, onApply, isUpper, esquematico }: { num:
 }
 
 export default function PacienteDetalhe() {
-  const { id } = useParams();
+  const params = useParams();
+  const id = typeof params.id === 'string' ? params.id : Array.isArray(params.id) ? (params.id[0] ?? '') : '';
   const router = useRouter();
   const searchParams = useSearchParams();
   const rawTab = searchParams?.get('tab') || 'dados';
@@ -1223,7 +1224,7 @@ export default function PacienteDetalhe() {
       }
       setGerandoLinkAnamnese(true);
       try {
-          const link = await gerarLinkAnamnesePaciente(String(id), anamneseAtual.modelo_id, form.clinica_id);
+          const link = await gerarLinkAnamnesePacienteApi(String(id), anamneseAtual.modelo_id, form.clinica_id);
           setLinkAnamnesePaciente(link);
       } catch (error: any) {
           await showAlert('Erro: ' + error.message, { type: 'error' });
