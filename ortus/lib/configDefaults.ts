@@ -170,7 +170,7 @@ export function normalizarTaxasMaquininha(raw: unknown): TaxaMaquininha[] {
         vistos.add(slug);
         resultado.push({
           ...item,
-          id: item.id.replace('vista', 'parc_1'),
+          id: (item.id ?? `${item.bandeira ?? 'taxa'}_vista`).replace('vista', 'parc_1'),
           nome: 'Crédito à vista',
           tipo: 'credito_parcelado',
           parcela: 1,
@@ -192,7 +192,7 @@ export function normalizarTaxasMaquininha(raw: unknown): TaxaMaquininha[] {
       const faixa = parseFaixaParcelas(item);
       if (faixa) {
         const [ini, fim] = faixa;
-        const prefixo = item.bandeira.toLowerCase().replace(/[^a-z0-9]+/g, '_');
+        const prefixo = String(item.bandeira ?? 'bandeira').toLowerCase().replace(/[^a-z0-9]+/g, '_');
         for (let p = ini; p <= fim; p++) {
           const slug = `${item.bandeira}_${p}`;
           if (vistos.has(slug)) continue;

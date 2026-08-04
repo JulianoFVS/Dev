@@ -21,7 +21,7 @@ import {
     type CategoriaFinanceira,
     type TaxaMaquininha,
 } from '@/lib/configDefaults';
-import { printDocument, printTable, printQaBlock, printSignatureBlock, escapePrintHtml } from '@/lib/printDocument';
+import { printDocument, printTable, escapePrintHtml } from '@/lib/printDocument';
 
 const CATS_PADRAO = nomesCategoriasAtivas(CATEGORIAS_FINANCEIRAS_PADRAO);
 
@@ -82,8 +82,12 @@ export default function Financeiro() {
           setCategorias(nomesCategoriasAtivas(norm));
       });
       carregarConfig<TaxaMaquininha[]>(cid, 'taxas_maquininha', 'ortus_taxas_maquininha', TAXAS_MAQUININHA_PADRAO).then(t => {
-          const norm = normalizarTaxasMaquininha(t);
-          setTaxasMaquininha(norm.filter(x => x.ativo));
+          try {
+              const norm = normalizarTaxasMaquininha(t);
+              setTaxasMaquininha(norm.filter(x => x.ativo));
+          } catch {
+              setTaxasMaquininha(TAXAS_MAQUININHA_PADRAO.filter(x => x.ativo));
+          }
       });
       carregarConfig<Record<string, any>>(cid, 'lancamentos_meta', 'ortus_lancamentos_meta', {}).then(m => setMeta(m || {}));
   }, [clinicLoading, activeClinicId]);
@@ -320,6 +324,15 @@ export default function Financeiro() {
       carregarDados(updMeta);
   }
 
+  // Filtragem
+  const transacoesFiltradas = transacoes.filter(t => {
+      if (tipoFiltro !== 'todos' && t.tipo !== tipoFiltro) return false;
+      if (abaStatus === 'ativos' && t.status !== 'concluido') return false;
+      if (abaStatus === 'andamento' && t.status !== 'andamento') return false;
+      if (abaStatus === 'cancelados' && t.status !== 'cancelado') return false;
+      return true;
+  });
+
   function imprimirRelatorio() {
       const clinicaNome = activeClinic ? getClinicLabel(activeClinic) : 'ORTUS CLINIC';
       const periodoStr = modoData === 'mes'
@@ -342,7 +355,7 @@ export default function Financeiro() {
       });
 
       const fmt = (v: number) => `R$ ${v.toFixed(2)}`;
-      const linhasTab = (lista: typeof transacoesFiltradas) => lista.map(t => [
+      const linhasTab = (lista: typeof transacoes) => lista.map(t => [
           escapePrintHtml(new Date(t.data).toLocaleDateString('pt-BR')),
           escapePrintHtml(t.descricao),
           `<span class="ortus-tag">${escapePrintHtml(t.categoria)}</span>`,
@@ -391,15 +404,6 @@ export default function Financeiro() {
           autoPrint: true,
       });
   }
-
-  // Filtragem
-  const transacoesFiltradas = transacoes.filter(t => {
-      if (tipoFiltro !== 'todos' && t.tipo !== tipoFiltro) return false;
-      if (abaStatus === 'ativos' && t.status !== 'concluido') return false;
-      if (abaStatus === 'andamento' && t.status !== 'andamento') return false;
-      if (abaStatus === 'cancelados' && t.status !== 'cancelado') return false;
-      return true;
-  });
 
   const countAtivos = transacoes.filter(t => t.status === 'concluido').length;
   const countAndamento = transacoes.filter(t => t.status === 'andamento').length;
@@ -514,7 +518,7 @@ export default function Financeiro() {
                                           <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded uppercase tracking-wide border border-slate-200">{t.categoria}</span>
                                           <span className="text-xs text-slate-400 font-medium">{new Date(t.data).toLocaleDateString('pt-BR', {timeZone: 'UTC'})}</span>
                                           {isAndam && <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded uppercase border border-amber-200">Em andamento</span>}
-                                          {isCancel && t.motivo_cancelamento && <span className="text-[10px] font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-200" title={t.motivo_cancelamento}>Motivo: {t.motivo_cancelamento.length > 40 ? t.motivo_cancelamento.slice(0,40)+'…' : t.motivo_cancelamento}</span>}
+                                          {isCancel && t.motivo_cancelamento && <span className="text-[10px] font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-200" title={String(t.motivo_cancelamento)}>Motivo: {String(t.motivo_cancelamento).length > 40 ? String(t.motivo_cancelamento).slice(0,40)+'…' : String(t.motivo_cancelamento)}</span>}
                                       </div>
                                   </div>
                               </div>
@@ -590,6 +594,7 @@ export default function Financeiro() {
                                 options={[{ value: '', label: 'Sem taxa (valor integral)' }, ...taxasMaquininha.map(t => ({ value: t.id, label: `${t.nome} (${t.taxa_percentual}%)` }))]}
                                 placeholder="Selecione..."
                                 size="lg"
+                                menuPortal
                             />
                             {novoLancamento.taxa_id && novoLancamento.valor && (() => {
                                 const taxa = taxasMaquininha.find(t => t.id === novoLancamento.taxa_id);

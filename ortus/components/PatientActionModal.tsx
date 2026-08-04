@@ -790,6 +790,7 @@ export function PatientActionModalProvider({ children }: { children: React.React
                 onChange={setTaxaRecebimento}
                 options={[{ value: '', label: 'Sem taxa' }, ...taxasRecebimento.map(t => ({ value: t.id, label: `${t.nome} (${t.taxa_percentual}%)` }))]}
                 size="lg"
+                menuPortal
               />
               {taxaRecebimento && (() => {
                 const taxa = taxasRecebimento.find(t => t.id === taxaRecebimento);
