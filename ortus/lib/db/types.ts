@@ -22,6 +22,7 @@ export type AnamnesePaciente = {
   respostas: Record<string, unknown>;
   perguntas_snapshot?: unknown[] | null;
   criado_em?: string;
+  atualizado_em?: string;
 };
 
 export type DocumentoPaciente = {
@@ -82,6 +83,7 @@ function rowToAnamnese(r: Record<string, unknown>): AnamnesePaciente {
     respostas: (r.respostas as Record<string, unknown>) || {},
     perguntas_snapshot: (r.perguntas_snapshot as unknown[]) || null,
     criado_em: r.criado_em ? String(r.criado_em) : undefined,
+    atualizado_em: r.atualizado_em ? String(r.atualizado_em) : undefined,
   };
 }
 

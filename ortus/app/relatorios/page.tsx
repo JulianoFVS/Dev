@@ -9,6 +9,7 @@ import {
     BarChart3, TrendingDown, Users, DollarSign,
     Loader2, Activity, CheckCircle, XCircle, Clock, ArrowUpRight, ArrowDownRight, Printer, Filter, Tag
 } from 'lucide-react';
+import { printDocument, printTable, escapePrintHtml } from '@/lib/printDocument';
 
 type Agendamento = {
     id: string; data_hora: string; procedimento: string; status: string;
@@ -17,6 +18,16 @@ type Agendamento = {
     pacientes?: { nome: string } | { nome: string }[];
     profissionais?: { nome: string };
 };
+
+type ReportType = 'resumo' | 'financeiro' | 'comparecimento' | 'fiados' | 'procedimentos';
+
+const REPORT_OPTIONS: { value: ReportType; label: string }[] = [
+    { value: 'resumo', label: 'Resumo geral' },
+    { value: 'financeiro', label: 'Financeiro' },
+    { value: 'comparecimento', label: 'Comparecimento' },
+    { value: 'fiados', label: 'Fiados em aberto' },
+    { value: 'procedimentos', label: 'Procedimentos' },
+];
 
 function nomePaciente(p?: Agendamento['pacientes']) {
     if (!p) return 'Paciente';
@@ -42,6 +53,7 @@ export default function Relatorios() {
     const [filtroProfissional, setFiltroProfissional] = useState('todos');
     const [filtroStatus, setFiltroStatus] = useState('todos');
     const [filtroCategoria, setFiltroCategoria] = useState('todos');
+    const [tipoRelatorio, setTipoRelatorio] = useState<ReportType>('resumo');
 
     useEffect(() => { if (!clinicLoading) carregar(); }, [clinicLoading, activeClinicId, periodo]);
 
@@ -200,6 +212,97 @@ export default function Relatorios() {
         return `${nomes[parseInt(mo) - 1]}/${y.slice(2)}`;
     };
 
+    const periodoLabel = periodo === 'mes' ? 'Este mês' : periodo === '3meses' ? 'Últimos 3 meses' : periodo === '6meses' ? 'Últimos 6 meses' : 'Este ano';
+    const reportTitle = REPORT_OPTIONS.find(r => r.value === tipoRelatorio)?.label || 'Relatório';
+
+    function imprimirRelatorio() {
+        let bodyHtml = '';
+
+        if (tipoRelatorio === 'resumo' || tipoRelatorio === 'financeiro') {
+            bodyHtml += `
+              <div class="ortus-kpis">
+                <div class="ortus-kpi entrada"><div class="lbl">Receita Total</div><div class="val">${escapePrintHtml(fmt(metricas.receitaTotal))}</div></div>
+                <div class="ortus-kpi saida"><div class="lbl">Despesas</div><div class="val">${escapePrintHtml(fmt(metricas.despesaTotal))}</div></div>
+                <div class="ortus-kpi saldo"><div class="lbl">Lucro Líquido</div><div class="val">${escapePrintHtml(fmt(metricas.lucro))}</div></div>
+                <div class="ortus-kpi info"><div class="lbl">Pacientes Atendidos</div><div class="val">${metricas.pacientesUnicos}</div></div>
+              </div>`;
+        }
+
+        if (tipoRelatorio === 'resumo' || tipoRelatorio === 'financeiro') {
+            const rows = metricas.categoriasBreakdown.map(([nome, v]) => [
+                `<strong>${escapePrintHtml(nome)}</strong>`,
+                `<span class="entrada">${escapePrintHtml(fmt(v.entrada))}</span>`,
+                `<span class="saida">${escapePrintHtml(fmt(v.saida))}</span>`,
+                `<strong>${escapePrintHtml(fmt(v.entrada - v.saida))}</strong>`,
+            ]);
+            bodyHtml += `<div class="ortus-section-title">Resumo por Categoria</div>${printTable(['Categoria', 'Entradas', 'Saídas', 'Saldo'], rows, { numCols: [1, 2, 3] })}`;
+        }
+
+        if (tipoRelatorio === 'resumo' || tipoRelatorio === 'comparecimento') {
+            bodyHtml += `
+              <div class="ortus-section-title">Comparecimento</div>
+              <div class="ortus-kpis">
+                <div class="ortus-kpi info"><div class="lbl">Taxa de Comparecimento</div><div class="val">${metricas.taxaComparecimento}%</div></div>
+                <div class="ortus-kpi saida"><div class="lbl">Cancelamentos / Faltas</div><div class="val">${metricas.taxaCancelamento}%</div></div>
+                <div class="ortus-kpi neutral"><div class="lbl">Total de Agendamentos</div><div class="val">${metricas.total}</div></div>
+                <div class="ortus-kpi entrada"><div class="lbl">Ticket Médio</div><div class="val">${escapePrintHtml(metricas.concluidos > 0 ? fmt(metricas.faturamento / metricas.concluidos) : 'R$ 0,00')}</div></div>
+              </div>`;
+        }
+
+        if (tipoRelatorio === 'resumo' || tipoRelatorio === 'fiados') {
+            bodyHtml += `<div class="ortus-section-title">Fiados em Aberto</div><p><strong>Total pendente:</strong> ${escapePrintHtml(fmt(metricas.fiado))} (${metricas.fiados} atendimento${metricas.fiados !== 1 ? 's' : ''})</p>`;
+            if (metricas.fiadosEmAberto.length > 0) {
+                bodyHtml += printTable(
+                    ['Paciente', 'Procedimento', 'Data', 'Valor'],
+                    metricas.fiadosEmAberto.map(f => [
+                        escapePrintHtml(f.paciente),
+                        escapePrintHtml(`${f.procedimento}${f.profissional ? ` · ${f.profissional}` : ''}`),
+                        escapePrintHtml(new Date(f.data).toLocaleDateString('pt-BR')),
+                        `<span class="saida">${escapePrintHtml(fmt(f.valor))}</span>`,
+                    ]),
+                    { numCols: [3] },
+                );
+            } else {
+                bodyHtml += '<p>Nenhum fiado pendente no período.</p>';
+            }
+        }
+
+        if (tipoRelatorio === 'resumo' || tipoRelatorio === 'procedimentos') {
+            bodyHtml += `<div class="ortus-section-title">Procedimentos Mais Realizados</div>`;
+            if (metricas.topProcedimentos.length === 0) {
+                bodyHtml += '<p>Nenhum procedimento concluído no período.</p>';
+            } else {
+                bodyHtml += printTable(
+                    ['#', 'Procedimento', 'Qtd', 'Faturamento'],
+                    metricas.topProcedimentos.map(([nome, data], i) => [
+                        String(i + 1),
+                        escapePrintHtml(nome),
+                        `${data.count}x`,
+                        `<span class="entrada">${escapePrintHtml(fmt(data.valor))}</span>`,
+                    ]),
+                    { numCols: [3] },
+                );
+            }
+        }
+
+        if (tipoRelatorio === 'financeiro' && metricas.meses.length > 1) {
+            bodyHtml += `<div class="ortus-section-title">Faturamento Mensal</div>${printTable(
+                ['Mês', 'Valor'],
+                metricas.meses.map(m => [escapePrintHtml(fmtMes(m)), `<span class="entrada">${escapePrintHtml(fmt(metricas.fatMensal[m]))}</span>`]),
+                { numCols: [1] },
+            )}`;
+        }
+
+        printDocument({
+            title: reportTitle,
+            documentTitle: `${reportTitle} — ORTUS`,
+            accentColor: '#0891b2',
+            period: periodoLabel,
+            bodyHtml,
+            autoPrint: true,
+        });
+    }
+
     if (loading) return <div className="h-[50vh] flex items-center justify-center text-slate-400"><Loader2 className="animate-spin" size={28}/></div>;
 
     return (
@@ -218,7 +321,14 @@ export default function Relatorios() {
                             {p === 'mes' ? 'Este mês' : p === '3meses' ? '3 meses' : p === '6meses' ? '6 meses' : 'Este ano'}
                         </button>
                     ))}
-                    <button onClick={() => window.print()} className="px-3 py-1.5 text-xs font-bold rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center gap-1"><Printer size={13}/> Imprimir</button>
+                    <CustomSelect
+                        value={tipoRelatorio}
+                        onChange={(v) => setTipoRelatorio(v as ReportType)}
+                        options={REPORT_OPTIONS}
+                        size="sm"
+                        className="min-w-[160px]"
+                    />
+                    <button onClick={imprimirRelatorio} className="px-3 py-1.5 text-xs font-bold rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center gap-1"><Printer size={13}/> Imprimir</button>
                 </div>
             </div>
 

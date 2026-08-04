@@ -1,12 +1,10 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Bell, Calendar, AlertTriangle, Info, CheckSquare, Trash2, History } from 'lucide-react';
+import { Mail, CheckSquare, Trash2, History } from 'lucide-react';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
 
-const TIPOS_ALERTA = new Set(['agenda', 'alerta', 'sistema', 'aviso']);
-
-export default function Inbox() {
+export default function Mensagens() {
   const [todos, setTodos] = useState<any[]>([]);
   const [escopo, setEscopo] = useState<'ativas' | 'historico'>('ativas');
   const [loading, setLoading] = useState(true);
@@ -21,14 +19,14 @@ export default function Inbox() {
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
       const agoraIso = new Date().toISOString();
-      let query = supabase.from('notificacoes').select('*').eq('user_id', user.id);
+      let query = supabase.from('notificacoes').select('*').eq('user_id', user.id).eq('tipo', 'mensagem');
       if (escopo === 'ativas') {
         query = query.or(`expires_at.is.null,expires_at.gt.${agoraIso}`);
       } else {
         query = query.or(`lida.eq.true,expires_at.lte.${agoraIso}`).limit(200);
       }
       const { data } = await query.order('created_at', { ascending: false });
-      setTodos((data || []).filter((n: any) => TIPOS_ALERTA.has(n.tipo)));
+      setTodos(data || []);
     }
     setLoading(false);
   }
@@ -39,26 +37,20 @@ export default function Inbox() {
   }
 
   async function excluir(id: any) {
-    if (!(await showConfirm('Apagar esta notificação?', { title: 'Excluir', type: 'warning', confirmLabel: 'Apagar' }))) return;
+    if (!(await showConfirm('Apagar esta mensagem?', { title: 'Excluir', type: 'warning', confirmLabel: 'Apagar' }))) return;
     setTodos(prev => prev.filter(n => n.id !== id));
     await supabase.from('notificacoes').delete().eq('id', id);
   }
-
-  const getIcon = (tipo: string) => {
-    if (tipo === 'agenda') return <Calendar size={20} className="text-blue-500"/>;
-    if (tipo === 'alerta') return <AlertTriangle size={20} className="text-amber-500"/>;
-    return <Info size={20} className="text-slate-400"/>;
-  };
 
   return (
     <div className="max-w-4xl mx-auto space-y-6 animate-fade-in pb-20">
       <div className="flex flex-col items-center md:flex-row md:justify-between md:items-end gap-4 mb-2">
         <div className="text-center md:text-left">
-          <h2 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight">Central de Avisos</h2>
-          <p className="text-slate-500 text-sm">Fique por dentro do que acontece na clínica.</p>
+          <h2 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight">Central de Mensagens</h2>
+          <p className="text-slate-500 text-sm">Mensagens diretas da equipe e da clínica.</p>
         </div>
         <div className="flex bg-white p-1 rounded-xl shadow-sm border border-slate-200">
-          <button onClick={() => setEscopo('ativas')} className={`px-3 py-2 rounded-lg text-xs font-black uppercase tracking-wider flex items-center gap-2 transition-all ${escopo === 'ativas' ? 'bg-emerald-50 text-emerald-700 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>Ativas</button>
+          <button onClick={() => setEscopo('ativas')} className={`px-3 py-2 rounded-lg text-xs font-black uppercase tracking-wider flex items-center gap-2 transition-all ${escopo === 'ativas' ? 'bg-purple-50 text-purple-700 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>Ativas</button>
           <button onClick={() => setEscopo('historico')} className={`px-3 py-2 rounded-lg text-xs font-black uppercase tracking-wider flex items-center gap-2 transition-all ${escopo === 'historico' ? 'bg-slate-100 text-slate-700 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}><History size={14}/> Histórico</button>
         </div>
       </div>
@@ -67,15 +59,15 @@ export default function Inbox() {
           <div className="h-full flex flex-col items-center justify-center py-20 text-slate-400">Carregando...</div>
         ) : todos.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center py-20 text-center">
-            <Bell size={40} className="text-slate-200 mb-3"/>
-            <h3 className="text-slate-800 font-bold">Nenhuma notificação</h3>
+            <Mail size={40} className="text-slate-200 mb-3"/>
+            <h3 className="text-slate-800 font-bold">Nenhuma mensagem</h3>
             <p className="text-slate-400 text-sm mt-1">Tudo limpo por aqui!</p>
           </div>
         ) : (
           <div className="divide-y divide-slate-100">
             {todos.map((n: any) => (
-              <div key={n.id} className={`p-5 flex gap-4 ${!n.lida ? 'bg-blue-50/30' : ''}`}>
-                <div className="mt-1 bg-white p-2 rounded-xl border">{getIcon(n.tipo)}</div>
+              <div key={n.id} className={`p-5 flex gap-4 ${!n.lida ? 'bg-purple-50/30' : ''}`}>
+                <div className="mt-1 bg-white p-2 rounded-xl border"><Mail size={20} className="text-purple-500"/></div>
                 <div className="flex-1 min-w-0">
                   <h4 className="font-bold text-slate-800">{n.titulo}</h4>
                   <p className="text-sm text-slate-500 mt-0.5">{n.mensagem}</p>

@@ -81,6 +81,7 @@ export const ROUTE_MODULE_MAP: { prefix: string; module: ModuleName }[] = [
   { prefix: '/configuracoes', module: 'configuracoes' },
   { prefix: '/planos', module: 'configuracoes' },
   { prefix: '/inbox', module: 'marketing' },
+  { prefix: '/mensagens', module: 'marketing' },
 ];
 
 export function moduleForPath(pathname: string): ModuleName | null {

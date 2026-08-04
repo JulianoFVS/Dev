@@ -3,6 +3,7 @@ import { rowToDocumento, type DocumentoPaciente } from '@/lib/db/types';
 
 export type DocumentoMeta = {
   isImg?: boolean;
+  isPdf?: boolean;
   dataUrl?: string;
   tamanho?: number;
   [key: string]: unknown;
@@ -21,6 +22,7 @@ function rowToDocumentoUI(r: Record<string, unknown>): DocumentoPacienteUI {
     storagePath: base.storage_path || (meta.storagePath as string) || null,
     dataUrl: meta.dataUrl as string | undefined,
     isImg: meta.isImg as boolean | undefined,
+    isPdf: (meta.isPdf as boolean | undefined) ?? (Boolean(base.nome?.toLowerCase().endsWith('.pdf')) || base.tipo === 'application/pdf'),
     tamanho: meta.tamanho as number | undefined,
   };
 }

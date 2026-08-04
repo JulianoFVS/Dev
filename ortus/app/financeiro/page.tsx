@@ -21,6 +21,7 @@ import {
     type CategoriaFinanceira,
     type TaxaMaquininha,
 } from '@/lib/configDefaults';
+import { printDocument, printTable, printQaBlock, printSignatureBlock, escapePrintHtml } from '@/lib/printDocument';
 
 const CATS_PADRAO = nomesCategoriasAtivas(CATEGORIAS_FINANCEIRAS_PADRAO);
 
@@ -111,22 +112,25 @@ export default function Financeiro() {
             .select('id, valor_final, data_hora, procedimento, status, pacientes(nome)')
             .gte('data_hora', inicioFull).lte('data_hora', fimFull);
         if (filtrarClinica) qAg = qAg.eq('clinica_id', clinicaId);
-        const { data: agendamentos } = await qAg;
+        const { data: agendamentos, error: errAg } = await qAg;
+        if (errAg) throw errAg;
 
         let qMan = supabase.from('despesas').select('*').gte('data', inicio).lte('data', fim);
         if (filtrarClinica) qMan = qMan.eq('clinica_id', clinicaId);
-        const { data: manuais } = await qMan;
+        const { data: manuais, error: errMan } = await qMan;
+        if (errMan) throw errMan;
 
         const listaAg = (agendamentos || [])
-            .filter((e: any) => e.status === 'concluido' || e.status === 'fiado')
+            .filter((e: any) => (e.status === 'concluido' || e.status === 'fiado') && e.tipo_registro !== 'debito_manual' && e.observacoes !== 'Débito manual')
             .map((e: any) => {
                 const metaAg = metaAtual[`ag_${e.id}`] as { valor_liquido?: number; taxa_nome?: string; valor_bruto?: number } | undefined;
-                const bruto = parseFloat(e.valor_final || '0');
+                const bruto = parseFloat(String(e.valor_final ?? 0)) || 0;
                 const liquido = metaAg?.valor_liquido ?? bruto;
+                const pacNome = Array.isArray(e.pacientes) ? e.pacientes[0]?.nome : e.pacientes?.nome;
                 return {
                 id: 'ag_' + e.id, refId: e.id, origem: 'agendamento',
                 tipo: 'entrada',
-                descricao: `${Array.isArray(e.pacientes) ? e.pacientes[0]?.nome : e.pacientes?.nome} - ${e.procedimento}`,
+                descricao: `${pacNome || 'Paciente'} - ${e.procedimento || 'Atendimento'}`,
                 valor: liquido,
                 valorBruto: bruto,
                 taxaNome: metaAg?.taxa_nome,
@@ -143,7 +147,7 @@ export default function Financeiro() {
                 id, refId: s.id, origem: 'manual',
                 tipo: s.tipo || 'saida',
                 descricao: s.descricao,
-                valor: parseFloat(s.valor || '0'),
+                valor: parseFloat(String(s.valor ?? 0)) || 0,
                 data: s.data,
                 categoria: s.categoria || 'Geral',
                 status,
@@ -160,7 +164,12 @@ export default function Financeiro() {
         const totalAndamento = todas.filter(t => t.status === 'andamento').reduce((s, c) => s + (c.valor || 0), 0);
         setResumo({ entrada: totalEntrada, saida: totalSaida, saldo: totalEntrada - totalSaida, andamento: totalAndamento });
 
-    } catch (err) { console.error(err); }
+    } catch (err: any) {
+        console.error(err);
+        showAlert('Erro ao carregar financeiro: ' + (err?.message || 'tente novamente'), { type: 'error' });
+        setTransacoes([]);
+        setResumo({ entrada: 0, saida: 0, saldo: 0, andamento: 0 });
+    }
     setLoading(false);
   }
 
@@ -311,7 +320,6 @@ export default function Financeiro() {
       carregarDados(updMeta);
   }
 
-  // ===== IMPRESSÃO BONITA =====
   function imprimirRelatorio() {
       const clinicaNome = activeClinic ? getClinicLabel(activeClinic) : 'ORTUS CLINIC';
       const periodoStr = modoData === 'mes'
@@ -326,7 +334,6 @@ export default function Financeiro() {
       const totalSaida = ativos.filter(t => t.tipo === 'saida').reduce((s,c) => s + c.valor, 0);
       const saldo = totalEntrada - totalSaida;
 
-      // Agrupa por categoria
       const catMap: Record<string, { entrada: number; saida: number }> = {};
       ativos.forEach(t => {
           if (!catMap[t.categoria]) catMap[t.categoria] = { entrada: 0, saida: 0 };
@@ -334,99 +341,55 @@ export default function Financeiro() {
           else catMap[t.categoria].saida += t.valor;
       });
 
-      const linhasTab = (lista: any[]) => lista.map(t => `
-          <tr class="${t.status === 'cancelado' ? 'cancelado' : ''}">
-              <td>${new Date(t.data).toLocaleDateString('pt-BR')}</td>
-              <td>${t.descricao}</td>
-              <td><span class="cat">${t.categoria}</span></td>
-              <td class="${t.tipo}">${t.tipo === 'entrada' ? '+' : '-'} R$ ${t.valor.toFixed(2)}</td>
-          </tr>`).join('');
+      const fmt = (v: number) => `R$ ${v.toFixed(2)}`;
+      const linhasTab = (lista: typeof transacoesFiltradas) => lista.map(t => [
+          escapePrintHtml(new Date(t.data).toLocaleDateString('pt-BR')),
+          escapePrintHtml(t.descricao),
+          `<span class="ortus-tag">${escapePrintHtml(t.categoria)}</span>`,
+          `<span class="${t.tipo}">${t.tipo === 'entrada' ? '+' : '-'} ${fmt(t.valor)}</span>`,
+      ]);
 
-      const linhasCat = Object.entries(catMap).sort().map(([nome, v]) => `
-          <tr>
-              <td><strong>${nome}</strong></td>
-              <td class="entrada">R$ ${v.entrada.toFixed(2)}</td>
-              <td class="saida">R$ ${v.saida.toFixed(2)}</td>
-              <td><strong>R$ ${(v.entrada - v.saida).toFixed(2)}</strong></td>
-          </tr>`).join('');
+      const linhasCat = Object.entries(catMap).sort().map(([nome, v]) => [
+          `<strong>${escapePrintHtml(nome)}</strong>`,
+          `<span class="entrada">${fmt(v.entrada)}</span>`,
+          `<span class="saida">${fmt(v.saida)}</span>`,
+          `<strong>${fmt(v.entrada - v.saida)}</strong>`,
+      ]);
 
-      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Relatório Financeiro</title>
-        <style>
-          @page { size: A4; margin: 18mm 14mm; }
-          * { box-sizing: border-box; }
-          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; color: #0f172a; margin: 0; padding: 0; }
-          .wrap { max-width: 900px; margin: 0 auto; padding: 24px; }
-          .header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 16px; border-bottom: 3px solid #2563eb; margin-bottom: 24px; }
-          .header h1 { margin: 0; font-size: 22px; letter-spacing: 1px; color: #1e3a8a; }
-          .header .meta { text-align: right; font-size: 11px; color: #64748b; }
-          .titulo { font-size: 28px; font-weight: 900; margin: 8px 0 4px 0; color: #0f172a; }
-          .periodo { color: #475569; text-transform: capitalize; font-weight: 600; }
-          .cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 24px 0; }
-          .card { padding: 14px; border-radius: 10px; border: 1px solid #e2e8f0; }
-          .card .lbl { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: #94a3b8; }
-          .card .val { font-size: 22px; font-weight: 900; margin-top: 6px; }
-          .card.entrada { background: #ecfdf5; border-color: #6ee7b7; } .card.entrada .val { color: #047857; }
-          .card.saida { background: #fef2f2; border-color: #fca5a5; } .card.saida .val { color: #b91c1c; }
-          .card.saldo { background: #eff6ff; border-color: #93c5fd; } .card.saldo .val { color: #1d4ed8; }
-          .card.andamento { background: #fffbeb; border-color: #fcd34d; } .card.andamento .val { color: #b45309; }
-          h2 { font-size: 14px; text-transform: uppercase; letter-spacing: 1px; color: #1e3a8a; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; margin-top: 28px; }
-          table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 8px; }
-          th { text-align: left; padding: 8px 6px; background: #f1f5f9; color: #475569; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid #cbd5e1; }
-          td { padding: 6px; border-bottom: 1px solid #f1f5f9; }
-          td.entrada { color: #047857; font-weight: 700; text-align: right; }
-          td.saida { color: #b91c1c; font-weight: 700; text-align: right; }
-          .cat { background: #e0e7ff; color: #3730a3; padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: 700; }
-          tr.cancelado td { text-decoration: line-through; color: #94a3b8; }
-          .footer { margin-top: 40px; padding-top: 12px; border-top: 1px solid #e2e8f0; text-align: center; font-size: 10px; color: #94a3b8; }
-          @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
-        </style></head><body><div class="wrap">
-        <div class="header">
-          <div>
-            <div style="font-size:11px;color:#64748b;font-weight:700;text-transform:uppercase;letter-spacing:1px">Relatório Financeiro</div>
-            <h1>${clinicaNome}</h1>
-          </div>
-          <div class="meta">
-            <div>Emitido em ${new Date().toLocaleDateString('pt-BR')} ${new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</div>
-            <div>Sistema ORTUS</div>
-          </div>
-        </div>
+      let bodyHtml = `
+        <div class="ortus-section-title">Por Categoria</div>
+        ${printTable(['Categoria', 'Entradas', 'Saídas', 'Saldo'], linhasCat, { numCols: [1, 2, 3] })}
+        <div class="ortus-section-title">Movimentações Concluídas (${ativos.length})</div>
+        ${printTable(['Data', 'Descrição', 'Categoria', 'Valor'], linhasTab(ativos), { numCols: [3] })}
+      `;
 
-        <div class="titulo">Resumo do Período</div>
-        <div class="periodo">${periodoStr}</div>
+      if (andamento.length > 0) {
+          bodyHtml += `
+            <div class="ortus-section-title">Em Andamento (${andamento.length})</div>
+            ${printTable(['Data', 'Descrição', 'Categoria', 'Valor'], linhasTab(andamento), { numCols: [3] })}
+          `;
+      }
+      if (cancelados.length > 0) {
+          bodyHtml += `
+            <div class="ortus-section-title">Cancelados (${cancelados.length})</div>
+            ${printTable(['Data', 'Descrição', 'Categoria', 'Valor'], linhasTab(cancelados), { numCols: [3] })}
+          `;
+      }
 
-        <div class="cards">
-          <div class="card entrada"><div class="lbl">Receitas</div><div class="val">R$ ${totalEntrada.toFixed(2)}</div></div>
-          <div class="card saida"><div class="lbl">Despesas</div><div class="val">R$ ${totalSaida.toFixed(2)}</div></div>
-          <div class="card saldo"><div class="lbl">Saldo Líquido</div><div class="val">R$ ${saldo.toFixed(2)}</div></div>
-          <div class="card andamento"><div class="lbl">Em Andamento</div><div class="val">R$ ${andamento.reduce((s,c)=>s+c.valor,0).toFixed(2)}</div></div>
-        </div>
-
-        <h2>Por Categoria</h2>
-        <table><thead><tr><th>Categoria</th><th style="text-align:right">Entradas</th><th style="text-align:right">Saídas</th><th style="text-align:right">Saldo</th></tr></thead>
-        <tbody>${linhasCat || '<tr><td colspan="4" style="text-align:center;color:#94a3b8">Sem dados.</td></tr>'}</tbody></table>
-
-        <h2>Movimentações Concluídas (${ativos.length})</h2>
-        <table><thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th style="text-align:right">Valor</th></tr></thead>
-        <tbody>${linhasTab(ativos) || '<tr><td colspan="4" style="text-align:center;color:#94a3b8">Sem movimentações.</td></tr>'}</tbody></table>
-
-        ${andamento.length > 0 ? `
-          <h2>Em Andamento (${andamento.length})</h2>
-          <table><thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th style="text-align:right">Valor</th></tr></thead>
-          <tbody>${linhasTab(andamento)}</tbody></table>` : ''}
-
-        ${cancelados.length > 0 ? `
-          <h2>Cancelados (${cancelados.length})</h2>
-          <table><thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th style="text-align:right">Valor</th></tr></thead>
-          <tbody>${linhasTab(cancelados)}</tbody></table>` : ''}
-
-        <div class="footer">Documento gerado eletronicamente pelo Sistema ORTUS · ${new Date().getFullYear()}</div>
-        </div>
-        <script>window.onload=function(){setTimeout(function(){window.print();},200);}</script>
-        </body></html>`;
-
-      const w = window.open('', '', 'width=1000,height=800');
-      w?.document.write(html);
-      w?.document.close();
+      printDocument({
+          title: 'Relatório Financeiro',
+          documentTitle: `Financeiro — ${clinicaNome}`,
+          clinicName: clinicaNome,
+          period: periodoStr,
+          kpis: [
+              { label: 'Receitas', value: fmt(totalEntrada), variant: 'entrada' },
+              { label: 'Despesas', value: fmt(totalSaida), variant: 'saida' },
+              { label: 'Saldo Líquido', value: fmt(saldo), variant: 'saldo' },
+              { label: 'Em Andamento', value: fmt(andamento.reduce((s,c) => s + c.valor, 0)), variant: 'andamento' },
+          ],
+          bodyHtml,
+          autoPrint: true,
+      });
   }
 
   // Filtragem
@@ -544,8 +507,8 @@ export default function Financeiro() {
                                   </div>
                                   <div className="flex-1 min-w-0">
                                       <p className={`font-bold text-sm md:text-base ${isCancel ? 'line-through text-slate-400' : 'text-slate-700'}`}>{t.descricao}</p>
-                                      {t.taxaNome && t.valorBruto && t.valorBruto !== t.valor && (
-                                          <p className="text-[10px] text-slate-400">Bruto R$ {t.valorBruto.toFixed(2)} · {t.taxaNome} · Líquido</p>
+                                      {t.taxaNome && t.valorBruto != null && t.valorBruto !== t.valor && (
+                                          <p className="text-[10px] text-slate-400">Bruto R$ {(t.valorBruto ?? 0).toFixed(2)} · {t.taxaNome} · Líquido</p>
                                       )}
                                       <div className="flex items-center gap-2 mt-1 flex-wrap">
                                           <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded uppercase tracking-wide border border-slate-200">{t.categoria}</span>
@@ -562,7 +525,7 @@ export default function Financeiro() {
                                   }`}>
                                       {t.tipo === 'entrada' ? '+' : '-'} R$ {t.valor.toLocaleString('pt-BR', {minimumFractionDigits: 2})}
                                   </span>
-                                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                                       {abaStatus === 'andamento' && t.origem === 'manual' && (
                                           <button onClick={() => concluirAndamento(t)} className="p-1.5 bg-emerald-50 text-emerald-700 rounded-lg hover:bg-emerald-100" title="Marcar como concluído"><CheckCircle size={14}/></button>
                                       )}
@@ -607,7 +570,7 @@ export default function Financeiro() {
                         <input required className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-700" placeholder={novoLancamento.tipo === 'entrada' ? 'Ex: Venda de Kit' : 'Ex: Conta de Luz'} value={novoLancamento.descricao} onChange={e => setNovoLancamento({...novoLancamento, descricao: e.target.value})} />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                             <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Valor (R$)</label>
                             <input required type="number" step="0.01" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-700" placeholder="0.00" value={novoLancamento.valor} onChange={e => setNovoLancamento({...novoLancamento, valor: e.target.value})} />

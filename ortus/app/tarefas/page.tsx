@@ -340,37 +340,44 @@ export default function Tarefas() {
                 </div>
             </div>
 
-            {/* Alertas */}
-            <div className="grid grid-cols-1 lg:grid-cols-[320px,1fr] gap-6">
-                <aside className="space-y-4">
-                    <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-                        <div className="relative mb-3">
-                            <Search className="absolute left-3 top-3 text-slate-400" size={20}/>
-                            <input 
-                                type="text" 
-                                placeholder="Buscar tarefas..." 
-                                className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-50 border-transparent focus:bg-white focus:ring-2 focus:ring-blue-100 outline-none font-medium"
-                                value={filtroBusca}
-                                onChange={e => setFiltroBusca(e.target.value)}
-                            />
-                        </div>
-                        <button onClick={() => setShowFiltros(!showFiltros)} className={`touch-target w-full justify-center px-4 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 transition-all ${showFiltros ? 'bg-blue-50 text-blue-600 border border-blue-200' : 'bg-slate-50 text-slate-500 border border-slate-200'}`}>
-                            <Filter size={16}/> Filtros avançados
-                        </button>
-                        {showFiltros && (
-                            <div className="mt-4 pt-4 border-t border-slate-100 flex flex-wrap gap-3 animate-in fade-in">
-                                <CustomSelect value={filtroStatus} onChange={setFiltroStatus} options={[{ value: 'todos', label: 'Todos os status' }, ...TAREFA_STATUS_OPTIONS]} size="sm" className="flex-1 min-w-[140px]" />
-                                <CustomSelect value={filtroPrioridade} onChange={setFiltroPrioridade} options={[{ value: 'todos', label: 'Todas as prioridades' }, ...TAREFA_PRIORIDADE_OPTIONS]} size="sm" className="flex-1 min-w-[140px]" />
-                            </div>
+            {/* Busca e filtros — acima do conteúdo principal */}
+            <div className="bg-white p-2 rounded-2xl border border-slate-200 shadow-sm flex flex-col gap-2">
+                <div className="flex flex-col md:flex-row gap-2">
+                    <div className="flex-1 relative">
+                        <Search className="absolute left-3 top-3 text-slate-400" size={20}/>
+                        <input
+                            type="text"
+                            placeholder="Buscar tarefas..."
+                            className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-50 border-transparent focus:bg-white focus:ring-2 focus:ring-blue-100 outline-none font-medium"
+                            value={filtroBusca}
+                            onChange={e => setFiltroBusca(e.target.value)}
+                        />
+                    </div>
+                    <button
+                        onClick={() => setShowFiltros(!showFiltros)}
+                        className={`touch-target px-3 py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all shrink-0 ${showFiltros || filtroStatus !== 'todos' || filtroPrioridade !== 'todos' ? 'bg-blue-50 text-blue-600 border border-blue-200' : 'bg-slate-50 text-slate-500 border border-slate-200'}`}
+                    >
+                        <Filter size={16}/> Filtros avançados
+                        {(filtroStatus !== 'todos' || filtroPrioridade !== 'todos') && <span className="w-2 h-2 bg-blue-500 rounded-full" />}
+                    </button>
+                </div>
+                {showFiltros && (
+                    <div className="px-3 pb-3 pt-1 border-t border-slate-100 flex flex-wrap gap-3 animate-in fade-in slide-in-from-top-2 duration-200">
+                        <CustomSelect value={filtroStatus} onChange={setFiltroStatus} options={[{ value: 'todos', label: 'Todos os status' }, ...TAREFA_STATUS_OPTIONS]} size="sm" className="flex-1 min-w-[140px]" />
+                        <CustomSelect value={filtroPrioridade} onChange={setFiltroPrioridade} options={[{ value: 'todos', label: 'Todas as prioridades' }, ...TAREFA_PRIORIDADE_OPTIONS]} size="sm" className="flex-1 min-w-[140px]" />
+                        {(filtroStatus !== 'todos' || filtroPrioridade !== 'todos') && (
+                            <button
+                                onClick={() => { setFiltroStatus('todos'); setFiltroPrioridade('todos'); }}
+                                className="text-xs font-bold text-slate-400 hover:text-rose-600 flex items-center gap-1"
+                            >
+                                <X size={13}/> Limpar filtros
+                            </button>
                         )}
                     </div>
-                    <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 text-sm text-blue-700">
-                        <p className="font-bold text-blue-800 mb-1">Dica rápida</p>
-                        <p>Use filtros para priorizar tarefas críticas antes dos atendimentos do dia.</p>
-                    </div>
-                </aside>
+                )}
+            </div>
 
-                <section className="space-y-4">
+            <div className="space-y-4">
                     {(contagemTarefas.atrasadas > 0 || contagemTarefas.proximas > 0) && (
                         <div className="flex flex-wrap gap-3">
                             {contagemTarefas.atrasadas > 0 && (
@@ -533,7 +540,6 @@ export default function Tarefas() {
                             ))}
                         </div>
                     )}
-                </section>
             </div>
 
             {/* Modal Criar/Editar */}

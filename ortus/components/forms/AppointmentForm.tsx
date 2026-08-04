@@ -39,7 +39,6 @@ export default function AppointmentForm({ paciente, defaultDate, defaultTime, on
   const [usuarioNivel, setUsuarioNivel] = useState<'admin' | 'user'>('admin');
   const [meuProfissionalId, setMeuProfissionalId] = useState<string | number | null>(null);
   const [loadingDeps, setLoadingDeps] = useState(true);
-  const [pagamentoPendente, setPagamentoPendente] = useState(false);
 
   const today = new Date();
   const [form, setForm] = useState({
@@ -142,7 +141,7 @@ export default function AppointmentForm({ paciente, defaultDate, defaultTime, on
       desconto,
       valor_final: valor - desconto,
       observacoes: '',
-      status: pagamentoPendente ? 'fiado' : form.status,
+      status: form.status,
     };
 
     const { data, error: insertError } = await supabase
@@ -195,11 +194,6 @@ export default function AppointmentForm({ paciente, defaultDate, defaultTime, on
             disabled={!form.clinica_id}
           />
         </div>
-
-        <label className="flex items-center gap-2 p-3 rounded-xl bg-rose-50 border border-rose-100 cursor-pointer">
-          <input type="checkbox" checked={pagamentoPendente} onChange={(e) => setPagamentoPendente(e.target.checked)} className="rounded border-rose-300 text-rose-600"/>
-          <span className="text-sm font-bold text-rose-700">Pagamento pendente (débito)</span>
-        </label>
 
         <div className="grid grid-cols-2 gap-3">
           <div>

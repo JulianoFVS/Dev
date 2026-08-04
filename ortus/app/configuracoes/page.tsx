@@ -19,9 +19,10 @@ import {
   type TaxaMaquininha,
 } from '@/lib/configDefaults';
 import CustomSelect from '@/components/ui/CustomSelect';
+import DocumentoVariavelEditor, { type DocumentoVariavelEditorHandle } from '@/components/forms/DocumentoVariavelEditor';
 import Modal from '@/components/ui/Modal';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
-import { DOCUMENTO_VARIAVEIS, aplicarVariaveisDocumento, buildDocumentoContexto } from '@/lib/documentVariables';
+import { DOCUMENTO_VARIAVEIS, inserirTokenVariavel, tokenVariavelLabel, aplicarVariaveisDocumento, buildDocumentoContexto } from '@/lib/documentVariables';
 import { applyTheme, THEME_OPTIONS, type ThemeId } from '@/lib/themePresets';
 import { FUSO_HORARIO_OPTIONS, UF_OPTIONS } from '@/lib/formOptions';
 
@@ -118,6 +119,7 @@ export default function Configuracoes() {
   const [docs, setDocs] = useState<ModeloDocumento[]>([]);
   const [modalDoc, setModalDoc] = useState(false);
   const [docEdit, setDocEdit] = useState<ModeloDocumento | null>(null);
+  const docEditorRef = useRef<DocumentoVariavelEditorHandle>(null);
 
   // BACKUP
   const [backups, setBackups] = useState<any[]>([]);
@@ -347,12 +349,23 @@ export default function Configuracoes() {
 
   function inserirVariavelDoc(chave: string) {
       if (!docEdit) return;
-      setDocEdit({ ...docEdit, conteudo: `${docEdit.conteudo}{{${chave}}}` });
+      const variavel = DOCUMENTO_VARIAVEIS.find(v => String(v.chave) === chave);
+      const label = variavel?.label || chave;
+      if (docEditorRef.current) {
+          docEditorRef.current.insertVariable(label);
+      } else {
+          setDocEdit({ ...docEdit, conteudo: inserirTokenVariavel(docEdit.conteudo, label) });
+      }
   }
 
   const docPreview = docEdit ? aplicarVariaveisDocumento(
       docEdit.conteudo,
       buildDocumentoContexto({
+          paciente_nome: 'Maria Silva',
+          paciente_cpf: '123.456.789-00',
+          paciente_telefone: '(11) 99999-0000',
+          paciente_email: 'maria@email.com',
+          paciente_endereco: 'Rua Exemplo, 100 — Centro',
           clinica_nome: clinicas[0]?.nome,
           clinica_cnpj: clinicas[0]?.cnpj,
           clinica_telefone: clinicas[0]?.telefone,
@@ -831,6 +844,7 @@ export default function Configuracoes() {
               <button onClick={() => setAbaAtiva('clinicas')} className={`pb-4 px-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${abaAtiva === 'clinicas' ? 'border-ortus-accent-strong text-ortus-accent' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><Building2 size={16}/> Clínicas</button>
               <button onClick={() => setAbaAtiva('anamnese')} className={`pb-4 px-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${abaAtiva === 'anamnese' ? 'border-ortus-accent-strong text-ortus-accent' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><ClipboardList size={16}/> Anamnese</button>
               <button onClick={() => setAbaAtiva('documentos')} className={`pb-4 px-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${abaAtiva === 'documentos' ? 'border-ortus-accent-strong text-ortus-accent' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><FileSignature size={16}/> Contratos & Docs</button>
+              <button onClick={() => setAbaAtiva('planos')} className={`pb-4 px-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${abaAtiva === 'planos' ? 'border-ortus-accent-strong text-ortus-accent' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><Layers3 size={16}/> Planos</button>
               <button onClick={() => setAbaAtiva('categorias')} className={`pb-4 px-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${abaAtiva === 'categorias' ? 'border-ortus-accent-strong text-ortus-accent' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><Tag size={16}/> Categorias Fin.</button>
               <button onClick={() => setAbaAtiva('taxas')} className={`pb-4 px-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${abaAtiva === 'taxas' ? 'border-ortus-accent-strong text-ortus-accent' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><CreditCard size={16}/> Taxas</button>
               <button onClick={() => setAbaAtiva('comunicacao')} className={`pb-4 px-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${abaAtiva === 'comunicacao' ? 'border-ortus-accent-strong text-ortus-accent' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><MessageCircle size={16}/> Comunicação</button>
@@ -871,7 +885,15 @@ export default function Configuracoes() {
                 </div>
             )}
 
-            {/* ABA PLANOS — removida; planos ficam em Contratos & Docs */}
+            {/* ABA PLANOS */}
+            {abaAtiva === 'planos' && (perfilCaller?.nivel_acesso === 'admin' || perfilCaller?.is_super_admin) && (
+                <div className="animate-in fade-in">
+                    <PlanosEmbedded />
+                </div>
+            )}
+            {abaAtiva === 'planos' && !(perfilCaller?.nivel_acesso === 'admin' || perfilCaller?.is_super_admin) && (
+                <div className="p-6 bg-amber-50 border border-amber-200 rounded-2xl text-sm text-amber-800">Apenas administradores podem gerenciar planos.</div>
+            )}
 
             {/* ABA ANAMNESE */}
             {abaAtiva === 'anamnese' && (
@@ -1024,16 +1046,6 @@ export default function Configuracoes() {
                             )}
                         </div>
                     </div>
-
-                    {(perfilCaller?.nivel_acesso === 'admin' || perfilCaller?.is_super_admin) && (
-                        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
-                            <div className="mb-6">
-                                <h3 className="font-bold text-slate-700 text-lg flex items-center gap-2"><Layers3 size={20} className="text-ortus-accent-muted"/> Planos</h3>
-                                <p className="text-xs text-slate-400 font-medium mt-1">Gerencie tabelas de preços vinculadas a contratos e documentos do paciente.</p>
-                            </div>
-                            <PlanosEmbedded />
-                        </div>
-                    )}
                 </div>
             )}
 
@@ -1340,10 +1352,15 @@ export default function Configuracoes() {
                           <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Conteúdo</label>
                           <div className="flex flex-wrap gap-1.5 mb-2">
                               {DOCUMENTO_VARIAVEIS.map(v => (
-                                  <button key={v.chave} type="button" onClick={() => inserirVariavelDoc(String(v.chave))} title={`{{${v.chave}}}`} className="text-[10px] font-bold px-2 py-1 bg-purple-50 text-purple-700 border border-purple-100 rounded-lg hover:bg-purple-100">{v.label}</button>
+                                  <button key={v.chave} type="button" onClick={() => inserirVariavelDoc(String(v.chave))} title={tokenVariavelLabel(v.label)} className="text-[10px] font-bold px-2 py-1 bg-purple-50 text-purple-700 border border-purple-100 rounded-lg hover:bg-purple-100">{v.label}</button>
                               ))}
                           </div>
-                          <textarea value={docEdit.conteudo} onChange={e => setDocEdit({...docEdit, conteudo: e.target.value})} className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-purple-500 font-mono text-sm h-48 resize-none" placeholder="Texto do modelo com variáveis {{paciente_nome}}, {{clinica_cnpj}}, etc."/>
+                          <DocumentoVariavelEditor
+                              ref={docEditorRef}
+                              value={docEdit.conteudo}
+                              onChange={(conteudo) => setDocEdit({ ...docEdit, conteudo })}
+                              placeholder="Digite o texto do modelo e insira variáveis pelos botões acima..."
+                          />
                           <div className="mt-3 p-4 bg-slate-100 border border-slate-200 rounded-xl">
                               <div className="flex items-center gap-2 text-[10px] font-black uppercase text-slate-400 mb-2"><Eye size={12}/> Pré-visualização</div>
                               <p className="text-sm text-slate-700 whitespace-pre-line">{docPreview || '—'}</p>

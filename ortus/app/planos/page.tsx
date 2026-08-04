@@ -9,13 +9,12 @@ import {
     Loader2,
     Plus,
     Layers3,
-    ToggleLeft,
-    ToggleRight,
-    DollarSign,
     AlertTriangle,
     Check,
     Download,
     FileText,
+    Pencil,
+    Trash2,
 } from 'lucide-react';
 
 interface Plano {
@@ -79,11 +78,23 @@ export default function PlanosPage() {
     const [modalPlanoAberto, setModalPlanoAberto] = useState(false);
     const [novoPlanoNome, setNovoPlanoNome] = useState('');
     const [novoPlanoObservacoes, setNovoPlanoObservacoes] = useState('');
+    const [criarPlanoVazio, setCriarPlanoVazio] = useState(false);
     const [criandoPlano, setCriandoPlano] = useState(false);
+    const [editandoPlano, setEditandoPlano] = useState<Plano | null>(null);
 
     function abrirModalNovoPlano() {
         setNovoPlanoNome('');
         setNovoPlanoObservacoes('');
+        setCriarPlanoVazio(false);
+        setEditandoPlano(null);
+        setModalPlanoAberto(true);
+    }
+
+    function abrirModalEditarPlano(plano: Plano) {
+        if (plano.tipo === 'particular') return;
+        setEditandoPlano(plano);
+        setNovoPlanoNome(plano.nome);
+        setNovoPlanoObservacoes(plano.observacoes || '');
         setModalPlanoAberto(true);
     }
 
@@ -182,13 +193,18 @@ export default function PlanosPage() {
                 .eq('clinica_id', clinicaId)
                 .order('nome');
             if (error) throw error;
-            setPlanos(data || []);
-            if (data && data.length > 0) {
+            const ordenados = (data || []).slice().sort((a, b) => {
+                if (a.tipo === 'particular' && b.tipo !== 'particular') return -1;
+                if (b.tipo === 'particular' && a.tipo !== 'particular') return 1;
+                return a.nome.localeCompare(b.nome);
+            });
+            setPlanos(ordenados);
+            if (ordenados.length > 0) {
                 const novoSelecionado = planoIdToSelect
                     ? planoIdToSelect
-                    : (selectedPlanoId && data.some((p) => p.id === selectedPlanoId))
+                    : (selectedPlanoId && ordenados.some((p) => p.id === selectedPlanoId))
                         ? selectedPlanoId
-                        : data.find((p) => p.tipo === 'particular')?.id || data[0].id;
+                        : ordenados.find((p) => p.tipo === 'particular')?.id || ordenados[0].id;
                 setSelectedPlanoId(novoSelecionado);
             } else {
                 setSelectedPlanoId(null);
@@ -254,7 +270,7 @@ export default function PlanosPage() {
             setEspecialidades(espResp.data || []);
             setTratamentosBase(tratResp.data || []);
             if ((espResp.data || []).length > 0) {
-                setEspecialidadeAtiva((prev) => (prev === null ? 'all' : prev));
+                setEspecialidadeAtiva((prev) => (prev === 'all' || prev === null ? espResp.data![0].id : prev));
             }
         } catch (err: any) {
             console.error(err);
@@ -378,6 +394,19 @@ export default function PlanosPage() {
         }
         setCriandoPlano(true);
         try {
+            if (editandoPlano) {
+                const { error } = await supabase.from('planos').update({
+                    nome,
+                    observacoes: novoPlanoObservacoes.trim() || null,
+                }).eq('id', editandoPlano.id);
+                if (error) throw error;
+                setModalPlanoAberto(false);
+                setEditandoPlano(null);
+                await carregarPlanos(editandoPlano.id);
+                showAlert('Plano atualizado!', { type: 'success' });
+                return;
+            }
+
             const { data, error } = await supabase
                 .from('planos')
                 .insert({
@@ -390,16 +419,52 @@ export default function PlanosPage() {
                 .select()
                 .single();
             if (error) throw error;
+
+            if (!criarPlanoVazio && tratamentosBase.length > 0) {
+                const payloads = tratamentosBase.map((t) => ({
+                    plano_id: data.id,
+                    clinica_id: clinicaId,
+                    tratamento_id: t.id,
+                    valor: t.valor_sugerido,
+                    custo: null,
+                    codigo_tuss: t.codigo_tuss_padrao,
+                    aceita_faces: t.aceita_faces,
+                    ativo: true,
+                }));
+                const { error: upsertErr } = await supabase
+                    .from('planos_tratamentos')
+                    .upsert(payloads, { onConflict: 'plano_id,tratamento_id' });
+                if (upsertErr) throw upsertErr;
+            }
+
             setModalPlanoAberto(false);
             setNovoPlanoNome('');
             setNovoPlanoObservacoes('');
+            setCriarPlanoVazio(false);
             await carregarPlanos(data.id);
             showAlert('Plano criado com sucesso!', { type: 'success' });
         } catch (err: any) {
             console.error(err);
-            showAlert('Erro ao criar o plano.', { type: 'error' });
+            showAlert('Erro ao salvar plano: ' + (err.message || err), { type: 'error' });
         } finally {
             setCriandoPlano(false);
+        }
+    }
+
+    async function excluirPlano(plano: Plano) {
+        if (plano.tipo === 'particular') {
+            showAlert('O plano Particular não pode ser excluído.', { type: 'warning' });
+            return;
+        }
+        if (!window.confirm(`Excluir o plano "${plano.nome}"?`)) return;
+        try {
+            await supabase.from('planos_tratamentos').delete().eq('plano_id', plano.id);
+            const { error } = await supabase.from('planos').delete().eq('id', plano.id);
+            if (error) throw error;
+            await carregarPlanos();
+            showAlert('Plano excluído.', { type: 'success' });
+        } catch (err: any) {
+            showAlert('Erro ao excluir: ' + (err.message || err), { type: 'error' });
         }
     }
 
@@ -464,16 +529,23 @@ export default function PlanosPage() {
                     {planos.map((plano) => {
                         const ativo = plano.id === selectedPlanoId;
                         return (
-                            <button
-                                key={plano.id}
-                                onClick={() => setSelectedPlanoId(plano.id)}
-                                className={`touch-target inline-flex items-center gap-2 px-3 py-2 rounded-xl border text-sm transition-all ${ativo ? 'chip-ortus-active shadow-sm' : 'border-slate-200 bg-white text-slate-600 hover:border-ortus-accent'}`}
-                            >
-                                <span className="font-bold">{plano.nome}</span>
-                                <span className={`text-[9px] uppercase font-black tracking-wider px-1.5 py-0.5 rounded ${ativo ? 'bg-ortus-accent-muted text-ortus-accent-muted' : 'bg-slate-100 text-slate-400'}`}>
-                                    {plano.tipo === 'particular' ? 'Padrão' : 'Plano'}
-                                </span>
-                            </button>
+                            <div key={plano.id} className={`inline-flex items-center gap-1 rounded-xl border transition-all ${ativo ? 'chip-ortus-active shadow-sm' : 'border-slate-200 bg-white hover:border-ortus-accent'}`}>
+                                <button
+                                    onClick={() => setSelectedPlanoId(plano.id)}
+                                    className={`touch-target inline-flex items-center gap-2 px-3 py-2 text-sm ${ativo ? '' : 'text-slate-600'}`}
+                                >
+                                    <span className="font-bold">{plano.nome}</span>
+                                    <span className={`text-[9px] uppercase font-black tracking-wider px-1.5 py-0.5 rounded ${ativo ? 'bg-ortus-accent-muted text-ortus-accent-muted' : 'bg-slate-100 text-slate-400'}`}>
+                                        {plano.tipo === 'particular' ? 'Padrão' : 'Plano'}
+                                    </span>
+                                </button>
+                                {plano.tipo !== 'particular' && (
+                                    <>
+                                        <button type="button" onClick={() => abrirModalEditarPlano(plano)} className="p-1.5 text-slate-400 hover:text-blue-600" title="Editar"><Pencil size={14}/></button>
+                                        <button type="button" onClick={() => excluirPlano(plano)} className="p-1.5 pr-2 text-slate-400 hover:text-rose-600" title="Excluir"><Trash2 size={14}/></button>
+                                    </>
+                                )}
+                            </div>
                         );
                     })}
                 </div>
@@ -508,94 +580,86 @@ export default function PlanosPage() {
                             </button>
                         ))}
                     </aside>
-                    <section className="space-y-3">
+                    <section className="bg-white border border-slate-100 rounded-xl overflow-hidden shadow-sm">
                         {tratamentosFiltrados.length === 0 ? (
-                            <div className="bg-white border border-dashed border-slate-200 rounded-2xl p-10 text-center text-sm text-slate-500">
+                            <div className="p-8 text-center text-sm text-slate-500">
                                 Nenhum tratamento cadastrado para esta especialidade.
                             </div>
                         ) : (
-                            tratamentosFiltrados.map((tratamento) => {
+                            <>
+                                <div className="hidden sm:grid sm:grid-cols-[minmax(0,1.4fr)_88px_72px_72px_52px_52px_36px] gap-1 px-2 py-1.5 bg-slate-50 border-b border-slate-100 text-[9px] font-black uppercase tracking-wider text-slate-400">
+                                    <span>Tratamento</span>
+                                    <span>Valor</span>
+                                    <span>Custo</span>
+                                    <span>TUSS</span>
+                                    <span className="text-center">Faces</span>
+                                    <span className="text-center">Ativo</span>
+                                    <span />
+                                </div>
+                                <div className="divide-y divide-slate-100 max-h-[calc(100vh-320px)] overflow-y-auto">
+                                {tratamentosFiltrados.map((tratamento) => {
                                 const form = tratamentoForms[tratamento.id] || buildDefaultForm(tratamento);
                                 const dirty = dirtyTratamentos[tratamento.id];
                                 const salvando = salvandoTratamentoId === tratamento.id;
                                 return (
-                                    <div key={tratamento.id} className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm space-y-3">
-                                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                                            <div>
-                                                <p className="text-sm font-bold text-slate-800">{tratamento.nome}</p>
-                                                {tratamento.descricao && (
-                                                    <p className="text-xs text-slate-500 truncate">{tratamento.descricao}</p>
-                                                )}
-                                            </div>
-                                            <button
-                                                type="button"
-                                                onClick={() => updateTratamentoForm(tratamento.id, 'ativo', !form.ativo)}
-                                                className={`touch-target flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wide border ${form.ativo ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-white border-slate-200 text-slate-400'}`}
-                                            >
-                                                {form.ativo ? <ToggleRight size={18} /> : <ToggleLeft size={18} />}
-                                                {form.ativo ? 'Usando' : 'Não usar'}
-                                            </button>
+                                    <div key={tratamento.id} className={`grid grid-cols-1 sm:grid-cols-[minmax(0,1.4fr)_88px_72px_72px_52px_52px_36px] gap-1 sm:gap-1 items-center px-2 py-1.5 ${dirty ? 'bg-amber-50/40' : 'hover:bg-slate-50/80'}`}>
+                                        <div className="min-w-0 pr-1">
+                                            <p className="text-xs font-bold text-slate-800 truncate">{tratamento.nome}</p>
                                         </div>
-                                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
-                                            <div>
-                                                <label className="text-[9px] font-black uppercase tracking-wider text-slate-400">Valor</label>
-                                                <div className="relative mt-0.5">
-                                                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400">
-                                                        <DollarSign size={12} />
-                                                    </span>
-                                                    <input
-                                                        type="number"
-                                                        min="0"
-                                                        step="0.01"
-                                                        value={form.valor}
-                                                        onChange={(e) => updateTratamentoForm(tratamento.id, 'valor', e.target.value)}
-                                                        className="w-full pl-6 pr-2 py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold text-slate-700 focus:bg-white focus:border-blue-300"
-                                                        placeholder={tratamento.valor_sugerido ? String(tratamento.valor_sugerido) : '0,00'}
-                                                    />
-                                                </div>
-                                            </div>
-                                            <div>
-                                                <label className="text-[9px] font-black uppercase tracking-wider text-slate-400">Custo</label>
-                                                <input
-                                                    type="number"
-                                                    min="0"
-                                                    step="0.01"
-                                                    value={form.custo}
-                                                    onChange={(e) => updateTratamentoForm(tratamento.id, 'custo', e.target.value)}
-                                                    className="w-full mt-0.5 px-2 py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold text-slate-700 focus:bg-white focus:border-blue-300"
-                                                    placeholder="0,00"
-                                                />
-                                            </div>
-                                            <div>
-                                                <label className="text-[9px] font-black uppercase tracking-wider text-slate-400">TUSS</label>
-                                                <input
-                                                    value={form.codigo_tuss}
-                                                    onChange={(e) => updateTratamentoForm(tratamento.id, 'codigo_tuss', e.target.value)}
-                                                    className="w-full mt-0.5 px-2 py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold text-slate-700 focus:bg-white focus:border-blue-300"
-                                                    placeholder={tratamento.codigo_tuss_padrao || 'TUSS'}
-                                                />
-                                            </div>
-                                            <div className="flex items-end gap-2">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => updateTratamentoForm(tratamento.id, 'aceita_faces', !form.aceita_faces)}
-                                                    className={`touch-target flex-1 py-2 rounded-xl text-[10px] font-black uppercase border ${form.aceita_faces ? 'bg-slate-900 text-white border-slate-900' : 'bg-white border-slate-200 text-slate-500'}`}
-                                                >
-                                                    Faces
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    disabled={!dirty || salvando}
-                                                    onClick={() => salvarPlanoTratamento(tratamento.id)}
-                                                    className="touch-target flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-bold text-white bg-blue-600 disabled:bg-slate-200 disabled:text-slate-400"
-                                                >
-                                                    {salvando ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
-                                                </button>
-                                            </div>
+                                        <div className="relative">
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                step="0.01"
+                                                value={form.valor}
+                                                onChange={(e) => updateTratamentoForm(tratamento.id, 'valor', e.target.value)}
+                                                className="w-full px-1.5 py-1 rounded-lg border border-slate-200 bg-slate-50 text-[11px] font-bold text-slate-700 focus:bg-white focus:border-blue-300"
+                                                placeholder="0"
+                                            />
                                         </div>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            step="0.01"
+                                            value={form.custo}
+                                            onChange={(e) => updateTratamentoForm(tratamento.id, 'custo', e.target.value)}
+                                            className="w-full px-1.5 py-1 rounded-lg border border-slate-200 bg-slate-50 text-[11px] font-bold text-slate-700 focus:bg-white focus:border-blue-300"
+                                            placeholder="0"
+                                        />
+                                        <input
+                                            value={form.codigo_tuss}
+                                            onChange={(e) => updateTratamentoForm(tratamento.id, 'codigo_tuss', e.target.value)}
+                                            className="w-full px-1.5 py-1 rounded-lg border border-slate-200 bg-slate-50 text-[11px] font-bold text-slate-700 focus:bg-white focus:border-blue-300"
+                                            placeholder="—"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => updateTratamentoForm(tratamento.id, 'aceita_faces', !form.aceita_faces)}
+                                            className={`py-1 rounded-lg text-[9px] font-black uppercase border ${form.aceita_faces ? 'bg-slate-800 text-white border-slate-800' : 'bg-white border-slate-200 text-slate-400'}`}
+                                        >
+                                            {form.aceita_faces ? 'Sim' : 'Não'}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => updateTratamentoForm(tratamento.id, 'ativo', !form.ativo)}
+                                            className={`py-1 rounded-lg text-[9px] font-black uppercase border ${form.ativo ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-white border-slate-200 text-slate-400'}`}
+                                        >
+                                            {form.ativo ? 'Sim' : 'Não'}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            disabled={!dirty || salvando}
+                                            onClick={() => salvarPlanoTratamento(tratamento.id)}
+                                            className="flex items-center justify-center p-1 rounded-lg text-white bg-blue-600 disabled:bg-slate-200 disabled:text-slate-400"
+                                            title="Salvar"
+                                        >
+                                            {salvando ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
+                                        </button>
                                     </div>
                                 );
-                            })
+                            })}
+                                </div>
+                            </>
                         )}
                     </section>
                 </div>
@@ -604,8 +668,8 @@ export default function PlanosPage() {
             <Modal open={modalPlanoAberto} onClose={() => setModalPlanoAberto(false)} maxWidth="lg" hideCloseButton>
                 <div className="bg-white w-full rounded-3xl border border-slate-100 shadow-2xl overflow-hidden">
                     <div className="px-6 py-4 border-b border-slate-100">
-                        <h2 className="text-lg font-bold text-slate-800">Novo plano</h2>
-                        <p className="text-xs text-slate-500">Cadastre um plano personalizado.</p>
+                        <h2 className="text-lg font-bold text-slate-800">{editandoPlano ? 'Editar plano' : 'Novo plano'}</h2>
+                        <p className="text-xs text-slate-500">{editandoPlano ? 'Altere nome e observações do plano.' : 'Por padrão, todos os tratamentos entram ativos no plano.'}</p>
                     </div>
                     <form onSubmit={handleCriarPlano} className="p-6 space-y-4">
                         <div>
@@ -627,18 +691,21 @@ export default function PlanosPage() {
                                 placeholder="Notas sobre cobertura, TUSS, glosas..."
                             />
                         </div>
-                        <p className="text-xs text-slate-500 bg-slate-50 border border-slate-100 rounded-xl px-3 py-2">
-                            O plano será criado vazio. Você preencherá os valores de cada tratamento manualmente na tabela TUSS.
-                        </p>
+                        {!editandoPlano && (
+                            <label className="flex items-center gap-2 p-3 rounded-xl border border-slate-200 bg-slate-50 cursor-pointer">
+                                <input type="checkbox" checked={criarPlanoVazio} onChange={(e) => setCriarPlanoVazio(e.target.checked)} className="rounded text-blue-600"/>
+                                <span className="text-xs font-bold text-slate-600">Criar plano vazio (sem tratamentos ativos)</span>
+                            </label>
+                        )}
                         <div className="flex items-center justify-end gap-2 pt-2">
-                            <button type="button" onClick={() => setModalPlanoAberto(false)} className="px-4 py-2 rounded-xl text-sm font-bold text-slate-500 hover:bg-slate-50">Cancelar</button>
+                            <button type="button" onClick={() => { setModalPlanoAberto(false); setEditandoPlano(null); }} className="px-4 py-2 rounded-xl text-sm font-bold text-slate-500 hover:bg-slate-50">Cancelar</button>
                             <button
                                 type="submit"
                                 disabled={criandoPlano || !novoPlanoNome.trim()}
                                 className="btn-ortus-primary px-5 py-2 text-sm disabled:opacity-50 flex items-center gap-2"
                             >
                                 {criandoPlano ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
-                                Criar plano vazio
+                                {editandoPlano ? 'Salvar alterações' : criarPlanoVazio ? 'Criar plano vazio' : 'Criar plano'}
                             </button>
                         </div>
                     </form>

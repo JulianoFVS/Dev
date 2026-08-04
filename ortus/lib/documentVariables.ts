@@ -54,11 +54,81 @@ export function buildDocumentoContexto(parcial: Partial<DocumentoContexto> = {})
   };
 }
 
+/** Token legível no editor: 【Nome do paciente】 */
+export function tokenVariavelLabel(label: string): string {
+  return `【${label}】`;
+}
+
+export function inserirTokenVariavel(conteudo: string, label: string): string {
+  return `${conteudo}${tokenVariavelLabel(label)}`;
+}
+
+const LABEL_TO_CHAVE = Object.fromEntries(
+  DOCUMENTO_VARIAVEIS.map(v => [v.label.toLowerCase(), String(v.chave)]),
+) as Record<string, string>;
+
 export function aplicarVariaveisDocumento(texto: string, ctx: DocumentoContexto): string {
   let out = texto;
+  // Tokens legíveis 【Label】
+  DOCUMENTO_VARIAVEIS.forEach(v => {
+    const val = ctx[v.chave as keyof DocumentoContexto];
+    if (val === undefined || val === null) return;
+    out = out.replace(new RegExp(`【\\s*${escapeRegex(v.label)}\\s*】`, 'gi'), String(val));
+  });
+  // Legado {{chave}}
   Object.entries(ctx).forEach(([chave, valor]) => {
     if (valor === undefined || valor === null) return;
-    out = out.replace(new RegExp(`\\{\\{\\s*${chave}\\s*\\}\\}`, 'gi'), String(valor));
+    out = out.replace(new RegExp(`\\{\\{\\s*${escapeRegex(chave)}\\s*\\}\\}`, 'gi'), String(valor));
   });
   return out;
+}
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function escapeAttr(s: string): string {
+  return s.replace(/"/g, '&quot;');
+}
+
+/** Converte conteúdo salvo (【Label】) para HTML com chips coloridos no editor. */
+export function conteudoToEditorHtml(conteudo: string): string {
+  if (!conteudo) return '';
+  return conteudo.split(/(【[^】]+】)/g).map((part) => {
+    const match = part.match(/^【([^】]+)】$/);
+    if (match) {
+      const label = match[1];
+      return `<span class="doc-var-chip inline-flex items-center px-1.5 py-0.5 mx-0.5 rounded-md bg-purple-100 text-purple-800 text-xs font-bold border border-purple-200 select-none align-middle" contenteditable="false" data-label="${escapeAttr(label)}">${escapeHtml(label)}</span>`;
+    }
+    return escapeHtml(part).replace(/\n/g, '<br>');
+  }).join('');
+}
+
+/** Serializa o editor contentEditable de volta para 【Label】. */
+export function editorHtmlToConteudo(root: HTMLElement): string {
+  let out = '';
+  function walk(node: Node) {
+    if (node.nodeType === Node.TEXT_NODE) {
+      out += node.textContent || '';
+    } else if (node.nodeName === 'BR') {
+      out += '\n';
+    } else if (node instanceof HTMLElement) {
+      if (node.classList.contains('doc-var-chip')) {
+        out += tokenVariavelLabel(node.dataset.label || node.textContent || '');
+      } else {
+        node.childNodes.forEach(walk);
+        if (node.nodeName === 'DIV' && node !== root && node.nextSibling) out += '\n';
+      }
+    }
+  }
+  root.childNodes.forEach(walk);
+  return out;
+}
+
+function escapeRegex(s: string) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }

@@ -17,6 +17,7 @@ const PUBLIC_EXACT = new Set([
 const PUBLIC_PREFIXES = [
   '/_next',
   '/api/public',
+  '/anamnese',
   '/assets',
   '/favicon',
   '/icon',

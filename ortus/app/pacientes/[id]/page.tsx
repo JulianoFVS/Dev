@@ -3,7 +3,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import type { MouseEvent, PointerEvent } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { User, Phone, Edit, ArrowLeft, Save, Loader2, FileText, Clock, Trash2, Calendar, CalendarPlus, Pill, AlertTriangle, Stethoscope, X, Check, Building2, Printer, Smile, Plus, Eraser, CheckCircle, ClipboardList, FolderOpen, AlertCircle, Upload, Download, Image as ImageIcon, DollarSign, Settings, Sparkles, Camera, Bell, ArrowLeftRight, ShieldCheck, Zap } from 'lucide-react';
+import { User, Phone, Edit, ArrowLeft, Save, Loader2, FileText, Clock, Trash2, Calendar, CalendarPlus, Pill, AlertTriangle, Stethoscope, X, Check, Building2, Printer, Smile, Plus, Eraser, CheckCircle, ClipboardList, FolderOpen, AlertCircle, Upload, Download, Image as ImageIcon, DollarSign, Settings, Sparkles, Camera, Bell, ArrowLeftRight, ShieldCheck, Zap, Link2, Copy } from 'lucide-react';
 import Link from 'next/link';
 import { carregarModelos, formatarRespostaAnamnese, respostaInicial, type ModeloAnamnese, type RespostaAnamnese, type RespostaSimNaoTexto } from '@/lib/anamnese';
 // teeth-data lib no longer needed — using PNG images from /assets/dentes/
@@ -18,12 +18,14 @@ import { useCustomAlert } from '@/components/ui/CustomAlert';
 import { validarPaciente, isMenorDeIdade } from '@/lib/pacienteValidation';
 import { carregarConfig } from '@/lib/configClinica';
 import { buildDocumentoContexto, aplicarVariaveisDocumento } from '@/lib/documentVariables';
+import { printDocument, printQaBlock, printSignatureBlock, printTable, escapePrintHtml } from '@/lib/printDocument';
 import PatientContactButtons from '@/components/PatientContactButtons';
 import { carregarTaxasAtivas, receberAgendamento } from '@/lib/recebimentoAgendamento';
+import { criarDebitoManual, listarDebitosPaciente, listarOpcoesMarcarNaoPago, marcarAgendamentoNaoPago, receberDebito } from '@/lib/debitosPaciente';
 import { calcularValorLiquido, type TaxaMaquininha } from '@/lib/configDefaults';
 import { registrarComissaoTratamentoFinalizado } from '@/lib/comissao';
 import { carregarProntuario } from '@/lib/fichaPaciente';
-import { criarAnamnese, excluirAnamnese as excluirAnamneseDb } from '@/lib/db/anamneses';
+import { criarAnamnese, atualizarAnamnese, excluirAnamnese as excluirAnamneseDb, gerarLinkAnamnesePaciente } from '@/lib/db/anamneses';
 import { criarDocumento, excluirDocumento as excluirDocumentoDb } from '@/lib/db/documentos';
 import { salvarFichaClinica } from '@/lib/db/fichaClinica';
 import { atualizarTratamento, criarTratamento, excluirTratamento as excluirTratamentoDb } from '@/lib/db/tratamentos';
@@ -314,7 +316,8 @@ export default function PacienteDetalhe() {
 
   const [modalReceber, setModalReceber] = useState<any>(null);
   const [modalDebitoManual, setModalDebitoManual] = useState(false);
-  const [formDebito, setFormDebito] = useState({ procedimento: '', valor: '', date: new Date().toISOString().split('T')[0], time: '12:00' });
+  const [formDebito, setFormDebito] = useState({ descricao: '', valor: '', agendamentosMarcados: [] as number[], tratamentosMarcados: [] as string[] });
+  const [debitoOpcoes, setDebitoOpcoes] = useState<{ agendamentos: any[]; tratamentos: any[] }>({ agendamentos: [], tratamentos: [] });
   const [salvandoDebito, setSalvandoDebito] = useState(false);
   const [taxaRecebimento, setTaxaRecebimento] = useState('');
   const [taxasRecebimento, setTaxasRecebimento] = useState<TaxaMaquininha[]>([]);
@@ -346,10 +349,12 @@ export default function PacienteDetalhe() {
   // ANAMNESE
   const [modelosAnamnese, setModelosAnamnese] = useState<ModeloAnamnese[]>([]);
   const [anamneseAtual, setAnamneseAtual] = useState<any>({
-      modelo_id: '', data: new Date().toISOString().split('T')[0],
+      id: null, modelo_id: '', data: new Date().toISOString().split('T')[0],
       preenchido_por: 'profissional', respostas: {} as Record<string, RespostaAnamnese>,
   });
   const [anamnesesAnteriores, setAnamnesesAnteriores] = useState<any[]>([]);
+  const [linkAnamnesePaciente, setLinkAnamnesePaciente] = useState<{ url: string; expires_at: string } | null>(null);
+  const [gerandoLinkAnamnese, setGerandoLinkAnamnese] = useState(false);
 
   // DOCUMENTOS
   const [documentos, setDocumentos] = useState<any[]>([]);
@@ -467,8 +472,10 @@ export default function PacienteDetalhe() {
           registrarAudit({ acao: 'visualizou', entidade: 'paciente', entidade_id: String(id) });
       }
       const { data: hist } = await supabase.from('agendamentos').select('*, profissionais(nome)').eq('paciente_id', id).order('data_hora', { ascending: false });
-      setHistorico(hist || []);
-      setDebitos((hist || []).filter((h: any) => h.status === 'fiado'));
+      const historicoFiltrado = (hist || []).filter((h: any) => h.tipo_registro !== 'debito_manual' && h.observacoes !== 'Débito manual');
+      setHistorico(historicoFiltrado);
+      const debitosLista = await listarDebitosPaciente(id);
+      setDebitos(debitosLista);
 
       setModelosAnamnese(carregarModelos());
       setLoading(false);
@@ -569,15 +576,17 @@ export default function PacienteDetalhe() {
       try {
           const payload = { ...fichaData };
           LEGACY_CONDICOES.forEach((k) => delete payload[k]);
+          const fichaAtual = normalizarFichaMedica(form.ficha_medica || {});
+          const merged = { ...fichaAtual, ...payload };
           const { error } = await supabase.from('pacientes').update({
-              ficha_medica: payload,
+              ficha_medica: merged,
               anamnese: anamneseTexto,
           }).eq('id', id);
           if (error) throw error;
       } catch (error: any) {
           showAlert('Erro ao salvar ficha médica: ' + error.message, { type: 'error' });
       }
-  }, [id, showAlert]);
+  }, [id, showAlert, form.ficha_medica]);
 
   // Autosave odontograma (debounce 800ms)
   useEffect(() => {
@@ -701,30 +710,15 @@ export default function PacienteDetalhe() {
           if (pagamentoPendente && parseFloat(tratSemAgenda.valor) > 0 && form.clinica_id) {
               try {
                   const valor = parseFloat(tratSemAgenda.valor) || 0;
-                  const dataBase = tratSemAgenda.data || new Date().toISOString().split('T')[0];
-                  const dataHoraISO = new Date(`${dataBase}T12:00:00`).toISOString();
-                  const { data: { user } } = await supabase.auth.getUser();
-                  let profId: string | null = null;
-                  if (user) {
-                      const { data: prof } = await supabase.from('profissionais').select('id').eq('user_id', user.id).maybeSingle();
-                      profId = prof?.id || null;
-                  }
-                  const payload: Record<string, unknown> = {
+                  await criarDebitoManual({
                       paciente_id: id,
                       clinica_id: form.clinica_id,
-                      data_hora: dataHoraISO,
-                      procedimento: tratSemAgenda.procedimento,
+                      descricao: tratSemAgenda.procedimento,
                       valor,
-                      valor_final: valor,
-                      desconto: 0,
-                      status: 'fiado',
-                      observacoes: 'Pagamento pendente — tratamento',
-                  };
-                  if (profId) payload.profissional_id = profId;
-                  const { data: agFiado, error: fiadoErr } = await supabase.from('agendamentos').insert([payload]).select('*, profissionais(nome)').single();
-                  if (fiadoErr) throw fiadoErr;
-                  setDebitos((prev) => [...prev, agFiado]);
-                  setHistorico((prev) => [agFiado, ...prev]);
+                      tratamento_id: salvo.id ? String(salvo.id) : null,
+                  });
+                  const debitosLista = await listarDebitosPaciente(id);
+                  setDebitos(debitosLista);
                   debitoCriado = true;
               } catch (e: any) {
                   showAlert('Tratamento salvo, mas erro ao registrar débito: ' + (e.message || e), { type: 'warning' });
@@ -974,9 +968,6 @@ export default function PacienteDetalhe() {
   }
 
   function imprimirMapaHof() {
-      const dataHoje = new Date().toLocaleDateString('pt-BR');
-      const horaGeracao = new Date().toLocaleString('pt-BR');
-
       const svgRosto = `<svg viewBox="0 0 300 400" style="width:100%;height:100%;" xmlns="http://www.w3.org/2000/svg">
           <defs><linearGradient id="fg" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="#e2e8f0" stop-opacity="0.3"/><stop offset="100%" stop-color="#cbd5e1" stop-opacity="0.15"/></linearGradient></defs>
           <ellipse cx="150" cy="195" rx="105" ry="140" fill="url(#fg)" stroke="#94a3b8" stroke-width="1.5"/>
@@ -997,158 +988,92 @@ export default function PacienteDetalhe() {
           }).join('')}
       </svg>`;
 
-      const linhasMarcacoes = marcacoesHof.map((m, i) => {
+      const rows = marcacoesHof.map((m) => {
           const ti = hofTipoInfo(m.tipo);
-          return `<tr class="border-b border-slate-100">
-              <td class="py-2 px-3 text-center"><span class="inline-block w-4 h-4 rounded-full" style="background:${ti.color}"></span></td>
-              <td class="py-2 px-3 font-bold text-xs uppercase" style="color:${ti.color}">${ti.label}</td>
-              <td class="py-2 px-3 text-sm text-slate-700">${m.texto}</td>
-              <td class="py-2 px-3 text-sm text-slate-600 text-center">${m.dosagem ? m.dosagem + ' ' + m.unidade : '-'}</td>
-              <td class="py-2 px-3 text-sm text-slate-600">${m.produto || '-'}</td>
-              <td class="py-2 px-3 text-xs text-slate-400">${new Date(m.data + 'T12:00:00').toLocaleDateString('pt-BR')}</td>
-          </tr>`;
-      }).join('');
+          return [
+              `<span class="ortus-dot" style="background:${ti.color}"></span>`,
+              `<strong style="color:${ti.color}">${escapePrintHtml(ti.label)}</strong>`,
+              escapePrintHtml(m.texto),
+              escapePrintHtml(m.dosagem ? `${m.dosagem} ${m.unidade}` : '—'),
+              escapePrintHtml(m.produto || '—'),
+              escapePrintHtml(new Date(m.data + 'T12:00:00').toLocaleDateString('pt-BR')),
+          ];
+      });
+
+      const legend = HOF_TIPOS.filter(t => marcacoesHof.some(m => m.tipo === t.key)).map(t =>
+          `<span class="ortus-legend-item"><span class="ortus-dot" style="background:${t.color}"></span>${escapePrintHtml(t.label)}</span>`
+      ).join('');
 
       const fotosHtml = hofFotos.length > 0 ? `
-          <div class="mt-8 page-break-before">
-              <h2 class="text-sm font-bold uppercase tracking-wider text-slate-500 border-b-2 border-purple-600 pb-2 mb-4">Registro Fotográfico</h2>
-              <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">
-                  ${hofFotos.map(f => `<div style="border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
-                      <img src="${f.dataUrl}" style="width:100%;height:200px;object-fit:cover;"/>
-                      <div style="padding:4px 8px;font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;background:#f8fafc;">${f.angulo} — ${new Date(f.sessao + 'T12:00:00').toLocaleDateString('pt-BR')}</div>
-                  </div>`).join('')}
-              </div>
+          <div class="page-break"></div>
+          <div class="ortus-section-title">Registro Fotográfico</div>
+          <div class="ortus-photo-grid">
+              ${hofFotos.map(f => `<div class="ortus-photo-card">
+                  <img src="${f.dataUrl}" alt="${escapePrintHtml(f.angulo)}"/>
+                  <div class="ortus-photo-cap">${escapePrintHtml(f.angulo)} — ${escapePrintHtml(new Date(f.sessao + 'T12:00:00').toLocaleDateString('pt-BR'))}</div>
+              </div>`).join('')}
           </div>` : '';
 
-      const html = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"/><title>HOF — ${form.nome || 'Paciente'}</title>
-      <script src="https://cdn.tailwindcss.com"><\/script>
-      <style>
-          @media print { body{background:white!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;} .no-print{display:none!important;} .a4-sheet{box-shadow:none!important;margin:0!important;padding:10mm!important;max-width:100%!important;} }
-          @page{size:A4;margin:10mm;} .page-break-before{page-break-before:auto;}
-      </style></head>
-      <body class="bg-slate-200 min-h-screen">
-      <div class="no-print sticky top-0 z-50 bg-white/90 backdrop-blur border-b border-slate-200 shadow-sm">
-          <div class="max-w-[210mm] mx-auto flex items-center justify-between px-6 py-3">
-              <span class="text-sm font-bold text-slate-600">Mapa de Harmonização Orofacial</span>
-              <div class="flex items-center gap-3">
-                  <button onclick="window.print()" class="bg-purple-600 text-white px-6 py-2.5 rounded-lg font-bold text-sm hover:bg-purple-700 flex items-center gap-2">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-                      Imprimir / Salvar PDF
-                  </button>
-              </div>
-          </div>
-      </div>
-      <div class="a4-sheet max-w-[210mm] min-h-[297mm] bg-white mx-auto my-8 p-12 shadow-2xl rounded-sm relative">
-          <div class="flex items-center justify-between border-b-2 border-purple-700 pb-4 mb-8">
-              <div><h1 class="text-2xl font-black text-slate-800 tracking-tight">ORTUS</h1><p class="text-xs text-purple-500 font-semibold uppercase tracking-widest mt-0.5">Harmonização Orofacial (HOF)</p></div>
-              <div class="text-right"><div class="text-xs text-slate-500 font-semibold">Data: <span class="text-slate-800 font-bold">${dataHoje}</span></div></div>
-          </div>
-          <div class="bg-slate-50 rounded-xl border border-slate-200 p-4 mb-8 grid grid-cols-2 gap-4">
-              <div><span class="text-[10px] uppercase font-bold text-slate-400 block">Paciente</span><span class="text-sm font-bold text-slate-800">${form.nome || '-'}</span></div>
-              <div><span class="text-[10px] uppercase font-bold text-slate-400 block">CPF</span><span class="text-sm font-bold text-slate-800">${form.cpf || '-'}</span></div>
-              <div><span class="text-[10px] uppercase font-bold text-slate-400 block">Telefone</span><span class="text-sm font-bold text-slate-800">${form.telefone || '-'}</span></div>
-              <div><span class="text-[10px] uppercase font-bold text-slate-400 block">Email</span><span class="text-sm font-bold text-slate-800">${form.email || '-'}</span></div>
-          </div>
-          <div class="mb-8">
-              <h2 class="text-sm font-bold uppercase tracking-wider text-slate-500 border-b-2 border-purple-600 pb-2 mb-4">Mapa Facial</h2>
-              <div style="max-width:320px;margin:0 auto;position:relative;aspect-ratio:3/4;">
-                  ${svgRosto}
-              </div>
-              <div class="flex flex-wrap gap-3 mt-3 justify-center">
-                  ${HOF_TIPOS.filter(t => marcacoesHof.some(m => m.tipo === t.key)).map(t => `<span class="flex items-center gap-1.5 text-[10px] font-bold text-slate-500"><span class="w-3 h-3 rounded-full" style="background:${t.color}"></span>${t.label}</span>`).join('')}
-              </div>
-          </div>
-          <div class="mb-8">
-              <h2 class="text-sm font-bold uppercase tracking-wider text-slate-500 border-b-2 border-purple-600 pb-2 mb-4">Detalhamento dos Procedimentos</h2>
-              <table class="w-full text-sm">
-                  <thead><tr class="bg-slate-50"><th class="py-2 px-3 w-8"></th><th class="py-2 px-3 text-left font-bold text-slate-500 text-xs">Tipo</th><th class="py-2 px-3 text-left font-bold text-slate-500 text-xs">Procedimento</th><th class="py-2 px-3 text-center font-bold text-slate-500 text-xs w-20">Dose</th><th class="py-2 px-3 text-left font-bold text-slate-500 text-xs">Produto</th><th class="py-2 px-3 text-left font-bold text-slate-500 text-xs w-24">Data</th></tr></thead>
-                  <tbody>${linhasMarcacoes}</tbody>
-              </table>
-          </div>
-          ${fotosHtml}
-          <div class="absolute bottom-12 left-12 right-12 border-t border-slate-200 pt-4 flex justify-between items-center text-[10px] text-slate-400">
-              <span>Gerado pelo ORTUS em ${horaGeracao}</span><span class="font-bold">Documento clínico — uso interno.</span>
-          </div>
-      </div></body></html>`;
-
-      const win = window.open('', '_blank');
-      if (win) { win.document.write(html); win.document.close(); }
+      printDocument({
+          title: 'Mapa de Harmonização Orofacial',
+          accentColor: '#9333ea',
+          clinicSubtitle: 'Harmonização Orofacial (HOF)',
+          toolbarLabel: `HOF — ${form.nome}`,
+          meta: [
+              { label: 'Paciente', value: form.nome || '—' },
+              { label: 'CPF', value: form.cpf || '—' },
+              { label: 'Telefone', value: form.telefone || '—' },
+              { label: 'Email', value: form.email || '—' },
+          ],
+          bodyHtml: `
+            <div class="ortus-section-title">Mapa Facial</div>
+            <div class="ortus-face-map">${svgRosto}</div>
+            <div class="ortus-legend">${legend}</div>
+            <div class="ortus-section-title">Detalhamento dos Procedimentos</div>
+            ${printTable(['', 'Tipo', 'Procedimento', 'Dose', 'Produto', 'Data'], rows)}
+            ${fotosHtml}
+          `,
+          footerNote: 'Documento clínico — uso interno. Gerado pelo Sistema ORTUS.',
+      });
   }
 
   function gerarTermoConsentimentoHof() {
-      const dataHoje = new Date().toLocaleDateString('pt-BR');
-      const horaGeracao = new Date().toLocaleString('pt-BR');
-
       const tiposUsados = Array.from(new Set(marcacoesHof.map(m => m.tipo))).map(t => hofTipoInfo(t));
-      const listaProcedimentos = tiposUsados.map(t => `<li class="mb-1"><span class="font-bold" style="color:${t.color}">${t.label}</span></li>`).join('');
+      const listaProcedimentos = tiposUsados.map(t => `<li><strong style="color:${t.color}">${escapePrintHtml(t.label)}</strong></li>`).join('');
       const produtosUsados = Array.from(new Set(marcacoesHof.filter(m => m.produto).map(m => m.produto)));
-      const listaProdutos = produtosUsados.length ? produtosUsados.map(p => `<li class="mb-1">${p}</li>`).join('') : '<li class="text-slate-400 italic">A definir no momento do procedimento</li>';
+      const listaProdutos = produtosUsados.length
+          ? produtosUsados.map(p => `<li>${escapePrintHtml(p)}</li>`).join('')
+          : '<li><em>A definir no momento do procedimento</em></li>';
 
-      const html = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"/><title>Consentimento HOF — ${form.nome || 'Paciente'}</title>
-      <script src="https://cdn.tailwindcss.com"><\/script>
-      <style>
-          @media print { body{background:white!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;} .no-print{display:none!important;} .a4-sheet{box-shadow:none!important;margin:0!important;padding:10mm!important;max-width:100%!important;} }
-          @page{size:A4;margin:10mm;}
-      </style></head>
-      <body class="bg-slate-200 min-h-screen">
-      <div class="no-print sticky top-0 z-50 bg-white/90 backdrop-blur border-b border-slate-200 shadow-sm">
-          <div class="max-w-[210mm] mx-auto flex items-center justify-between px-6 py-3">
-              <span class="text-sm font-bold text-slate-600">Termo de Consentimento — Harmonização Orofacial</span>
-              <button onclick="window.print()" class="bg-purple-600 text-white px-6 py-2.5 rounded-lg font-bold text-sm hover:bg-purple-700 flex items-center gap-2">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2-2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-                  Imprimir
-              </button>
-          </div>
-      </div>
-      <div class="a4-sheet max-w-[210mm] min-h-[297mm] bg-white mx-auto my-8 p-12 shadow-2xl rounded-sm relative">
-          <div class="flex items-center justify-between border-b-2 border-purple-700 pb-4 mb-8">
-              <div><h1 class="text-2xl font-black text-slate-800">ORTUS</h1><p class="text-xs text-purple-500 font-semibold uppercase tracking-widest mt-0.5">Termo de Consentimento Livre e Esclarecido</p></div>
-              <div class="text-right text-xs text-slate-500 font-semibold">Data: <span class="text-slate-800 font-bold">${dataHoje}</span></div>
-          </div>
-
-          <div class="bg-slate-50 rounded-xl border border-slate-200 p-4 mb-6 grid grid-cols-2 gap-4">
-              <div><span class="text-[10px] uppercase font-bold text-slate-400 block">Paciente</span><span class="text-sm font-bold text-slate-800">${form.nome || '-'}</span></div>
-              <div><span class="text-[10px] uppercase font-bold text-slate-400 block">CPF</span><span class="text-sm font-bold text-slate-800">${form.cpf || '-'}</span></div>
-          </div>
-
-          <div class="text-sm text-slate-700 leading-relaxed space-y-4">
-              <p>Eu, <b>${form.nome || '___________________'}</b>, portador(a) do CPF <b>${form.cpf || '_______________'}</b>, declaro que fui devidamente informado(a) sobre os procedimentos de <b>Harmonização Orofacial</b> descritos abaixo e que, após ter sido esclarecido(a) sobre os benefícios, riscos e alternativas, <b>CONSINTO</b> de livre e espontânea vontade com a realização dos mesmos.</p>
-
-              <h3 class="font-bold text-slate-800 uppercase text-xs tracking-wider pt-2">1. Procedimentos Autorizados</h3>
-              <ul class="list-disc pl-6">${listaProcedimentos}</ul>
-
-              <h3 class="font-bold text-slate-800 uppercase text-xs tracking-wider pt-2">2. Produtos / Materiais</h3>
-              <ul class="list-disc pl-6">${listaProdutos}</ul>
-
-              <h3 class="font-bold text-slate-800 uppercase text-xs tracking-wider pt-2">3. Riscos e Efeitos Colaterais</h3>
+      printDocument({
+          title: 'Termo de Consentimento Livre e Esclarecido',
+          accentColor: '#9333ea',
+          clinicSubtitle: 'Harmonização Orofacial (HOF)',
+          toolbarLabel: `Consentimento HOF — ${form.nome}`,
+          meta: [
+              { label: 'Paciente', value: form.nome || '—' },
+              { label: 'CPF', value: form.cpf || '—' },
+          ],
+          bodyHtml: `
+            <div class="ortus-prose">
+              <p>Eu, <strong>${escapePrintHtml(form.nome || '___________________')}</strong>, portador(a) do CPF <strong>${escapePrintHtml(form.cpf || '_______________')}</strong>, declaro que fui devidamente informado(a) sobre os procedimentos de <strong>Harmonização Orofacial</strong> descritos abaixo e que, após ter sido esclarecido(a) sobre os benefícios, riscos e alternativas, <strong>CONSINTO</strong> de livre e espontânea vontade com a realização dos mesmos.</p>
+              <p><strong>1. Procedimentos Autorizados</strong></p>
+              <ul>${listaProcedimentos}</ul>
+              <p><strong>2. Produtos / Materiais</strong></p>
+              <ul>${listaProdutos}</ul>
+              <p><strong>3. Riscos e Efeitos Colaterais</strong></p>
               <p>Fui informado(a) de que os procedimentos estéticos injetáveis podem causar efeitos colaterais, tais como: dor local, edema, equimose (hematomas), eritema, assimetria temporária, nódulos palpáveis, reações alérgicas, infecção, necrose tecidual, migração do produto, e em casos raros, comprometimento vascular. Compreendo que os resultados podem variar de pessoa para pessoa e que o resultado final pode não corresponder exatamente às minhas expectativas.</p>
-
-              <h3 class="font-bold text-slate-800 uppercase text-xs tracking-wider pt-2">4. Cuidados Pós-procedimento</h3>
+              <p><strong>4. Cuidados Pós-procedimento</strong></p>
               <p>Comprometo-me a seguir as orientações pós-procedimento fornecidas pelo profissional, incluindo mas não limitado a: evitar exercícios físicos intensos nas primeiras 24-48h, não massagear a região tratada (salvo orientação contrária), evitar exposição solar intensa, e comparecer aos retornos agendados.</p>
-
-              <h3 class="font-bold text-slate-800 uppercase text-xs tracking-wider pt-2">5. Direito à Revogação</h3>
+              <p><strong>5. Direito à Revogação</strong></p>
               <p>Estou ciente de que posso revogar este consentimento a qualquer momento antes da realização do procedimento, sem qualquer prejuízo ao meu atendimento.</p>
-
-              <h3 class="font-bold text-slate-800 uppercase text-xs tracking-wider pt-2">6. Autorização de Imagens</h3>
+              <p><strong>6. Autorização de Imagens</strong></p>
               <p>( &nbsp; ) Autorizo &nbsp;&nbsp; ( &nbsp; ) Não autorizo &nbsp;&nbsp; o uso de fotografias clínicas para fins de documentação, acompanhamento e publicações científicas, resguardada minha identidade.</p>
-          </div>
-
-          <div class="mt-12 pt-8 grid grid-cols-2 gap-8">
-              <div class="text-center">
-                  <div class="border-t border-slate-800 pt-2 mx-4"><span class="text-xs font-bold text-slate-600">Assinatura do(a) Paciente</span><br/><span class="text-[10px] text-slate-400">${form.nome || ''}</span></div>
-              </div>
-              <div class="text-center">
-                  <div class="border-t border-slate-800 pt-2 mx-4"><span class="text-xs font-bold text-slate-600">Assinatura do(a) Profissional</span><br/><span class="text-[10px] text-slate-400">CRO: ___________</span></div>
-              </div>
-          </div>
-
-          <div class="absolute bottom-12 left-12 right-12 border-t border-slate-200 pt-4 flex justify-between items-center text-[10px] text-slate-400">
-              <span>Gerado pelo ORTUS em ${horaGeracao}</span><span class="font-bold">Via do Profissional</span>
-          </div>
-      </div></body></html>`;
-
-      const win = window.open('', '_blank');
-      if (win) { win.document.write(html); win.document.close(); }
+            </div>
+            ${printSignatureBlock(['Assinatura do(a) Paciente', 'Assinatura do(a) Profissional — CRO: ___________'])}
+          `,
+          footerNote: 'Via do Profissional · Documento gerado pelo Sistema ORTUS.',
+      });
   }
 
   const valorTotalOrcamento = tratamentos.reduce((acc: number, t: any) => acc + (parseFloat(t.valor) || 0), 0);
@@ -1158,156 +1083,115 @@ export default function PacienteDetalhe() {
   }
 
   function imprimirOrcamento() {
-      const dataHoje = new Date().toLocaleDateString('pt-BR');
-      const horaGeracao = new Date().toLocaleString('pt-BR');
-
-      // --- Seção 1: Diagnóstico Odontograma ---
       let secaoDiagnostico = '';
       if (visaoOdonto === 'livre' && textoOdontogramaLivre.trim()) {
           secaoDiagnostico = `
-              <div class="mb-8">
-                  <h2 class="text-sm font-bold uppercase tracking-wider text-slate-500 border-b-2 border-blue-600 pb-2 mb-4">Planejamento (Texto Livre)</h2>
-                  <div class="bg-slate-50 border border-slate-200 rounded-lg p-4 text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">${textoOdontogramaLivre}</div>
-              </div>`;
+            <div class="ortus-section-title">Planejamento (Texto Livre)</div>
+            <div class="ortus-prose">${escapePrintHtml(textoOdontogramaLivre)}</div>`;
       } else {
-          const dentesAlterados = Object.entries(odontograma).filter(([, st]) => {
-              return st.cond !== 'normal' || Object.values(st.faces || {}).some(v => v && v !== 'higido');
-          });
+          const dentesAlterados = Object.entries(odontograma).filter(([, st]) =>
+              st.cond !== 'normal' || Object.values(st.faces || {}).some(v => v && v !== 'higido')
+          );
           if (dentesAlterados.length > 0) {
-              const linhasDiag = dentesAlterados.map(([num, st]) => {
+              const rows = dentesAlterados.map(([num, st]) => {
                   const detalhes: string[] = [];
                   if (st.cond !== 'normal') {
                       const condLabel = TOOLS.find(t => t.key === st.cond)?.label || st.cond;
                       const condColor = TOOLS.find(t => t.key === st.cond)?.color || '#64748b';
-                      detalhes.push(`<span class="inline-flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full inline-block" style="background:${condColor}"></span>${condLabel}</span>`);
+                      detalhes.push(`<span class="ortus-legend-item"><span class="ortus-dot" style="background:${condColor}"></span>${escapePrintHtml(condLabel)}</span>`);
                   }
                   Object.entries(st.faces || {}).forEach(([f, v]) => {
                       if (v && v !== 'higido') {
                           const fLabel = FACE_LABELS[f as Face] || f;
                           const fColor = FACE_COLORS[v as FaceStatus] || '#64748b';
                           const vLabel = TOOLS.find(t => t.key === v)?.label || v;
-                          detalhes.push(`<span class="inline-flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full inline-block border border-slate-300" style="background:${fColor}"></span>${vLabel} — ${fLabel}</span>`);
+                          detalhes.push(`<span class="ortus-legend-item"><span class="ortus-dot" style="background:${fColor}"></span>${escapePrintHtml(vLabel)} — ${escapePrintHtml(fLabel)}</span>`);
                       }
                   });
-                  return `<tr class="border-b border-slate-100"><td class="py-2 pr-4 font-bold text-blue-700 text-center w-20">${num}</td><td class="py-2 text-slate-600"><div class="flex flex-wrap gap-x-4 gap-y-1">${detalhes.join('')}</div></td></tr>`;
-              }).join('');
-              secaoDiagnostico = `
-              <div class="mb-8">
-                  <h2 class="text-sm font-bold uppercase tracking-wider text-slate-500 border-b-2 border-blue-600 pb-2 mb-4">Diagnóstico — Estado dos Dentes</h2>
-                  <table class="w-full text-sm"><thead><tr class="bg-slate-50 text-left"><th class="py-2 px-3 font-bold text-slate-500 text-center w-20">Dente</th><th class="py-2 px-3 font-bold text-slate-500">Condição / Faces</th></tr></thead><tbody>${linhasDiag}</tbody></table>
-              </div>`;
+                  return [`<strong>${escapePrintHtml(num)}</strong>`, detalhes.join(' ')];
+              });
+              secaoDiagnostico = `<div class="ortus-section-title">Diagnóstico — Estado dos Dentes</div>${printTable(['Dente', 'Condição / Faces'], rows)}`;
           } else {
-              secaoDiagnostico = `<div class="mb-8"><h2 class="text-sm font-bold uppercase tracking-wider text-slate-500 border-b-2 border-blue-600 pb-2 mb-4">Diagnóstico — Estado dos Dentes</h2><p class="text-sm text-slate-400 italic">Nenhuma marcação registrada no odontograma.</p></div>`;
+              secaoDiagnostico = `<div class="ortus-section-title">Diagnóstico — Estado dos Dentes</div><p><em>Nenhuma marcação registrada no odontograma.</em></p>`;
           }
       }
 
-      // --- Seção 2: Tratamentos e Valores ---
       let secaoTratamentos = '';
       if (tratamentos.length > 0) {
-          const linhasTrat = tratamentos.map((t: any) => {
+          const rows = tratamentos.map((t: any) => {
               const val = parseFloat(t.valor) || 0;
-              const statusClass = t.status === 'concluido' ? 'bg-emerald-100 text-emerald-700' : t.status === 'andamento' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700';
-              return `<tr class="border-b border-slate-100"><td class="py-2.5 px-3 font-bold text-blue-700 text-center">${t.dente || '-'}</td><td class="py-2.5 px-3 font-medium text-slate-700">${t.procedimento}</td><td class="py-2.5 px-3 text-center"><span class="text-[10px] uppercase font-bold px-2 py-0.5 rounded ${statusClass}">${t.status}</span></td><td class="py-2.5 px-3 text-right font-bold text-slate-800">${formatarMoeda(val)}</td></tr>`;
-          }).join('');
+              const statusCls = t.status === 'concluido' ? 'concluido' : t.status === 'andamento' ? 'andamento' : 'planejado';
+              return [
+                  escapePrintHtml(t.dente || '—'),
+                  escapePrintHtml(t.procedimento),
+                  `<span class="ortus-status ${statusCls}">${escapePrintHtml(t.status)}</span>`,
+                  `<strong>${escapePrintHtml(formatarMoeda(val))}</strong>`,
+              ];
+          });
           secaoTratamentos = `
-          <div class="mb-8">
-              <h2 class="text-sm font-bold uppercase tracking-wider text-slate-500 border-b-2 border-emerald-600 pb-2 mb-4">Tratamentos Propostos</h2>
-              <table class="w-full text-sm">
-                  <thead><tr class="bg-slate-50"><th class="py-2 px-3 font-bold text-slate-500 text-center w-20">Dente</th><th class="py-2 px-3 font-bold text-slate-500 text-left">Procedimento</th><th class="py-2 px-3 font-bold text-slate-500 text-center w-28">Status</th><th class="py-2 px-3 font-bold text-slate-500 text-right w-32">Valor</th></tr></thead>
-                  <tbody>${linhasTrat}</tbody>
-                  <tfoot><tr class="bg-emerald-50 border-t-2 border-emerald-200"><td colspan="3" class="py-3 px-3 text-right font-bold text-slate-600 uppercase text-xs tracking-wider">Valor Total</td><td class="py-3 px-3 text-right font-black text-emerald-700 text-lg">${formatarMoeda(valorTotalOrcamento)}</td></tr></tfoot>
-              </table>
-          </div>`;
+            <div class="ortus-section-title">Tratamentos Propostos</div>
+            ${printTable(['Dente', 'Procedimento', 'Status', 'Valor'], rows, { numCols: [3] })}
+            <table class="ortus-table"><tbody><tr class="ortus-total-row">
+              <td colspan="3" class="num">Valor Total</td>
+              <td class="num">${escapePrintHtml(formatarMoeda(valorTotalOrcamento))}</td>
+            </tr></tbody></table>`;
       } else {
-          secaoTratamentos = `<div class="mb-8"><h2 class="text-sm font-bold uppercase tracking-wider text-slate-500 border-b-2 border-emerald-600 pb-2 mb-4">Tratamentos Propostos</h2><p class="text-sm text-slate-400 italic">Nenhum tratamento registrado.</p></div>`;
+          secaoTratamentos = `<div class="ortus-section-title">Tratamentos Propostos</div><p><em>Nenhum tratamento registrado.</em></p>`;
       }
 
-      const html = `<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-    <meta charset="UTF-8"/>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <title>Orçamento — ${form.nome || 'Paciente'}</title>
-    <script src="https://cdn.tailwindcss.com"><\/script>
-    <style>
-        @media print {
-            body { background: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-            .no-print { display: none !important; }
-            .a4-sheet { box-shadow: none !important; margin: 0 !important; padding: 10mm !important; max-width: 100% !important; min-height: auto !important; }
-        }
-        @page { size: A4; margin: 10mm; }
-    </style>
-</head>
-<body class="bg-slate-200 min-h-screen">
-    <!-- Barra de controle -->
-    <div class="no-print sticky top-0 z-50 bg-white/90 backdrop-blur border-b border-slate-200 shadow-sm">
-        <div class="max-w-[210mm] mx-auto flex items-center justify-between px-6 py-3">
-            <span class="text-sm font-bold text-slate-600">Pré-visualização do Documento</span>
-            <div class="flex items-center gap-3">
-                <button onclick="window.print()" class="bg-blue-600 text-white px-6 py-2.5 rounded-lg font-bold text-sm hover:bg-blue-700 transition-colors shadow-sm flex items-center gap-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-                    Imprimir / Salvar como PDF
-                </button>
-                <button onclick="window.close()" class="text-slate-400 hover:text-slate-600 p-2 hover:bg-slate-100 rounded-lg transition-colors" title="Fechar">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Folha A4 -->
-    <div class="a4-sheet max-w-[210mm] min-h-[297mm] bg-white mx-auto my-8 p-12 shadow-2xl rounded-sm relative">
-        <!-- Cabeçalho -->
-        <div class="flex items-center justify-between border-b-2 border-slate-800 pb-4 mb-8">
-            <div>
-                <h1 class="text-2xl font-black text-slate-800 tracking-tight">ORTUS</h1>
-                <p class="text-xs text-slate-400 font-semibold uppercase tracking-widest mt-0.5">Ficha Clínica e Orçamento</p>
-            </div>
-            <div class="text-right">
-                <div class="text-xs text-slate-500 font-semibold">Data: <span class="text-slate-800 font-bold">${dataHoje}</span></div>
-            </div>
-        </div>
-
-        <!-- Dados do Paciente -->
-        <div class="bg-slate-50 rounded-xl border border-slate-200 p-4 mb-8 grid grid-cols-2 gap-4">
-            <div><span class="text-[10px] uppercase font-bold text-slate-400 block">Paciente</span><span class="text-sm font-bold text-slate-800">${form.nome || '-'}</span></div>
-            <div><span class="text-[10px] uppercase font-bold text-slate-400 block">CPF</span><span class="text-sm font-bold text-slate-800">${form.cpf || '-'}</span></div>
-            <div><span class="text-[10px] uppercase font-bold text-slate-400 block">Telefone</span><span class="text-sm font-bold text-slate-800">${form.telefone || '-'}</span></div>
-            <div><span class="text-[10px] uppercase font-bold text-slate-400 block">Email</span><span class="text-sm font-bold text-slate-800">${form.email || '-'}</span></div>
-        </div>
-
-        ${secaoDiagnostico}
-        ${secaoTratamentos}
-
-        <!-- Rodapé -->
-        <div class="absolute bottom-12 left-12 right-12 border-t border-slate-200 pt-4 flex justify-between items-center text-[10px] text-slate-400">
-            <span>Documento gerado pelo sistema ORTUS em ${horaGeracao}</span>
-            <span class="font-bold">Este documento não possui valor fiscal.</span>
-        </div>
-    </div>
-</body>
-</html>`;
-
-      const win = window.open('', '_blank');
-      if (win) {
-          win.document.write(html);
-          win.document.close();
-      }
+      printDocument({
+          title: 'Ficha Clínica e Orçamento',
+          accentColor: '#2563eb',
+          toolbarLabel: `Orçamento — ${form.nome}`,
+          meta: [
+              { label: 'Paciente', value: form.nome || '—' },
+              { label: 'CPF', value: form.cpf || '—' },
+              { label: 'Telefone', value: form.telefone || '—' },
+              { label: 'Email', value: form.email || '—' },
+          ],
+          kpis: tratamentos.length > 0 ? [{ label: 'Valor Total', value: formatarMoeda(valorTotalOrcamento), variant: 'entrada' }] : undefined,
+          bodyHtml: secaoDiagnostico + secaoTratamentos,
+          footerNote: 'Este documento não possui valor fiscal. Gerado pelo Sistema ORTUS.',
+      });
   }
 
   // ===== ANAMNESE helpers =====
+  function formatarDataAnamnese(iso?: string | null) {
+      if (!iso) return '—';
+      return new Date(iso).toLocaleString('pt-BR');
+  }
+
   function selecionarModeloAnamnese(modelo_id: string) {
       const m = modelosAnamnese.find(x => x.id === modelo_id);
       const respostasIniciais: Record<string, RespostaAnamnese> = {};
       m?.perguntas.forEach(p => { respostasIniciais[p.id] = respostaInicial(p.tipo); });
-      setAnamneseAtual({ modelo_id, data: new Date().toISOString().split('T')[0], preenchido_por: 'profissional', respostas: respostasIniciais });
+      setLinkAnamnesePaciente(null);
+      setAnamneseAtual((prev: any) => ({
+          ...prev,
+          modelo_id,
+          data: prev.data || new Date().toISOString().split('T')[0],
+          respostas: prev.id ? respostasIniciais : respostasIniciais,
+      }));
+  }
+
+  function editarAnamnese(a: any) {
+      setAnamnesePreview(null);
+      setLinkAnamnesePaciente(null);
+      setAnamneseAtual({
+          id: a.id,
+          modelo_id: a.modelo_id,
+          data: a.data || new Date().toISOString().split('T')[0],
+          preenchido_por: a.preenchido_por || 'profissional',
+          respostas: { ...(a.respostas || {}) },
+      });
+      window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   async function salvarAnamnese() {
       if (!anamneseAtual.modelo_id) { await showAlert('Selecione um modelo de anamnese.', { type: 'warning' }); return; }
       const modelo = modelosAnamnese.find(m => m.id === anamneseAtual.modelo_id);
       if (!modelo) { await showAlert('Modelo não encontrado.', { type: 'error' }); return; }
-      const nova = {
+      const payload = {
           modelo_id: anamneseAtual.modelo_id,
           modelo_nome: modelo.nome,
           data: anamneseAtual.data,
@@ -1316,14 +1200,45 @@ export default function PacienteDetalhe() {
           perguntas_snapshot: modelo.perguntas,
       };
       try {
-          const salva = await criarAnamnese(String(id), nova);
-          setAnamnesesAnteriores([...anamnesesAnteriores, salva]);
+          if (anamneseAtual.id) {
+              const atualizada = await atualizarAnamnese(anamneseAtual.id, payload);
+              setAnamnesesAnteriores(anamnesesAnteriores.map(a => a.id === atualizada.id ? atualizada : a));
+              showAlert('Anamnese atualizada com sucesso!', { type: 'success' });
+          } else {
+              const salva = await criarAnamnese(String(id), payload);
+              setAnamnesesAnteriores([salva, ...anamnesesAnteriores]);
+              showAlert('Anamnese salva com sucesso!', { type: 'success' });
+          }
       } catch (error: any) {
           await showAlert('Erro: ' + error.message, { type: 'error' });
           return;
       }
-      setAnamneseAtual({ modelo_id: '', data: new Date().toISOString().split('T')[0], preenchido_por: 'profissional', respostas: {} });
-      showAlert('Anamnese salva com sucesso!', { type: 'success' });
+      setAnamneseAtual({ id: null, modelo_id: '', data: new Date().toISOString().split('T')[0], preenchido_por: 'profissional', respostas: {} });
+  }
+
+  async function gerarLinkAnamnesePaciente() {
+      if (!anamneseAtual.modelo_id) {
+          await showAlert('Selecione um modelo de anamnese.', { type: 'warning' });
+          return;
+      }
+      setGerandoLinkAnamnese(true);
+      try {
+          const link = await gerarLinkAnamnesePaciente(String(id), anamneseAtual.modelo_id, form.clinica_id);
+          setLinkAnamnesePaciente(link);
+      } catch (error: any) {
+          await showAlert('Erro: ' + error.message, { type: 'error' });
+      }
+      setGerandoLinkAnamnese(false);
+  }
+
+  async function copiarLinkAnamnese() {
+      if (!linkAnamnesePaciente?.url) return;
+      try {
+          await navigator.clipboard.writeText(linkAnamnesePaciente.url);
+          showAlert('Link copiado!', { type: 'success' });
+      } catch {
+          showAlert('Não foi possível copiar. Selecione e copie manualmente.', { type: 'warning' });
+      }
   }
 
   function emitirAnamnese(anamnese?: any) {
@@ -1333,42 +1248,26 @@ export default function PacienteDetalhe() {
           return modelo ? { ...anamneseAtual, modelo_nome: modelo.nome, perguntas_snapshot: modelo.perguntas } : null;
       })();
       if (!a) return;
-      const janela = window.open('', '', 'width=800,height=600');
       const dataFmt = new Date(a.data).toLocaleDateString('pt-BR');
-      const linhas = (a.perguntas_snapshot || []).map((p: any) => {
-          const r = formatarRespostaAnamnese(a.respostas?.[p.id]);
-          return `<div class="q"><strong>${p.label}</strong><div class="r">${r}</div></div>`;
-      }).join('');
-      const html = `
-        <html><head><title>Anamnese</title><style>
-          body { font-family: 'Times New Roman', serif; padding: 50px; color: #000; max-width: 800px; margin: 0 auto; }
-          .header { text-align: center; margin-bottom: 30px; border-bottom: 1px solid #000; padding-bottom: 12px; }
-          .header h1 { margin: 0; font-size: 24px; text-transform: uppercase; letter-spacing: 2px; }
-          .titulo { text-align: center; font-size: 18px; font-weight: bold; margin: 24px 0; text-transform: uppercase; }
-          .meta { display: flex; gap: 24px; margin-bottom: 24px; font-size: 13px; }
-          .meta span { font-weight: bold; }
-          .q { margin-bottom: 16px; font-size: 14px; }
-          .q strong { display: block; margin-bottom: 4px; }
-          .r { border-bottom: 1px dotted #999; padding: 4px 0; min-height: 18px; }
-          .assinatura { margin-top: 60px; text-align: center; }
-          .linha { border-top: 1px solid #000; width: 320px; margin: 0 auto 8px auto; }
-          @media print { .no-print { display: none; } }
-        </style></head><body>
-          <div class="header"><h1>ORTUS CLINIC</h1></div>
-          <div class="titulo">FICHA DE ANAMNESE</div>
-          <div class="meta">
-            <div><span>Paciente:</span> ${(form.nome || '').toUpperCase()}</div>
-            <div><span>CPF:</span> ${form.cpf || '___'}</div>
-            <div><span>Data:</span> ${dataFmt}</div>
-            <div><span>Modelo:</span> ${a.modelo_nome || ''}</div>
-            <div><span>Preenchido por:</span> ${a.preenchido_por === 'paciente' ? 'Paciente' : 'Profissional'}</div>
-          </div>
-          ${linhas}
-          <div class="assinatura"><div class="linha"></div><p>Assinatura do ${a.preenchido_por === 'paciente' ? 'Paciente' : 'Profissional'}</p></div>
-          <script>window.onload = function(){ window.print(); }</script>
-        </body></html>`;
-      janela?.document.write(html);
-      janela?.document.close();
+      const linhas = (a.perguntas_snapshot || []).map((p: any) =>
+          printQaBlock(p.label, formatarRespostaAnamnese(a.respostas?.[p.id]))
+      ).join('');
+      const assinatura = a.preenchido_por === 'paciente' ? 'Assinatura do Paciente' : 'Assinatura do Profissional';
+
+      printDocument({
+          title: 'Ficha de Anamnese',
+          accentColor: '#1e40af',
+          toolbarLabel: `Anamnese — ${form.nome}`,
+          meta: [
+              { label: 'Paciente', value: (form.nome || '').toUpperCase() },
+              { label: 'CPF', value: form.cpf || '—' },
+              { label: 'Data', value: dataFmt },
+              { label: 'Modelo', value: a.modelo_nome || '—' },
+              { label: 'Preenchido por', value: a.preenchido_por === 'paciente' ? 'Paciente' : 'Profissional' },
+          ],
+          bodyHtml: linhas + printSignatureBlock([assinatura]),
+          autoPrint: true,
+      });
   }
 
   async function excluirAnamnese(aid: string) {
@@ -1390,6 +1289,7 @@ export default function PacienteDetalhe() {
       setUploadingDoc(true);
       try {
           const isImg = file.type.startsWith('image/');
+          const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
           const ext = file.name.split('.').pop() || 'bin';
           const timestamp = Date.now();
           let blob: Blob = file;
@@ -1411,7 +1311,7 @@ export default function PacienteDetalhe() {
               nome: file.name,
               tipo: file.type,
               storage_path: caminhoArquivo,
-              meta: { isImg, dataUrl: urlData.publicUrl, tamanho: blob.size },
+              meta: { isImg, isPdf, dataUrl: urlData.publicUrl, tamanho: blob.size },
           });
           setDocumentos([...documentos, salvo]);
       } catch (err: any) {
@@ -1453,10 +1353,17 @@ export default function PacienteDetalhe() {
       if (!modalReceber) return;
       setRecebendo(true);
       try {
-          const { comissaoLancamentos } = await receberAgendamento(modalReceber, taxaRecebimento || undefined, taxasRecebimento);
-          const agId = modalReceber.id;
-          setDebitos((prev) => prev.filter((d) => d.id !== agId));
-          setHistorico((prev) => prev.map((h) => h.id === agId ? { ...h, status: 'concluido' } : h));
+          const { comissaoLancamentos } = await receberDebito(
+              { ...modalReceber, clinica_id: form.clinica_id },
+              taxaRecebimento || undefined,
+              taxasRecebimento,
+          );
+          const agId = modalReceber.agendamento_id ?? modalReceber.id;
+          setDebitos((prev) => prev.filter((d) => d.id !== modalReceber.id));
+          if (modalReceber.origem === 'agendamento' || modalReceber.agendamento_id) {
+              const pagoEm = new Date().toISOString();
+              setHistorico((prev) => prev.map((h) => h.id === agId ? { ...h, status: 'concluido', data_pagamento: pagoEm } : h));
+          }
           setModalReceber(null);
           const msgComissao = comissaoLancamentos > 0 ? ` Comissão registrada (${comissaoLancamentos} regra(s)).` : '';
           showAlert(`Pagamento registrado.${msgComissao}`, { type: 'success' });
@@ -1468,49 +1375,62 @@ export default function PacienteDetalhe() {
   }
 
   // ===== DEBITOS helpers =====
-  async function marcarComoPago(agId: string) {
-      const debito = debitos.find((d) => d.id === agId);
+  async function marcarComoPago(debitoId: string | number) {
+      const debito = debitos.find((d) => d.id === debitoId);
       if (debito) { abrirModalReceber(debito); return; }
-      if (!(await showConfirm('Marcar este atendimento como pago?', { title: 'Confirmar Pagamento', type: 'info', confirmLabel: 'Confirmar' }))) return;
-      try {
-          await receberAgendamento({ id: agId, clinica_id: form.clinica_id, paciente_id: String(id) });
-          setDebitos((prev) => prev.filter((d) => d.id !== agId));
-          setHistorico((prev) => prev.map((h) => h.id === agId ? { ...h, status: 'concluido' } : h));
-      } catch (e: any) {
-          showAlert('Erro: ' + e.message, { type: 'error' });
-      }
+  }
+
+  async function abrirModalDebitoManual() {
+      const opcoes = await listarOpcoesMarcarNaoPago(id);
+      setDebitoOpcoes(opcoes);
+      setFormDebito({ descricao: '', valor: '', agendamentosMarcados: [], tratamentosMarcados: [] });
+      setModalDebitoManual(true);
   }
 
   async function salvarDebitoManual() {
-      const procedimento = formDebito.procedimento.trim();
+      const descricao = formDebito.descricao.trim();
       const valor = parseFloat(formDebito.valor) || 0;
-      if (!procedimento) return showAlert('Informe o procedimento.', { type: 'warning' });
+      const temMarcacoes = formDebito.agendamentosMarcados.length > 0 || formDebito.tratamentosMarcados.length > 0;
+      if (!descricao && !temMarcacoes) return showAlert('Informe a descrição ou selecione itens para marcar como não pagos.', { type: 'warning' });
+      if (descricao && valor <= 0 && !temMarcacoes) return showAlert('Informe um valor maior que zero.', { type: 'warning' });
       if (!form.clinica_id) return showAlert('Paciente sem clínica vinculada.', { type: 'warning' });
-      if (valor <= 0) return showAlert('Informe um valor maior que zero.', { type: 'warning' });
 
       setSalvandoDebito(true);
-      const dataHora = new Date(`${formDebito.date}T${formDebito.time}:00`).toISOString();
-      const { data, error } = await supabase.from('agendamentos').insert([{
-          paciente_id: id,
-          clinica_id: form.clinica_id,
-          profissional_id: null,
-          data_hora: dataHora,
-          procedimento,
-          cor: 'red',
-          valor,
-          desconto: 0,
-          valor_final: valor,
-          observacoes: 'Débito manual',
-          status: 'fiado',
-      }]).select('*, profissionais(nome)').single();
-      setSalvandoDebito(false);
-
-      if (error) return showAlert(error.message, { type: 'error' });
-      setDebitos((prev) => [...prev, data]);
-      setHistorico((prev) => [data, ...prev]);
-      setModalDebitoManual(false);
-      setFormDebito({ procedimento: '', valor: '', date: new Date().toISOString().split('T')[0], time: '12:00' });
-      showAlert('Débito registrado com sucesso.', { type: 'success' });
+      try {
+          if (descricao && valor > 0) {
+              await criarDebitoManual({
+                  paciente_id: id,
+                  clinica_id: form.clinica_id,
+                  descricao,
+                  valor,
+              });
+          }
+          for (const agId of formDebito.agendamentosMarcados) {
+              await marcarAgendamentoNaoPago(agId);
+          }
+          for (const trId of formDebito.tratamentosMarcados) {
+              const tr = debitoOpcoes.tratamentos.find((t) => String(t.id) === String(trId));
+              if (!tr) continue;
+              await criarDebitoManual({
+                  paciente_id: id,
+                  clinica_id: form.clinica_id,
+                  descricao: tr.procedimento || 'Tratamento',
+                  valor: Number(tr.valor) || 0,
+                  tratamento_id: String(tr.id),
+              });
+          }
+          const debitosLista = await listarDebitosPaciente(id);
+          setDebitos(debitosLista);
+          const { data: hist } = await supabase.from('agendamentos').select('*, profissionais(nome)').eq('paciente_id', id).order('data_hora', { ascending: false });
+          setHistorico((hist || []).filter((h: any) => h.tipo_registro !== 'debito_manual' && h.observacoes !== 'Débito manual'));
+          setModalDebitoManual(false);
+          setFormDebito({ descricao: '', valor: '', agendamentosMarcados: [], tratamentosMarcados: [] });
+          showAlert('Débito registrado com sucesso.', { type: 'success' });
+      } catch (error: any) {
+          showAlert(error.message || 'Erro ao salvar débito.', { type: 'error' });
+      } finally {
+          setSalvandoDebito(false);
+      }
   }
 
   function updateCondicoes(condicoes: string[]) {
@@ -1588,53 +1508,19 @@ export default function PacienteDetalhe() {
   }, [tipoDoc, modalDoc, form, modelosDocumentos, modeloDocId, clinicas, planos]);
 
   function imprimirDocumento() {
-      const janela = window.open('', '', 'width=800,height=600');
-      const dataHoje = new Date().toLocaleDateString('pt-BR');
-      
-      const conteudo = `
-        <html>
-          <head>
-            <title>Impressão</title>
-            <style>
-              body { font-family: 'Times New Roman', serif; padding: 50px; color: #000; max-width: 800px; margin: 0 auto; }
-              .header { text-align: center; margin-bottom: 60px; border-bottom: 1px solid #000; padding-bottom: 20px; }
-              .header h1 { margin: 0; font-size: 28px; text-transform: uppercase; letter-spacing: 2px; }
-              .header p { margin: 5px 0; font-size: 14px; color: #444; }
-              .titulo { text-align: center; font-size: 24px; font-weight: bold; margin-bottom: 50px; text-transform: uppercase; text-decoration: underline; }
-              .conteudo { font-size: 18px; line-height: 2.0; margin-bottom: 80px; text-align: justify; white-space: pre-wrap; }
-              .assinatura { margin-top: 100px; text-align: center; page-break-inside: avoid; }
-              .linha { border-top: 1px solid #000; width: 350px; margin: 0 auto 10px auto; }
-              .footer { position: fixed; bottom: 30px; width: 100%; text-align: center; font-size: 11px; color: #888; left: 0; }
-              @media print { .no-print { display: none; } }
-            </style>
-          </head>
-          <body>
-            <div class="header">
-              <h1>ORTUS CLINIC</h1>
-              <p>Odontologia Integrada • Dr(a). Especialista</p>
-            </div>
-
-            <div class="titulo">${tipoDoc === 'receita' ? 'RECEITUÁRIO' : tipoDoc === 'contrato' ? 'CONTRATO' : 'ATESTADO ODONTOLÓGICO'}</div>
-
-            <div class="conteudo">${textoDoc}</div>
-
-            <div class="assinatura">
-              <div class="linha"></div>
-              <p>Assinatura e Carimbo do Profissional</p>
-            </div>
-
-            <div class="footer">
-              Emitido em ${dataHoje} • Documento gerado eletronicamente pelo Sistema ORTUS
-            </div>
-            <script>
-                window.onload = function() { window.print(); }
-            </script>
-          </body>
-        </html>
-      `;
-      
-      janela?.document.write(conteudo);
-      janela?.document.close();
+      const tituloDoc = tipoDoc === 'receita' ? 'Receituário' : tipoDoc === 'contrato' ? 'Contrato' : 'Atestado Odontológico';
+      printDocument({
+          title: tituloDoc,
+          accentColor: '#0f172a',
+          toolbarLabel: `${tituloDoc} — ${form.nome}`,
+          meta: [
+              { label: 'Paciente', value: form.nome || '—' },
+              { label: 'CPF', value: form.cpf || '—' },
+              { label: 'Tipo', value: tituloDoc },
+          ],
+          bodyHtml: `<div class="ortus-prose ortus-prose-serif">${escapePrintHtml(textoDoc)}</div>${printSignatureBlock(['Assinatura e Carimbo do Profissional'])}`,
+          autoPrint: true,
+      });
   }
 
   if (loading) return <div className="h-screen flex items-center justify-center text-slate-400"><Loader2 className="animate-spin mr-2"/> Carregando Prontuário...</div>;
@@ -1988,7 +1874,10 @@ export default function PacienteDetalhe() {
                         {/* NOVA ANAMNESE - MODELO */}
                         <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-200 shadow-sm">
                             <div className="flex flex-wrap justify-between items-center gap-3 mb-5">
-                                <h3 className="text-lg font-black text-slate-800 flex items-center gap-2"><ClipboardList size={20} className="text-blue-500"/> Nova Anamnese</h3>
+                                <h3 className="text-lg font-black text-slate-800 flex items-center gap-2">
+                                    <ClipboardList size={20} className="text-blue-500"/>
+                                    {anamneseAtual.id ? 'Editar Anamnese' : 'Nova Anamnese'}
+                                </h3>
                                 <Link href="/configuracoes?aba=anamnese" className="text-xs font-bold text-blue-600 hover:underline flex items-center gap-1.5"><Settings size={14}/> Criar/Editar Modelos</Link>
                             </div>
 
@@ -2004,13 +1893,33 @@ export default function PacienteDetalhe() {
                                 <div>
                                     <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Preenchido por</label>
                                     <div className="flex bg-slate-100 p-1 rounded-lg">
-                                        <button onClick={() => setAnamneseAtual({...anamneseAtual, preenchido_por: 'profissional'})} className={`flex-1 py-1.5 rounded text-xs font-bold transition-all ${anamneseAtual.preenchido_por === 'profissional' ? 'bg-white text-blue-600 shadow' : 'text-slate-500'}`}>Profissional</button>
+                                        <button onClick={() => { setAnamneseAtual({...anamneseAtual, preenchido_por: 'profissional'}); setLinkAnamnesePaciente(null); }} className={`flex-1 py-1.5 rounded text-xs font-bold transition-all ${anamneseAtual.preenchido_por === 'profissional' ? 'bg-white text-blue-600 shadow' : 'text-slate-500'}`}>Profissional</button>
                                         <button onClick={() => setAnamneseAtual({...anamneseAtual, preenchido_por: 'paciente'})} className={`flex-1 py-1.5 rounded text-xs font-bold transition-all ${anamneseAtual.preenchido_por === 'paciente' ? 'bg-white text-blue-600 shadow' : 'text-slate-500'}`}>Paciente</button>
                                     </div>
                                 </div>
                             </div>
 
-                            {anamneseAtual.modelo_id ? (() => {
+                            {anamneseAtual.preenchido_por === 'paciente' && anamneseAtual.modelo_id && !anamneseAtual.id ? (
+                                <div className="border-t border-slate-100 pt-5 space-y-4">
+                                    <div className="p-4 bg-purple-50 border border-purple-100 rounded-xl">
+                                        <p className="text-sm font-bold text-purple-800 flex items-center gap-2"><Link2 size={16}/> Modo paciente</p>
+                                        <p className="text-xs text-purple-700 mt-1">Gere um link seguro e temporário para o paciente preencher este formulário no celular ou computador.</p>
+                                    </div>
+                                    {linkAnamnesePaciente ? (
+                                        <div className="space-y-3">
+                                            <div className="flex gap-2">
+                                                <input readOnly value={linkAnamnesePaciente.url} className="flex-1 p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono text-slate-600"/>
+                                                <button onClick={copiarLinkAnamnese} className="px-4 py-2 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 flex items-center gap-2 shrink-0"><Copy size={14}/> Copiar</button>
+                                            </div>
+                                            <p className="text-[11px] text-slate-500 font-semibold">Válido até {formatarDataAnamnese(linkAnamnesePaciente.expires_at)}</p>
+                                        </div>
+                                    ) : (
+                                        <button onClick={gerarLinkAnamnesePaciente} disabled={gerandoLinkAnamnese} className="px-5 py-2.5 bg-purple-600 text-white rounded-xl font-bold text-sm hover:bg-purple-700 disabled:opacity-50 flex items-center gap-2">
+                                            {gerandoLinkAnamnese ? <Loader2 size={14} className="animate-spin"/> : <Link2 size={14}/>} Gerar link para paciente
+                                        </button>
+                                    )}
+                                </div>
+                            ) : anamneseAtual.modelo_id ? (() => {
                                 const modelo = modelosAnamnese.find(m => m.id === anamneseAtual.modelo_id);
                                 if (!modelo) return null;
                                 return (
@@ -2059,9 +1968,9 @@ export default function PacienteDetalhe() {
                                         ))}
 
                                         <div className="flex flex-wrap gap-2 pt-4 border-t border-slate-100">
-                                            <button onClick={salvarAnamnese} className="px-5 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 shadow-sm flex items-center gap-2"><Save size={14}/> Salvar Anamnese</button>
+                                            <button onClick={salvarAnamnese} className="px-5 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 shadow-sm flex items-center gap-2"><Save size={14}/> {anamneseAtual.id ? 'Atualizar Anamnese' : 'Salvar Anamnese'}</button>
                                             <button onClick={() => emitirAnamnese()} className="px-5 py-2.5 bg-slate-800 text-white rounded-xl font-bold text-sm hover:bg-black flex items-center gap-2"><Printer size={14}/> Emitir / Imprimir</button>
-                                            <button onClick={() => setAnamneseAtual({ modelo_id: '', data: new Date().toISOString().split('T')[0], preenchido_por: 'profissional', respostas: {} })} className="px-4 py-2.5 text-slate-500 font-bold rounded-xl text-sm hover:bg-slate-100">Limpar</button>
+                                            <button onClick={() => { setAnamneseAtual({ id: null, modelo_id: '', data: new Date().toISOString().split('T')[0], preenchido_por: 'profissional', respostas: {} }); setLinkAnamnesePaciente(null); }} className="px-4 py-2.5 text-slate-500 font-bold rounded-xl text-sm hover:bg-slate-100">Limpar</button>
                                         </div>
                                     </div>
                                 );
@@ -2089,11 +1998,14 @@ export default function PacienteDetalhe() {
                                             <div className="w-10 h-10 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center"><ClipboardList size={18}/></div>
                                             <div className="flex-1 min-w-0">
                                                 <div className="font-bold text-sm text-slate-800 truncate">{a.modelo_nome}</div>
-                                                <div className="flex items-center gap-3 text-[11px] text-slate-500 font-semibold">
-                                                    <span className="flex items-center gap-1"><Calendar size={11}/> {new Date(a.data).toLocaleDateString('pt-BR')}</span>
-                                                    <span className={`px-1.5 py-0.5 rounded text-[9px] uppercase font-black ${a.preenchido_por === 'paciente' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>{a.preenchido_por}</span>
+                                                <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-[11px] text-slate-500 font-semibold mt-0.5">
+                                                    <span className="flex items-center gap-1"><Calendar size={11}/> {a.data ? new Date(a.data).toLocaleDateString('pt-BR') : '—'}</span>
+                                                    <span className={`px-1.5 py-0.5 rounded text-[9px] uppercase font-black ${a.preenchido_por === 'paciente' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>{a.preenchido_por === 'paciente' ? 'paciente' : 'profissional'}</span>
+                                                    {a.criado_em && <span>Criado: {formatarDataAnamnese(a.criado_em)}</span>}
+                                                    {a.atualizado_em && a.atualizado_em !== a.criado_em && <span>Atualizado: {formatarDataAnamnese(a.atualizado_em)}</span>}
                                                 </div>
                                             </div>
+                                            <button onClick={(e) => { e.stopPropagation(); editarAnamnese(a); }} className="p-2 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg" title="Editar"><Edit size={14}/></button>
                                             <button onClick={(e) => { e.stopPropagation(); emitirAnamnese(a); }} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg" title="Emitir"><Printer size={14}/></button>
                                             <button onClick={(e) => { e.stopPropagation(); excluirAnamnese(a.id); }} className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg"><Trash2 size={14}/></button>
                                         </div>
@@ -2385,6 +2297,10 @@ export default function PacienteDetalhe() {
                                             <a href={d.dataUrl} target="_blank" rel="noopener" className="block">
                                                 <img src={d.dataUrl} alt={d.nome} className="w-full h-32 object-cover bg-white"/>
                                             </a>
+                                        ) : d.isPdf ? (
+                                            <a href={d.dataUrl} target="_blank" rel="noopener" className="block relative h-32 bg-white overflow-hidden">
+                                                <embed src={`${d.dataUrl}#toolbar=0&navpanes=0`} type="application/pdf" className="w-full h-full pointer-events-none scale-[1.02] origin-top" title={d.nome} />
+                                            </a>
                                         ) : (
                                             <a href={d.dataUrl} target="_blank" rel="noopener" className="flex items-center justify-center h-32 bg-gradient-to-br from-slate-100 to-slate-200">
                                                 <FileText className="text-slate-400" size={42}/>
@@ -2399,6 +2315,7 @@ export default function PacienteDetalhe() {
                                             <button onClick={() => excluirDocumento(d.id)} className="p-1.5 bg-white/95 hover:bg-rose-600 hover:text-white text-slate-600 rounded-lg shadow" title="Excluir"><Trash2 size={12}/></button>
                                         </div>
                                         {d.isImg && <span className="absolute top-2 left-2 px-1.5 py-0.5 bg-emerald-500 text-white text-[9px] font-black uppercase rounded">Imagem</span>}
+                                        {d.isPdf && <span className="absolute top-2 left-2 px-1.5 py-0.5 bg-rose-500 text-white text-[9px] font-black uppercase rounded">PDF</span>}
                                     </div>
                                 ))}
                             </div>
@@ -2414,10 +2331,10 @@ export default function PacienteDetalhe() {
                             {debitos.length > 0 && (
                                 <div className="text-right">
                                     <div className="text-[10px] uppercase font-bold text-slate-400">Total em aberto</div>
-                                    <div className="text-2xl font-black text-rose-600">R$ {debitos.reduce((s,d) => s + (d.valor_final || d.valor || 0), 0).toFixed(2)}</div>
+                                    <div className="text-2xl font-black text-rose-600">R$ {debitos.reduce((s,d) => s + (d.valor || 0), 0).toFixed(2)}</div>
                                 </div>
                             )}
-                            <button type="button" onClick={() => setModalDebitoManual(true)} className="px-4 py-2 bg-rose-600 text-white rounded-xl font-bold text-xs hover:bg-rose-700 flex items-center gap-1.5"><Plus size={14}/> Adicionar débito</button>
+                            <button type="button" onClick={abrirModalDebitoManual} className="px-4 py-2 bg-rose-600 text-white rounded-xl font-bold text-xs hover:bg-rose-700 flex items-center gap-1.5"><Plus size={14}/> Adicionar débito</button>
                             </div>
                         </div>
 
@@ -2433,16 +2350,24 @@ export default function PacienteDetalhe() {
                                     <div key={d.id} className="flex items-center gap-4 p-4 bg-rose-50 border border-rose-200 rounded-2xl hover:bg-rose-100/60 transition-colors">
                                         <div className="w-12 h-12 rounded-xl bg-rose-500 text-white flex items-center justify-center"><DollarSign size={22}/></div>
                                         <div className="flex-1 min-w-0">
-                                            <div className="font-bold text-slate-800">{d.procedimento}</div>
+                                            <div className="font-bold text-slate-800">{d.descricao || d.procedimento}</div>
                                             <div className="flex items-center gap-3 text-xs text-slate-500 font-semibold mt-1">
-                                                <span className="flex items-center gap-1"><Calendar size={11}/> {new Date(d.data_hora).toLocaleDateString('pt-BR')}</span>
-                                                <span className="flex items-center gap-1"><Clock size={11}/> {new Date(d.data_hora).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'})}</span>
+                                                {d.data_hora && (
+                                                    <>
+                                                        <span className="flex items-center gap-1"><Calendar size={11}/> {new Date(d.data_hora).toLocaleDateString('pt-BR')}</span>
+                                                        <span className="flex items-center gap-1"><Clock size={11}/> {new Date(d.data_hora).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'})}</span>
+                                                    </>
+                                                )}
+                                                {d.created_at && !d.data_hora && (
+                                                    <span className="flex items-center gap-1"><Calendar size={11}/> {new Date(d.created_at).toLocaleDateString('pt-BR')}</span>
+                                                )}
                                                 {d.profissionais?.nome && <span className="flex items-center gap-1"><User size={11}/> {d.profissionais.nome}</span>}
+                                                <span className="text-[10px] uppercase font-black text-rose-500">{d.origem === 'manual' ? 'Manual' : 'Atendimento'}</span>
                                             </div>
                                         </div>
                                         <div className="text-right">
                                             <div className="text-[10px] uppercase font-bold text-rose-500">Em aberto</div>
-                                            <div className="text-xl font-black text-rose-700">R$ {(d.valor_final || d.valor || 0).toFixed(2)}</div>
+                                            <div className="text-xl font-black text-rose-700">R$ {(d.valor || 0).toFixed(2)}</div>
                                         </div>
                                         <button onClick={() => marcarComoPago(d.id)} className="px-4 py-2 bg-emerald-600 text-white rounded-xl font-bold text-xs hover:bg-emerald-700 shadow-sm flex items-center gap-1.5"><CheckCircle size={14}/> Marcar Pago</button>
                                     </div>
@@ -2770,7 +2695,50 @@ export default function PacienteDetalhe() {
                 )}
 
                 {abaAtiva === 'historico' && (
-                    <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm animate-in fade-in"><h3 className="text-lg font-black text-slate-800 mb-6 flex items-center gap-2"><Clock size={20} className="text-blue-500"/> Histórico de Atendimentos</h3>{historico.length === 0 ? (<div className="text-center py-12 text-slate-400 border-2 border-dashed border-slate-100 rounded-2xl">Nenhum atendimento registrado.</div>) : (<div className="relative border-l-2 border-blue-100 ml-4 space-y-8 pb-4">{historico.map((h: any) => (<div key={h.id} className="ml-8 relative"><div className="absolute -left-[41px] top-1 w-6 h-6 rounded-full border-4 border-white bg-blue-500 shadow-sm"></div><div className="bg-slate-50 p-5 rounded-2xl border border-slate-200/60"><div className="flex justify-between items-start mb-2"><span className="font-bold text-slate-800 text-lg">{h.procedimento}</span><span className="text-xs font-bold bg-white px-2 py-1 rounded border border-slate-200 text-slate-500 uppercase">{h.status}</span></div><div className="flex items-center gap-4 text-xs text-slate-500 font-bold mb-3"><span className="flex items-center gap-1"><Calendar size={14}/> {new Date(h.data_hora).toLocaleDateString('pt-BR')}</span><span className="flex items-center gap-1"><Clock size={14}/> {new Date(h.data_hora).toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'})}</span><span className="flex items-center gap-1"><User size={14}/> {h.profissionais?.nome || 'Dr(a).'}</span></div>{h.observacoes && <p className="text-sm text-slate-600 bg-white p-3 rounded-xl border border-slate-100 italic">"{h.observacoes}"</p>}</div></div>))}</div>)}</div>
+                    <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm animate-in fade-in">
+                        <h3 className="text-lg font-black text-slate-800 mb-6 flex items-center gap-2"><Clock size={20} className="text-blue-500"/> Histórico de Atendimentos</h3>
+                        {historico.length === 0 ? (
+                            <div className="text-center py-12 text-slate-400 border-2 border-dashed border-slate-100 rounded-2xl">Nenhum atendimento registrado.</div>
+                        ) : (
+                            <div className="relative border-l-2 border-blue-100 ml-4 space-y-8 pb-4">
+                                {historico.map((h: any) => {
+                                    const valor = Number(h.valor_final ?? h.valor ?? 0);
+                                    const emDebito = h.status === 'fiado';
+                                    return (
+                                        <div key={h.id} className="ml-8 relative">
+                                            <div className={`absolute -left-[41px] top-1 w-6 h-6 rounded-full border-4 border-white shadow-sm ${emDebito ? 'bg-rose-500' : 'bg-blue-500'}`}></div>
+                                            <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200/60">
+                                                <div className="flex flex-wrap justify-between items-start gap-2 mb-2">
+                                                    <span className="font-bold text-slate-800 text-lg">{h.procedimento}</span>
+                                                    <div className="flex items-center gap-2">
+                                                        {valor > 0 && <span className="text-sm font-black text-slate-700">R$ {valor.toFixed(2)}</span>}
+                                                        {emDebito && <span className="text-[10px] font-black uppercase px-2 py-1 rounded bg-rose-100 text-rose-700 border border-rose-200">Em débito</span>}
+                                                        <span className="text-xs font-bold bg-white px-2 py-1 rounded border border-slate-200 text-slate-500 uppercase">{h.status}</span>
+                                                    </div>
+                                                </div>
+                                                <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500 font-bold mb-3">
+                                                    <span className="flex items-center gap-1"><Calendar size={14}/> {new Date(h.data_hora).toLocaleDateString('pt-BR')}</span>
+                                                    <span className="flex items-center gap-1"><Clock size={14}/> {new Date(h.data_hora).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+                                                    <span className="flex items-center gap-1"><User size={14}/> {h.profissionais?.nome || 'Dr(a).'}</span>
+                                                    {h.status === 'concluido' && h.data_pagamento && (
+                                                        <span className="text-emerald-600 flex items-center gap-1">
+                                                            <CheckCircle size={12}/>
+                                                            Pago em {new Date(h.data_pagamento).toLocaleDateString('pt-BR')}
+                                                            {h.valor_liquido != null && ` · líq. R$ ${Number(h.valor_liquido).toFixed(2)}`}
+                                                        </span>
+                                                    )}
+                                                    {h.status === 'concluido' && !h.data_pagamento && h.valor_liquido != null && (
+                                                        <span className="text-emerald-600">Pago · líq. R$ {Number(h.valor_liquido).toFixed(2)}</span>
+                                                    )}
+                                                </div>
+                                                {h.observacoes && <p className="text-sm text-slate-600 bg-white p-3 rounded-xl border border-slate-100 italic">&quot;{h.observacoes}&quot;</p>}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
                 )}
             </div>
         </div>
@@ -2900,10 +2868,12 @@ export default function PacienteDetalhe() {
                     <div className="p-6 border-b border-slate-100">
                         <h3 className="text-lg font-black text-slate-800 pr-8">{anamnesePreview.modelo_nome}</h3>
                         <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-slate-500 font-semibold">
-                            <span className="flex items-center gap-1"><Calendar size={12}/> {new Date(anamnesePreview.data).toLocaleDateString('pt-BR')}</span>
+                            <span className="flex items-center gap-1"><Calendar size={12}/> {anamnesePreview.data ? new Date(anamnesePreview.data).toLocaleDateString('pt-BR') : '—'}</span>
                             <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-black ${anamnesePreview.preenchido_por === 'paciente' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
-                                {anamnesePreview.preenchido_por === 'paciente' ? 'Paciente' : 'Profissional'}
+                                {anamnesePreview.preenchido_por === 'paciente' ? 'paciente' : 'profissional'}
                             </span>
+                            {anamnesePreview.criado_em && <span>Criado: {formatarDataAnamnese(anamnesePreview.criado_em)}</span>}
+                            {anamnesePreview.atualizado_em && anamnesePreview.atualizado_em !== anamnesePreview.criado_em && <span>Atualizado: {formatarDataAnamnese(anamnesePreview.atualizado_em)}</span>}
                         </div>
                     </div>
                     <div className="p-6 max-h-[60vh] overflow-y-auto space-y-4">
@@ -2917,6 +2887,7 @@ export default function PacienteDetalhe() {
                         ))}
                     </div>
                     <div className="p-4 border-t border-slate-100 flex justify-end gap-2 bg-slate-50">
+                        <button onClick={() => { editarAnamnese(anamnesePreview); }} className="px-4 py-2 bg-amber-50 text-amber-700 border border-amber-200 rounded-xl font-bold text-sm hover:bg-amber-100 flex items-center gap-2"><Edit size={14}/> Editar</button>
                         <button onClick={() => emitirAnamnese(anamnesePreview)} className="px-4 py-2 bg-slate-800 text-white rounded-xl font-bold text-sm hover:bg-black flex items-center gap-2"><Printer size={14}/> Imprimir</button>
                         <button onClick={() => setAnamnesePreview(null)} className="px-4 py-2 text-slate-500 font-bold hover:bg-slate-100 rounded-xl">Fechar</button>
                     </div>
@@ -2924,30 +2895,69 @@ export default function PacienteDetalhe() {
             )}
         </Modal>
 
-        <Modal open={modalDebitoManual} onClose={() => setModalDebitoManual(false)} maxWidth="md" hideCloseButton panelClassName="bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden">
+        <Modal open={modalDebitoManual} onClose={() => setModalDebitoManual(false)} maxWidth="md" hideCloseButton panelClassName="bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden max-h-[90vh] overflow-y-auto">
             <div className="p-5 border-b bg-rose-50">
-                <h3 className="font-black text-slate-800">Adicionar débito manual</h3>
-                <p className="text-xs text-slate-500 mt-1">Registra um valor em aberto na aba Débitos.</p>
+                <h3 className="font-black text-slate-800">Adicionar débito</h3>
+                <p className="text-xs text-slate-500 mt-1">Descrição livre e/ou marque atendimentos e tratamentos como não pagos.</p>
             </div>
             <div className="p-5 space-y-4">
                 <div>
-                    <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Procedimento</label>
-                    <input value={formDebito.procedimento} onChange={(e) => setFormDebito({ ...formDebito, procedimento: e.target.value })} className="w-full p-3 border border-slate-200 rounded-xl font-bold outline-none focus:ring-2 focus:ring-rose-200" placeholder="Ex.: Restauração, Consulta..." />
+                    <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Descrição</label>
+                    <input value={formDebito.descricao} onChange={(e) => setFormDebito({ ...formDebito, descricao: e.target.value })} className="w-full p-3 border border-slate-200 rounded-xl font-bold outline-none focus:ring-2 focus:ring-rose-200" placeholder="Ex.: Restauração, Consulta, Material..." />
                 </div>
                 <div>
                     <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Valor (R$)</label>
                     <input type="number" min="0" step="0.01" value={formDebito.valor} onChange={(e) => setFormDebito({ ...formDebito, valor: e.target.value })} className="w-full p-3 border border-slate-200 rounded-xl font-bold outline-none focus:ring-2 focus:ring-rose-200" />
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                    <div>
-                        <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Data</label>
-                        <input type="date" value={formDebito.date} onChange={(e) => setFormDebito({ ...formDebito, date: e.target.value })} className="w-full p-3 border border-slate-200 rounded-xl font-bold outline-none" />
+                {(debitoOpcoes.agendamentos.length > 0 || debitoOpcoes.tratamentos.length > 0) && (
+                    <div className="space-y-3 pt-2 border-t border-slate-100">
+                        <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Marcar como não pago</p>
+                        {debitoOpcoes.agendamentos.length > 0 && (
+                            <div className="space-y-1.5 max-h-52 overflow-y-auto border border-slate-100 rounded-xl p-2">
+                                <p className="text-xs font-bold text-slate-500 sticky top-0 bg-white py-1">Agendamentos ({debitoOpcoes.agendamentos.length})</p>
+                                {debitoOpcoes.agendamentos.map((a) => (
+                                    <label key={a.id} className="flex items-center gap-2 p-2 rounded-lg border border-slate-100 bg-slate-50 cursor-pointer hover:border-rose-200">
+                                        <input
+                                            type="checkbox"
+                                            checked={formDebito.agendamentosMarcados.includes(a.id)}
+                                            onChange={(e) => setFormDebito((prev) => ({
+                                                ...prev,
+                                                agendamentosMarcados: e.target.checked
+                                                    ? [...prev.agendamentosMarcados, a.id]
+                                                    : prev.agendamentosMarcados.filter((id) => id !== a.id),
+                                            }))}
+                                            className="rounded text-rose-600"
+                                        />
+                                        <span className="text-xs font-semibold text-slate-700 flex-1 truncate">{a.procedimento}</span>
+                                        <span className="text-[10px] font-bold text-slate-400">R$ {Number(a.valor_final ?? a.valor ?? 0).toFixed(2)}</span>
+                                    </label>
+                                ))}
+                            </div>
+                        )}
+                        {debitoOpcoes.tratamentos.length > 0 && (
+                            <div className="space-y-1.5 max-h-52 overflow-y-auto border border-slate-100 rounded-xl p-2">
+                                <p className="text-xs font-bold text-slate-500 sticky top-0 bg-white py-1">Tratamentos ({debitoOpcoes.tratamentos.length})</p>
+                                {debitoOpcoes.tratamentos.map((t) => (
+                                    <label key={t.id} className="flex items-center gap-2 p-2 rounded-lg border border-slate-100 bg-slate-50 cursor-pointer hover:border-rose-200">
+                                        <input
+                                            type="checkbox"
+                                            checked={formDebito.tratamentosMarcados.includes(String(t.id))}
+                                            onChange={(e) => setFormDebito((prev) => ({
+                                                ...prev,
+                                                tratamentosMarcados: e.target.checked
+                                                    ? [...prev.tratamentosMarcados, String(t.id)]
+                                                    : prev.tratamentosMarcados.filter((id) => id !== String(t.id)),
+                                            }))}
+                                            className="rounded text-rose-600"
+                                        />
+                                        <span className="text-xs font-semibold text-slate-700 flex-1 truncate">{t.procedimento}</span>
+                                        <span className="text-[10px] font-bold text-slate-400">R$ {Number(t.valor ?? 0).toFixed(2)}</span>
+                                    </label>
+                                ))}
+                            </div>
+                        )}
                     </div>
-                    <div>
-                        <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Hora</label>
-                        <input type="time" value={formDebito.time} onChange={(e) => setFormDebito({ ...formDebito, time: e.target.value })} className="w-full p-3 border border-slate-200 rounded-xl font-bold outline-none" />
-                    </div>
-                </div>
+                )}
             </div>
             <div className="p-4 border-t bg-slate-50 flex justify-end gap-2">
                 <button type="button" onClick={() => setModalDebitoManual(false)} className="px-4 py-2 text-slate-500 font-bold hover:bg-slate-100 rounded-xl">Cancelar</button>

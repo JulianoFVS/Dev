@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { usePatientSlideOver } from '@/components/PatientSlideOver';
 import { useClinica } from '@/app/context/ClinicaContext';
-import { AlertTriangle, Check, CheckCircle2, ChevronDown, ChevronRight, CircleDot, ClipboardList, Edit3, Eye, FlaskConical, Gem, Heart, Loader2, Package, Paintbrush, Plus, Scissors, Search, Shield, Smile, Sparkles, Star, Trash2, Truck, Wrench, X, Zap } from 'lucide-react';
+import { AlertTriangle, Check, CheckCircle2, ChevronDown, ChevronRight, CircleDot, ClipboardList, Edit3, Eye, Filter, FlaskConical, Gem, Heart, Loader2, Package, Paintbrush, Plus, Scissors, Search, Shield, Smile, Sparkles, Star, Trash2, Truck, Wrench, X, Zap } from 'lucide-react';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
 import CustomSelect from '@/components/ui/CustomSelect';
 import Modal from '@/components/ui/Modal';
@@ -161,6 +161,8 @@ export default function KanbanProtesesInteligente() {
   const [periodFilter, setPeriodFilter] = useState<'all' | '7d' | '30d' | '90d'>('all');
   const [statusFilter, setStatusFilter] = useState<StatusKey | 'all'>('all');
   const [flowDropdownOpen, setFlowDropdownOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const filtersActive = periodFilter !== 'all' || statusFilter !== 'all';
 
   // Mapa de ícones por slug (persiste no DB como string)
   const ICON_MAP: Record<string, React.ReactNode> = {
@@ -609,29 +611,60 @@ export default function KanbanProtesesInteligente() {
           )}
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 shrink-0">
-          <CustomSelect
-            value={periodFilter}
-            onChange={(v) => setPeriodFilter(v as typeof periodFilter)}
-            options={[
-              { value: 'all', label: 'Todos os períodos' },
-              { value: '7d', label: 'Últimos 7 dias' },
-              { value: '30d', label: 'Últimos 30 dias' },
-              { value: '90d', label: 'Últimos 90 dias' },
-            ]}
-            size="sm"
-            className="w-40"
-          />
-          <CustomSelect
-            value={statusFilter}
-            onChange={(v) => setStatusFilter(v as StatusKey | 'all')}
-            options={[
-              { value: 'all', label: 'Todos os status' },
-              ...(['espera', 'lab', 'clinica', 'feito'] as StatusKey[]).map(k => ({ value: k, label: STATUS_TOKENS[k].label })),
-            ]}
-            size="sm"
-            className="w-44"
-          />
+        <div className="relative shrink-0">
+          <button
+            type="button"
+            onClick={() => setFiltersOpen(!filtersOpen)}
+            className={`px-3 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 transition-all ${filtersOpen || filtersActive ? 'bg-pink-50 text-pink-600 border border-pink-200' : 'bg-slate-50 text-slate-500 border border-slate-200 hover:border-pink-200'}`}
+          >
+            <Filter size={16} />
+            Filtros
+            {filtersActive && <span className="w-2 h-2 bg-pink-500 rounded-full" />}
+            <ChevronDown size={13} className={`transition-transform ${filtersOpen ? 'rotate-180' : ''}`} />
+          </button>
+          {filtersOpen && (
+            <>
+              <button type="button" aria-label="Fechar filtros" className="fixed inset-0 z-40" onClick={() => setFiltersOpen(false)} />
+              <div className="absolute top-full right-0 mt-2 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 min-w-[260px] p-4 space-y-3 animate-in fade-in slide-in-from-top-2">
+                <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Período e status</p>
+                <div>
+                  <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Período</label>
+                  <CustomSelect
+                    value={periodFilter}
+                    onChange={(v) => setPeriodFilter(v as typeof periodFilter)}
+                    options={[
+                      { value: 'all', label: 'Todos os períodos' },
+                      { value: '7d', label: 'Últimos 7 dias' },
+                      { value: '30d', label: 'Últimos 30 dias' },
+                      { value: '90d', label: 'Últimos 90 dias' },
+                    ]}
+                    size="sm"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Status</label>
+                  <CustomSelect
+                    value={statusFilter}
+                    onChange={(v) => setStatusFilter(v as StatusKey | 'all')}
+                    options={[
+                      { value: 'all', label: 'Todos os status' },
+                      ...(['espera', 'lab', 'clinica', 'feito'] as StatusKey[]).map(k => ({ value: k, label: STATUS_TOKENS[k].label })),
+                    ]}
+                    size="sm"
+                  />
+                </div>
+                {filtersActive && (
+                  <button
+                    type="button"
+                    onClick={() => { setPeriodFilter('all'); setStatusFilter('all'); }}
+                    className="w-full text-xs font-bold text-slate-400 hover:text-pink-600 flex items-center justify-center gap-1 pt-1"
+                  >
+                    <X size={13} /> Limpar filtros
+                  </button>
+                )}
+              </div>
+            </>
+          )}
         </div>
 
         <div className="text-[11px] font-bold text-slate-400 shrink-0">

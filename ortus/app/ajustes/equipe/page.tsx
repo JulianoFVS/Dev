@@ -601,13 +601,6 @@ export default function EquipePage() {
     const renderPermissoesTab = () => {
         if (!profissionalSelecionado) return null;
         if (!clinicaIdNumerica) return renderClinicaObrigatoria();
-        if (profissionalSelecionado.nivel_acesso === 'admin') {
-            return (
-                <div className="p-6 bg-emerald-50 border border-emerald-200 rounded-2xl text-sm text-emerald-700">
-                    Administradores possuem acesso completo a todos os módulos.
-                </div>
-            );
-        }
         return (
             <div className="space-y-4">
                 <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -625,6 +618,12 @@ export default function EquipePage() {
                         </button>
                     </div>
                 </div>
+                {profissionalSelecionado.nivel_acesso === 'admin' ? (
+                    <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl text-sm text-emerald-700">
+                        Administradores possuem acesso completo a todos os módulos. Para restringir, altere o nível para <strong>Comum</strong> acima.
+                    </div>
+                ) : (
+                <>
                 <div>
                     <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2">Perfis rápidos</p>
                     <div className="flex flex-wrap gap-2">
@@ -672,6 +671,8 @@ export default function EquipePage() {
                         {permissoesSaving ? <Loader2 size={14} className="animate-spin"/> : <Check size={14}/>}Salvar permissões
                     </button>
                 </div>
+                </>
+                )}
             </div>
         );
     };

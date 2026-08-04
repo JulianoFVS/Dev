@@ -60,8 +60,6 @@ export default function Agenda() {
   const [pacientes, setPacientes] = useState<any[]>([]);
   const [tratamentosBase, setTratamentosBase] = useState<any[]>([]);
   const [especialidades, setEspecialidades] = useState<{ id: string; nome: string }[]>([]);
-  const [pagamentoPendente, setPagamentoPendente] = useState(false);
-  
   const [clinicaFiltro, setClinicaFiltro] = useState('todas');
   const [clinicaGlobal, setClinicaGlobal] = useState<string | null>(null);
   const [openModal, setOpenModal] = useState(false);
@@ -239,7 +237,9 @@ export default function Agenda() {
       
       const { data: ag } = await query; 
       if (ag) { 
-          const fmt = ag.map((e:any) => ({ 
+          const fmt = ag
+            .filter((e: any) => e.tipo_registro !== 'debito_manual' && e.observacoes !== 'Débito manual')
+            .map((e:any) => ({ 
               id: e.id, 
               title: `${Array.isArray(e.pacientes) ? e.pacientes[0]?.nome : e.pacientes?.nome} - ${e.procedimento}`, 
               start: e.data_hora, 
@@ -258,7 +258,6 @@ export default function Agenda() {
       const min = String(d.getMinutes()).padStart(2, '0'); 
       const preClinica = clinicaFiltro !== 'todas' ? clinicaFiltro : ''; 
       const preProfissional = (usuarioAtual?.nivel !== 'admin' && usuarioAtual?.profissional_id) ? usuarioAtual.profissional_id : ''; 
-      setPagamentoPendente(false);
       setFormData(prev => ({ ...prev, id: null, title: '', date: d.toISOString().split('T')[0], time: `${h}:${min}`, status: 'agendado', desconto: '0', valor: '0', clinica_id: preClinica, profissional_id: preProfissional }));
       setOpenModal(true); 
   };
@@ -266,7 +265,6 @@ export default function Agenda() {
   const handleEventClick = (info:any) => { 
       const r = info.event.extendedProps; 
       const localDate = new Date(r.data_hora); 
-      setPagamentoPendente(r.status === 'fiado');
       setFormData({
           id: r.id, 
           title: r.procedimento, 
@@ -300,7 +298,7 @@ export default function Agenda() {
 
       setLoading(true); 
       
-      const finalStatus = pagamentoPendente ? 'fiado' : (overrideStatus || formData.status);
+      const finalStatus = overrideStatus || formData.status;
       const dataLocal = new Date(`${formData.date}T${formData.time}:00`); 
       const dataHoraISO = dataLocal.toISOString(); 
       
@@ -659,10 +657,6 @@ export default function Agenda() {
                               disabled={!formData.clinica_id}
                           />
                       </div>
-                      <label className="flex items-center gap-2 p-3 rounded-xl bg-rose-50 border border-rose-100 cursor-pointer">
-                          <input type="checkbox" checked={pagamentoPendente} onChange={(e) => setPagamentoPendente(e.target.checked)} className="rounded border-rose-300 text-rose-600"/>
-                          <span className="text-sm font-bold text-rose-700">Pagamento pendente — registrar em Débitos do paciente</span>
-                      </label>
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200/60">
                           <div>
                               <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Valor (R$)</label>

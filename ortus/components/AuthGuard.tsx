@@ -31,6 +31,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const [clinicaAtual, setClinicaAtual] = useState<any>(null);
   const [menuClinicaAberto, setMenuClinicaAberto] = useState(false);
   const [notificacoesCount, setNotificacoesCount] = useState(0);
+  const [mensagensCount, setMensagensCount] = useState(0);
   const [tarefasPendentes, setTarefasPendentes] = useState(0);
   const [moduleAccess, setModuleAccess] = useState<Record<ModuleName, boolean>>(() => buildModuleAccessMap(false));
   
@@ -217,13 +218,25 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
             }
         }
         const agoraIso = new Date().toISOString();
-        const { count } = await supabase
-            .from('notificacoes')
-            .select('*', { count: 'exact', head: true })
-            .eq('user_id', session.user.id)
-            .eq('lida', false)
-            .or(`expires_at.is.null,expires_at.gt.${agoraIso}`);
-        setNotificacoesCount(count || 0);
+        const tiposAlerta = ['agenda', 'alerta', 'sistema', 'aviso'];
+        const [{ count: alertasCount }, { count: msgsCount }] = await Promise.all([
+            supabase
+                .from('notificacoes')
+                .select('*', { count: 'exact', head: true })
+                .eq('user_id', session.user.id)
+                .eq('lida', false)
+                .in('tipo', tiposAlerta)
+                .or(`expires_at.is.null,expires_at.gt.${agoraIso}`),
+            supabase
+                .from('notificacoes')
+                .select('*', { count: 'exact', head: true })
+                .eq('user_id', session.user.id)
+                .eq('lida', false)
+                .eq('tipo', 'mensagem')
+                .or(`expires_at.is.null,expires_at.gt.${agoraIso}`),
+        ]);
+        setNotificacoesCount(alertasCount || 0);
+        setMensagensCount(msgsCount || 0);
     }
     setLoading(false);
   }
@@ -376,18 +389,22 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
         <div className="p-4 border-t border-slate-50">{!menuRecolhido ? (<p className="text-[10px] text-center text-slate-300 font-medium">v1.0 &copy; 2025</p>) : (<div className="w-1 h-1 bg-slate-300 rounded-full mx-auto"></div>)}</div>
       </aside>
 
-      <div className="md:hidden fixed top-0 w-full bg-white border-b border-slate-200 z-50 px-4 py-3 flex items-center shadow-sm h-16 gap-3">
-        <button onClick={() => setMenuMobileAberto(!menuMobileAberto)} className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">{menuMobileAberto ? <X size={24} /> : <Menu size={24} />}</button>
-        <Link href="/dashboard" className="ml-auto"><img src="/logo.png" alt="Logo" className="h-8 w-auto" /></Link>
+      <div className="md:hidden fixed top-0 w-full bg-white border-b border-slate-200 z-50 px-3 py-2.5 flex items-center shadow-sm h-14 gap-2">
+        <button onClick={() => setMenuMobileAberto(!menuMobileAberto)} className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors touch-target shrink-0">{menuMobileAberto ? <X size={22} /> : <Menu size={22} />}</button>
+        <button onClick={() => setHeaderSwitchOpen((v) => !v)} className="flex-1 min-w-0 flex items-center gap-2 px-2 py-1.5 bg-slate-50 rounded-lg border border-slate-200 text-left">
+            <Building2 size={14} className="text-ortus-accent-muted shrink-0"/>
+            <span className="text-xs font-bold text-slate-700 truncate">{ctxActive ? getClinicLabel(ctxActive) : 'Unidade'}</span>
+        </button>
+        <Link href="/dashboard" className="shrink-0"><img src="/logo.png" alt="Logo" className="h-7 w-auto" /></Link>
       </div>
 
-      <main className={`flex-1 min-w-0 flex flex-col min-h-screen transition-all duration-300 pt-16 md:pt-0 ${menuRecolhido ? 'md:ml-20' : 'md:ml-64'}`}>
-        <header className="bg-white border-b border-slate-200 h-14 md:h-16 flex items-center justify-end px-3 md:px-6 gap-2 md:gap-3 sticky top-16 md:top-0 z-20 shadow-sm/50 backdrop-blur-sm bg-white/90">
+      <main className={`flex-1 min-w-0 flex flex-col min-h-screen transition-all duration-300 pt-14 md:pt-0 ${menuRecolhido ? 'md:ml-20' : 'md:ml-64'}`}>
+        <header className="bg-white border-b border-slate-200 h-12 md:h-16 flex items-center justify-end px-3 md:px-6 gap-2 md:gap-3 relative md:sticky md:top-0 z-20 shadow-sm/50 backdrop-blur-sm bg-white/90">
             {/* SWITCH DE UNIDADE NO HEADER (multi-tenant) */}
             <div className="mr-auto relative min-w-0">
                 <button
                     onClick={() => setHeaderSwitchOpen((v) => !v)}
-                    className="flex items-center gap-1.5 md:gap-2 px-2 md:px-3 py-1.5 bg-slate-50 rounded-xl border border-slate-200 hover:border-ortus-accent hover:bg-ortus-accent-soft transition-all group max-w-full"
+                    className="hidden md:flex items-center gap-1.5 md:gap-2 px-2 md:px-3 py-1.5 bg-slate-50 rounded-xl border border-slate-200 hover:border-ortus-accent hover:bg-ortus-accent-soft transition-all group max-w-full"
                     title="Trocar unidade"
                 >
                     <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${ctxActive?.id === 'all' ? 'bg-purple-100 text-purple-600' : 'bg-white text-ortus-accent-muted border border-slate-200'}`}>
@@ -399,41 +416,41 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
                     </div>
                     <ChevronsUpDown size={14} className="text-slate-400 group-hover:text-ortus-accent-muted shrink-0"/>
                 </button>
-                {headerSwitchOpen && (
-                    <>
-                        <button aria-label="Fechar" className="fixed inset-0 z-30" onClick={() => setHeaderSwitchOpen(false)}/>
-                        <div className="absolute top-full left-0 mt-2 w-72 bg-white border border-slate-100 rounded-2xl shadow-2xl z-40 overflow-hidden animate-in fade-in slide-in-from-top-2">
-                            <p className="px-4 py-2 text-[10px] font-bold text-slate-400 uppercase bg-slate-50 border-b border-slate-100">Trocar Unidade</p>
-                            <button
-                                onClick={() => { persistirClinicaSelecionada({ id: 'todas', nome: 'Todas as Clínicas' }); setHeaderSwitchOpen(false); }}
-                                className="w-full text-left px-4 py-3 text-sm font-bold text-slate-700 hover:bg-purple-50 hover:text-purple-700 flex items-center justify-between border-b border-slate-50"
-                            >
-                                <div className="flex items-center gap-2"><Globe size={16}/> Todas as Clínicas</div>
-                                {ctxActive?.id === 'all' && <Check size={16} className="text-purple-600"/>}
-                            </button>
-                            {ctxClinics.length === 0 && (
-                                <p className="px-4 py-4 text-xs text-slate-400 italic">Nenhuma unidade vinculada ao seu usuário.</p>
-                            )}
-                            {ctxClinics.map((c: any) => (
-                                <button
-                                    key={c.id}
-                                    onClick={() => { persistirClinicaSelecionada(c); setHeaderSwitchOpen(false); }}
-                                    className="w-full text-left px-4 py-3 text-sm font-bold text-slate-700 hover:bg-ortus-accent-soft hover:text-ortus-accent flex items-center justify-between"
-                                >
-                                    <div className="min-w-0">
-                                        <p className="truncate">{getClinicLabel(c)}</p>
-                                        {c.endereco && <p className="text-[10px] text-slate-400 font-medium truncate">{c.endereco}</p>}
-                                    </div>
-                                    {String(ctxActive?.id) === String(c.id) && <Check size={16} className="text-ortus-accent-muted shrink-0 ml-2"/>}
-                                </button>
-                            ))}
-                        </div>
-                    </>
-                )}
             </div>
+            {headerSwitchOpen && (
+                <>
+                    <button aria-label="Fechar" className="fixed inset-0 z-[55]" onClick={() => setHeaderSwitchOpen(false)}/>
+                    <div className="fixed left-3 right-3 top-14 md:absolute md:left-3 md:right-auto md:top-full md:mt-2 md:w-[min(100vw-2rem,18rem)] bg-white border border-slate-100 rounded-2xl shadow-2xl z-[60] overflow-hidden animate-in fade-in slide-in-from-top-2 max-h-[70vh] overflow-y-auto">
+                        <p className="px-4 py-2 text-[10px] font-bold text-slate-400 uppercase bg-slate-50 border-b border-slate-100 sticky top-0">Trocar Unidade</p>
+                        <button
+                            onClick={() => { persistirClinicaSelecionada({ id: 'todas', nome: 'Todas as Clínicas' }); setHeaderSwitchOpen(false); }}
+                            className="w-full text-left px-4 py-3 text-sm font-bold text-slate-700 hover:bg-purple-50 hover:text-purple-700 flex items-center justify-between border-b border-slate-50"
+                        >
+                            <div className="flex items-center gap-2"><Globe size={16}/> Todas as Clínicas</div>
+                            {ctxActive?.id === 'all' && <Check size={16} className="text-purple-600"/>}
+                        </button>
+                        {ctxClinics.length === 0 && (
+                            <p className="px-4 py-4 text-xs text-slate-400 italic">Nenhuma unidade vinculada ao seu usuário.</p>
+                        )}
+                        {ctxClinics.map((c: any) => (
+                            <button
+                                key={c.id}
+                                onClick={() => { persistirClinicaSelecionada(c); setHeaderSwitchOpen(false); }}
+                                className="w-full text-left px-4 py-3 text-sm font-bold text-slate-700 hover:bg-ortus-accent-soft hover:text-ortus-accent flex items-center justify-between"
+                            >
+                                <div className="min-w-0">
+                                    <p className="truncate">{getClinicLabel(c)}</p>
+                                    {c.endereco && <p className="text-[10px] text-slate-400 font-medium truncate">{c.endereco}</p>}
+                                </div>
+                                {String(ctxActive?.id) === String(c.id) && <Check size={16} className="text-ortus-accent-muted shrink-0 ml-2"/>}
+                            </button>
+                        ))}
+                    </div>
+                </>
+            )}
             <div className="flex items-center gap-0.5 md:gap-1 border-r border-slate-100 pr-2 md:pr-3 mr-0.5 md:mr-1">
-                <Link href="/inbox?tab=mensagens" className="p-2 text-slate-400 hover:text-ortus-accent-muted hover:bg-ortus-accent-soft rounded-lg transition-all relative" title="Mensagens"><Mail size={20}/></Link>
-                <Link href="/inbox?tab=alertas" className="p-2 text-slate-400 hover:text-ortus-accent-muted hover:bg-ortus-accent-soft rounded-lg transition-all relative" title="Alertas"><Bell size={20}/>{notificacoesCount > 0 && <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>}</Link>
+                <Link href="/mensagens" className="p-2 text-slate-400 hover:text-ortus-accent-muted hover:bg-ortus-accent-soft rounded-lg transition-all relative" title="Mensagens"><Mail size={20}/>{mensagensCount > 0 && <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-purple-500 rounded-full animate-pulse"></span>}</Link>
+                <Link href="/inbox" className="p-2 text-slate-400 hover:text-ortus-accent-muted hover:bg-ortus-accent-soft rounded-lg transition-all relative" title="Central de Avisos"><Bell size={20}/>{notificacoesCount > 0 && <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>}</Link>
             </div>
             <Link href="/perfil" className="flex items-center gap-3 pl-2 py-1 pr-2 rounded-xl hover:bg-slate-50 transition-colors group border border-transparent hover:border-slate-100">
                 <div className="text-right hidden sm:block"><p className="text-sm font-bold text-slate-700 group-hover:text-blue-700 transition-colors">{perfil?.nome}</p><p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide text-right">{perfil?.nivel_acesso === 'admin' ? 'Admin' : 'Dr(a).'}</p></div>
@@ -441,7 +458,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
             </Link>
             <button onClick={handleLogout} className="ml-0.5 md:ml-1 p-1.5 md:p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all border border-transparent hover:border-red-100" title="Sair"><LogOut size={18}/></button>
         </header>
-        <div className="p-4 md:p-8 min-w-0 max-w-full animate-in fade-in slide-in-from-bottom-2 duration-500">{children}</div>
+        <div className="p-3 sm:p-4 md:p-8 min-w-0 max-w-full animate-in fade-in slide-in-from-bottom-2 duration-500">{children}</div>
       </main>
 
       

@@ -87,17 +87,12 @@ export async function receberAgendamento(
 
 
   const { error } = await supabase
-
     .from('agendamentos')
-
     .update({
-
       status: 'concluido',
-
+      data_pagamento: new Date().toISOString(),
       ...taxaMeta,
-
     })
-
     .eq('id', agendamento.id);
 
 

@@ -64,7 +64,7 @@ export default function Modal({
 
   return createPortal(
     <div
-      className={`fixed inset-0 flex items-center justify-center p-4 animate-in fade-in duration-150 ${className}`}
+      className={`fixed inset-0 flex items-end sm:items-center justify-center p-2 sm:p-4 animate-in fade-in duration-150 ${className}`}
       style={{ zIndex }}
       role="dialog"
       aria-modal="true"

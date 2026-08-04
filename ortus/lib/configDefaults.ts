@@ -142,6 +142,10 @@ export const TAXAS_MAQUININHA_PADRAO: TaxaMaquininha[] = [
   ...gerarParcelasBandeira('Visa/Master', 'visa'),
   { id: 'elo_deb', nome: 'Débito', bandeira: 'Elo', tipo: 'debito', taxa_percentual: 1.8, prazo_recebimento_dias: 1, ativo: true },
   ...gerarParcelasBandeira('Elo', 'elo'),
+  { id: 'amex_deb', nome: 'Débito', bandeira: 'Amex', tipo: 'debito', taxa_percentual: 2.2, prazo_recebimento_dias: 1, ativo: true },
+  ...gerarParcelasBandeira('Amex', 'amex'),
+  { id: 'hiper_deb', nome: 'Débito', bandeira: 'Hipercard', tipo: 'debito', taxa_percentual: 2.0, prazo_recebimento_dias: 1, ativo: true },
+  ...gerarParcelasBandeira('Hipercard', 'hiper'),
 ];
 
 function parseFaixaParcelas(item: TaxaMaquininha): [number, number] | null {
