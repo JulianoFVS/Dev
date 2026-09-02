@@ -443,10 +443,13 @@ export default function PacienteDetalhe() {
 
       const { data } = await supabase.from('pacientes').select('*').eq('id', id).single();
       if (data) {
-          setForm(data);
           const prontuario = await carregarProntuario(String(id));
           const fm = normalizarFichaMedica({ ...(data.ficha_medica || {}), ...prontuario.fichaClinica });
           setFicha(fm);
+          setForm({
+              ...data,
+              anamnese: typeof fm.anamnese === 'string' ? fm.anamnese : '',
+          });
           odontogramaFromServer.current = true;
           fichaFromServer.current = true;
           loadOdontogramFromLegacy((prontuario.fichaClinica.odontograma || {}) as Record<string, LegacyToothState>);
@@ -485,7 +488,12 @@ export default function PacienteDetalhe() {
       const fichaParaSalvar = { ...ficha };
       LEGACY_CONDICOES.forEach((k) => delete fichaParaSalvar[k]);
       const fichaAtualizada = await salvarFichaClinica(String(id), { odontograma: getOdontogramLegacySnapshot(), marcacoes_hof: marcacoesHof }, fichaParaSalvar);
-      const payload = { ...form, plano_id: form.plano_id || null, ficha_medica: { ...fichaParaSalvar, ...fichaAtualizada } };
+      const { anamnese: _anamnese, ...formSemAnamnese } = form;
+      const payload = {
+          ...formSemAnamnese,
+          plano_id: form.plano_id || null,
+          ficha_medica: { ...fichaParaSalvar, ...fichaAtualizada, anamnese: form.anamnese || '' },
+      };
       const { error } = await supabase.from('pacientes').update(payload).eq('id', id);
       if (error) { await showAlert('Erro ao salvar: ' + error.message, { type: 'error' }); return; }
       setFicha({ ...ficha, ...fichaAtualizada });
@@ -553,10 +561,9 @@ export default function PacienteDetalhe() {
           const payload = { ...fichaData };
           LEGACY_CONDICOES.forEach((k) => delete payload[k]);
           const fichaAtual = normalizarFichaMedica(form.ficha_medica || {});
-          const merged = { ...fichaAtual, ...payload };
+          const merged = { ...fichaAtual, ...payload, anamnese: anamneseTexto };
           const { error } = await supabase.from('pacientes').update({
               ficha_medica: merged,
-              anamnese: anamneseTexto,
           }).eq('id', id);
           if (error) throw error;
       } catch (error: any) {
