@@ -58,7 +58,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (loading || !session || !perfil) return;
     if (perfil.nivel_acesso === 'admin' || perfil.is_super_admin) return;
-    const rotaPublica = ['/login', '/', '/site', '/termos', '/checkout', '/cadastro', '/selecao', '/primeiro-acesso'].includes(pathname) || pathname.startsWith('/super-admin');
+    const rotaPublica = ['/login', '/', '/site', '/termos', '/checkout', '/cadastro', '/selecao', '/primeiro-acesso', '/teste-3d'].includes(pathname) || pathname.startsWith('/super-admin');
     if (rotaPublica) return;
     const modulo = moduleForPath(pathname);
     if (modulo && !moduleAccess[modulo]) {
@@ -116,7 +116,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
 
   async function validarSessao() {
     const { data: { session } } = await supabase.auth.getSession();
-    const rotasPublicas = ['/login', '/', '/site', '/termos', '/checkout', '/cadastro'];
+    const rotasPublicas = ['/login', '/', '/site', '/termos', '/checkout', '/cadastro', '/teste-3d'];
     if (rotasPublicas.includes(pathname)) { setLoading(false); return; }
 
     if (!session) { router.push('/login'); return; }
@@ -290,7 +290,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
       router.push('/login');
   }
 
-  if (['/login', '/', '/site', '/termos', '/checkout', '/cadastro'].includes(pathname)) return <>{children}</>;
+  if (['/login', '/', '/site', '/termos', '/checkout', '/cadastro', '/teste-3d'].includes(pathname)) return <>{children}</>;
   if (loading) return <div className="h-screen w-screen bg-slate-50 flex items-center justify-center text-ortus-accent-muted animate-pulse"><Building2 size={40}/></div>;
   if (!session) return null;
 

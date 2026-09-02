@@ -1,5 +1,5 @@
 ﻿'use client';
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import type { MouseEvent, PointerEvent } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
@@ -30,32 +30,18 @@ import { criarDocumento, excluirDocumento as excluirDocumentoDb } from '@/lib/db
 import { salvarFichaClinica } from '@/lib/db/fichaClinica';
 import { atualizarTratamento, criarTratamento, excluirTratamento as excluirTratamentoDb } from '@/lib/db/tratamentos';
 import type { TratamentoPaciente } from '@/lib/db/types';
+import { FACE_COLORS, FACE_LABELS, ODONTO_TOOLS } from '@/lib/odontogram/constants';
+import type { LegacyToothState, OdontoFace, OdontoFaceStatus, OdontoToothStatus } from '@/lib/odontogram/types';
+import { selectLegacyOdontogram, useOdontogramStore } from '@/store/useOdontogramStore';
+import OdontogramaContainer from '@/components/OdontogramaContainer';
 
 // =============== ODONTOGRAMA - Padrão Codental (Vista Lateral + Oclusal) ===============
-type Face = 'V' | 'M' | 'D' | 'L' | 'O'; // Vestibular, Mesial, Distal, Lingual/Palatal, Oclusal/Incisal
-type FaceStatus = 'higido' | 'carie' | 'restaurado' | 'tratado';
-type ToothCondition = 'normal' | 'ausente' | 'coroa' | 'implante' | 'extracao';
+type Face = OdontoFace;
+type FaceStatus = OdontoFaceStatus;
+type ToothCondition = OdontoToothStatus;
 interface ToothState { faces: Partial<Record<Face, FaceStatus>>; cond: ToothCondition }
 
-const FACE_COLORS: Record<FaceStatus, string> = {
-  higido: '#ffffff',
-  carie: '#ef4444',
-  restaurado: '#3b82f6',
-  tratado: '#10b981',
-};
-
-const FACE_LABELS: Record<Face, string> = { V: 'Vestibular', M: 'Mesial', D: 'Distal', L: 'Lingual/Palatal', O: 'Oclusal/Incisal' };
-
-const TOOLS: { key: string; label: string; color: string; tipo: 'face' | 'cond' }[] = [
-  { key: 'higido',      label: 'Hígido',      color: '#ffffff', tipo: 'face' },
-  { key: 'carie',       label: 'Cárie',       color: '#ef4444', tipo: 'face' },
-  { key: 'restaurado',  label: 'Restauração', color: '#3b82f6', tipo: 'face' },
-  { key: 'tratado',     label: 'Tratado',     color: '#10b981', tipo: 'face' },
-  { key: 'coroa',       label: 'Coroa',       color: '#f59e0b', tipo: 'cond' },
-  { key: 'implante',    label: 'Implante',    color: '#0ea5e9', tipo: 'cond' },
-  { key: 'extracao',    label: 'Extração',    color: '#dc2626', tipo: 'cond' },
-  { key: 'ausente',     label: 'Ausente',     color: '#94a3b8', tipo: 'cond' },
-];
+const TOOLS = ODONTO_TOOLS;
 
 const PATIENT_NAV_SECTIONS = [
   { key: 'dados', label: 'Dados', icon: User },
@@ -331,10 +317,17 @@ export default function PacienteDetalhe() {
   const [clinicas, setClinicas] = useState<any[]>([]);
   const [planos, setPlanos] = useState<any[]>([]);
 
-  // Odontograma + Tratamentos
-  const [odontograma, setOdontograma] = useState<Record<string, ToothState>>({});
+  // Odontograma + Tratamentos (estado unificado via Zustand — 2D + 3D)
+  const teeth = useOdontogramStore((s) => s.teeth);
+  const ferramenta = useOdontogramStore((s) => s.activeTool);
+  const setFerramenta = useOdontogramStore((s) => s.setActiveTool);
+  const loadOdontogramFromLegacy = useOdontogramStore((s) => s.loadFromLegacy);
+  const getOdontogramLegacySnapshot = useOdontogramStore((s) => s.getLegacySnapshot);
+  const applyOdontogramTool = useOdontogramStore((s) => s.applyTool);
+  const resetOdontogramTooth = useOdontogramStore((s) => s.resetTooth);
+  const resetOdontogramAll = useOdontogramStore((s) => s.resetAll);
+  const odontograma = useMemo(() => selectLegacyOdontogram(teeth), [teeth]);
   const [tratamentos, setTratamentos] = useState<any[]>([]);
-  const [ferramenta, setFerramenta] = useState<string>('carie');
   const [tipoArcada, setTipoArcada] = useState<'permanente' | 'leite'>('permanente');
   const [savingOdo, setSavingOdo] = useState(false);
   const [visaoOdonto, setVisaoOdonto] = useState<'anatomica' | 'esquematica' | 'livre'>('anatomica');
@@ -430,6 +423,10 @@ export default function PacienteDetalhe() {
   useEffect(() => { if(id) carregar(); }, [id]);
 
   useEffect(() => {
+    return () => { useOdontogramStore.getState().resetAll(); };
+  }, [id]);
+
+  useEffect(() => {
       if (!form.clinica_id) { setPlanos([]); return; }
       supabase.from('planos').select('id, nome, tipo').eq('clinica_id', form.clinica_id).eq('ativo', true).order('nome')
           .then(({ data }) => setPlanos(data || []));
@@ -452,7 +449,7 @@ export default function PacienteDetalhe() {
           setFicha(fm);
           odontogramaFromServer.current = true;
           fichaFromServer.current = true;
-          setOdontograma((prontuario.fichaClinica.odontograma || {}) as Record<string, ToothState>);
+          loadOdontogramFromLegacy((prontuario.fichaClinica.odontograma || {}) as Record<string, LegacyToothState>);
           setTratamentos(prontuario.tratamentos);
           setTextoOdontogramaLivre(prontuario.fichaClinica.texto_livre || '');
           setMarcacoesHof((prontuario.fichaClinica.marcacoes_hof || []) as HofMarcacao[]);
@@ -487,7 +484,7 @@ export default function PacienteDetalhe() {
       if (erro) { await showAlert(erro, { type: 'warning' }); return; }
       const fichaParaSalvar = { ...ficha };
       LEGACY_CONDICOES.forEach((k) => delete fichaParaSalvar[k]);
-      const fichaAtualizada = await salvarFichaClinica(String(id), { odontograma, marcacoes_hof: marcacoesHof }, fichaParaSalvar);
+      const fichaAtualizada = await salvarFichaClinica(String(id), { odontograma: getOdontogramLegacySnapshot(), marcacoes_hof: marcacoesHof }, fichaParaSalvar);
       const payload = { ...form, plano_id: form.plano_id || null, ficha_medica: { ...fichaParaSalvar, ...fichaAtualizada } };
       const { error } = await supabase.from('pacientes').update(payload).eq('id', id);
       if (error) { await showAlert('Erro ao salvar: ' + error.message, { type: 'error' }); return; }
@@ -511,7 +508,7 @@ export default function PacienteDetalhe() {
               observacoes: form.observacoes,
           },
           anamneses: anamnesesAnteriores,
-          odontograma,
+          odontograma: getOdontogramLegacySnapshot(),
           tratamentos,
           marcacoes_hof: marcacoesHof,
           documentos: documentos.map(d => ({ id: d.id, nome: d.nome, tipo: d.tipo, criado_em: d.criado_em })),
@@ -533,39 +530,17 @@ export default function PacienteDetalhe() {
 
   // ===== Odontograma helpers =====
   function aplicarFerramenta(numDente: number, face: Face | null) {
-      const tool = TOOLS.find(t => t.key === ferramenta);
-      if (!tool) return;
-      setOdontograma(prev => {
-          const atual: ToothState = prev[numDente] || { faces: {}, cond: 'normal' };
-          let novo: ToothState;
-          if (tool.tipo === 'face' && face) {
-              const next = { ...atual.faces } as any;
-              if (atual.faces[face] === ferramenta || ferramenta === 'higido') delete next[face];
-              else next[face] = ferramenta as FaceStatus;
-              novo = { ...atual, faces: next };
-          } else if (tool.tipo === 'cond') {
-              novo = { ...atual, cond: atual.cond === ferramenta ? 'normal' : ferramenta as ToothCondition };
-          } else if (tool.tipo === 'face') {
-              // Sem face específica (clique direto no dente via lib): aplica/remove em TODAS faces
-              const isAlready = Object.values(atual.faces).every(v => v === ferramenta) && Object.keys(atual.faces).length > 0;
-              if (isAlready || ferramenta === 'higido') {
-                  novo = { ...atual, faces: {} };
-              } else {
-                  novo = { ...atual, faces: { V: ferramenta as FaceStatus, M: ferramenta as FaceStatus, D: ferramenta as FaceStatus, L: ferramenta as FaceStatus, O: ferramenta as FaceStatus } };
-              }
-          } else return prev;
-          return { ...prev, [numDente]: novo };
-      });
+      applyOdontogramTool(numDente, face);
   }
 
   function limparDente(numDente: number) {
-      setOdontograma(prev => { const n = {...prev}; delete n[numDente]; return n; });
+      resetOdontogramTooth(numDente);
   }
 
   async function salvarOdontograma() {
       setSavingOdo(true);
       try {
-          const fichaAtualizada = await salvarFichaClinica(String(id), { odontograma, texto_livre: textoOdontogramaLivre, marcacoes_hof: marcacoesHof }, ficha);
+          const fichaAtualizada = await salvarFichaClinica(String(id), { odontograma: getOdontogramLegacySnapshot(), texto_livre: textoOdontogramaLivre, marcacoes_hof: marcacoesHof }, ficha);
           setFicha({ ...ficha, ...fichaAtualizada });
       } catch (error: any) {
           showAlert('Erro ao salvar: ' + error.message, { type: 'error' });
@@ -599,7 +574,7 @@ export default function PacienteDetalhe() {
       const timer = setTimeout(() => { salvarOdontograma(); }, 800);
       return () => clearTimeout(timer);
       // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [odontograma, textoOdontogramaLivre, loading]);
+  }, [teeth, textoOdontogramaLivre, loading]);
 
   // Autosave ficha médica rápida (debounce 800ms)
   useEffect(() => {
@@ -2084,7 +2059,7 @@ export default function PacienteDetalhe() {
                                     {visaoOdonto !== 'livre' && (
                                         <button
                                             onClick={async () => {
-                                                if (await showConfirm('Limpar todo o odontograma?', { title: 'Limpar', type: 'warning', confirmLabel: 'Limpar' })) setOdontograma({});
+                                                if (await showConfirm('Limpar todo o odontograma?', { title: 'Limpar', type: 'warning', confirmLabel: 'Limpar' })) resetOdontogramAll();
                                             }}
                                             className="px-2.5 py-1.5 text-xs font-semibold rounded-md bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center gap-1"
                                         >
@@ -2196,6 +2171,11 @@ export default function PacienteDetalhe() {
                                         })()}
                                     </div>
                                 </div>
+                            </div>
+
+                            <div className="mt-6">
+                                <div className="text-[10px] uppercase font-bold text-slate-400 mb-2">Vista 3D (sincronizada com o odontograma 2D)</div>
+                                <OdontogramaContainer />
                             </div>
 
                             {/* Resumo de dentes alterados */}

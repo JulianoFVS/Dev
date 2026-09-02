@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>ORTUS — Etapas da Landing Page</title>
+<style>
+@page { margin: 1.8cm 2cm; size: A4; }
+* { box-sizing: border-box; }
+body {
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  font-size: 10pt;
+  line-height: 1.5;
+  color: #1e293b;
+  max-width: 100%;
+}
+h1 { font-size: 20pt; border-bottom: 3px solid #2563eb; padding-bottom: 6px; margin: 0 0 6px; }
+.subtitle { font-size: 11pt; color: #64748b; margin-bottom: 24px; }
+h2 {
+  font-size: 13pt;
+  color: #1e40af;
+  margin: 28px 0 10px;
+  padding: 6px 10px;
+  background: #eff6ff;
+  border-left: 4px solid #2563eb;
+  page-break-after: avoid;
+}
+h3 {
+  font-size: 10.5pt;
+  color: #334155;
+  margin: 14px 0 6px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  page-break-after: avoid;
+}
+p { margin: 4px 0 8px; }
+ul { margin: 4px 0 10px; padding-left: 18px; }
+li { margin-bottom: 3px; }
+.box {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin: 8px 0 12px;
+  background: #f8fafc;
+  page-break-inside: avoid;
+}
+.box strong { color: #0f172a; }
+.example {
+  background: #fff;
+  border-left: 3px solid #16a34a;
+  padding: 8px 12px;
+  margin: 6px 0 10px;
+  font-size: 9.5pt;
+  page-break-inside: avoid;
+}
+.example .label {
+  font-size: 8pt;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: #16a34a;
+  margin-bottom: 4px;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 9pt;
+  margin: 8px 0 12px;
+  page-break-inside: avoid;
+}
+th, td { border: 1px solid #cbd5e1; padding: 5px 8px; text-align: left; vertical-align: top; }
+th { background: #f1f5f9; font-weight: 700; }
+code { background: #f1f5f9; padding: 1px 4px; border-radius: 3px; font-size: 9pt; }
+.cover { text-align: center; padding: 100px 20px; page-break-after: always; }
+.cover h1 { border: none; font-size: 26pt; }
+.cover p { color: #64748b; }
+.toc { page-break-after: always; }
+.toc ol { line-height: 1.9; }
+hr { border: none; border-top: 1px dashed #cbd5e1; margin: 20px 0; }
+.footer { margin-top: 30px; font-size: 8pt; color: #94a3b8; text-align: center; border-top: 1px solid #e2e8f0; padding-top: 10px; }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <h1>ORTUS</h1>
+  <p><strong>Etapas da Landing Page</strong></p>
+  <p>Resumo → Detalhamento → Exemplos concretos<br>Para construir lendo e já sair codando</p>
+  <p style="margin-top:40px;font-size:9pt;">Recode Systems Ltda. · 01/09/2026</p>
+</div>
+
+<div class="toc">
+  <h2 style="background:none;border:none;padding:0;">Índice — ordem de leitura do usuário</h2>
+  <ol>
+    <li>Topo (Navbar + Hero)</li>
+    <li>Sobre (problema e solução)</li>
+    <li>Diferenciais</li>
+    <li>Funcionalidades</li>
+    <li>Como funciona (um dia na clínica)</li>
+    <li>Depoimentos / Prova social</li>
+    <li>Preços</li>
+    <li>FAQ</li>
+    <li>CTA final</li>
+    <li>Rodapé + páginas legais</li>
+  </ol>
+</div>
+
+<!-- ETAPA 1 -->
+<h2>ETAPA 1 — Topo (Navbar + Hero)</h2>
+
+<h3>Resumo</h3>
+<p>Primeira tela. O visitante precisa entender em 5 segundos <strong>o que é o ORTUS</strong> e <strong>o que fazer agora</strong>. Navbar fixa com navegação e login. Hero com headline direta, subtítulo, 2 botões e prova rápida de confiança.</p>
+
+<h3>Detalhamento</h3>
+<div class="box">
+<strong>Navbar (fixa, 56–64px)</strong>
+<ul>
+  <li>Logo ORTUS (clicável → topo da página)</li>
+  <li>Links âncora: Funcionalidades <code>#funcionalidades</code>, Preços <code>#precos</code></li>
+  <li>Botão secundário: Entrar → <code>/login</code></li>
+  <li>Botão primário: Começar / Teste grátis → <code>#precos</code> ou <code>/checkout?plano=Clinica&amp;valor=497</code></li>
+  <li>Mobile: menu hambúrguer com os mesmos itens</li>
+</ul>
+</div>
+<div class="box">
+<strong>Hero</strong>
+<ul>
+  <li>Badge pequeno (opcional): "Sistema em uso em clínicas no Brasil"</li>
+  <li>Headline: 1 frase, máximo 8 palavras</li>
+  <li>Subtítulo: 1–2 frases explicando agenda + prontuário + financeiro integrados</li>
+  <li>CTA primário + CTA secundário</li>
+  <li>2–3 micro-bullets de confiança abaixo dos botões</li>
+  <li>À direita (desktop) ou abaixo (mobile): screenshot/mock do produto real</li>
+</ul>
+</div>
+
+<h3>Exemplos concretos</h3>
+<div class="example">
+<div class="label">Headline</div>
+"Menos planilha. Mais cadeira ocupada."
+</div>
+<div class="example">
+<div class="label">Subtítulo</div>
+"Agenda, prontuário e financeiro num só lugar. Feito para quem atende o dia inteiro — não para quem configura software."
+</div>
+<div class="example">
+<div class="label">Botões</div>
+<table>
+<tr><th>Texto</th><th>Destino</th></tr>
+<tr><td>Começar teste grátis</td><td><code>#precos</code> (rola até planos)</td></tr>
+<tr><td>Ver como funciona</td><td><code>#funcionalidades</code></td></tr>
+<tr><td>Entrar</td><td><code>/login</code></td></tr>
+</table>
+</div>
+<div class="example">
+<div class="label">Micro-bullets</div>
+✓ Teste grátis 7 dias &nbsp;·&nbsp; ✓ Sem taxa por paciente &nbsp;·&nbsp; ✓ Setup em menos de 1 dia
+</div>
+<div class="example">
+<div class="label">Imagem/vídeo</div>
+Screenshot real da <strong>agenda do dia</strong> com consultas confirmadas e valor em aberto visível. Não usar ilustração genérica de dentista sorrindo. Se vídeo: 15s mostrando agenda → ficha → financeiro sem trocar de sistema.
+</div>
+
+<hr>
+
+<!-- ETAPA 2 -->
+<h2>ETAPA 2 — Sobre (problema e solução)</h2>
+
+<h3>Resumo</h3>
+<p>Explica <strong>por que</strong> o ORTUS existe. Mostra a dor da clínica (3 sistemas, planilha, retrabalho) e a solução (tudo integrado). Objetivo: o dentista/gestor se identificar.</p>
+
+<h3>Detalhamento</h3>
+<div class="box">
+<ul>
+  <li>Título da seção: pergunta ou afirmação sobre a dor</li>
+  <li>2 colunas ou bloco texto + lista: "Antes" vs "Com ORTUS"</li>
+  <li>3 bullets do que muda no dia a dia</li>
+  <li>Sem botão aqui — só leitura. O CTA vem depois.</li>
+</ul>
+</div>
+
+<h3>Exemplos concretos</h3>
+<div class="example">
+<div class="label">Título</div>
+"Sua recepção não deveria ser operadora de 3 sistemas."
+</div>
+<div class="example">
+<div class="label">Texto</div>
+"A maioria das clínicas usa um app pra agenda, outro pro prontuário e uma planilha pro financeiro. O resultado: informação duplicada, paciente esperando e fim de mês virando caos."
+</div>
+<div class="example">
+<div class="label">Antes → Depois</div>
+<table>
+<tr><th>Antes</th><th>Com ORTUS</th></tr>
+<tr><td>Confirma no WhatsApp, anota no caderno, lança no Excel</td><td>Confirmação SMS automática, tudo na agenda</td></tr>
+<tr><td>Copia valor do atendimento pro financeiro</td><td>Atendimento concluído → entrada no caixa automática</td></tr>
+<tr><td>Prontuário num lugar, débito em outro</td><td>Fiado visível na agenda e na ficha</td></tr>
+</table>
+</div>
+
+<hr>
+
+<!-- ETAPA 3 -->
+<h2>ETAPA 3 — Diferenciais</h2>
+
+<h3>Resumo</h3>
+<p>Responde: <strong>por que ORTUS e não outro?</strong> Lista 4–6 diferenciais reais do produto (não genéricos). Cada um com título curto + 1 linha de explicação.</p>
+
+<h3>Detalhamento</h3>
+<div class="box">
+<ul>
+  <li>ID da seção: <code>#diferenciais</code> (opcional, pode fundir com funcionalidades)</li>
+  <li>Grid 2×3 ou lista vertical</li>
+  <li>Ícone simples por item (não obrigatório)</li>
+  <li><strong>Só citar o que existe hoje.</strong> Não prometer estoque, marketplace ou marketing automatizado.</li>
+</ul>
+</div>
+
+<h3>Exemplos concretos</h3>
+<div class="example">
+<div class="label">Diferenciais reais do ORTUS</div>
+<table>
+<tr><th>Título</th><th>Texto</th></tr>
+<tr><td>Tudo integrado</td><td>Agenda, prontuário e financeiro conversam. Sem copiar valor entre sistemas.</td></tr>
+<tr><td>Odontograma + HOF</td><td>Mapa dental e harmonização orofacial na mesma ficha do paciente.</td></tr>
+<tr><td>Kanban de próteses</td><td>Laboratório e clínica acompanham etapas com checklist por tipo de trabalho.</td></tr>
+<tr><td>Multi-clínica</td><td>Várias unidades, permissões por cargo e módulo. Admin consolida tudo.</td></tr>
+<tr><td>Anamnese por link</td><td>Paciente preenche antes da consulta. Chega pronto na recepção.</td></tr>
+<tr><td>LGPD desde o início</td><td>Export de prontuário, termos, privacidade, backup 2x/dia, RLS por clínica.</td></tr>
+</table>
+</div>
+<div class="example">
+<div class="label">Frase de impacto (opcional acima do grid)</div>
+"Tudo que recepção, dentista e financeiro precisam — sem três sistemas diferentes."
+</div>
+
+<hr>
+
+<!-- ETAPA 4 -->
+<h2>ETAPA 4 — Funcionalidades</h2>
+
+<h3>Resumo</h3>
+<p>Mostra <strong>o que o sistema faz</strong>, módulo por módulo. Objetivo: provar que cobre a rotina real da clínica. Cada módulo = nome + 2 bullets do que resolve.</p>
+
+<h3>Detalhamento</h3>
+<div class="box">
+<ul>
+  <li>ID: <code>#funcionalidades</code></li>
+  <li>6 cards em grid (2 colunas desktop, 1 mobile)</li>
+  <li>Cada card: número (01–06), nome do módulo, 2 bullets, screenshot pequeno ou ícone</li>
+  <li>Abaixo do grid: screenshot grande do produto (agenda ou ficha)</li>
+</ul>
+</div>
+
+<h3>Exemplos concretos</h3>
+<div class="example">
+<div class="label">Cards</div>
+<table>
+<tr><th>#</th><th>Módulo</th><th>Bullets</th></tr>
+<tr><td>01</td><td>Agenda</td><td>Dia/semana/lista · SMS de confirmação 24h · Fiado visível antes do atendimento</td></tr>
+<tr><td>02</td><td>Prontuário</td><td>Odontograma · Anamnese com link · Evoluções e documentos (receita, atestado)</td></tr>
+<tr><td>03</td><td>Financeiro</td><td>Entrada automática do atendimento · Despesas e categorias · Taxas de maquininha</td></tr>
+<tr><td>04</td><td>Multi-clínica</td><td>Várias unidades · Permissões por profissional · Visão consolidada</td></tr>
+<tr><td>05</td><td>Próteses</td><td>Kanban por etapa · Checklist por tipo · Drag-and-drop</td></tr>
+<tr><td>06</td><td>LGPD</td><td>Export de prontuário · Termos e privacidade · Permissões por módulo</td></tr>
+</table>
+</div>
+<div class="example">
+<div class="label">Screenshot grande</div>
+Print da <strong>ficha do paciente</strong> com odontograma + tratamentos + débitos na mesma tela. Ou print do <strong>kanban de próteses</strong>.
+</div>
+
+<hr>
+
+<!-- ETAPA 5 -->
+<h2>ETAPA 5 — Como funciona (um dia na clínica)</h2>
+
+<h3>Resumo</h3>
+<p>Mostra o fluxo real do dia. Timeline com horários. Objetivo: o visitante visualizar o ORTUS na rotina dele, não como "mais um software".</p>
+
+<h3>Detalhamento</h3>
+<div class="box">
+<ul>
+  <li>ID: <code>#como-funciona</code></li>
+  <li>Layout: timeline vertical (4 eventos) ou split (texto + timeline)</li>
+  <li>Cada evento: horário + ação + resultado no sistema</li>
+  <li>Lista de 4 benefícios abaixo da timeline</li>
+</ul>
+</div>
+
+<h3>Exemplos concretos</h3>
+<div class="example">
+<div class="label">Timeline</div>
+<table>
+<tr><th>Horário</th><th>Evento</th></tr>
+<tr><td>08:45</td><td>SMS de confirmação automática para consulta das 09h</td></tr>
+<tr><td>09:52</td><td>Atendimento concluído → R$ 180 registrado no financeiro (PIX)</td></tr>
+<tr><td>10:15</td><td>Prótese do paciente Silva movida para etapa "Prova" no kanban</td></tr>
+<tr><td>18:00</td><td>Backup automático. Relatório do dia pronto para imprimir.</td></tr>
+</table>
+</div>
+<div class="example">
+<div class="label">Benefícios (bullets)</div>
+<ul>
+  <li>Recepção vê débitos antes do paciente sentar</li>
+  <li>Dentista registra odontograma e evolução na cadeira</li>
+  <li>Financeiro atualiza sozinho</li>
+  <li>Relatório mensal sem planilha paralela</li>
+</ul>
+</div>
+<div class="example">
+<div class="label">Imagem</div>
+Print da timeline não precisa ser real — pode ser ilustração limpa com ícones. Se usar foto: recepção com tablet/notebook mostrando agenda (desfocado, foco na tela).
+</div>
+
+<hr>
+
+<!-- ETAPA 6 -->
+<h2>ETAPA 6 — Depoimentos / Prova social</h2>
+
+<h3>Resumo</h3>
+<p>Prova que outras clínicas usam. Objetivo: reduzir medo de ser "cobaia". Só usar depoimentos reais ou nomes autorizados.</p>
+
+<h3>Detalhamento</h3>
+<div class="box">
+<ul>
+  <li>Faixa com logos ou nomes de clínicas (3–5)</li>
+  <li>1–3 depoimentos com: foto ou inicial, nome, cargo, cidade, texto curto</li>
+  <li>Números se tiver: "X clínicas" ou "X consultas gerenciadas/mês"</li>
+  <li><strong>Não usar</strong> "sistema nº 1" sem prova</li>
+</ul>
+</div>
+
+<h3>Exemplos concretos</h3>
+<div class="example">
+<div class="label">Depoimento modelo</div>
+"A gente usava agenda num app, prontuário em outro e financeiro no Excel. Com o ORTUS, a recepção confirma e o caixa fecha sozinho."<br>
+— <strong>Dra. Ana Costa</strong>, Clínica Sorriso · Curitiba/PR
+</div>
+<div class="example">
+<div class="label">Logos / nomes</div>
+Clínica OdontoVida · Sorriso Prime · Consultório Dr. Marcos · [só nomes reais com autorização]
+</div>
+<div class="example">
+<div class="label">Se não tiver depoimento ainda</div>
+Usar apenas: "Em uso em clínicas em São Paulo, Curitiba e Belo Horizonte" — sem inventar citação.
+</div>
+
+<hr>
+
+<!-- ETAPA 7 -->
+<h2>ETAPA 7 — Preços</h2>
+
+<h3>Resumo</h3>
+<p>Mostra quanto custa, o que inclui, como começar. Objetivo: tirar objeção de preço e levar pro checkout. Cobrança por clínica, sem taxa por paciente.</p>
+
+<h3>Detalhamento</h3>
+<div class="box">
+<ul>
+  <li>ID: <code>#precos</code></li>
+  <li>3 cards: Solo, Clínica (destaque), Rede</li>
+  <li>Cada card: nome, preço/mês, público-alvo, lista do que inclui, botão</li>
+  <li>Abaixo: garantias (teste 7 dias, cancelamento sem multa)</li>
+  <li><strong>Preços devem bater com o checkout.</strong> Hoje no preview: R$297 / R$497 / sob consulta.</li>
+</ul>
+</div>
+
+<h3>Exemplos concretos</h3>
+<div class="example">
+<div class="label">Planos e botões</div>
+<table>
+<tr><th>Plano</th><th>Preço</th><th>Inclui</th><th>Botão</th><th>Destino</th></tr>
+<tr><td>Solo</td><td>R$ 297/mês</td><td>Até 3 profissionais · Agenda, prontuário, financeiro</td><td>Começar com Solo</td><td><code>/checkout?plano=Solo&amp;valor=297</code></td></tr>
+<tr><td>Clínica ⭐</td><td>R$ 497/mês</td><td>Usuários ilimitados · Todos os módulos · Próteses · Suporte prioritário</td><td>Começar com Clínica</td><td><code>/checkout?plano=Clinica&amp;valor=497</code></td></tr>
+<tr><td>Rede</td><td>Sob consulta</td><td>Multi-unidades · Super-admin · SLA · Onboarding</td><td>Falar com vendas</td><td>WhatsApp ou <code>contato@ortus.digital</code></td></tr>
+</table>
+</div>
+<div class="example">
+<div class="label">Garantias (abaixo dos cards)</div>
+✓ 7 dias de teste grátis &nbsp;·&nbsp; ✓ Cancelamento sem multa &nbsp;·&nbsp; ✓ Acesso até o fim do ciclo pago
+</div>
+<div class="example">
+<div class="label">Fluxo após clicar no botão</div>
+Checkout (<code>/checkout</code>) → pagamento → <code>/cadastro?plano=X&amp;status=pago</code> → <code>/primeiro-acesso</code> (senha + aceite termos) → <code>/login</code> → <code>/selecao</code> (se multi-clínica)
+</div>
+
+<hr>
+
+<!-- ETAPA 8 -->
+<h2>ETAPA 8 — FAQ</h2>
+
+<h3>Resumo</h3>
+<p>Responde objeções antes do contato. Accordion com 6–8 perguntas. Objetivo: eliminar dúvidas que impedem a assinatura.</p>
+
+<h3>Detalhamento</h3>
+<div class="box">
+<ul>
+  <li>ID: <code>#faq</code></li>
+  <li>Accordion: pergunta clicável → resposta expande</li>
+  <li>Perguntas sobre: preço, trial, cancelamento, migração de dados, LGPD, suporte, dispositivos</li>
+</ul>
+</div>
+
+<h3>Exemplos concretos</h3>
+<div class="example">
+<div class="label">Perguntas e respostas</div>
+<table>
+<tr><th>Pergunta</th><th>Resposta</th></tr>
+<tr><td>Posso testar antes de pagar?</td><td>Sim. 7 dias grátis. Sem cartão (se for trial sem cartão) ou com reembolso em 7 dias.</td></tr>
+<tr><td>Posso cancelar quando quiser?</td><td>Sim. Sem multa. Acesso até o fim do ciclo pago. Dados ficam 90 dias para exportação.</td></tr>
+<tr><td>Meus dados estão seguros?</td><td>Sim. Criptografia TLS, backup 2x/dia, isolamento por clínica (RLS). Clínica é controladora, ORTUS é operador (LGPD).</td></tr>
+<tr><td>Funciona no celular?</td><td>Sim. Agenda e ficha funcionam no navegador mobile. Tablet recomendado para odontograma.</td></tr>
+<tr><td>Preciso instalar algo?</td><td>Não. 100% online. Acesse pelo navegador.</td></tr>
+<tr><td>Quantos usuários posso ter?</td><td>Solo: até 3. Clínica: ilimitados. Rede: sob consulta.</td></tr>
+<tr><td>Vocês cobram por paciente?</td><td>Não. Cobrança fixa por clínica/mês.</td></tr>
+<tr><td>Como migro meus pacientes?</td><td>Importação assistida no onboarding (definir processo real antes de prometer).</td></tr>
+</table>
+</div>
+
+<hr>
+
+<!-- ETAPA 9 -->
+<h2>ETAPA 9 — CTA final</h2>
+
+<h3>Resumo</h3>
+<p>Última chance de converter antes do rodapé. Bloco simples: título + 1 frase + 1 botão. Quem rolou até aqui já leu tudo — hora de agir.</p>
+
+<h3>Detalhamento</h3>
+<div class="box">
+<ul>
+  <li>Fundo contrastante (azul escuro ou cinza)</li>
+  <li>Título curto (pergunta ou convite)</li>
+  <li>1 botão primário grande</li>
+  <li>Link secundário opcional: "Falar no WhatsApp" ou "Agendar demonstração"</li>
+</ul>
+</div>
+
+<h3>Exemplos concretos</h3>
+<div class="example">
+<div class="label">Texto</div>
+<strong>Título:</strong> "Veja o ORTUS na sua rotina."<br>
+<strong>Sub:</strong> "30 minutos com alguém que entende clínica — não script de vendas."
+</div>
+<div class="example">
+<div class="label">Botões</div>
+<table>
+<tr><th>Texto</th><th>Destino</th></tr>
+<tr><td>Começar teste grátis</td><td><code>#precos</code> ou <code>/checkout?plano=Clinica&amp;valor=497</code></td></tr>
+<tr><td>Agendar demonstração</td><td>Link Calendly ou WhatsApp: <code>https://wa.me/55XXXXXXXXXXX</code></td></tr>
+</table>
+</div>
+
+<hr>
+
+<!-- ETAPA 10 -->
+<h2>ETAPA 10 — Rodapé + páginas legais</h2>
+
+<h3>Resumo</h3>
+<p>Links obrigatórios, contato e copyright. Sem isso não publica. Termos e privacidade já existem no app.</p>
+
+<h3>Detalhamento</h3>
+<div class="box">
+<strong>3 colunas</strong>
+<ul>
+  <li><strong>Produto:</strong> Funcionalidades <code>#funcionalidades</code>, Preços <code>#precos</code>, FAQ <code>#faq</code></li>
+  <li><strong>Legal:</strong> Termos <code>/termos</code>, Privacidade <code>/privacidade</code></li>
+  <li><strong>Contato:</strong> contato@ortus.digital, WhatsApp comercial, privacidade@recodesystems.com (DPO)</li>
+</ul>
+<strong>Rodapé inferior:</strong> © 2026 Ortus Digital / Recode Systems Ltda.
+</div>
+<div class="box">
+<strong>Onde exigir aceite dos termos</strong>
+<ul>
+  <li><code>/cadastro</code> — checkbox obrigatório</li>
+  <li><code>/primeiro-acesso</code> — checkbox obrigatório</li>
+  <li><code>/checkout</code> — link "Ao pagar, você aceita os termos"</li>
+</ul>
+</div>
+
+<h3>Exemplos concretos</h3>
+<div class="example">
+<div class="label">Links do rodapé</div>
+<table>
+<tr><th>Texto</th><th>URL</th></tr>
+<tr><td>Termos de Uso</td><td><code>/termos</code></td></tr>
+<tr><td>Política de Privacidade</td><td><code>/privacidade</code></td></tr>
+<tr><td>Entrar</td><td><code>/login</code></td></tr>
+</table>
+</div>
+
+<hr>
+
+<h2>CHECKLIST ANTES DE PUBLICAR</h2>
+<table>
+<tr><th>Item</th><th>Verificar</th></tr>
+<tr><td>Preços landing = preços checkout</td><td>R$297 / R$497 / Rede</td></tr>
+<tr><td>Botões do rodapé</td><td><code>/termos</code> e <code>/privacidade</code> separados</td></tr>
+<tr><td>Headline</td><td>Sem "sistema nº 1" sem prova</td></tr>
+<tr><td>Módulos citados</td><td>Só os que existem (sem estoque/marketplace)</td></tr>
+<tr><td>CTA primário</td><td>Definido: trial vs demo vs checkout direto</td></tr>
+<tr><td>Depoimentos</td><td>Reais ou removidos</td></tr>
+<tr><td>WhatsApp/e-mail</td><td>Links funcionando</td></tr>
+<tr><td>Mobile</td><td>Hero + preços + CTA acessíveis</td></tr>
+</table>
+
+<div class="footer">
+ORTUS — Etapas da Landing Page · Recode Systems Ltda. · Gerado em 01/09/2026
+</div>
+
+</body>
+</html>

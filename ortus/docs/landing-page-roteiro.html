@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>ORTUS — Roteiro Completo da Landing Page</title>
+  <style>
+    @page { margin: 2cm; size: A4; }
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      font-size: 10.5pt;
+      line-height: 1.55;
+      color: #1e293b;
+      max-width: 100%;
+      margin: 0;
+      padding: 0;
+    }
+    h1 {
+      font-size: 22pt;
+      color: #0f172a;
+      border-bottom: 3px solid #2563eb;
+      padding-bottom: 8px;
+      margin-top: 0;
+    }
+    h2 {
+      font-size: 14pt;
+      color: #1e40af;
+      margin-top: 28px;
+      margin-bottom: 10px;
+      page-break-after: avoid;
+    }
+    h3 {
+      font-size: 11.5pt;
+      color: #334155;
+      margin-top: 18px;
+      margin-bottom: 6px;
+      page-break-after: avoid;
+    }
+    h4 {
+      font-size: 10.5pt;
+      color: #475569;
+      margin-top: 14px;
+      margin-bottom: 4px;
+    }
+    p { margin: 6px 0; }
+    ul, ol { margin: 6px 0 10px 0; padding-left: 22px; }
+    li { margin-bottom: 3px; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 10px 0 16px 0;
+      font-size: 9.5pt;
+      page-break-inside: avoid;
+    }
+    th, td {
+      border: 1px solid #cbd5e1;
+      padding: 6px 8px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th { background: #f1f5f9; font-weight: 700; }
+    .cover {
+      text-align: center;
+      padding: 80px 20px 60px;
+      page-break-after: always;
+    }
+    .cover h1 { border: none; font-size: 28pt; margin-bottom: 8px; }
+    .cover .subtitle { font-size: 14pt; color: #64748b; margin-bottom: 40px; }
+    .cover .meta { font-size: 10pt; color: #94a3b8; }
+    .highlight {
+      background: #eff6ff;
+      border-left: 4px solid #2563eb;
+      padding: 10px 14px;
+      margin: 10px 0;
+      page-break-inside: avoid;
+    }
+    .warning {
+      background: #fffbeb;
+      border-left: 4px solid #f59e0b;
+      padding: 10px 14px;
+      margin: 10px 0;
+      page-break-inside: avoid;
+    }
+    .checklist li { list-style: none; margin-left: -18px; }
+    .checklist li::before { content: "☐ "; }
+    .section-num {
+      display: inline-block;
+      background: #2563eb;
+      color: white;
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      text-align: center;
+      line-height: 26px;
+      font-size: 11pt;
+      font-weight: bold;
+      margin-right: 8px;
+    }
+    .toc { page-break-after: always; }
+    .toc ol { line-height: 2; }
+    .toc a { color: #1e40af; text-decoration: none; }
+    .page-break { page-break-before: always; }
+    strong { color: #0f172a; }
+    .footer-note {
+      margin-top: 40px;
+      padding-top: 16px;
+      border-top: 1px solid #e2e8f0;
+      font-size: 9pt;
+      color: #94a3b8;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+<div class="cover">
+  <h1>ORTUS</h1>
+  <p class="subtitle">Roteiro Completo da Landing Page</p>
+  <p>Estrutura, copy, diferenciais, preços, páginas legais e checklist de publicação</p>
+  <p class="meta">Documento gerado em 01/09/2026<br>Recode Systems Ltda. — Ortus Digital</p>
+</div>
+
+<div class="toc">
+  <h2>Índice</h2>
+  <ol>
+    <li>Cabeçalho técnico (SEO)</li>
+    <li>Navbar fixa</li>
+    <li>Hero — primeira dobra</li>
+    <li>Mock / screenshot do produto</li>
+    <li>Prova social</li>
+    <li>Funcionalidades — grid principal</li>
+    <li>Diferenciais do ORTUS</li>
+    <li>Seção "Um dia típico no Ortus"</li>
+    <li>Preços</li>
+    <li>CTA final</li>
+    <li>Rodapé</li>
+    <li>Termos de Uso (/termos)</li>
+    <li>Política de Privacidade (/privacidade)</li>
+    <li>Fluxo pós-landing</li>
+    <li>Checklist final antes de publicar</li>
+  </ol>
+</div>
+
+<!-- 1 -->
+<h2><span class="section-num">1</span> Cabeçalho técnico (invisível, mas obrigatório)</h2>
+<ul>
+  <li><strong>Title:</strong> ORTUS — Gestão para clínicas odontológicas</li>
+  <li><strong>Meta description:</strong> agenda + prontuário + financeiro integrados</li>
+  <li><strong>Idioma:</strong> pt-BR</li>
+  <li><strong>Favicon / logo</strong></li>
+  <li><strong>Open Graph</strong> (título, descrição, imagem do produto) para WhatsApp e redes sociais</li>
+</ul>
+
+<!-- 2 -->
+<h2><span class="section-num">2</span> Navbar fixa</h2>
+<h3>Links obrigatórios</h3>
+<ul>
+  <li>Funcionalidades (<code>#funcionalidades</code>)</li>
+  <li>Preços (<code>#precos</code>)</li>
+  <li>Entrar → <code>/login</code></li>
+  <li>CTA principal → demonstração ou checkout</li>
+</ul>
+<h3>Pontos importantes</h3>
+<ul>
+  <li>Navbar leve, 48–56px, blur discreto</li>
+  <li>No mobile: menu colapsável com os mesmos itens</li>
+  <li>Não prometer "documentação" se ainda não existir pública</li>
+</ul>
+
+<!-- 3 -->
+<h2><span class="section-num">3</span> Hero — primeira dobra</h2>
+<div class="highlight">
+  <strong>Mensagem central (preview aprovado):</strong><br>
+  <em>"Menos planilha. Mais cadeira ocupada."</em>
+</div>
+<h3>Subtítulo</h3>
+<ul>
+  <li>Agenda, prontuário e financeiro num só lugar</li>
+  <li>Feito para quem atende o dia inteiro — não para quem configura software</li>
+</ul>
+<h3>CTAs</h3>
+<ul>
+  <li><strong>Primário:</strong> Agendar demonstração ou Começar teste</li>
+  <li><strong>Secundário:</strong> Ver como funciona (scroll para funcionalidades ou mock do produto)</li>
+</ul>
+<h3>Microcopy de confiança (citar explicitamente)</h3>
+<ul>
+  <li>Sem cartão (se houver trial)</li>
+  <li>Setup em menos de um dia</li>
+  <li>Sistema em produção em clínicas no Brasil</li>
+  <li>Dados protegidos com LGPD (evitar "dados no Brasil" se a política cita servidores AWS EUA — alinhar com /privacidade)</li>
+</ul>
+
+<!-- 4 -->
+<h2><span class="section-num">4</span> Mock / screenshot do produto</h2>
+<p><strong>Mostrar interface real, não ilustração genérica:</strong></p>
+<ul>
+  <li>Agenda do dia (consultas confirmadas, fiado em aberto)</li>
+  <li>Sidebar com módulos: Visão geral, Agenda, Pacientes, Financeiro</li>
+  <li>KPIs: consultas hoje, confirmados, valores em aberto</li>
+</ul>
+<p><strong>Objetivo:</strong> provar que é software de clínica, não template SaaS genérico.</p>
+
+<!-- 5 -->
+<h2><span class="section-num">5</span> Prova social</h2>
+<h3>Citar</h3>
+<ul>
+  <li>Clínicas em uso (cidades: SP, Curitiba, BH — ou nomes reais quando autorizado)</li>
+  <li>Logos ou nomes fictícios só se forem placeholders claramente marcados</li>
+</ul>
+<div class="warning">
+  <strong>Evitar:</strong> "sistema nº 1" sem base comprovável (presente na landing antiga do app).
+</div>
+
+<!-- 6 -->
+<h2><span class="section-num">6</span> Funcionalidades — grid principal (#funcionalidades)</h2>
+<div class="highlight">
+  <strong>Título sugerido:</strong> "Tudo que recepção, dentista e financeiro precisam — sem três sistemas diferentes."<br>
+  <strong>Subtítulo:</strong> Agendamento vira lançamento. Tratamento vira evolução. Débito vira recebimento.
+</div>
+<table>
+  <thead>
+    <tr><th>#</th><th>Módulo</th><th>O que destacar</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>01</td><td><strong>Agenda</strong></td><td>Dia/semana/lista; confirmação SMS; fiado e débito visíveis antes do atendimento</td></tr>
+    <tr><td>02</td><td><strong>Prontuário</strong></td><td>Odontograma, anamnese com link pro paciente, evoluções, documentos, fotos HOF</td></tr>
+    <tr><td>03</td><td><strong>Financeiro</strong></td><td>Entradas dos atendimentos automáticas; despesas; categorias; taxas de maquininha; relatório para imprimir</td></tr>
+    <tr><td>04</td><td><strong>Multi-clínica</strong></td><td>Várias unidades; cada profissional vê só o necessário; admin consolida</td></tr>
+    <tr><td>05</td><td><strong>Próteses</strong></td><td>Kanban por etapa; checklist por tipo; laboratório e clínica na mesma tela</td></tr>
+    <tr><td>06</td><td><strong>LGPD</strong></td><td>Export de prontuário; termos; privacidade; permissões por módulo e unidade</td></tr>
+  </tbody>
+</table>
+
+<!-- 7 -->
+<div class="page-break"></div>
+<h2><span class="section-num">7</span> Diferenciais do ORTUS (destaque explícito)</h2>
+<p>Estes são os pontos que <strong>só o ORTUS</strong> (ou poucos concorrentes) entregam de forma integrada:</p>
+
+<h3>7.1 Integração ponta a ponta</h3>
+<ul>
+  <li><strong>Um fluxo só:</strong> recepção confirma → dentista evolui na ficha → atendimento concluído vira entrada no financeiro → relatório do mês sem planilha paralela</li>
+  <li><strong>Sem copiar valor</strong> entre agenda, prontuário e financeiro</li>
+</ul>
+
+<h3>7.2 Clínico odontológico de verdade</h3>
+<ul>
+  <li><strong>Odontograma interativo</strong> (permanente e decídua)</li>
+  <li><strong>HOF</strong> (harmonização orofacial): mapa facial, marcações, fotos por sessão, comparação entre sessões</li>
+  <li><strong>Anamnese com link</strong> para o paciente preencher antes da consulta</li>
+  <li><strong>Tratamentos + evoluções</strong> unificados na ficha</li>
+  <li><strong>Documentos:</strong> receita, atestado, contrato com modelos e variáveis ({{paciente_nome}}, etc.)</li>
+</ul>
+
+<h3>7.3 Gestão operacional</h3>
+<ul>
+  <li><strong>Kanban de próteses inteligente</strong> com colunas customizáveis, drag-and-drop e checklist por tipo de trabalho</li>
+  <li><strong>Débitos/fiado</strong> na agenda e no prontuário, com registro de recebimento</li>
+  <li><strong>Planos e TUSS</strong> por clínica, com valores por procedimento</li>
+  <li><strong>Comissões</strong> por profissional (gatilhos: débito recebido, tratamento finalizado, orçamento aprovado)</li>
+  <li><strong>Equipe</strong> com permissões por cargo e por módulo</li>
+</ul>
+
+<h3>7.4 Multi-unidade / SaaS</h3>
+<ul>
+  <li><strong>Seleção de clínica</strong> ao logar (uma unidade ou visão consolidada)</li>
+  <li><strong>Super-admin</strong> para redes com múltiplos tenants</li>
+  <li><strong>Temas por clínica</strong> (cor configurável)</li>
+</ul>
+
+<h3>7.5 Comunicação e rotina</h3>
+<ul>
+  <li><strong>Lembretes 24h</strong> (SMS/e-mail automáticos; WhatsApp manual)</li>
+  <li><strong>WhatsApp</strong> direto da ficha do paciente</li>
+  <li><strong>Tarefas</strong> internas da equipe (kanban/lista)</li>
+</ul>
+
+<h3>7.6 Financeiro robusto</h3>
+<ul>
+  <li>Categorias personalizáveis</li>
+  <li>Taxas de maquininha por bandeira/parcela (cálculo líquido)</li>
+  <li>Lançamentos em andamento, cancelados, extrato</li>
+  <li>Relatórios com impressão padronizada</li>
+</ul>
+
+<h3>7.7 Segurança e conformidade</h3>
+<ul>
+  <li><strong>LGPD:</strong> clínica = controladora; ORTUS = operador</li>
+  <li>Export de prontuário (portabilidade JSON)</li>
+  <li><strong>RLS</strong> (cada clínica só vê seus dados)</li>
+  <li>Backups automáticos (2x/dia)</li>
+  <li>SLA 99,5% (citado nos termos)</li>
+  <li>Retenção pós-cancelamento: 90 dias para exportação</li>
+  <li>Prontuário: guarda mínima 20 anos (CFO 118/2012) — responsabilidade da clínica</li>
+</ul>
+
+<h3>7.8 O que NÃO prometer na landing (ainda roadmap ou parcial)</h3>
+<p>Módulos listados no código mas não maduros para marketing:</p>
+<ul>
+  <li>Estoque</li>
+  <li>Inteligência / analytics avançado</li>
+  <li>Loja / Marketplace</li>
+  <li>Marketing automatizado</li>
+</ul>
+
+<!-- 8 -->
+<h2><span class="section-num">8</span> Seção "Um dia típico no Ortus"</h2>
+<table>
+  <thead>
+    <tr><th>Horário</th><th>Evento</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>08:45</td><td>SMS de confirmação automática</td></tr>
+    <tr><td>09:52</td><td>Atendimento concluído → PIX registrado no financeiro</td></tr>
+    <tr><td>10:15</td><td>Prótese atualizada no kanban (etapa "Prova")</td></tr>
+    <tr><td>18:00</td><td>Backup automático</td></tr>
+  </tbody>
+</table>
+<h3>Lista de benefícios</h3>
+<ul>
+  <li>Recepção vê débitos antes do paciente sentar</li>
+  <li>Dentista registra odontograma e evolução na cadeira</li>
+  <li>Financeiro atualiza sozinho</li>
+  <li>Relatório mensal pronto</li>
+</ul>
+
+<!-- 9 -->
+<div class="page-break"></div>
+<h2><span class="section-num">9</span> Preços (#precos)</h2>
+<div class="highlight">
+  <strong>Mensagem:</strong> preço claro, sem surpresa — cobrança por clínica, sem taxa por paciente.
+</div>
+<table>
+  <thead>
+    <tr><th>Plano</th><th>Preço</th><th>Público</th><th>Inclui</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Solo</strong></td>
+      <td>R$ 297/mês</td>
+      <td>Consultório individual</td>
+      <td>Até 3 profissionais; agenda, prontuário, financeiro básico</td>
+    </tr>
+    <tr>
+      <td><strong>Clínica</strong> ⭐</td>
+      <td>R$ 497/mês</td>
+      <td>Clínica média</td>
+      <td>Usuários ilimitados; todos os módulos; próteses; relatórios; backup; suporte prioritário</td>
+    </tr>
+    <tr>
+      <td><strong>Rede</strong></td>
+      <td>Sob consulta</td>
+      <td>Multi-unidades</td>
+      <td>Visão consolidada; super-admin; SLA; onboarding dedicado</td>
+    </tr>
+  </tbody>
+</table>
+<div class="warning">
+  <strong>Atenção:</strong> Na landing antiga do app havia R$ 97 / R$ 197 / R$ 297 — unificar com o preview v6 ou com a estratégia comercial atual antes de publicar.
+</div>
+<h3>CTAs por plano</h3>
+<ul>
+  <li>Solo/Clínica → <code>/checkout?plano=...&amp;valor=...</code></li>
+  <li>Rede → contato comercial</li>
+</ul>
+<h3>Garantias a citar</h3>
+<ul>
+  <li>Teste grátis (7 dias — se mantido)</li>
+  <li>Cancelamento sem multa (termos, cláusula 9)</li>
+  <li>Acesso até o fim do ciclo pago</li>
+</ul>
+
+<!-- 10 -->
+<h2><span class="section-num">10</span> CTA final</h2>
+<ul>
+  <li><strong>Título:</strong> "Veja o Ortus na sua rotina"</li>
+  <li><strong>Texto:</strong> 30 minutos com alguém que entende clínica — não script genérico de vendas</li>
+  <li><strong>Botão:</strong> Agendar demonstração</li>
+</ul>
+
+<!-- 11 -->
+<h2><span class="section-num">11</span> Rodapé (obrigatório)</h2>
+<h3>Coluna Produto</h3>
+<ul>
+  <li>Funcionalidades</li>
+  <li>Preços</li>
+  <li>Changelog (se existir)</li>
+</ul>
+<h3>Coluna Legal (links reais)</h3>
+<ul>
+  <li><a href="/termos">Termos de Uso</a> → /termos</li>
+  <li><a href="/privacidade">Política de Privacidade</a> → /privacidade</li>
+  <li>LGPD (pode apontar para privacidade ou página dedicada)</li>
+</ul>
+<h3>Coluna Contato</h3>
+<ul>
+  <li>contato@ortus.digital</li>
+  <li>WhatsApp comercial</li>
+  <li>DPO: privacidade@recodesystems.com (da política)</li>
+</ul>
+<h3>Rodapé inferior</h3>
+<ul>
+  <li>© 2026 Ortus Digital / Recode Systems Ltda.</li>
+  <li>"Feito com cuidado em Curitiba" (se quiser manter tom humano)</li>
+</ul>
+
+<!-- 12 -->
+<div class="page-break"></div>
+<h2><span class="section-num">12</span> Termos de Uso (/termos) — 17 seções</h2>
+<p>Resumir na landing ou no checkout, mas a página completa deve cobrir:</p>
+<table>
+  <thead>
+    <tr><th>#</th><th>Seção</th><th>Conteúdo principal</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>1</td><td>Objeto e aceitação</td><td>SaaS odontológico — Recode Systems</td></tr>
+    <tr><td>2</td><td>Licença de uso</td><td>Não exclusiva, revogável, as-is</td></tr>
+    <tr><td>3</td><td>Responsabilidades da clínica</td><td>Login individual, LGPD, CFO 20 anos</td></tr>
+    <tr><td>4</td><td>Responsabilidades da empresa</td><td>SLA 99,5%, backup 2x/dia, TLS, RLS, notificação em 72h</td></tr>
+    <tr><td>5</td><td>Usos proibidos</td><td>—</td></tr>
+    <tr><td>6</td><td>Suspensão e rescisão</td><td>Inadimplência 15 dias, aviso 5 dias úteis</td></tr>
+    <tr><td>7</td><td>Manutenção programada</td><td>—</td></tr>
+    <tr><td>8</td><td>Retenção e exclusão</td><td>90 dias pós-cancelamento; export LGPD</td></tr>
+    <tr><td>9</td><td>Pagamento e cancelamento</td><td>Sem multa; sem reembolso proporcional</td></tr>
+    <tr><td>10</td><td>Propriedade intelectual</td><td>—</td></tr>
+    <tr><td>11</td><td>DPA</td><td>Acordo de processamento — art. 39 LGPD</td></tr>
+    <tr><td>12</td><td>Serviços de terceiros</td><td>Supabase/AWS, Vercel, gateway de pagamento</td></tr>
+    <tr><td>13</td><td>Indenização</td><td>—</td></tr>
+    <tr><td>14</td><td>Limitação de responsabilidade</td><td>—</td></tr>
+    <tr><td>15</td><td>Força maior</td><td>—</td></tr>
+    <tr><td>16</td><td>Disposições gerais</td><td>Alterações com 15 dias de aviso</td></tr>
+    <tr><td>17</td><td>Foro</td><td>São Paulo/SP</td></tr>
+  </tbody>
+</table>
+<h3>Onde exigir aceite</h3>
+<ul>
+  <li>Cadastro (<code>/cadastro</code>)</li>
+  <li>Primeiro acesso (troca de senha + checkbox termos)</li>
+  <li>Checkout</li>
+</ul>
+
+<!-- 13 -->
+<h2><span class="section-num">13</span> Política de Privacidade (/privacidade) — 16 seções</h2>
+<table>
+  <thead>
+    <tr><th>#</th><th>Seção</th><th>Conteúdo principal</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>1</td><td>Introdução</td><td>LGPD</td></tr>
+    <tr><td>2</td><td>Papéis</td><td>Clínica = controladora; ORTUS = operador</td></tr>
+    <tr><td>3</td><td>Dados coletados</td><td>Profissional, paciente, financeiro, sensíveis de saúde, logs</td></tr>
+    <tr><td>4</td><td>Bases legais</td><td>Contrato, tutela da saúde, obrigação legal, legítimo interesse, consentimento</td></tr>
+    <tr><td>5</td><td>Segurança</td><td>TLS 1.3, AES-256, RLS, bcrypt, backups, auditoria</td></tr>
+    <tr><td>6</td><td>Infraestrutura</td><td>Supabase/AWS EUA + SCC (transferência internacional)</td></tr>
+    <tr><td>7</td><td>Minimização de dados</td><td>—</td></tr>
+    <tr><td>8</td><td>Dados de menores</td><td>Consentimento dos responsáveis — clínica</td></tr>
+    <tr><td>9</td><td>Direitos dos titulares</td><td>Acesso, correção, eliminação, portabilidade, revogação</td></tr>
+    <tr><td>10</td><td>Retenção</td><td>90 dias pós-cancelamento; exceção 20 anos prontuário</td></tr>
+    <tr><td>11</td><td>Compartilhamento</td><td>Só infraestrutura; nunca venda de dados</td></tr>
+    <tr><td>12</td><td>Cookies</td><td>Apenas essenciais de sessão; sem remarketing</td></tr>
+    <tr><td>13</td><td>Incidentes</td><td>72h para clínica; ANPD se aplicável</td></tr>
+    <tr><td>14</td><td>DPO</td><td>privacidade@recodesystems.com</td></tr>
+    <tr><td>15</td><td>RIPD</td><td>Disponível para ANPD</td></tr>
+    <tr><td>16</td><td>Alterações</td><td>Aviso 15 dias</td></tr>
+  </tbody>
+</table>
+
+<!-- 14 -->
+<h2><span class="section-num">14</span> Fluxo pós-landing (não é a landing, mas precisa estar linkado)</h2>
+<table>
+  <thead>
+    <tr><th>Etapa</th><th>Rota</th><th>Observação</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Checkout</td><td>/checkout</td><td>Pagamento → redireciona para cadastro</td></tr>
+    <tr><td>Cadastro</td><td>/cadastro?plano=...&amp;status=pago</td><td>Cria conta admin</td></tr>
+    <tr><td>Login</td><td>/login</td><td>Multi-clínica → /selecao</td></tr>
+    <tr><td>Primeiro acesso</td><td>/primeiro-acesso</td><td>Senha + aceite termos</td></tr>
+    <tr><td>Anamnese pública</td><td>/anamnese/[token]</td><td>Paciente preenche fora do login</td></tr>
+  </tbody>
+</table>
+
+<!-- 15 -->
+<div class="page-break"></div>
+<h2><span class="section-num">15</span> Checklist final antes de publicar</h2>
+<ul class="checklist">
+  <li>Preços da landing = preços do checkout</li>
+  <li>Links do rodapé apontam para /termos e /privacidade (não ambos para /termos)</li>
+  <li>"Dados no Brasil" alinhado com a política (servidores AWS)</li>
+  <li>Só citar módulos que existem e funcionam hoje</li>
+  <li>CTA primário definido: demo vs. trial vs. assinatura direta</li>
+  <li>Cookie banner no app (já existe) coerente com política</li>
+  <li>Mobile: hero, preços e CTA acessíveis sem scroll excessivo</li>
+  <li>Logo e favicon consistentes com o app logado</li>
+</ul>
+
+<h3>Módulos do sistema (referência — lib/modules.ts)</h3>
+<table>
+  <thead>
+    <tr><th>ID</th><th>Módulo</th><th>Descrição</th><th>Status marketing</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>agenda</td><td>Agenda</td><td>Consultas, encaixes e confirmações</td><td>✅ Ativo</td></tr>
+    <tr><td>ficha_paciente</td><td>Ficha do Paciente</td><td>Dados clínicos, odontograma e anexos</td><td>✅ Ativo</td></tr>
+    <tr><td>financeiro</td><td>Financeiro</td><td>Fluxo de caixa, lançamentos e metas</td><td>✅ Ativo</td></tr>
+    <tr><td>controle_protese</td><td>Controle de Próteses</td><td>Kanban inteligente de próteses</td><td>✅ Ativo</td></tr>
+    <tr><td>configuracoes</td><td>Configurações</td><td>Preferências do sistema e unidades</td><td>✅ Ativo</td></tr>
+    <tr><td>estoque</td><td>Estoque</td><td>Materiais, implantes e insumos</td><td>⚠️ Roadmap</td></tr>
+    <tr><td>inteligencia</td><td>Inteligência</td><td>Painel analítico e indicadores</td><td>⚠️ Roadmap</td></tr>
+    <tr><td>loja</td><td>Loja / Marketplace</td><td>Aquisições e marketplace Ortus</td><td>⚠️ Roadmap</td></tr>
+    <tr><td>marketing</td><td>Marketing</td><td>Campanhas e jornadas automatizadas</td><td>⚠️ Roadmap</td></tr>
+  </tbody>
+</table>
+
+<div class="footer-note">
+  ORTUS — Roteiro Completo da Landing Page<br>
+  Recode Systems Ltda. · Ortus Digital · Gerado em 01/09/2026
+</div>
+
+</body>
+</html>
