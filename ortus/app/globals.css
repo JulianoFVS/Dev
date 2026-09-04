@@ -107,6 +107,24 @@ body {
 @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 .animate-fade-in { animation: fadeIn 0.4s ease-out forwards; }
 
+/* ===== CARROSSEL INFINITO DE MARCAS (landing) =====
+   A trilha contém a lista duplicada, então deslocá-la em -50% recomeça
+   exatamente na primeira marca e o laço fica imperceptível. */
+@keyframes ortusMarquee {
+    from { transform: translate3d(0, 0, 0); }
+    to   { transform: translate3d(-50%, 0, 0); }
+}
+.ortus-marquee-track {
+    display: flex;
+    width: max-content;
+    animation: ortusMarquee var(--marquee-duration, 34s) linear infinite;
+}
+.ortus-marquee:hover .ortus-marquee-track { animation-play-state: paused; }
+
+@media (prefers-reduced-motion: reduce) {
+    .ortus-marquee-track { animation: none; }
+}
+
 /* ESTILIZAÇÃO DO CALENDÁRIO (React Big Calendar) */
 .rbc-calendar { font-family: inherit; }
 

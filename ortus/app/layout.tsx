@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
+import { Inter, Poppins } from 'next/font/google';
 import './globals.css';
 import AuthGuard from '@/components/AuthGuard';
 import { ClinicaProvider } from '@/app/context/ClinicaContext';
@@ -8,6 +8,13 @@ import { CustomAlertProvider } from '@/components/ui/CustomAlert';
 import ThemeProvider from '@/components/ThemeProvider';
 
 const inter = Inter({ subsets: ['latin'] });
+
+// Geométrica arredondada da identidade, usada na landing page.
+const poppins = Poppins({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-poppins',
+});
 
 export const metadata: Metadata = {
   title: 'ORTUS - Sistema de Gestão Odontológica',
@@ -26,7 +33,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="pt-BR">
-      <body className={inter.className}>
+      <body className={`${inter.className} ${poppins.variable}`}>
         <CustomAlertProvider>
           <ClinicaProvider>
             <ThemeProvider>

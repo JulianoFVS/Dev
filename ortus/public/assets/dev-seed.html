@@ -1,0 +1,15 @@
+<!doctype html>
+<!--
+  Auxiliar apenas de desenvolvimento: registra o consentimento de cookies e
+  redireciona para a home, para que capturas de tela automatizadas da landing
+  não fiquem cobertas pelo banner. Remova antes de publicar.
+-->
+<meta charset="utf-8" />
+<title>seed</title>
+<script>
+  localStorage.setItem(
+    'ortus_cookie_consent',
+    JSON.stringify({ level: 'essential', accepted_at: new Date().toISOString() }),
+  );
+  location.replace('/');
+</script>
