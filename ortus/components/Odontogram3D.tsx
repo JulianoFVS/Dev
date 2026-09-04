@@ -103,17 +103,12 @@ interface ToothMeshProps {
   scale?: number | [number, number, number];
 }
 
-function ToothMesh({
-  name,
-  geometry,
-  sourceMaterial,
-  position,
-  rotation,
-  scale,
-}: ToothMeshProps) {
+function ToothMesh(props: ToothMeshProps) {
+  const { name, geometry, sourceMaterial, position, rotation, scale } = props;
   const config = getTooth3DConfig(name);
+  const isHidden = config?.hidden ?? false;
   const fdi = config?.fdi ?? 0;
-  const interactive = config?.primary ?? false;
+  const interactive = Boolean(fdi && config && !isHidden);
 
   const tooth = useOdontogramStore((state) => (fdi ? state.teeth[fdi] : undefined));
   const applyTool = useOdontogramStore((state) => state.applyTool);
@@ -125,9 +120,10 @@ function ToothMesh({
   const originalHex = useMemo(() => `#${sourceMaterial.color.getHexString()}`, [sourceMaterial]);
 
   useEffect(() => {
+    if (isHidden) return;
     const displayColor = getToothDisplayColor(tooth, originalHex);
     meshMaterial.color.set(displayColor);
-  }, [tooth, meshMaterial, originalHex]);
+  }, [tooth, meshMaterial, originalHex, isHidden]);
 
   const handleClick = useCallback(
     (e: ThreeEvent<MouseEvent>) => {
@@ -152,6 +148,8 @@ function ToothMesh({
     document.body.style.cursor = 'auto';
   }, [interactive]);
 
+  if (isHidden) return null;
+
   return (
     <mesh
       name={name}
@@ -174,7 +172,7 @@ export function Model(props: React.ComponentProps<'group'>) {
 
   return (
     <group {...props} dispose={null}>
-      <group rotation={[-Math.PI / 2, 0, 0]} scale={0.369}>
+      <group rotation={[-Math.PI / 2, 0, 0]} scale={0.42}>
         <group rotation={[Math.PI / 2, 0, 0]}>
           <group position={[0, -0.05, 0.162]} rotation={[-0.023, 0, 0]}>
             <ToothMesh name="LL1seam_2ZBrushPolyMesh3D_Mandible_ll1_0" geometry={nodes.LL1seam_2ZBrushPolyMesh3D_Mandible_ll1_0.geometry} sourceMaterial={materials.Mandible_ll1} position={[-0.027, 0.066, -0.185]} rotation={[-3.09, 0, 0.066]} />

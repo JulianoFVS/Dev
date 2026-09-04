@@ -32,7 +32,7 @@ export default function OdontogramaContainer() {
           gl.toneMapping = THREE.ACESFilmicToneMapping;
           gl.toneMappingExposure = 1;
         }}
-        camera={{ position: [0, 0, 10], fov: 45 }}
+        camera={{ position: [0, 0, 8], fov: 42 }}
       >
         <ambientLight intensity={1.1} />
         <directionalLight position={[10, 10, 10]} intensity={1.2} castShadow={false} />
@@ -40,7 +40,7 @@ export default function OdontogramaContainer() {
         <Center disableZ>
           <Odontogram3D />
         </Center>
-        <OrbitControls enablePan={false} minDistance={3} maxDistance={15} />
+        <OrbitControls enablePan={false} minDistance={4} maxDistance={14} target={[0, 0, 0]} />
         <Environment preset="studio" environmentIntensity={0.45} />
       </Canvas>
     </div>

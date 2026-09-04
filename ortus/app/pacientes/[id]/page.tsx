@@ -32,6 +32,7 @@ import { atualizarTratamento, criarTratamento, excluirTratamento as excluirTrata
 import type { TratamentoPaciente } from '@/lib/db/types';
 import { FACE_COLORS, FACE_LABELS, ODONTO_TOOLS } from '@/lib/odontogram/constants';
 import type { LegacyToothState, OdontoFace, OdontoFaceStatus, OdontoToothStatus } from '@/lib/odontogram/types';
+import { FDI_MISSING_IN_3D } from '@/lib/odontogram/meshToFdi';
 import { selectLegacyOdontogram, useOdontogramStore } from '@/store/useOdontogramStore';
 import OdontogramaContainer from '@/components/OdontogramaContainer';
 
@@ -326,6 +327,7 @@ export default function PacienteDetalhe() {
   const applyOdontogramTool = useOdontogramStore((s) => s.applyTool);
   const resetOdontogramTooth = useOdontogramStore((s) => s.resetTooth);
   const resetOdontogramAll = useOdontogramStore((s) => s.resetAll);
+  const normalizeOdontogramStorage = useOdontogramStore((s) => s.normalizeStorage);
   const odontograma = useMemo(() => selectLegacyOdontogram(teeth), [teeth]);
   const [tratamentos, setTratamentos] = useState<any[]>([]);
   const [tipoArcada, setTipoArcada] = useState<'permanente' | 'leite'>('permanente');
@@ -425,6 +427,10 @@ export default function PacienteDetalhe() {
   useEffect(() => {
     return () => { useOdontogramStore.getState().resetAll(); };
   }, [id]);
+
+  useEffect(() => {
+    normalizeOdontogramStorage();
+  }, [normalizeOdontogramStorage]);
 
   useEffect(() => {
       if (!form.clinica_id) { setPlanos([]); return; }
@@ -2183,6 +2189,9 @@ export default function PacienteDetalhe() {
                             <div className="mt-6">
                                 <div className="text-[10px] uppercase font-bold text-slate-400 mb-2">Vista 3D (sincronizada com o odontograma 2D)</div>
                                 <OdontogramaContainer />
+                                <p className="text-[10px] text-slate-400 mt-2">
+                                    Sem modelo 3D: {FDI_MISSING_IN_3D.join(', ')} — marque esses dentes no odontograma acima.
+                                </p>
                             </div>
 
                             {/* Resumo de dentes alterados */}

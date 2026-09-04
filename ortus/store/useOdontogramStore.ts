@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { normalizeFdi } from '@/lib/odontogram/teeth3dConfig';
 import { ODONTO_TOOLS } from '@/lib/odontogram/constants';
 import type {
   LegacyToothState,
@@ -14,6 +15,27 @@ function createEmptyTooth(): OdontoTooth {
 
 function isEmptyTooth(tooth: OdontoTooth): boolean {
   return tooth.status === 'normal' && Object.keys(tooth.faces).length === 0;
+}
+
+function mergeTooth(existing: OdontoTooth | undefined, incoming: OdontoTooth): OdontoTooth {
+  if (!existing) return incoming;
+  const status =
+    incoming.status !== 'normal' ? incoming.status : existing.status;
+  return {
+    status,
+    faces: { ...existing.faces, ...incoming.faces },
+  };
+}
+
+function legacyRecordToTeeth(data: Record<string, LegacyToothState>): Record<number, OdontoTooth> {
+  const teeth: Record<number, OdontoTooth> = {};
+  Object.entries(data || {}).forEach(([id, value]) => {
+    const raw = Number(id);
+    if (!Number.isFinite(raw) || !value) return;
+    const num = normalizeFdi(raw);
+    teeth[num] = mergeTooth(teeth[num], legacyToTooth(value));
+  });
+  return teeth;
 }
 
 function legacyToTooth(data: LegacyToothState): OdontoTooth {
@@ -37,6 +59,7 @@ interface OdontogramStore {
   loadFromLegacy: (data: Record<string, LegacyToothState>) => void;
   getLegacySnapshot: () => Record<string, LegacyToothState>;
   resetAll: () => void;
+  normalizeStorage: () => void;
 
   setActiveTool: (tool: string) => void;
   setToothStatus: (toothId: number, status: OdontoToothStatus) => void;
@@ -50,13 +73,7 @@ export const useOdontogramStore = create<OdontogramStore>((set, get) => ({
   activeTool: 'carie',
 
   loadFromLegacy: (data) => {
-    const teeth: Record<number, OdontoTooth> = {};
-    Object.entries(data || {}).forEach(([id, value]) => {
-      const num = Number(id);
-      if (!Number.isFinite(num) || !value) return;
-      teeth[num] = legacyToTooth(value);
-    });
-    set({ teeth });
+    set({ teeth: legacyRecordToTeeth(data) });
   },
 
   getLegacySnapshot: () => {
@@ -68,6 +85,16 @@ export const useOdontogramStore = create<OdontogramStore>((set, get) => ({
   },
 
   resetAll: () => set({ teeth: {} }),
+
+  /** Corrige FDI legados inválidos (19→16, 20→17, 30→27) no estado atual. */
+  normalizeStorage: () =>
+    set((state) => ({
+      teeth: legacyRecordToTeeth(
+        Object.fromEntries(
+          Object.entries(state.teeth).map(([id, tooth]) => [id, toothToLegacy(tooth)]),
+        ),
+      ),
+    })),
 
   setActiveTool: (tool) => set({ activeTool: tool }),
 
@@ -113,11 +140,12 @@ export const useOdontogramStore = create<OdontogramStore>((set, get) => ({
   },
 
   applyTool: (toothId, face = null) => {
+    const normalizedId = normalizeFdi(toothId);
     const tool = ODONTO_TOOLS.find((t) => t.key === get().activeTool);
     if (!tool) return;
 
     set((state) => {
-      const current = state.teeth[toothId] ?? createEmptyTooth();
+      const current = state.teeth[normalizedId] ?? createEmptyTooth();
       let updated: OdontoTooth;
 
       if (tool.tipo === 'face' && face) {
@@ -157,8 +185,10 @@ export const useOdontogramStore = create<OdontogramStore>((set, get) => ({
       }
 
       const next = { ...state.teeth };
-      if (isEmptyTooth(updated)) delete next[toothId];
-      else next[toothId] = updated;
+      if (isEmptyTooth(updated)) delete next[normalizedId];
+      else next[normalizedId] = updated;
+      // Remove chaves legadas inválidas se existirem
+      if (normalizedId !== toothId) delete next[toothId];
       return { teeth: next };
     });
   },
@@ -168,8 +198,13 @@ export const useOdontogramStore = create<OdontogramStore>((set, get) => ({
 export function selectLegacyOdontogram(
   teeth: Record<number, OdontoTooth>,
 ): Record<string, LegacyToothState> {
+  const normalized = legacyRecordToTeeth(
+    Object.fromEntries(
+      Object.entries(teeth).map(([id, tooth]) => [id, toothToLegacy(tooth)]),
+    ),
+  );
   const out: Record<string, LegacyToothState> = {};
-  Object.entries(teeth).forEach(([id, tooth]) => {
+  Object.entries(normalized).forEach(([id, tooth]) => {
     out[id] = toothToLegacy(tooth);
   });
   return out;
