@@ -15,10 +15,14 @@ import { ThreeEvent } from '@react-three/fiber';
 import { useGLTF } from '@react-three/drei';
 import { GLTF } from 'three-stdlib';
 import { getToothDisplayColor } from '@/lib/odontogram/colors';
+import { SEAM_MESHES } from '@/lib/odontogram/meshToFdi';
 import { useOdontogramStore } from '@/store/useOdontogramStore';
 
 /** Limpa artefatos comuns do GLB (wireframe, sombras, reflexos agressivos nas frestas). */
-function prepareToothMaterial(source: THREE.MeshStandardMaterial): THREE.MeshStandardMaterial {
+function prepareToothMaterial(
+  source: THREE.MeshStandardMaterial,
+  isSeam = false,
+): THREE.MeshStandardMaterial {
   const material = source.clone();
   material.wireframe = false;
   material.flatShading = false;
@@ -26,14 +30,15 @@ function prepareToothMaterial(source: THREE.MeshStandardMaterial): THREE.MeshSta
   material.opacity = 1;
   material.alphaTest = 0;
   material.side = THREE.FrontSide;
-  material.depthWrite = true;
   material.depthTest = true;
   material.polygonOffset = true;
-  material.polygonOffsetFactor = 1;
-  material.polygonOffsetUnits = 1;
+  material.polygonOffsetFactor = isSeam ? 4 : 1;
+  material.polygonOffsetUnits = isSeam ? 4 : 1;
+  material.depthWrite = !isSeam;
+  material.depthFunc = THREE.LessEqualDepth;
   material.roughness = Math.max(material.roughness ?? 0.6, 0.55);
   material.metalness = Math.min(material.metalness ?? 0, 0.05);
-  material.envMapIntensity = 0.35;
+  material.envMapIntensity = 0.25;
   return material;
 }
 
@@ -115,7 +120,11 @@ function ToothMesh({
   const tooth = useOdontogramStore((state) => state.teeth[fdi]);
   const applyTool = useOdontogramStore((state) => state.applyTool);
 
-  const meshMaterial = useMemo(() => prepareToothMaterial(sourceMaterial), [sourceMaterial]);
+  const isSeam = SEAM_MESHES.has(name);
+  const meshMaterial = useMemo(
+    () => prepareToothMaterial(sourceMaterial, isSeam),
+    [sourceMaterial, isSeam],
+  );
   const originalHex = useMemo(() => `#${sourceMaterial.color.getHexString()}`, [sourceMaterial]);
 
   useEffect(() => {
@@ -148,6 +157,7 @@ function ToothMesh({
       position={position}
       rotation={rotation}
       scale={scale}
+      renderOrder={isSeam ? 1 : 0}
       castShadow={false}
       receiveShadow={false}
       onClick={handleClick}
@@ -184,7 +194,7 @@ export function Model(props: React.ComponentProps<'group'>) {
           </group>
           <group position={[0.588, 0.288, -0.624]} rotation={[0.046, -0.003, -0.009]} scale={1.062}>
             <group position={[-0.128, -0.812, -0.018]} rotation={[3.082, 0, 0]}>
-              <ToothMesh name="polySurface1_UL1_0" fdi={21} geometry={nodes.polySurface1_UL1_0.geometry} sourceMaterial={materials.material} position={[-0.273, 0.054, 0.188]} scale={1.025} />
+              <ToothMesh name="polySurface1_UL1_0" fdi={11} geometry={nodes.polySurface1_UL1_0.geometry} sourceMaterial={materials.material} position={[-0.273, 0.054, 0.188]} scale={1.025} />
               <ToothMesh name="polySurface2_UL1_0" fdi={21} geometry={nodes.polySurface2_UL1_0.geometry} sourceMaterial={materials.material} position={[-0.231, 0.054, 0.146]} scale={1.025} />
             </group>
             <group position={[-2.241, -0.37, -0.729]} rotation={[0.019, 0.195, -0.099]} scale={1.072}>
@@ -195,22 +205,18 @@ export function Model(props: React.ComponentProps<'group'>) {
             </group>
             <group position={[-0.34, -0.214, -0.464]} rotation={[0.067, 0.077, 0.103]}>
               <ToothMesh name="polySurface7_blinn18_0" fdi={18} geometry={nodes.polySurface7_blinn18_0.geometry} sourceMaterial={materials.blinn18} />
-              <ToothMesh name="polySurface8_blinn18_0" fdi={18} geometry={nodes.polySurface8_blinn18_0.geometry} sourceMaterial={materials.blinn18} position={[-0.7, 0.123, -0.406]} rotation={[0.051, 0.073, -0.082]} />
             </group>
             <group position={[-0.526, -0.173, -0.156]} rotation={[0, 0, -0.079]}>
               <ToothMesh name="polySurface9_blinn19_0" fdi={19} geometry={nodes.polySurface9_blinn19_0.geometry} sourceMaterial={materials.blinn19} position={[0, 0.004, 0.094]} />
-              <ToothMesh name="polySurface10_blinn19_0" fdi={19} geometry={nodes.polySurface10_blinn19_0.geometry} sourceMaterial={materials.blinn19} position={[0.073, 0.42, -0.294]} rotation={[0.088, -0.006, 0.012]} />
             </group>
             <group position={[-0.091, -0.66, 0.177]} rotation={[3.083, 0, 0]}>
               <ToothMesh name="polySurface12_blinn20_0" fdi={20} geometry={nodes.polySurface12_blinn20_0.geometry} sourceMaterial={materials.blinn20} position={[-0.109, -0.2, 0.304]} rotation={[0.063, -0.01, 0.016]} />
             </group>
             <ToothMesh name="ZBrushPolyMesh3D1_blinn14_0" fdi={24} geometry={nodes.ZBrushPolyMesh3D1_blinn14_0.geometry} sourceMaterial={materials.blinn14} position={[-2.464, -0.939, -0.312]} rotation={[-0.061, 0.202, -0.083]} scale={1.072} />
-            <ToothMesh name="ZBrushPolyMesh3D3_blinn16_0" fdi={16} geometry={nodes.ZBrushPolyMesh3D3_blinn16_0.geometry} sourceMaterial={materials.blinn16} position={[1.988, 7.736, 7.153]} rotation={[3.123, -1.046, 0]} scale={0.271} />
             <ToothMesh name="ZBrushPolyMesh3D4_blinn17_0" fdi={17} geometry={nodes.ZBrushPolyMesh3D4_blinn17_0.geometry} sourceMaterial={materials.blinn17} position={[-0.211, 0.514, -0.705]} rotation={[-2.971, -0.07, -0.129]} />
             <ToothMesh name="ZBrushPolyMesh3D2_blinn15_0" fdi={25} geometry={nodes.ZBrushPolyMesh3D2_blinn15_0.geometry} sourceMaterial={materials.blinn15} position={[-1.111, -1.386, 0.312]} rotation={[3.024, -0.176, -0.158]} />
             <ToothMesh name="ZBrushPolyMesh3D5_blinn18_0" fdi={28} geometry={nodes.ZBrushPolyMesh3D5_blinn18_0.geometry} sourceMaterial={materials.blinn18} position={[-0.066, -0.088, -0.463]} rotation={[0.096, 0.075, 0.167]} />
             <ToothMesh name="ZBrushPolyMesh3D7_blinn20_0" fdi={30} geometry={nodes.ZBrushPolyMesh3D7_blinn20_0.geometry} sourceMaterial={materials.blinn20} position={[0.362, -1.153, 0.696]} rotation={[3.002, 0, -0.107]} />
-            <ToothMesh name="ZBrushPolyMesh3D8_blinn16_0" fdi={26} geometry={nodes.ZBrushPolyMesh3D8_blinn16_0.geometry} sourceMaterial={materials.blinn16} position={[-2.922, 7.698, 7.017]} rotation={[3.123, -0.847, 0]} scale={0.271} />
             <ToothMesh name="ZBrushPolyMesh3D9_blinn17_0" fdi={27} geometry={nodes.ZBrushPolyMesh3D9_blinn17_0.geometry} sourceMaterial={materials.blinn17} position={[-4.839, -0.133, -0.764]} rotation={[-3.038, 0.002, -0.179]} />
           </group>
         </group>
