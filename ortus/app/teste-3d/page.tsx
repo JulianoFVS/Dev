@@ -51,7 +51,7 @@ export default function Teste3DPage() {
         </div>
 
         <p className="text-xs text-slate-400 text-center">
-          Modelo: <code className="bg-slate-100 px-1 rounded">public/arcada.glb</code>
+          Modelo: <code className="bg-slate-100 px-1 rounded">public/arcada4k.glb</code>
         </p>
       </main>
     </div>

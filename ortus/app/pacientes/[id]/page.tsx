@@ -2189,9 +2189,11 @@ export default function PacienteDetalhe() {
                             <div className="mt-6">
                                 <div className="text-[10px] uppercase font-bold text-slate-400 mb-2">Vista 3D (sincronizada com o odontograma 2D)</div>
                                 <OdontogramaContainer />
-                                <p className="text-[10px] text-slate-400 mt-2">
-                                    Sem modelo 3D: {FDI_MISSING_IN_3D.join(', ')} — marque esses dentes no odontograma acima.
-                                </p>
+                                {FDI_MISSING_IN_3D.length > 0 && (
+                                    <p className="text-[10px] text-slate-400 mt-2">
+                                        Sem modelo 3D: {FDI_MISSING_IN_3D.join(', ')} — marque esses dentes no odontograma acima.
+                                    </p>
+                                )}
                             </div>
 
                             {/* Resumo de dentes alterados */}
