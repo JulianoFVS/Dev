@@ -25,7 +25,6 @@ export default function OdontogramaContainer() {
           antialias: true,
           alpha: false,
           powerPreference: 'high-performance',
-          logarithmicDepthBuffer: true,
         }}
         onCreated={({ gl }) => {
           gl.setClearColor('#f1f5f9', 1);
@@ -33,21 +32,16 @@ export default function OdontogramaContainer() {
           gl.toneMapping = THREE.ACESFilmicToneMapping;
           gl.toneMappingExposure = 1;
         }}
-        camera={{ position: [0, 0, 7], fov: 42 }}
+        camera={{ position: [0, 0, 10], fov: 45 }}
       >
-        <ambientLight intensity={1.2} />
-        <directionalLight position={[5, 8, 6]} intensity={1.1} castShadow={false} />
-        <directionalLight position={[-4, 3, -3]} intensity={0.4} castShadow={false} />
+        <ambientLight intensity={1.1} />
+        <directionalLight position={[10, 10, 10]} intensity={1.2} castShadow={false} />
+        <directionalLight position={[-6, 4, -4]} intensity={0.35} castShadow={false} />
         <Center disableZ>
           <Odontogram3D />
         </Center>
-        <OrbitControls
-          enablePan={false}
-          minDistance={4}
-          maxDistance={12}
-          target={[0, 0, 0]}
-        />
-        <Environment preset="studio" environmentIntensity={0.35} />
+        <OrbitControls enablePan={false} minDistance={3} maxDistance={15} />
+        <Environment preset="studio" environmentIntensity={0.45} />
       </Canvas>
     </div>
   );
