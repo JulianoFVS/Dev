@@ -15,6 +15,7 @@ import { ThreeEvent } from '@react-three/fiber';
 import { useGLTF } from '@react-three/drei';
 import { GLTF } from 'three-stdlib';
 import { getToothDisplayColor } from '@/lib/odontogram/colors';
+import { getTooth3DConfig } from '@/lib/odontogram/teeth3dConfig';
 import { useOdontogramStore } from '@/store/useOdontogramStore';
 
 /** Limpa artefatos comuns do GLB (wireframe, sombras, reflexos agressivos nas frestas). */
@@ -95,7 +96,6 @@ type GLTFResult = GLTF & {
 
 interface ToothMeshProps {
   name: string;
-  fdi: number;
   geometry: THREE.BufferGeometry;
   sourceMaterial: THREE.MeshStandardMaterial;
   position?: [number, number, number];
@@ -105,14 +105,17 @@ interface ToothMeshProps {
 
 function ToothMesh({
   name,
-  fdi,
   geometry,
   sourceMaterial,
   position,
   rotation,
   scale,
 }: ToothMeshProps) {
-  const tooth = useOdontogramStore((state) => state.teeth[fdi]);
+  const config = getTooth3DConfig(name);
+  const fdi = config?.fdi ?? 0;
+  const interactive = config?.primary ?? false;
+
+  const tooth = useOdontogramStore((state) => (fdi ? state.teeth[fdi] : undefined));
   const applyTool = useOdontogramStore((state) => state.applyTool);
 
   const meshMaterial = useMemo(
@@ -128,20 +131,26 @@ function ToothMesh({
 
   const handleClick = useCallback(
     (e: ThreeEvent<MouseEvent>) => {
+      if (!interactive || !fdi) return;
       e.stopPropagation();
       applyTool(fdi, null);
     },
-    [applyTool, fdi],
+    [applyTool, fdi, interactive],
   );
 
-  const handlePointerOver = useCallback((e: ThreeEvent<PointerEvent>) => {
-    e.stopPropagation();
-    document.body.style.cursor = 'pointer';
-  }, []);
+  const handlePointerOver = useCallback(
+    (e: ThreeEvent<PointerEvent>) => {
+      if (!interactive) return;
+      e.stopPropagation();
+      document.body.style.cursor = 'pointer';
+    },
+    [interactive],
+  );
 
   const handlePointerOut = useCallback(() => {
+    if (!interactive) return;
     document.body.style.cursor = 'auto';
-  }, []);
+  }, [interactive]);
 
   return (
     <mesh
@@ -168,53 +177,53 @@ export function Model(props: React.ComponentProps<'group'>) {
       <group rotation={[-Math.PI / 2, 0, 0]} scale={0.369}>
         <group rotation={[Math.PI / 2, 0, 0]}>
           <group position={[0, -0.05, 0.162]} rotation={[-0.023, 0, 0]}>
-            <ToothMesh name="LL1seam_2ZBrushPolyMesh3D_Mandible_ll1_0" fdi={41} geometry={nodes.LL1seam_2ZBrushPolyMesh3D_Mandible_ll1_0.geometry} sourceMaterial={materials.Mandible_ll1} position={[-0.027, 0.066, -0.185]} rotation={[-3.09, 0, 0.066]} />
-            <ToothMesh name="LL2seam_2ZBrushPolyMesh3D_Mandible_l2_0" fdi={42} geometry={nodes.LL2seam_2ZBrushPolyMesh3D_Mandible_l2_0.geometry} sourceMaterial={materials.Mandible_l2} position={[-0.515, 0.153, -0.129]} rotation={[-3.086, -0.062, 0.069]} />
-            <ToothMesh name="LL3seam_2ZBrushPolyMesh3D_Mandible_ll3_0" fdi={43} geometry={nodes.LL3seam_2ZBrushPolyMesh3D_Mandible_ll3_0.geometry} sourceMaterial={materials.Mandible_ll3} position={[0.051, 0.292, 0.043]} rotation={[-3.06, -0.007, 0.025]} />
-            <ToothMesh name="LL4seam_2ZBrushPolyMesh3D_Mandible_ll4_0" fdi={44} geometry={nodes.LL4seam_2ZBrushPolyMesh3D_Mandible_ll4_0.geometry} sourceMaterial={materials.Mandible_ll4} position={[0.221, 1.048, -0.153]} rotation={[0.194, -0.018, -0.042]} />
-            <ToothMesh name="LL5seam_3ZBrushPolyMesh3D_Mandible_ll5_0" fdi={45} geometry={nodes.LL5seam_3ZBrushPolyMesh3D_Mandible_ll5_0.geometry} sourceMaterial={materials.Mandible_ll5} position={[-0.162, -0.02, 0.09]} rotation={[0.031, 0.023, -0.083]} scale={1.039} />
-            <ToothMesh name="LL6seam_2ZBrushPolyMesh3D_Mandible_blinn10_0" fdi={46} geometry={nodes.LL6seam_2ZBrushPolyMesh3D_Mandible_blinn10_0.geometry} sourceMaterial={materials.Mandible_blinn10} position={[0.101, 0.22, 0.163]} rotation={[-3.09, 0, 0.073]} />
-            <ToothMesh name="LL7seam_2ZBrushPolyMesh3D_Mandible_ll7_0" fdi={47} geometry={nodes.LL7seam_2ZBrushPolyMesh3D_Mandible_ll7_0.geometry} sourceMaterial={materials.Mandible_ll7} position={[0.976, 0.749, -0.562]} rotation={[-2.925, 0.104, -0.047]} />
-            <ToothMesh name="LL8seam_2ZBrushPolyMesh3D_Mandible_ll8_0" fdi={48} geometry={nodes.LL8seam_2ZBrushPolyMesh3D_Mandible_ll8_0.geometry} sourceMaterial={materials.Mandible_ll8} position={[0.535, -0.013, 0.342]} />
-            <ToothMesh name="ZBrushPolyMesh3D_Mandible_ll8_0" fdi={38} geometry={nodes.ZBrushPolyMesh3D_Mandible_ll8_0.geometry} sourceMaterial={materials.Mandible_ll8} position={[-6.275, -0.067, 0.07]} rotation={[0.124, 0.087, 0.137]} />
-            <ToothMesh name="ZBrushPolyMesh3D1_Mandible_ll7_0" fdi={37} geometry={nodes.ZBrushPolyMesh3D1_Mandible_ll7_0.geometry} sourceMaterial={materials.Mandible_ll7} position={[-7.289, 1.176, 0.568]} rotation={[-2.841, -0.275, 0.115]} />
-            <ToothMesh name="ZBrushPolyMesh3D2_Mandible_blinn10_0" fdi={36} geometry={nodes.ZBrushPolyMesh3D2_Mandible_blinn10_0.geometry} sourceMaterial={materials.Mandible_blinn10} position={[-5.142, -0.157, -0.078]} rotation={[-3.091, 0.025, -0.066]} />
-            <ToothMesh name="ZBrushPolyMesh3D3_Mandible_ll4_0" fdi={34} geometry={nodes.ZBrushPolyMesh3D3_Mandible_ll4_0.geometry} sourceMaterial={materials.Mandible_ll4} position={[-3.88, 1.147, -0.283]} rotation={[0.194, -0.018, -0.042]} />
-            <ToothMesh name="ZBrushPolyMesh3D4_Mandible_ll5_0" fdi={35} geometry={nodes.ZBrushPolyMesh3D4_Mandible_ll5_0.geometry} sourceMaterial={materials.Mandible_ll5} position={[-5.009, 0.42, -0.504]} rotation={[0.118, 0.015, -0.085]} scale={1.069} />
-            <ToothMesh name="ZBrushPolyMesh3D5_Mandible_ll3_0" fdi={33} geometry={nodes.ZBrushPolyMesh3D5_Mandible_ll3_0.geometry} sourceMaterial={materials.Mandible_ll3} position={[-2.64, 0.771, -0.148]} rotation={[-2.991, 0.009, -0.067]} />
-            <ToothMesh name="ZBrushPolyMesh3D6_Mandible_l2_0" fdi={32} geometry={nodes.ZBrushPolyMesh3D6_Mandible_l2_0.geometry} sourceMaterial={materials.Mandible_l2} position={[-2.628, 0.153, -0.129]} rotation={[-3.086, -0.062, 0.069]} />
-            <ToothMesh name="ZBrushPolyMesh3D7_Mandible_ll1_0" fdi={31} geometry={nodes.ZBrushPolyMesh3D7_Mandible_ll1_0.geometry} sourceMaterial={materials.Mandible_ll1} position={[-1.139, 0.066, -0.185]} rotation={[-3.09, 0, 0.066]} />
+            <ToothMesh name="LL1seam_2ZBrushPolyMesh3D_Mandible_ll1_0" geometry={nodes.LL1seam_2ZBrushPolyMesh3D_Mandible_ll1_0.geometry} sourceMaterial={materials.Mandible_ll1} position={[-0.027, 0.066, -0.185]} rotation={[-3.09, 0, 0.066]} />
+            <ToothMesh name="LL2seam_2ZBrushPolyMesh3D_Mandible_l2_0" geometry={nodes.LL2seam_2ZBrushPolyMesh3D_Mandible_l2_0.geometry} sourceMaterial={materials.Mandible_l2} position={[-0.515, 0.153, -0.129]} rotation={[-3.086, -0.062, 0.069]} />
+            <ToothMesh name="LL3seam_2ZBrushPolyMesh3D_Mandible_ll3_0" geometry={nodes.LL3seam_2ZBrushPolyMesh3D_Mandible_ll3_0.geometry} sourceMaterial={materials.Mandible_ll3} position={[0.051, 0.292, 0.043]} rotation={[-3.06, -0.007, 0.025]} />
+            <ToothMesh name="LL4seam_2ZBrushPolyMesh3D_Mandible_ll4_0" geometry={nodes.LL4seam_2ZBrushPolyMesh3D_Mandible_ll4_0.geometry} sourceMaterial={materials.Mandible_ll4} position={[0.221, 1.048, -0.153]} rotation={[0.194, -0.018, -0.042]} />
+            <ToothMesh name="LL5seam_3ZBrushPolyMesh3D_Mandible_ll5_0" geometry={nodes.LL5seam_3ZBrushPolyMesh3D_Mandible_ll5_0.geometry} sourceMaterial={materials.Mandible_ll5} position={[-0.162, -0.02, 0.09]} rotation={[0.031, 0.023, -0.083]} scale={1.039} />
+            <ToothMesh name="LL6seam_2ZBrushPolyMesh3D_Mandible_blinn10_0" geometry={nodes.LL6seam_2ZBrushPolyMesh3D_Mandible_blinn10_0.geometry} sourceMaterial={materials.Mandible_blinn10} position={[0.101, 0.22, 0.163]} rotation={[-3.09, 0, 0.073]} />
+            <ToothMesh name="LL7seam_2ZBrushPolyMesh3D_Mandible_ll7_0" geometry={nodes.LL7seam_2ZBrushPolyMesh3D_Mandible_ll7_0.geometry} sourceMaterial={materials.Mandible_ll7} position={[0.976, 0.749, -0.562]} rotation={[-2.925, 0.104, -0.047]} />
+            <ToothMesh name="LL8seam_2ZBrushPolyMesh3D_Mandible_ll8_0" geometry={nodes.LL8seam_2ZBrushPolyMesh3D_Mandible_ll8_0.geometry} sourceMaterial={materials.Mandible_ll8} position={[0.535, -0.013, 0.342]} />
+            <ToothMesh name="ZBrushPolyMesh3D_Mandible_ll8_0" geometry={nodes.ZBrushPolyMesh3D_Mandible_ll8_0.geometry} sourceMaterial={materials.Mandible_ll8} position={[-6.275, -0.067, 0.07]} rotation={[0.124, 0.087, 0.137]} />
+            <ToothMesh name="ZBrushPolyMesh3D1_Mandible_ll7_0" geometry={nodes.ZBrushPolyMesh3D1_Mandible_ll7_0.geometry} sourceMaterial={materials.Mandible_ll7} position={[-7.289, 1.176, 0.568]} rotation={[-2.841, -0.275, 0.115]} />
+            <ToothMesh name="ZBrushPolyMesh3D2_Mandible_blinn10_0" geometry={nodes.ZBrushPolyMesh3D2_Mandible_blinn10_0.geometry} sourceMaterial={materials.Mandible_blinn10} position={[-5.142, -0.157, -0.078]} rotation={[-3.091, 0.025, -0.066]} />
+            <ToothMesh name="ZBrushPolyMesh3D3_Mandible_ll4_0" geometry={nodes.ZBrushPolyMesh3D3_Mandible_ll4_0.geometry} sourceMaterial={materials.Mandible_ll4} position={[-3.88, 1.147, -0.283]} rotation={[0.194, -0.018, -0.042]} />
+            <ToothMesh name="ZBrushPolyMesh3D4_Mandible_ll5_0" geometry={nodes.ZBrushPolyMesh3D4_Mandible_ll5_0.geometry} sourceMaterial={materials.Mandible_ll5} position={[-5.009, 0.42, -0.504]} rotation={[0.118, 0.015, -0.085]} scale={1.069} />
+            <ToothMesh name="ZBrushPolyMesh3D5_Mandible_ll3_0" geometry={nodes.ZBrushPolyMesh3D5_Mandible_ll3_0.geometry} sourceMaterial={materials.Mandible_ll3} position={[-2.64, 0.771, -0.148]} rotation={[-2.991, 0.009, -0.067]} />
+            <ToothMesh name="ZBrushPolyMesh3D6_Mandible_l2_0" geometry={nodes.ZBrushPolyMesh3D6_Mandible_l2_0.geometry} sourceMaterial={materials.Mandible_l2} position={[-2.628, 0.153, -0.129]} rotation={[-3.086, -0.062, 0.069]} />
+            <ToothMesh name="ZBrushPolyMesh3D7_Mandible_ll1_0" geometry={nodes.ZBrushPolyMesh3D7_Mandible_ll1_0.geometry} sourceMaterial={materials.Mandible_ll1} position={[-1.139, 0.066, -0.185]} rotation={[-3.09, 0, 0.066]} />
           </group>
           <group position={[0.588, 0.288, -0.624]} rotation={[0.046, -0.003, -0.009]} scale={1.062}>
             <group position={[-0.128, -0.812, -0.018]} rotation={[3.082, 0, 0]}>
-              <ToothMesh name="polySurface1_UL1_0" fdi={11} geometry={nodes.polySurface1_UL1_0.geometry} sourceMaterial={materials.material} position={[-0.273, 0.054, 0.188]} scale={1.025} />
-              <ToothMesh name="polySurface2_UL1_0" fdi={21} geometry={nodes.polySurface2_UL1_0.geometry} sourceMaterial={materials.material} position={[-0.231, 0.054, 0.146]} scale={1.025} />
+              <ToothMesh name="polySurface1_UL1_0" geometry={nodes.polySurface1_UL1_0.geometry} sourceMaterial={materials.material} position={[-0.273, 0.054, 0.188]} scale={1.025} />
+              <ToothMesh name="polySurface2_UL1_0" geometry={nodes.polySurface2_UL1_0.geometry} sourceMaterial={materials.material} position={[-0.231, 0.054, 0.146]} scale={1.025} />
             </group>
             <group position={[-2.241, -0.37, -0.729]} rotation={[0.019, 0.195, -0.099]} scale={1.072}>
-              <ToothMesh name="polySurface4_blinn14_0" fdi={14} geometry={nodes.polySurface4_blinn14_0.geometry} sourceMaterial={materials.blinn14} position={[-0.223, -0.298, 0.137]} rotation={[-0.041, -0.015, -0.033]} />
+              <ToothMesh name="polySurface4_blinn14_0" geometry={nodes.polySurface4_blinn14_0.geometry} sourceMaterial={materials.blinn14} position={[-0.223, -0.298, 0.137]} rotation={[-0.041, -0.015, -0.033]} />
             </group>
             <group position={[-0.962, -1.438, 0.221]} rotation={[3.024, -0.176, -0.158]}>
-              <ToothMesh name="polySurface6_blinn15_0" fdi={15} geometry={nodes.polySurface6_blinn15_0.geometry} sourceMaterial={materials.blinn15} position={[-0.115, 0.437, -0.431]} rotation={[-0.064, 0.006, 0.06]} />
+              <ToothMesh name="polySurface6_blinn15_0" geometry={nodes.polySurface6_blinn15_0.geometry} sourceMaterial={materials.blinn15} position={[-0.115, 0.437, -0.431]} rotation={[-0.064, 0.006, 0.06]} />
             </group>
             <group position={[-0.34, -0.214, -0.464]} rotation={[0.067, 0.077, 0.103]}>
-              <ToothMesh name="polySurface7_blinn18_0" fdi={18} geometry={nodes.polySurface7_blinn18_0.geometry} sourceMaterial={materials.blinn18} />
-              <ToothMesh name="polySurface8_blinn18_0" fdi={18} geometry={nodes.polySurface8_blinn18_0.geometry} sourceMaterial={materials.blinn18} position={[-0.7, 0.123, -0.406]} rotation={[0.051, 0.073, -0.082]} />
+              <ToothMesh name="polySurface7_blinn18_0" geometry={nodes.polySurface7_blinn18_0.geometry} sourceMaterial={materials.blinn18} />
+              <ToothMesh name="polySurface8_blinn18_0" geometry={nodes.polySurface8_blinn18_0.geometry} sourceMaterial={materials.blinn18} position={[-0.7, 0.123, -0.406]} rotation={[0.051, 0.073, -0.082]} />
             </group>
             <group position={[-0.526, -0.173, -0.156]} rotation={[0, 0, -0.079]}>
-              <ToothMesh name="polySurface9_blinn19_0" fdi={19} geometry={nodes.polySurface9_blinn19_0.geometry} sourceMaterial={materials.blinn19} position={[0, 0.004, 0.094]} />
-              <ToothMesh name="polySurface10_blinn19_0" fdi={19} geometry={nodes.polySurface10_blinn19_0.geometry} sourceMaterial={materials.blinn19} position={[0.073, 0.42, -0.294]} rotation={[0.088, -0.006, 0.012]} />
+              <ToothMesh name="polySurface9_blinn19_0" geometry={nodes.polySurface9_blinn19_0.geometry} sourceMaterial={materials.blinn19} position={[0, 0.004, 0.094]} />
+              <ToothMesh name="polySurface10_blinn19_0" geometry={nodes.polySurface10_blinn19_0.geometry} sourceMaterial={materials.blinn19} position={[0.073, 0.42, -0.294]} rotation={[0.088, -0.006, 0.012]} />
             </group>
             <group position={[-0.091, -0.66, 0.177]} rotation={[3.083, 0, 0]}>
-              <ToothMesh name="polySurface12_blinn20_0" fdi={20} geometry={nodes.polySurface12_blinn20_0.geometry} sourceMaterial={materials.blinn20} position={[-0.109, -0.2, 0.304]} rotation={[0.063, -0.01, 0.016]} />
+              <ToothMesh name="polySurface12_blinn20_0" geometry={nodes.polySurface12_blinn20_0.geometry} sourceMaterial={materials.blinn20} position={[-0.109, -0.2, 0.304]} rotation={[0.063, -0.01, 0.016]} />
             </group>
-            <ToothMesh name="ZBrushPolyMesh3D1_blinn14_0" fdi={24} geometry={nodes.ZBrushPolyMesh3D1_blinn14_0.geometry} sourceMaterial={materials.blinn14} position={[-2.464, -0.939, -0.312]} rotation={[-0.061, 0.202, -0.083]} scale={1.072} />
-            <ToothMesh name="ZBrushPolyMesh3D3_blinn16_0" fdi={16} geometry={nodes.ZBrushPolyMesh3D3_blinn16_0.geometry} sourceMaterial={materials.blinn16} position={[1.988, 7.736, 7.153]} rotation={[3.123, -1.046, 0]} scale={0.271} />
-            <ToothMesh name="ZBrushPolyMesh3D4_blinn17_0" fdi={17} geometry={nodes.ZBrushPolyMesh3D4_blinn17_0.geometry} sourceMaterial={materials.blinn17} position={[-0.211, 0.514, -0.705]} rotation={[-2.971, -0.07, -0.129]} />
-            <ToothMesh name="ZBrushPolyMesh3D2_blinn15_0" fdi={25} geometry={nodes.ZBrushPolyMesh3D2_blinn15_0.geometry} sourceMaterial={materials.blinn15} position={[-1.111, -1.386, 0.312]} rotation={[3.024, -0.176, -0.158]} />
-            <ToothMesh name="ZBrushPolyMesh3D5_blinn18_0" fdi={28} geometry={nodes.ZBrushPolyMesh3D5_blinn18_0.geometry} sourceMaterial={materials.blinn18} position={[-0.066, -0.088, -0.463]} rotation={[0.096, 0.075, 0.167]} />
-            <ToothMesh name="ZBrushPolyMesh3D7_blinn20_0" fdi={30} geometry={nodes.ZBrushPolyMesh3D7_blinn20_0.geometry} sourceMaterial={materials.blinn20} position={[0.362, -1.153, 0.696]} rotation={[3.002, 0, -0.107]} />
-            <ToothMesh name="ZBrushPolyMesh3D8_blinn16_0" fdi={26} geometry={nodes.ZBrushPolyMesh3D8_blinn16_0.geometry} sourceMaterial={materials.blinn16} position={[-2.922, 7.698, 7.017]} rotation={[3.123, -0.847, 0]} scale={0.271} />
-            <ToothMesh name="ZBrushPolyMesh3D9_blinn17_0" fdi={27} geometry={nodes.ZBrushPolyMesh3D9_blinn17_0.geometry} sourceMaterial={materials.blinn17} position={[-4.839, -0.133, -0.764]} rotation={[-3.038, 0.002, -0.179]} />
+            <ToothMesh name="ZBrushPolyMesh3D1_blinn14_0" geometry={nodes.ZBrushPolyMesh3D1_blinn14_0.geometry} sourceMaterial={materials.blinn14} position={[-2.464, -0.939, -0.312]} rotation={[-0.061, 0.202, -0.083]} scale={1.072} />
+            <ToothMesh name="ZBrushPolyMesh3D3_blinn16_0" geometry={nodes.ZBrushPolyMesh3D3_blinn16_0.geometry} sourceMaterial={materials.blinn16} position={[1.988, 7.736, 7.153]} rotation={[3.123, -1.046, 0]} scale={0.271} />
+            <ToothMesh name="ZBrushPolyMesh3D4_blinn17_0" geometry={nodes.ZBrushPolyMesh3D4_blinn17_0.geometry} sourceMaterial={materials.blinn17} position={[-0.211, 0.514, -0.705]} rotation={[-2.971, -0.07, -0.129]} />
+            <ToothMesh name="ZBrushPolyMesh3D2_blinn15_0" geometry={nodes.ZBrushPolyMesh3D2_blinn15_0.geometry} sourceMaterial={materials.blinn15} position={[-1.111, -1.386, 0.312]} rotation={[3.024, -0.176, -0.158]} />
+            <ToothMesh name="ZBrushPolyMesh3D5_blinn18_0" geometry={nodes.ZBrushPolyMesh3D5_blinn18_0.geometry} sourceMaterial={materials.blinn18} position={[-0.066, -0.088, -0.463]} rotation={[0.096, 0.075, 0.167]} />
+            <ToothMesh name="ZBrushPolyMesh3D7_blinn20_0" geometry={nodes.ZBrushPolyMesh3D7_blinn20_0.geometry} sourceMaterial={materials.blinn20} position={[0.362, -1.153, 0.696]} rotation={[3.002, 0, -0.107]} />
+            <ToothMesh name="ZBrushPolyMesh3D8_blinn16_0" geometry={nodes.ZBrushPolyMesh3D8_blinn16_0.geometry} sourceMaterial={materials.blinn16} position={[-2.922, 7.698, 7.017]} rotation={[3.123, -0.847, 0]} scale={0.271} />
+            <ToothMesh name="ZBrushPolyMesh3D9_blinn17_0" geometry={nodes.ZBrushPolyMesh3D9_blinn17_0.geometry} sourceMaterial={materials.blinn17} position={[-4.839, -0.133, -0.764]} rotation={[-3.038, 0.002, -0.179]} />
           </group>
         </group>
       </group>
