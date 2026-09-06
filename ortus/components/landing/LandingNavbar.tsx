@@ -30,7 +30,7 @@ export default function LandingNavbar() {
               <li key={link.href}>
                 <a
                   href={link.href}
-                  className="font-poppins text-[15px] font-medium text-[#323338] transition-colors hover:text-ortus-blue"
+                  className="font-poppins text-[15px] font-normal text-[#323338] transition-colors hover:text-ortus-blue"
                 >
                   {link.rotulo}
                 </a>
@@ -42,7 +42,7 @@ export default function LandingNavbar() {
         <div className="flex items-center gap-4">
           <Link
             href="/login"
-            className="hidden font-poppins text-[15px] font-medium text-[#323338] transition-colors hover:text-ortus-blue sm:inline"
+            className="hidden font-poppins text-[15px] font-normal text-[#323338] transition-colors hover:text-ortus-blue sm:inline"
           >
             Login
           </Link>

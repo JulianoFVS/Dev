@@ -1,84 +1,171 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowRight } from 'lucide-react';
+import {
+  ArrowRight,
+  Bell,
+  Calendar,
+  Check,
+  Home,
+  Heart,
+  Mic,
+  Plus,
+  Search,
+  Settings,
+  Users,
+} from 'lucide-react';
 import MarcasCarrossel from './MarcasCarrossel';
 
 function PainelClinica() {
-  const linhas = [
-    { paciente: 'Marina Alves', procedimento: 'Clareamento', horario: '09:00', status: 'Confirmado', cor: 'bg-emerald-100 text-emerald-700' },
-    { paciente: 'Rafael Costa', procedimento: 'Implante', horario: '10:30', status: 'Em atendimento', cor: 'bg-sky-100 text-sky-700' },
-    { paciente: 'Helena Dias', procedimento: 'Ortodontia', horario: '13:00', status: 'Aguardando', cor: 'bg-amber-100 text-amber-700' },
-    { paciente: 'Bruno Lima', procedimento: 'Avaliação', horario: '15:20', status: 'Confirmado', cor: 'bg-emerald-100 text-emerald-700' },
+  const novos = [
+    { nome: 'Marina Alves', canal: 'WhatsApp', status: 'Mensagem enviada', telefone: '+55 11 98810-2210' },
+    { nome: 'Rafael Costa', canal: 'Instagram', status: 'Mensagem enviada', telefone: '+55 21 99740-1188' },
+    { nome: 'Helena Dias', canal: 'Indicação', status: 'Mensagem enviada', telefone: '+55 31 98412-5502' },
+  ];
+
+  const tratamento = [
+    { nome: 'Bruno Lima', procedimento: 'Implante', status: 'Confirmado', cor: 'bg-[#00c875]' },
+    { nome: 'Camila Nunes', procedimento: 'Ortodontia', status: 'Retorno', cor: 'bg-[#a25ddc]' },
+    { nome: 'Diego Prado', procedimento: 'Clareamento', status: 'Confirmado', cor: 'bg-[#00c875]' },
   ];
 
   return (
-    <div className="relative mx-auto w-full max-w-[980px]">
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-        <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3.5">
+    <div className="flex h-[min(520px,72vh)] overflow-hidden rounded-2xl border border-slate-200 bg-[#f6f7fb] text-left shadow-[0_18px_50px_-28px_rgba(20,30,50,0.28)]">
+      <aside className="hidden w-[56px] shrink-0 flex-col items-center bg-[#323338] py-4 sm:flex">
+        <img src="/landing/ortus-mark.svg" alt="" className="mb-6 h-7 w-7 brightness-0 invert" />
+        <nav className="flex flex-1 flex-col items-center gap-5 text-white/80">
+          <Home size={18} />
+          <Calendar size={18} />
+          <Users size={18} />
+          <Heart size={18} />
+          <Bell size={18} />
+        </nav>
+        <Settings size={18} className="text-white/60" />
+      </aside>
+
+      <div className="min-w-0 flex-1 overflow-hidden px-3 py-3 sm:px-5">
+        <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
           <div>
-            <p className="font-poppins text-[11px] font-medium uppercase tracking-[0.14em] text-slate-400">
-              Agenda do dia
-            </p>
-            <p className="font-poppins text-[17px] font-semibold text-[#323338]">Clínica Ortus — Centro</p>
+            <h3 className="font-poppins text-[20px] font-semibold text-[#323338]">Agenda da clínica</h3>
+            <div className="mt-2 flex items-center gap-4 font-poppins text-[13px] text-slate-500">
+              <span className="border-b-2 border-ortus-blue pb-1 font-medium text-ortus-blue">Quadro principal</span>
+              <span>Agenda</span>
+              <span>Kanban</span>
+              <Plus size={14} />
+            </div>
           </div>
-          <span className="rounded-full bg-ortus-mist px-3 py-1 font-poppins text-[12px] font-semibold text-ortus-blue">
-            12 consultas
-          </span>
-        </div>
-
-        <div className="grid grid-cols-[1.4fr_1.1fr_0.7fr_1fr] gap-3 border-b border-slate-100 px-5 py-2 font-poppins text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-          <span>Paciente</span>
-          <span>Procedimento</span>
-          <span>Horário</span>
-          <span>Status</span>
-        </div>
-
-        {linhas.map((linha) => (
-          <div
-            key={linha.paciente}
-            className="grid grid-cols-[1.4fr_1.1fr_0.7fr_1fr] items-center gap-3 border-b border-slate-50 px-5 py-3 last:border-b-0"
-          >
-            <span className="truncate font-poppins text-[14px] font-medium text-[#323338]">{linha.paciente}</span>
-            <span className="truncate font-poppins text-[13px] text-slate-500">{linha.procedimento}</span>
-            <span className="font-poppins text-[13px] text-slate-500">{linha.horario}</span>
-            <span className={`w-fit rounded-full px-2.5 py-1 font-poppins text-[11px] font-semibold ${linha.cor}`}>
-              {linha.status}
+          <div className="hidden items-center gap-2 md:flex">
+            <span className="rounded-md border border-slate-200 bg-white px-2.5 py-1 font-poppins text-[12px] text-slate-500">
+              Integrar
+            </span>
+            <span className="rounded-md bg-ortus-blue px-2.5 py-1 font-poppins text-[12px] font-medium text-white">
+              Automações
             </span>
           </div>
-        ))}
+        </div>
+
+        <section className="relative mb-3 overflow-hidden rounded-xl bg-white">
+          <div className="flex items-center gap-2 px-3 py-2">
+            <span className="h-5 w-1.5 rounded-sm bg-[#579bfc]" />
+            <p className="font-poppins text-[13px] font-semibold text-[#323338]">Novos pacientes</p>
+          </div>
+          <div className="grid grid-cols-[1.3fr_1fr_1.1fr_1.2fr] gap-2 bg-[#edf3ff] px-3 py-1.5 font-poppins text-[11px] font-medium text-slate-400">
+            <span>Nome</span>
+            <span>Canal</span>
+            <span>Status</span>
+            <span>Telefone</span>
+          </div>
+          {novos.map((item) => (
+            <div key={item.nome} className="grid grid-cols-[1.3fr_1fr_1.1fr_1.2fr] items-center gap-2 border-t border-[#e8f0ff] bg-[#f3f7ff] px-3 py-2">
+              <span className="truncate font-poppins text-[13px] text-[#323338]">{item.nome}</span>
+              <span className="truncate font-poppins text-[12px] text-slate-500">{item.canal}</span>
+              <span className="w-fit rounded-sm bg-[#579bfc] px-2 py-0.5 font-poppins text-[11px] font-medium text-white">
+                {item.status}
+              </span>
+              <span className="truncate font-poppins text-[12px] text-slate-500">{item.telefone}</span>
+            </div>
+          ))}
+          <div className="absolute -left-1 top-16 hidden rounded-full bg-white px-2.5 py-1 font-poppins text-[11px] font-medium text-[#323338] ring-1 ring-pink-200 sm:block">
+            8 retornos confirmados
+          </div>
+        </section>
+
+        <section className="relative overflow-hidden rounded-xl bg-white">
+          <div className="flex items-center gap-2 px-3 py-2">
+            <span className="h-5 w-1.5 rounded-sm bg-[#00c875]" />
+            <p className="font-poppins text-[13px] font-semibold text-[#323338]">Em tratamento</p>
+          </div>
+          <div className="grid grid-cols-[1.3fr_1.2fr_1fr] gap-2 px-3 py-1.5 font-poppins text-[11px] font-medium text-slate-400">
+            <span>Paciente</span>
+            <span>Procedimento</span>
+            <span>Status</span>
+          </div>
+          {tratamento.map((item) => (
+            <div key={item.nome} className="grid grid-cols-[1.3fr_1.2fr_1fr] items-center gap-2 border-t border-slate-100 px-3 py-2">
+              <span className="truncate font-poppins text-[13px] text-[#323338]">{item.nome}</span>
+              <span className="truncate font-poppins text-[12px] text-slate-500">{item.procedimento}</span>
+              <span className={`w-fit rounded-sm px-2 py-0.5 font-poppins text-[11px] font-medium text-white ${item.cor}`}>
+                {item.status}
+              </span>
+            </div>
+          ))}
+          <div className="absolute right-4 top-10 hidden rounded-full bg-white px-2.5 py-1 font-poppins text-[11px] font-medium text-[#323338] ring-1 ring-pink-200 md:block">
+            Ligando p/ Marina
+          </div>
+        </section>
       </div>
 
-      <div className="absolute -right-2 top-16 hidden w-[240px] rounded-2xl border border-slate-200 bg-white p-4 lg:block">
-        <p className="font-poppins text-[13px] font-semibold text-[#323338]">Ana, recepção</p>
-        <p className="mt-0.5 font-poppins text-[12px] text-slate-500">Especialista em agenda</p>
-        <ul className="mt-3 space-y-2 font-poppins text-[12px] text-slate-600">
+      <aside className="hidden w-[250px] shrink-0 flex-col border-l border-slate-200 bg-white p-4 lg:flex">
+        <div className="mb-4 flex items-center gap-2.5">
+          <span className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full bg-ortus-mist">
+            <img src="/landing/ortus-mark.svg" alt="" className="h-5 w-5" />
+          </span>
+          <div>
+            <p className="font-poppins text-[13px] font-semibold text-[#323338]">Lia</p>
+            <p className="font-poppins text-[11px] text-slate-500">assistente da clínica</p>
+          </div>
+        </div>
+
+        <div className="mb-3 self-end rounded-2xl rounded-tr-sm bg-ortus-blue px-3 py-2 font-poppins text-[12px] text-white">
+          Buscar novos pacientes para a semana
+        </div>
+
+        <ul className="space-y-2.5 font-poppins text-[12px] text-slate-600">
           <li className="flex items-center gap-2">
-            <span className="h-1.5 w-1.5 rounded-full bg-ortus-blue" />
-            Confirmando retornos
+            <span className="flex h-4 w-4 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+              <Check size={10} strokeWidth={3} />
+            </span>
+            Separando indicações da semana
           </li>
           <li className="flex items-center gap-2">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-            Enviando lembretes
+            <Search size={14} className="text-ortus-blue" />
+            Analisando indicações
           </li>
           <li className="flex items-center gap-2">
-            <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-            Revisando anamneses
+            <Calendar size={14} className="text-ortus-blue" />
+            Organizando horários
           </li>
         </ul>
-      </div>
+
+        <div className="mt-auto flex items-center gap-2 rounded-full border border-slate-200 px-3 py-2 text-slate-400">
+          <span className="flex-1 font-poppins text-[12px]">Fale com a Lia</span>
+          <Mic size={14} />
+          <ArrowRight size={14} />
+        </div>
+      </aside>
     </div>
   );
 }
 
 export default function HeroOrtus() {
   return (
-    <section className="bg-white px-5 pb-10 pt-14 sm:pt-16 md:pb-16 md:pt-20">
-      <div className="mx-auto flex max-w-[820px] flex-col items-center text-center">
-        <div className="mb-5 flex items-center gap-2 font-poppins text-[13px] font-medium text-slate-500">
-          <img src="/landing/ortus-mark.svg" alt="" className="h-5 w-5 object-contain" />
-          plataforma para clínicas
-        </div>
+    <section className="overflow-x-hidden bg-white pb-10 pt-12 sm:pt-14 md:pb-16 md:pt-16">
+      <div className="mx-auto flex max-w-[820px] flex-col items-center px-5 text-center">
+        <img
+          src="/landing/ortus-mark.svg"
+          alt="ortus"
+          className="mb-7 h-14 w-14 object-contain sm:h-16 sm:w-16"
+        />
 
         <h1 className="font-poppins text-[clamp(32px,5.4vw,64px)] font-extrabold leading-[1.08] tracking-[-0.03em] text-[#1a1a1a]">
           Gestão inteligente
@@ -99,12 +186,14 @@ export default function HeroOrtus() {
         </Link>
       </div>
 
-      <div className="mx-auto mt-14 w-full max-w-[1100px] px-0 sm:mt-16 sm:px-6">
-        <PainelClinica />
-      </div>
+      <div className="relative mt-14 sm:mt-16">
+        <div className="pointer-events-none absolute left-1/2 top-1/2 z-0 w-screen -translate-x-1/2 -translate-y-1/2">
+          <MarcasCarrossel />
+        </div>
 
-      <div className="mx-auto mt-12 w-full max-w-[980px]">
-        <MarcasCarrossel />
+        <div className="relative z-10 mx-auto w-full max-w-[1080px] px-4 sm:px-6">
+          <PainelClinica />
+        </div>
       </div>
     </section>
   );

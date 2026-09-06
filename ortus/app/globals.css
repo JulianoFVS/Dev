@@ -138,7 +138,7 @@ body {
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-  animation: ortusShine 7s linear infinite;
+  animation: ortusShine 3.2s linear infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
