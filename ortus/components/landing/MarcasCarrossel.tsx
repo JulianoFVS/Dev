@@ -88,9 +88,9 @@ export default function MarcasCarrossel() {
       className="ortus-marquee w-full overflow-hidden"
       style={{
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        ...( { '--marquee-duration': '30s' } as any),
-        maskImage: 'linear-gradient(to right, transparent, #000 6%, #000 94%, transparent)',
-        WebkitMaskImage: 'linear-gradient(to right, transparent, #000 6%, #000 94%, transparent)',
+        ...( { '--marquee-duration': '28s' } as any),
+        maskImage: 'linear-gradient(to right, transparent, #000 4%, #000 96%, transparent)',
+        WebkitMaskImage: 'linear-gradient(to right, transparent, #000 4%, #000 96%, transparent)',
       }}
     >
       <ul className="ortus-marquee-track items-center" aria-label="Marcas parceiras">

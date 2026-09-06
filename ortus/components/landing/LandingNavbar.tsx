@@ -23,7 +23,7 @@ export default function LandingNavbar() {
           <img
             src="/landing/ortus-mark.svg"
             alt=""
-            className="h-8 w-8 object-contain"
+            className="h-7 w-7 object-contain"
           />
         </Link>
 
