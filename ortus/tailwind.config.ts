@@ -11,9 +11,9 @@ const config: Config = {
         slate: { 50: '#f8fafc', 100: '#f1f5f9', 800: '#1e293b' },
         // Paleta da identidade ORTUS, amostrada da arte do logotipo.
         ortus: {
-          blue: '#1689fe',
-          blueDark: '#0b74e2',
-          navy: '#1c3559',
+          blue: '#0D4F9A',
+          blueDark: '#0A3D78',
+          navy: '#1A2F4A',
           sky: '#cfe2fa',
           mist: '#eaf2fd',
         },

@@ -62,13 +62,13 @@ function LogoMarca({ marca }: { marca: Marca }) {
       <img
         src={marca.src}
         alt={marca.nome}
-        className="h-[clamp(16px,1.6vw,24px)] w-auto object-contain opacity-80"
+        className="h-[18px] w-auto object-contain opacity-70"
       />
     );
   }
 
   return (
-    <span className="flex items-center gap-1.5 text-[clamp(12px,1.15vw,17px)] leading-none text-ortus-navy">
+    <span className="flex items-center gap-1.5 text-[14px] leading-none text-ortus-navy/70">
       {marca.glifo}
       <span className={marca.classe}>
         {marca.nome}
@@ -100,10 +100,10 @@ export default function MarcasCarrossel() {
             aria-hidden={i >= MARCAS.length}
             className="flex shrink-0 items-center"
           >
-            <span className="px-[clamp(18px,3vw,44px)]">
+            <span className="px-8">
               <LogoMarca marca={marca} />
             </span>
-            <span className="h-[clamp(16px,1.7vw,26px)] w-px bg-slate-200" />
+            <span className="h-5 w-px bg-slate-300/50" />
           </li>
         ))}
       </ul>

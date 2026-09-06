@@ -121,8 +121,29 @@ body {
 }
 .ortus-marquee:hover .ortus-marquee-track { animation-play-state: paused; }
 
+@keyframes ortusShine {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+.ortus-shine {
+  background-image: linear-gradient(
+    90deg,
+    #0A3D78 0%,
+    #0D4F9A 18%,
+    #5BA3E0 50%,
+    #0D4F9A 82%,
+    #0A3D78 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: ortusShine 7s linear infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
     .ortus-marquee-track { animation: none; }
+    .ortus-shine { animation: none; color: #0D4F9A; background: none; }
 }
 
 /* ESTILIZAÇÃO DO CALENDÁRIO (React Big Calendar) */

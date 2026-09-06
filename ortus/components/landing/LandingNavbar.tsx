@@ -16,23 +16,23 @@ export default function LandingNavbar() {
   return (
     <header className="fixed inset-x-0 top-0 z-50 px-4 pt-3 sm:pt-4">
       <nav
-        className="relative mx-auto flex h-[clamp(56px,4.6vw,64px)] w-full max-w-[1010px] items-center
-                   justify-between rounded-full bg-white pl-[6px] pr-[6px]
-                   shadow-[0_12px_34px_-16px_rgba(20,60,120,0.35)]"
+        className="relative mx-auto flex h-[52px] w-full max-w-[960px] items-center
+                   justify-between rounded-full border border-white/80 bg-white/95 px-1.5"
       >
-        <Link href="/" aria-label="ORTUS" className="flex h-full items-center">
-          <span className="flex aspect-square h-[78%] items-center justify-center overflow-hidden rounded-full bg-ortus-blue">
-            <img src="/landing/ortus-mark.png" alt="" className="h-[72%] w-[72%] object-contain" />
-          </span>
+        <Link href="/" aria-label="ORTUS" className="flex h-full items-center pl-1">
+          <img
+            src="/landing/ortus-mark.svg"
+            alt=""
+            className="h-8 w-8 object-contain"
+          />
         </Link>
 
-        {/* Os links ficam centralizados na pílula, independentes das laterais. */}
-        <ul className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-[clamp(20px,3.4vw,46px)] md:flex">
+        <ul className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-10 md:flex">
           {LINKS.map((link) => (
             <li key={link.href}>
               <a
                 href={link.href}
-                className="font-poppins text-[clamp(13px,1.05vw,15px)] font-medium text-ortus-navy
+                className="font-poppins text-[14px] font-medium text-ortus-navy
                            transition-colors hover:text-ortus-blue"
               >
                 {link.rotulo}
@@ -44,8 +44,8 @@ export default function LandingNavbar() {
         <div className="flex h-full items-center gap-1">
           <Link
             href="/login"
-            className="flex h-[74%] items-center rounded-full bg-ortus-blue px-[clamp(20px,2.6vw,34px)]
-                       font-poppins text-[clamp(13px,1.05vw,15px)] font-semibold text-white
+            className="flex h-8 items-center rounded-full bg-ortus-blue px-5
+                       font-poppins text-[13px] font-semibold text-white
                        transition-colors hover:bg-ortus-blueDark"
           >
             Entrar
@@ -55,15 +55,15 @@ export default function LandingNavbar() {
             onClick={() => setAberto((v) => !v)}
             aria-label={aberto ? 'Fechar menu' : 'Abrir menu'}
             aria-expanded={aberto}
-            className="flex h-10 w-10 items-center justify-center rounded-full text-ortus-navy md:hidden"
+            className="flex h-9 w-9 items-center justify-center rounded-full text-ortus-navy md:hidden"
           >
-            {aberto ? <X size={20} /> : <Menu size={20} />}
+            {aberto ? <X size={18} /> : <Menu size={18} />}
           </button>
         </div>
       </nav>
 
       {aberto && (
-        <div className="mx-auto mt-2 w-full max-w-[1010px] rounded-3xl bg-white p-4 shadow-[0_12px_34px_-16px_rgba(20,60,120,0.35)] md:hidden">
+        <div className="mx-auto mt-2 w-full max-w-[960px] rounded-3xl border border-white/80 bg-white/95 p-3 md:hidden">
           <ul className="flex flex-col">
             {LINKS.map((link) => (
               <li key={link.href}>
