@@ -49,19 +49,23 @@ const MARCAS: Marca[] = [
   { nome: 'Carestream', glifo: bandeira, classe: 'font-medium tracking-tight' },
 ];
 
-function LogoMarca({ marca }: { marca: Marca }) {
+function LogoMarca({ marca, compacto = false }: { marca: Marca; compacto?: boolean }) {
   if (marca.src) {
     return (
       <img
         src={marca.src}
         alt={marca.nome}
-        className="h-[18px] w-auto object-contain opacity-70"
+        className={`${compacto ? 'h-[14px] md:h-[16px]' : 'h-[18px]'} w-auto object-contain opacity-70`}
       />
     );
   }
 
   return (
-    <span className="flex items-center gap-1.5 text-[14px] leading-none text-ortus-navy/70">
+    <span
+      className={`flex items-center leading-none text-ortus-navy/70 ${
+        compacto ? 'gap-1 text-[12px] md:text-[13px]' : 'gap-1.5 text-[14px]'
+      }`}
+    >
       {marca.glifo}
       <span className={marca.classe}>
         {marca.nome}
@@ -71,15 +75,17 @@ function LogoMarca({ marca }: { marca: Marca }) {
   );
 }
 
-export default function MarcasCarrossel() {
-  const trilha = [...MARCAS, ...MARCAS];
+export default function MarcasCarrossel({ denso = false }: { denso?: boolean }) {
+  const trilha = denso
+    ? [...MARCAS, ...MARCAS, ...MARCAS, ...MARCAS]
+    : [...MARCAS, ...MARCAS];
 
   return (
     <div
-      className="ortus-marquee w-full overflow-hidden"
+      className={`ortus-marquee w-full overflow-hidden ${denso ? 'ortus-marquee--denso py-1.5' : ''}`}
       style={{
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        ...({ '--marquee-duration': '28s' } as any),
+        ...({ '--marquee-duration': denso ? '16s' : '28s' } as any),
       }}
     >
       <ul className="ortus-marquee-track items-center" aria-label="Marcas parceiras">
@@ -87,10 +93,10 @@ export default function MarcasCarrossel() {
           <li
             key={`${marca.nome}-${i}`}
             aria-hidden={i >= MARCAS.length}
-            className="flex shrink-0 items-center justify-center"
-            style={{ flex: `0 0 ${100 / trilha.length}%` }}
+            className={`flex shrink-0 items-center ${denso ? 'px-3.5 md:px-5' : 'justify-center'}`}
+            style={denso ? undefined : { flex: `0 0 ${100 / trilha.length}%` }}
           >
-            <LogoMarca marca={marca} />
+            <LogoMarca marca={marca} compacto={denso} />
           </li>
         ))}
       </ul>

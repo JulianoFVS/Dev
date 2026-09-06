@@ -48,7 +48,7 @@ export default function LandingNavbar() {
           </Link>
           <Link
             href="/cadastro"
-            className="inline-flex h-10 items-center gap-1.5 rounded-full bg-ortus-blue px-5 font-poppins text-[14px] font-semibold text-white transition-colors hover:bg-ortus-blueDark"
+            className="hidden h-10 items-center gap-1.5 rounded-full bg-ortus-blue px-5 font-poppins text-[14px] font-semibold text-white transition-colors hover:bg-ortus-blueDark md:inline-flex"
           >
             Cadastre-se
             <ArrowRight className="h-4 w-4" strokeWidth={2.4} />
@@ -83,9 +83,18 @@ export default function LandingNavbar() {
               <Link
                 href="/login"
                 onClick={() => setAberto(false)}
-                className="block rounded-lg px-2 py-3 font-poppins font-medium text-[#323338]"
+                className="block rounded-lg px-2 py-3 font-poppins font-normal text-[#323338]"
               >
                 Login
+              </Link>
+            </li>
+            <li>
+              <Link
+                href="/cadastro"
+                onClick={() => setAberto(false)}
+                className="block rounded-lg px-2 py-3 font-poppins font-normal text-[#323338]"
+              >
+                Cadastre-se
               </Link>
             </li>
           </ul>

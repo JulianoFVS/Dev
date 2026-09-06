@@ -30,7 +30,7 @@ function PainelClinica() {
   ];
 
   return (
-    <div className="flex h-[min(520px,72vh)] overflow-hidden rounded-2xl border border-slate-200 bg-[#f6f7fb] text-left shadow-[0_18px_50px_-28px_rgba(20,30,50,0.28)]">
+    <div className="flex h-auto overflow-visible rounded-2xl border border-slate-200 bg-[#f6f7fb] pb-12 text-left shadow-[0_18px_50px_-28px_rgba(20,30,50,0.28)] md:h-[min(520px,72vh)] md:overflow-hidden md:pb-0">
       <aside className="hidden w-[56px] shrink-0 flex-col items-center bg-[#323338] py-4 sm:flex">
         <img src="/landing/ortus-mark.svg" alt="" className="mb-6 h-7 w-7 brightness-0 invert" />
         <nav className="flex flex-1 flex-col items-center gap-5 text-white/80">
@@ -44,10 +44,10 @@ function PainelClinica() {
       </aside>
 
       <div className="min-w-0 flex-1 overflow-hidden px-3 py-3 sm:px-5">
-        <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+        <div className="mb-2 flex flex-wrap items-end justify-between gap-3 md:mb-3">
           <div>
-            <h3 className="font-poppins text-[20px] font-semibold text-[#323338]">Agenda da clínica</h3>
-            <div className="mt-2 flex items-center gap-4 font-poppins text-[13px] text-slate-500">
+            <h3 className="font-poppins text-[17px] font-semibold text-[#323338] md:text-[20px]">Agenda da clínica</h3>
+            <div className="mt-1.5 flex items-center gap-3 font-poppins text-[12px] text-slate-500 md:mt-2 md:gap-4 md:text-[13px]">
               <span className="border-b-2 border-ortus-blue pb-1 font-medium text-ortus-blue">Quadro principal</span>
               <span>Agenda</span>
               <span>Kanban</span>
@@ -69,20 +69,20 @@ function PainelClinica() {
             <span className="h-5 w-1.5 rounded-sm bg-[#579bfc]" />
             <p className="font-poppins text-[13px] font-semibold text-[#323338]">Novos pacientes</p>
           </div>
-          <div className="grid grid-cols-[1.3fr_1fr_1.1fr_1.2fr] gap-2 bg-[#edf3ff] px-3 py-1.5 font-poppins text-[11px] font-medium text-slate-400">
+          <div className="grid grid-cols-[1.2fr_0.9fr_1.1fr] gap-2 bg-[#edf3ff] px-3 py-1.5 font-poppins text-[11px] font-medium text-slate-400 md:grid-cols-[1.3fr_1fr_1.1fr_1.2fr]">
             <span>Nome</span>
             <span>Canal</span>
             <span>Status</span>
-            <span>Telefone</span>
+            <span className="hidden md:inline">Telefone</span>
           </div>
           {novos.map((item) => (
-            <div key={item.nome} className="grid grid-cols-[1.3fr_1fr_1.1fr_1.2fr] items-center gap-2 border-t border-[#e8f0ff] bg-[#f3f7ff] px-3 py-2">
+            <div key={item.nome} className="grid grid-cols-[1.2fr_0.9fr_1.1fr] items-center gap-2 border-t border-[#e8f0ff] bg-[#f3f7ff] px-3 py-2 md:grid-cols-[1.3fr_1fr_1.1fr_1.2fr]">
               <span className="truncate font-poppins text-[13px] text-[#323338]">{item.nome}</span>
               <span className="truncate font-poppins text-[12px] text-slate-500">{item.canal}</span>
               <span className="w-fit rounded-sm bg-[#579bfc] px-2 py-0.5 font-poppins text-[11px] font-medium text-white">
                 {item.status}
               </span>
-              <span className="truncate font-poppins text-[12px] text-slate-500">{item.telefone}</span>
+              <span className="hidden truncate font-poppins text-[12px] text-slate-500 md:inline">{item.telefone}</span>
             </div>
           ))}
           <div className="absolute -left-1 top-16 hidden rounded-full bg-white px-2.5 py-1 font-poppins text-[11px] font-medium text-[#323338] ring-1 ring-pink-200 sm:block">
@@ -90,7 +90,7 @@ function PainelClinica() {
           </div>
         </section>
 
-        <section className="relative overflow-hidden rounded-xl bg-white">
+        <section className="relative hidden overflow-hidden rounded-xl bg-white md:block">
           <div className="flex items-center gap-2 px-3 py-2">
             <span className="h-5 w-1.5 rounded-sm bg-[#00c875]" />
             <p className="font-poppins text-[13px] font-semibold text-[#323338]">Em tratamento</p>
@@ -159,40 +159,44 @@ function PainelClinica() {
 
 export default function HeroOrtus() {
   return (
-    <section className="overflow-x-hidden bg-white pb-10 pt-12 sm:pt-14 md:pb-16 md:pt-16">
+    <section className="overflow-x-hidden bg-white pb-8 pt-8 md:pb-16 md:pt-16">
       <div className="mx-auto flex max-w-[820px] flex-col items-center px-5 text-center">
         <img
           src="/landing/ortus-mark.svg"
           alt="ortus"
-          className="mb-7 h-14 w-14 object-contain sm:h-16 sm:w-16"
+          className="ortus-logo-idle mb-5 h-11 w-11 object-contain md:mb-7 md:h-16 md:w-16"
         />
 
-        <h1 className="font-poppins text-[clamp(32px,5.4vw,64px)] font-extrabold leading-[1.08] tracking-[-0.03em] text-[#1a1a1a]">
+        <h1 className="font-poppins text-[28px] font-extrabold leading-[1.12] tracking-[-0.03em] text-[#1a1a1a] md:text-[clamp(32px,5.4vw,64px)] md:leading-[1.08]">
           Gestão inteligente
           <br />
           para <span className="ortus-shine">odontologia</span>
         </h1>
 
-        <p className="mt-5 max-w-[560px] font-poppins text-[clamp(16px,1.7vw,20px)] font-normal leading-relaxed text-slate-500">
+        <p className="mt-3 max-w-[560px] font-poppins text-[13px] font-normal leading-snug text-slate-500 md:mt-5 md:text-[clamp(16px,1.7vw,20px)] md:leading-relaxed">
           Tecnologia, experiência e humanização para transformar sorrisos e melhorar vidas.
         </p>
 
         <Link
           href="/cadastro"
-          className="mt-8 inline-flex h-12 items-center gap-2 rounded-full bg-ortus-blue px-7 font-poppins text-[16px] font-semibold text-white transition-colors hover:bg-ortus-blueDark"
+          className="mt-5 inline-flex h-9 items-center gap-1.5 rounded-full bg-ortus-blue px-4 font-poppins text-[13px] font-semibold text-white transition-colors hover:bg-ortus-blueDark md:mt-8 md:h-12 md:px-7 md:text-[16px]"
         >
           Comece já
           <ArrowRight className="h-[1.05em] w-[1.05em]" strokeWidth={2.4} />
         </Link>
       </div>
 
-      <div className="relative mt-14 sm:mt-16">
-        <div className="pointer-events-none absolute left-1/2 top-1/2 z-0 w-screen -translate-x-1/2 -translate-y-1/2">
-          <MarcasCarrossel />
+      <div className="relative mt-8 md:mt-16">
+        <div className="pointer-events-none absolute left-1/2 top-1/2 z-0 hidden w-screen -translate-x-1/2 -translate-y-1/2 md:block">
+          <MarcasCarrossel denso />
         </div>
 
-        <div className="relative z-10 mx-auto w-full max-w-[1080px] px-4 sm:px-6">
+        <div className="relative z-10 mx-auto w-full max-w-[1080px] px-4 md:px-6">
           <PainelClinica />
+        </div>
+
+        <div className="pointer-events-none absolute bottom-3 left-1/2 z-20 w-screen -translate-x-1/2 md:hidden">
+          <MarcasCarrossel denso />
         </div>
       </div>
     </section>
