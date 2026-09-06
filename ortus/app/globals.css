@@ -108,19 +108,22 @@ body {
 .animate-fade-in { animation: fadeIn 0.4s ease-out forwards; }
 
 /* ===== CARROSSEL INFINITO DE MARCAS (landing) =====
-   A trilha contém a lista duplicada, então deslocá-la em -50% recomeça
-   exatamente na primeira marca e o laço fica imperceptível. */
+   Duas metades idênticas (min 100vw cada). Deslocar -50% recoloca
+   a segunda metade no lugar da primeira, sem buraco nem salto. */
 @keyframes ortusMarquee {
     from { transform: translate3d(0, 0, 0); }
     to   { transform: translate3d(-50%, 0, 0); }
 }
 .ortus-marquee-track {
     display: flex;
-    width: 200%;
-    animation: ortusMarquee var(--marquee-duration, 34s) linear infinite;
-}
-.ortus-marquee--denso .ortus-marquee-track {
     width: max-content;
+    animation: ortusMarquee var(--marquee-duration, 36s) linear infinite;
+}
+.ortus-marquee-group {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    min-width: 100vw;
 }
 .ortus-marquee:hover .ortus-marquee-track { animation-play-state: paused; }
 

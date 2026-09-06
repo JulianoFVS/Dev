@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 
 /**
  * Barra de marcas parceiras do hero, em carrossel infinito de ponta a ponta.
+ * Duas metades idênticas: quando a primeira sai, a segunda ocupa o mesmo lugar.
  */
 interface Marca {
   nome: string;
@@ -49,23 +50,22 @@ const MARCAS: Marca[] = [
   { nome: 'Carestream', glifo: bandeira, classe: 'font-medium tracking-tight' },
 ];
 
-function LogoMarca({ marca, compacto = false }: { marca: Marca; compacto?: boolean }) {
+/** Cópias por metade: cada grupo fica mais largo que a viewport e o -50% fecha o loop. */
+const COPIAS_POR_GRUPO = 6;
+
+function LogoMarca({ marca }: { marca: Marca }) {
   if (marca.src) {
     return (
       <img
         src={marca.src}
         alt={marca.nome}
-        className={`${compacto ? 'h-[14px] md:h-[16px]' : 'h-[18px]'} w-auto object-contain opacity-70`}
+        className="h-[14px] w-auto object-contain opacity-70 md:h-[16px]"
       />
     );
   }
 
   return (
-    <span
-      className={`flex items-center leading-none text-ortus-navy/70 ${
-        compacto ? 'gap-1 text-[12px] md:text-[13px]' : 'gap-1.5 text-[14px]'
-      }`}
-    >
+    <span className="flex items-center gap-1 text-[12px] leading-none text-ortus-navy/70 md:text-[13px]">
       {marca.glifo}
       <span className={marca.classe}>
         {marca.nome}
@@ -75,31 +75,40 @@ function LogoMarca({ marca, compacto = false }: { marca: Marca; compacto?: boole
   );
 }
 
-export default function MarcasCarrossel({ denso = false }: { denso?: boolean }) {
-  const trilha = denso
-    ? [...MARCAS, ...MARCAS, ...MARCAS, ...MARCAS]
-    : [...MARCAS, ...MARCAS];
+function GrupoMarcas({ ariaHidden }: { ariaHidden?: boolean }) {
+  const itens = Array.from({ length: COPIAS_POR_GRUPO }, () => MARCAS).flat();
 
   return (
+    <ul
+      className="ortus-marquee-group"
+      aria-hidden={ariaHidden}
+      aria-label={ariaHidden ? undefined : 'Marcas parceiras'}
+    >
+      {itens.map((marca, i) => (
+        <li
+          key={`${marca.nome}-${i}`}
+          className="flex shrink-0 items-center px-3.5 md:px-5"
+        >
+          <LogoMarca marca={marca} />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+export default function MarcasCarrossel({ denso = false }: { denso?: boolean }) {
+  return (
     <div
-      className={`ortus-marquee w-full overflow-hidden ${denso ? 'ortus-marquee--denso py-1.5' : ''}`}
+      className={`ortus-marquee w-full overflow-hidden ${denso ? 'py-1.5' : ''}`}
       style={{
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        ...({ '--marquee-duration': denso ? '16s' : '28s' } as any),
+        ...({ '--marquee-duration': '36s' } as any),
       }}
     >
-      <ul className="ortus-marquee-track items-center" aria-label="Marcas parceiras">
-        {trilha.map((marca, i) => (
-          <li
-            key={`${marca.nome}-${i}`}
-            aria-hidden={i >= MARCAS.length}
-            className={`flex shrink-0 items-center ${denso ? 'px-3.5 md:px-5' : 'justify-center'}`}
-            style={denso ? undefined : { flex: `0 0 ${100 / trilha.length}%` }}
-          >
-            <LogoMarca marca={marca} compacto={denso} />
-          </li>
-        ))}
-      </ul>
+      <div className="ortus-marquee-track">
+        <GrupoMarcas />
+        <GrupoMarcas ariaHidden />
+      </div>
     </div>
   );
 }

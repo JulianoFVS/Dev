@@ -1,0 +1,29 @@
+---
+description: Sempre considerar desktop e mobile ao mudar qualquer tela
+alwaysApply: true
+---
+
+# Responsivo em toda mudança de tela
+
+Sempre que criar, alterar ou corrigir algo visível (layout, UI, espaçamento, tipografia, botão, imagem, modal, tabela, hero, navbar), trate **desktop e mobile no mesmo trabalho**. Não entregue só um breakpoint.
+
+## O que fazer
+
+- Pense no fluxo em desktop **e** em mobile antes de encerrar.
+- Use classes responsivas (`sm:`, `md:`, `lg:`) ou estilos equivalentes; evite valores fixos que quebrem em tela estreita.
+- Confira: overflow horizontal, textos que competem em tamanho, botões grandes demais, conteúdo cortado, elementos que somem (carrossel, tabela, CTA).
+- Se o pedido for explícito de um breakpoint (“só mobile” / “não mexa no PC”), respeite isso e deixe o outro intacto — mas ainda **verifique** se o outro não quebrou.
+
+## Exemplos
+
+```tsx
+// ❌ BAD — só desktop, mobile fica cortado ou desproporcional
+<div className="h-[520px] overflow-hidden text-[20px]" />
+<button className="h-12 px-7 text-[16px]" />
+
+// ✅ GOOD — os dois lados pensados juntos
+<div className="h-auto overflow-visible md:h-[520px] md:overflow-hidden" />
+<button className="h-9 px-4 text-[13px] md:h-12 md:px-7 md:text-[16px]" />
+```
+
+Não feche uma tarefa de tela sem ter considerado o responsivo.
