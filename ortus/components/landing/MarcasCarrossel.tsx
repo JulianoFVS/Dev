@@ -3,20 +3,13 @@
 import type { ReactNode } from 'react';
 
 /**
- * Barra de marcas parceiras do hero, em carrossel infinito.
- *
- * Para usar os logotipos oficiais, coloque os arquivos em
- * `public/landing/marcas/` e preencha o campo `src` da marca correspondente —
- * o desenho abaixo é usado apenas enquanto o arquivo não existe.
+ * Barra de marcas parceiras do hero, em carrossel infinito de ponta a ponta.
  */
 interface Marca {
   nome: string;
-  /** Caminho para o logotipo oficial, se disponível. */
   src?: string;
   glifo?: ReactNode;
-  /** Sobrescrito ao lado do nome (®, ™). */
   sup?: string;
-  /** Peso/estilo próprios da assinatura da marca. */
   classe?: string;
 }
 
@@ -79,8 +72,6 @@ function LogoMarca({ marca }: { marca: Marca }) {
 }
 
 export default function MarcasCarrossel() {
-  // A trilha repete a lista duas vezes; o keyframe desloca -50% e reinicia
-  // exatamente sobre a cópia, sem salto visível.
   const trilha = [...MARCAS, ...MARCAS];
 
   return (
@@ -88,9 +79,7 @@ export default function MarcasCarrossel() {
       className="ortus-marquee w-full overflow-hidden"
       style={{
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        ...( { '--marquee-duration': '28s' } as any),
-        maskImage: 'linear-gradient(to right, transparent, #000 4%, #000 96%, transparent)',
-        WebkitMaskImage: 'linear-gradient(to right, transparent, #000 4%, #000 96%, transparent)',
+        ...({ '--marquee-duration': '28s' } as any),
       }}
     >
       <ul className="ortus-marquee-track items-center" aria-label="Marcas parceiras">
@@ -98,12 +87,10 @@ export default function MarcasCarrossel() {
           <li
             key={`${marca.nome}-${i}`}
             aria-hidden={i >= MARCAS.length}
-            className="flex shrink-0 items-center"
+            className="flex shrink-0 items-center justify-center"
+            style={{ flex: `0 0 ${100 / trilha.length}%` }}
           >
-            <span className="px-8">
-              <LogoMarca marca={marca} />
-            </span>
-            <span className="h-5 w-px bg-slate-300/50" />
+            <LogoMarca marca={marca} />
           </li>
         ))}
       </ul>

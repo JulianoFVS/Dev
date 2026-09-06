@@ -116,7 +116,7 @@ body {
 }
 .ortus-marquee-track {
     display: flex;
-    width: max-content;
+    width: 200%;
     animation: ortusMarquee var(--marquee-duration, 34s) linear infinite;
 }
 .ortus-marquee:hover .ortus-marquee-track { animation-play-state: paused; }
