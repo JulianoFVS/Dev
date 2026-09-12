@@ -12,7 +12,7 @@ import {
     LayoutDashboard, Users, LogOut, Calendar, Menu, X, DollarSign, 
     Settings, Building2, Bell, Mail, User, ChevronRight, ChevronsUpDown, 
     Check, Smile, ChevronLeft, Globe, ShieldCheck, ShieldAlert, Search, BarChart3,
-    CheckSquare, ClipboardList
+    CheckSquare, ClipboardList, Plus
 } from 'lucide-react';
 import { useClinica, getClinicLabel } from '@/app/context/ClinicaContext';
 import type { ModuleName } from '@/lib/types/permissions';
@@ -311,8 +311,8 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
       const active = pathname.includes(href) || (href === '/dashboard' && pathname === '/dashboard');
       const showBadge = typeof badge === 'number' && badge > 0;
       return (
-        <Link href={href} onClick={() => setMenuMobileAberto(false)} className={`flex items-center gap-3 px-3 py-3 rounded-xl transition-all mb-1 group relative overflow-hidden ${active ? 'bg-ortus-accent-soft text-ortus-accent font-bold shadow-sm border border-ortus-accent' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'} ${menuRecolhido ? 'justify-center !px-0 w-12 mx-auto' : ''}`}>
-            <span className={`transition-transform ${!menuRecolhido && 'group-hover:scale-110'}`}>{icon}</span>
+        <Link href={href} onClick={() => setMenuMobileAberto(false)} className={`flex items-center gap-3 px-3 py-2 rounded-xl transition-colors mb-0.5 group relative overflow-hidden ${active ? 'bg-ortus-blue text-white font-medium' : 'text-[#6e6e73] hover:bg-[#f5f5f7] hover:text-[#1d1d1f]'} ${menuRecolhido ? 'justify-center !px-0 w-11 mx-auto' : ''}`}>
+            <span className={active ? 'opacity-100' : 'opacity-80'}>{icon}</span>
             {!menuRecolhido && (
                 <span className="flex-1 flex items-center justify-between">
                     {label}
@@ -359,69 +359,64 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   return (
     <PatientSlideOverProvider>
     <PatientActionModalProvider>
-    <div className="flex min-h-screen bg-slate-50 font-sans">
-      <aside className={`bg-white border-r border-slate-200 fixed h-full hidden md:flex flex-col z-30 shadow-sm transition-all duration-300 ${menuRecolhido ? 'w-20 items-center' : 'w-64'}`}>
-        <div className={`h-20 flex items-center border-b border-slate-50 ${menuRecolhido ? 'justify-center px-0' : 'px-6 gap-3'}`}>
-            <Link href="/dashboard" className="cursor-pointer hover:opacity-80 transition-opacity flex items-center gap-3">
-                <img src="/logo.png" alt="Ortus Logo" className="h-10 w-auto object-contain"/>
-                {!menuRecolhido && <span className="text-2xl font-bold text-slate-800 tracking-tight">Ortus</span>}
+    <div className="flex min-h-screen bg-[#f7f7f8] font-poppins">
+      <aside className={`bg-white border-r border-black/[0.06] fixed h-full hidden md:flex flex-col z-30 transition-all duration-300 ${menuRecolhido ? 'w-20 items-center' : 'w-[220px]'}`}>
+        <div className={`h-14 flex items-center ${menuRecolhido ? 'justify-center px-0' : 'px-5'}`}>
+            <Link href="/dashboard" className="cursor-pointer hover:opacity-80 transition-opacity flex items-center">
+                <img src={menuRecolhido ? '/landing/ortus-mark.svg' : '/landing/ortus-wordmark.svg'} alt="ortus" className={menuRecolhido ? 'h-7 w-7 object-contain' : 'h-6 w-auto object-contain'}/>
             </Link>
         </div>
         
-        <nav className={`flex-1 space-y-1 mt-4 overflow-y-auto custom-scrollbar ${menuRecolhido ? 'px-1 flex flex-col items-center' : 'px-3'}`}>
-            {!menuRecolhido ? (
-                <button onClick={() => { const e = new KeyboardEvent('keydown', { key: 'k', metaKey: true, ctrlKey: true, bubbles: true }); window.dispatchEvent(e); }} className="w-full flex items-center gap-3 px-3 py-2.5 mb-2 rounded-xl text-sm font-semibold text-slate-400 bg-slate-50 border border-slate-200 hover:border-ortus-accent hover:text-ortus-accent-muted transition-all">
-                    <Search size={16}/> Buscar...
-                    <kbd className="ml-auto text-[9px] font-bold bg-white border border-slate-200 px-1.5 py-0.5 rounded">⌘K</kbd>
-                </button>
-            ) : (
-                <button onClick={() => { const e = new KeyboardEvent('keydown', { key: 'k', metaKey: true, ctrlKey: true, bubbles: true }); window.dispatchEvent(e); }} className="flex items-center justify-center w-12 p-2.5 mb-2 rounded-xl text-slate-400 bg-slate-50 border border-slate-200 hover:border-ortus-accent hover:text-ortus-accent-muted transition-all" title="Buscar (Ctrl+K)">
-                    <Search size={18}/>
-                </button>
-            )}
+        <nav className={`flex-1 space-y-0.5 mt-1 overflow-y-auto ortus-scroll ${menuRecolhido ? 'px-1 flex flex-col items-center' : 'px-3'}`}>
             {filteredNavLinks.map((link) => (
-                <NavItem key={link.href} href={link.href} icon={link.icon(22)} label={link.label} badge={link.badge}/>
+                <NavItem key={link.href} href={link.href} icon={link.icon(18)} label={link.label} badge={link.badge}/>
             ))}
             {perfil?.is_super_admin && (<><div className="my-2 border-t border-slate-100 mx-2"></div><NavItem href="/super-admin" icon={<ShieldAlert size={22}/>} label="Painel SaaS" /></>)}
         </nav>
 
-        <button onClick={() => setMenuRecolhido(!menuRecolhido)} className="absolute top-24 -right-3 bg-white border border-slate-200 shadow-sm p-1 rounded-full text-slate-400 hover:text-ortus-accent-muted hover:border-ortus-accent transition-all z-50 hidden md:flex items-center justify-center w-6 h-6">{menuRecolhido ? <ChevronRight size={14}/> : <ChevronLeft size={14}/>}</button>
-        <div className="p-4 border-t border-slate-50">{!menuRecolhido ? (<p className="text-[10px] text-center text-slate-300 font-medium">v1.0 &copy; 2025</p>) : (<div className="w-1 h-1 bg-slate-300 rounded-full mx-auto"></div>)}</div>
+        <button onClick={() => setMenuRecolhido(!menuRecolhido)} className="absolute top-16 -right-3 bg-white border border-black/[0.08] p-1 rounded-full text-[#aeaeb2] hover:text-[#1d1d1f] transition-colors z-50 hidden md:flex items-center justify-center w-6 h-6">{menuRecolhido ? <ChevronRight size={14}/> : <ChevronLeft size={14}/>}</button>
+        <div className={`mt-auto border-t border-black/[0.06] ${menuRecolhido ? 'p-2' : 'p-3'}`}>
+            <Link href="/perfil" className={`flex items-center rounded-xl hover:bg-[#f5f5f7] transition-colors ${menuRecolhido ? 'justify-center p-2' : 'gap-2.5 px-2 py-2'}`}>
+                <div className="w-8 h-8 shrink-0 bg-ortus-blue text-white rounded-full flex items-center justify-center overflow-hidden text-[11px] font-semibold">
+                    {perfil?.foto_url ? <img src={perfil.foto_url} className="w-full h-full object-cover" alt=""/> : (perfil?.nome ? perfil.nome.split(' ').slice(0,2).map((n:string)=>n[0]).join('').toUpperCase() : <User size={14}/>)}
+                </div>
+                {!menuRecolhido && (
+                    <div className="min-w-0 text-left">
+                        <p className="truncate text-[13px] font-medium text-[#1d1d1f]">{perfil?.nome || 'Perfil'}</p>
+                        <p className="truncate text-[11px] text-[#aeaeb2]">{perfil?.cro || (perfil?.nivel_acesso === 'admin' ? 'Admin' : 'Profissional')}</p>
+                    </div>
+                )}
+            </Link>
+        </div>
       </aside>
 
-      <div className="md:hidden fixed top-0 w-full bg-white border-b border-slate-200 z-50 px-3 py-2.5 flex items-center shadow-sm h-14 gap-2">
-        <button onClick={() => setMenuMobileAberto(!menuMobileAberto)} className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors touch-target shrink-0">{menuMobileAberto ? <X size={22} /> : <Menu size={22} />}</button>
-        <button onClick={() => setHeaderSwitchOpen((v) => !v)} className="flex-1 min-w-0 flex items-center gap-2 px-2 py-1.5 bg-slate-50 rounded-lg border border-slate-200 text-left">
-            <Building2 size={14} className="text-ortus-accent-muted shrink-0"/>
-            <span className="text-xs font-bold text-slate-700 truncate">{ctxActive ? getClinicLabel(ctxActive) : 'Unidade'}</span>
+      <div className="md:hidden fixed top-0 w-full bg-white/90 backdrop-blur-md border-b border-black/[0.06] z-50 px-3 py-2 flex items-center h-14 gap-2">
+        <button onClick={() => setMenuMobileAberto(!menuMobileAberto)} className="p-2 text-[#1d1d1f] hover:bg-black/[0.04] rounded-lg transition-colors touch-target shrink-0">{menuMobileAberto ? <X size={22} /> : <Menu size={22} />}</button>
+        <button onClick={() => setHeaderSwitchOpen((v) => !v)} className="flex-1 min-w-0 flex items-center gap-2 px-2 py-1.5 rounded-lg text-left">
+            <Building2 size={14} className="text-ortus-blue shrink-0"/>
+            <span className="text-xs font-medium text-[#1d1d1f] truncate">{ctxActive ? getClinicLabel(ctxActive) : 'Unidade'}</span>
         </button>
-        <Link href="/dashboard" className="shrink-0"><img src="/logo.png" alt="Logo" className="h-7 w-auto" /></Link>
+        <Link href="/dashboard" className="shrink-0"><img src="/landing/ortus-mark.svg" alt="ortus" className="h-7 w-7" /></Link>
       </div>
 
-      <main className={`flex-1 min-w-0 flex flex-col min-h-screen transition-all duration-300 pt-14 md:pt-0 ${menuRecolhido ? 'md:ml-20' : 'md:ml-64'}`}>
-        <header className="bg-white border-b border-slate-200 h-12 md:h-16 flex items-center justify-end px-3 md:px-6 gap-2 md:gap-3 relative md:sticky md:top-0 z-20 shadow-sm/50 backdrop-blur-sm bg-white/90">
-            {/* SWITCH DE UNIDADE NO HEADER (multi-tenant) */}
+      <main className={`flex-1 min-w-0 flex flex-col min-h-screen bg-white transition-all duration-300 pt-14 md:pt-0 ${menuRecolhido ? 'md:ml-20' : 'md:ml-[220px]'}`}>
+        <header className="hidden md:flex h-14 shrink-0 items-center justify-end px-6 lg:px-8 gap-2 border-b border-black/[0.06] sticky top-0 z-20 bg-white">
             <div className="mr-auto relative min-w-0">
                 <button
                     onClick={() => setHeaderSwitchOpen((v) => !v)}
-                    className="hidden md:flex items-center gap-1.5 md:gap-2 px-2 md:px-3 py-1.5 bg-slate-50 rounded-xl border border-slate-200 hover:border-ortus-accent hover:bg-ortus-accent-soft transition-all group max-w-full"
+                    className="flex items-center gap-2 py-1 text-[13px] font-medium text-[#6e6e73] hover:text-[#1d1d1f] transition-colors group max-w-full"
                     title="Trocar unidade"
                 >
-                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${ctxActive?.id === 'all' ? 'bg-purple-100 text-purple-600' : 'bg-white text-ortus-accent-muted border border-slate-200'}`}>
-                        {ctxActive?.id === 'all' ? <Globe size={14}/> : <Building2 size={14}/>}
-                    </div>
-                    <div className="text-left min-w-0 hidden sm:block">
-                        <p className="text-[9px] font-black uppercase tracking-wider text-slate-400 leading-none">Unidade</p>
-                        <p className="text-xs font-bold text-slate-700 max-w-[140px] md:max-w-[220px] truncate">{ctxActive ? getClinicLabel(ctxActive) : 'Selecione'}</p>
-                    </div>
-                    <ChevronsUpDown size={14} className="text-slate-400 group-hover:text-ortus-accent-muted shrink-0"/>
+                    {ctxActive?.id === 'all' ? <Globe size={15} className="text-[#6e6e73]"/> : <Building2 size={15} className="text-[#6e6e73]"/>}
+                    <span className="max-w-[280px] truncate">{ctxActive ? getClinicLabel(ctxActive) : 'Selecione a clínica'}</span>
+                    <ChevronsUpDown size={13} className="text-[#aeaeb2] shrink-0"/>
                 </button>
             </div>
             {headerSwitchOpen && (
                 <>
                     <button aria-label="Fechar" className="fixed inset-0 z-[55]" onClick={() => setHeaderSwitchOpen(false)}/>
-                    <div className="fixed left-3 right-3 top-14 md:absolute md:left-3 md:right-auto md:top-full md:mt-2 md:w-[min(100vw-2rem,18rem)] bg-white border border-slate-100 rounded-2xl shadow-2xl z-[60] overflow-hidden animate-in fade-in slide-in-from-top-2 max-h-[70vh] overflow-y-auto">
-                        <p className="px-4 py-2 text-[10px] font-bold text-slate-400 uppercase bg-slate-50 border-b border-slate-100 sticky top-0">Trocar Unidade</p>
+                    <div className="fixed left-3 right-3 top-14 md:absolute md:left-0 md:right-auto md:top-full md:mt-2 md:w-[18rem] bg-white border border-black/[0.06] rounded-xl shadow-xl z-[60] overflow-hidden animate-in fade-in slide-in-from-top-2 max-h-[70vh] overflow-y-auto ortus-scroll">
+                        <p className="px-4 py-2 text-[10px] font-semibold text-[#aeaeb2] uppercase tracking-wider bg-[#f5f5f7] border-b border-black/[0.06] sticky top-0">Trocar unidade</p>
                         <button
                             onClick={() => { persistirClinicaSelecionada({ id: 'todas', nome: 'Todas as Clínicas' }); setHeaderSwitchOpen(false); }}
                             className="w-full text-left px-4 py-3 text-sm font-bold text-slate-700 hover:bg-purple-50 hover:text-purple-700 flex items-center justify-between border-b border-slate-50"
@@ -448,27 +443,38 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
                     </div>
                 </>
             )}
-            <div className="flex items-center gap-0.5 md:gap-1 border-r border-slate-100 pr-2 md:pr-3 mr-0.5 md:mr-1">
-                <Link href="/mensagens" className="p-2 text-slate-400 hover:text-ortus-accent-muted hover:bg-ortus-accent-soft rounded-lg transition-all relative" title="Mensagens"><Mail size={20}/>{mensagensCount > 0 && <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-purple-500 rounded-full animate-pulse"></span>}</Link>
-                <Link href="/inbox" className="p-2 text-slate-400 hover:text-ortus-accent-muted hover:bg-ortus-accent-soft rounded-lg transition-all relative" title="Central de Avisos"><Bell size={20}/>{notificacoesCount > 0 && <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>}</Link>
-            </div>
-            <Link href="/perfil" className="flex items-center gap-3 pl-2 py-1 pr-2 rounded-xl hover:bg-slate-50 transition-colors group border border-transparent hover:border-slate-100">
-                <div className="text-right hidden sm:block"><p className="text-sm font-bold text-slate-700 group-hover:text-blue-700 transition-colors">{perfil?.nome}</p><p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide text-right">{perfil?.nivel_acesso === 'admin' ? 'Admin' : 'Dr(a).'}</p></div>
-                <div className="w-9 h-9 bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-full flex items-center justify-center shadow-md shadow-blue-200 overflow-hidden border-2 border-white ring-1 ring-slate-100">{perfil?.foto_url ? <img src={perfil.foto_url} className="w-full h-full object-cover"/> : <User size={18}/>}</div>
+            <button
+                type="button"
+                onClick={() => { const e = new KeyboardEvent('keydown', { key: 'k', metaKey: true, ctrlKey: true, bubbles: true }); window.dispatchEvent(e); }}
+                className="hidden lg:flex h-9 min-w-[220px] items-center gap-2 rounded-full border border-black/[0.08] bg-[#f7f7f8] px-3 text-[13px] text-[#aeaeb2] hover:border-black/[0.14] transition-colors"
+            >
+                <Search size={14} />
+                Buscar paciente ou procedimento
+            </button>
+            <Link
+                href="/agenda"
+                className="hidden sm:inline-flex h-9 items-center gap-1.5 rounded-full bg-ortus-blue px-3.5 text-[13px] font-medium text-white hover:bg-ortus-blueDark"
+            >
+                <Plus size={15} />
+                Novo agendamento
             </Link>
-            <button onClick={handleLogout} className="ml-0.5 md:ml-1 p-1.5 md:p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all border border-transparent hover:border-red-100" title="Sair"><LogOut size={18}/></button>
+            <div className="flex items-center gap-0.5">
+                <Link href="/mensagens" className="p-2 text-[#6e6e73] hover:text-[#1d1d1f] hover:bg-[#f5f5f7] rounded-lg transition-colors relative" title="Mensagens"><Mail size={18}/>{mensagensCount > 0 && <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-ortus-blue rounded-full"></span>}</Link>
+                <Link href="/inbox" className="p-2 text-[#6e6e73] hover:text-[#1d1d1f] hover:bg-[#f5f5f7] rounded-lg transition-colors relative" title="Central de Avisos"><Bell size={18}/>{notificacoesCount > 0 && <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-red-500 rounded-full"></span>}</Link>
+            </div>
+            <button onClick={handleLogout} className="p-2 text-[#aeaeb2] hover:text-[#d93025] hover:bg-red-50 rounded-lg transition-colors" title="Sair"><LogOut size={17}/></button>
         </header>
-        <div className="p-3 sm:p-4 md:p-8 min-w-0 max-w-full animate-in fade-in slide-in-from-bottom-2 duration-500">{children}</div>
+        <div className="ortus-scroll flex-1 min-w-0 max-w-full overflow-y-auto p-4 sm:p-6 md:px-7 md:py-6">{children}</div>
       </main>
 
       
 
       {menuMobileAberto && (
         <div className="md:hidden fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm animate-in fade-in" onClick={() => setMenuMobileAberto(false)}>
-            <div className="absolute left-0 top-0 h-full w-[280px] bg-white shadow-2xl flex flex-col animate-in slide-in-from-left duration-300" onClick={e => e.stopPropagation()}>
-                <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                    <h3 className="font-black text-slate-800 text-lg">Menu</h3>
-                    <button onClick={() => setMenuMobileAberto(false)} className="p-2 bg-white rounded-full text-slate-400 shadow-sm border"><X size={20}/></button>
+            <div className="absolute left-0 top-0 h-full w-[280px] bg-[#f5f5f7] shadow-2xl flex flex-col animate-in slide-in-from-left duration-300" onClick={e => e.stopPropagation()}>
+                <div className="p-5 border-b border-black/[0.06] flex justify-between items-center">
+                    <img src="/landing/ortus-wordmark.svg" alt="ortus" className="h-6"/>
+                    <button onClick={() => setMenuMobileAberto(false)} className="p-2 rounded-full text-[#6e6e73] hover:bg-black/[0.04]"><X size={20}/></button>
                 </div>
                 <div className="p-4 space-y-1 flex-1 overflow-y-auto">
                     {filteredNavLinks.map((link) => (
@@ -476,7 +482,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
                     ))}
                     {perfil?.is_super_admin && <NavItem href="/super-admin" icon={<ShieldAlert size={20}/>} label="Painel SaaS" />}
                 </div>
-                <div className="p-5 border-t border-slate-100 bg-slate-50"><button onClick={handleLogout} className="flex w-full items-center justify-center gap-3 px-4 py-3 text-red-500 hover:bg-red-50 rounded-xl font-bold bg-white border border-slate-200 shadow-sm transition-all active:scale-95"><LogOut size={18} /> Sair do Sistema</button></div>
+                <div className="p-5 border-t border-black/[0.06]"><button onClick={handleLogout} className="flex w-full items-center justify-center gap-3 px-4 py-3 text-[#d93025] hover:bg-red-50 rounded-xl font-medium bg-white transition-colors active:scale-95"><LogOut size={18} /> Sair</button></div>
             </div>
         </div>
       )}

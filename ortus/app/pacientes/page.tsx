@@ -196,32 +196,35 @@ export default function Pacientes() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6 pb-20 animate-fade-in">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-3">
-          <div><h1 className="text-2xl sm:text-3xl font-black text-slate-800">Pacientes</h1><p className="text-sm text-slate-500">Gerencie seus clientes.</p></div>
-          <div className="flex gap-2 w-full sm:w-auto">
-              <button onClick={exportarCSV} className="flex-1 sm:flex-none bg-white text-slate-700 border border-slate-200 px-3 sm:px-5 py-2.5 sm:py-3 rounded-xl font-bold hover:bg-slate-50 hover:border-emerald-300 hover:text-emerald-700 shadow-sm flex items-center justify-center gap-2 transition-all text-sm" title="Exportar lista filtrada para CSV"><Download size={16}/> <span className="hidden sm:inline">Exportar</span> ({filtrados.length})</button>
-              <button onClick={novoPaciente} className="flex-1 sm:flex-none bg-blue-600 text-white px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl font-bold hover:bg-blue-700 shadow-lg flex items-center justify-center gap-2 text-sm"><Plus size={18}/> Novo Paciente</button>
+    <div className="mx-auto w-full max-w-[920px] space-y-5 pb-16 font-poppins">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h1 className="text-[26px] font-semibold tracking-[-0.03em] text-[#1d1d1f] md:text-[32px]">Pacientes</h1>
+            <p className="mt-1 text-[14px] text-[#6e6e73]">{filtrados.length} {filtrados.length === 1 ? 'paciente' : 'pacientes'}</p>
+          </div>
+          <div className="flex w-full gap-2 sm:w-auto">
+              <button onClick={exportarCSV} className="flex-1 sm:flex-none inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-black/[0.11] bg-white px-3 text-[13px] font-medium text-[#1d1d1f] hover:bg-[#f5f5f7]" title="Exportar lista filtrada para CSV"><Download size={14}/> <span className="hidden sm:inline">Exportar</span></button>
+              <button onClick={novoPaciente} className="flex-1 sm:flex-none inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-ortus-blue px-4 text-[13px] font-medium text-white hover:bg-ortus-blueDark"><Plus size={16}/> Novo paciente</button>
           </div>
       </div>
 
-      <div className="bg-white p-2 rounded-2xl border border-slate-200 shadow-sm flex flex-col gap-2">
-          <div className="flex flex-col md:flex-row gap-2">
-              <div className="flex-1 relative">
-                  <Search className="absolute left-3 top-3 text-slate-400" size={20}/>
-                  <input type="text" placeholder="Buscar por nome, telefone ou CPF..." className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-50 border-transparent focus:bg-white focus:ring-2 focus:ring-blue-100 outline-none font-medium" value={busca} onChange={e => setBusca(e.target.value)} />
+      <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-2 md:flex-row">
+              <div className="relative flex-1">
+                  <Search className="absolute left-0 top-2.5 text-[#aeaeb2]" size={18}/>
+                  <input type="text" placeholder="Buscar nome, CPF ou telefone…" className="w-full border-b border-black/[0.08] bg-transparent py-2 pl-7 pr-3 text-[14px] outline-none placeholder:text-[#aeaeb2] focus:border-ortus-blue" value={busca} onChange={e => setBusca(e.target.value)} />
               </div>
               
               <CustomSelect value={filtroClinica} onChange={setFiltroClinica} options={[{value:'todas',label:'Todas as Clínicas'}, ...clinicas.map((c:any) => ({value:String(c.id),label:c.nome}))]} size="sm" className="min-w-[180px]"/>
 
-              <button onClick={() => setShowFiltros(!showFiltros)} className={`px-3 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 transition-all ${showFiltros || filtrosAtivos ? 'bg-blue-50 text-blue-600 border border-blue-200' : 'bg-slate-50 text-slate-500 border border-slate-100 hover:border-blue-200'}`}>
-                  <Filter size={16}/> Filtros
-                  {filtrosAtivos && <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></span>}
+              <button onClick={() => setShowFiltros(!showFiltros)} className={`inline-flex h-9 items-center gap-2 rounded-lg px-3 text-[13px] font-medium transition-colors ${showFiltros || filtrosAtivos ? 'bg-[#eaf2fd] text-ortus-blue' : 'text-[#6e6e73] hover:bg-[#f5f5f7]'}`}>
+                  <Filter size={15}/> Filtros
+                  {filtrosAtivos && <span className="h-1.5 w-1.5 rounded-full bg-ortus-blue"></span>}
               </button>
 
-              <div className="flex bg-slate-100 p-1 rounded-xl">
-                  <button onClick={() => setVisualizacao('lista')} className={`p-2 rounded-lg ${visualizacao === 'lista' ? 'bg-white shadow text-blue-600' : 'text-slate-400'}`}><ListIcon size={20}/></button>
-                  <button onClick={() => setVisualizacao('cards')} className={`p-2 rounded-lg ${visualizacao === 'cards' ? 'bg-white shadow text-blue-600' : 'text-slate-400'}`}><LayoutGrid size={20}/></button>
+              <div className="flex rounded-lg bg-[#f5f5f7] p-0.5">
+                  <button onClick={() => setVisualizacao('lista')} className={`rounded-md p-2 ${visualizacao === 'lista' ? 'bg-white text-ortus-blue shadow-sm' : 'text-[#aeaeb2]'}`}><ListIcon size={18}/></button>
+                  <button onClick={() => setVisualizacao('cards')} className={`rounded-md p-2 ${visualizacao === 'cards' ? 'bg-white text-ortus-blue shadow-sm' : 'text-[#aeaeb2]'}`}><LayoutGrid size={18}/></button>
               </div>
           </div>
 
@@ -252,41 +255,63 @@ export default function Pacientes() {
 
       {loading ? <div className="py-20 text-center text-slate-400"><Loader2 className="animate-spin mx-auto mb-2"/> Carregando...</div> : 
        visualizacao === 'lista' ? (
-        <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left min-w-[480px]">
-                <thead className="bg-slate-50 border-b border-slate-100"><tr><th className="p-3 sm:p-4 pl-4 sm:pl-6 text-xs font-bold text-slate-400 uppercase">Nome</th><th className="p-3 sm:p-4 text-xs font-bold text-slate-400 uppercase hidden sm:table-cell">Clínica</th><th className="p-3 sm:p-4 text-xs font-bold text-slate-400 uppercase">Plano</th><th className="p-3 sm:p-4 text-xs font-bold text-slate-400 uppercase hidden md:table-cell">Responsável</th><th className="p-3 sm:p-4 text-xs font-bold text-slate-400 uppercase">Telefone</th><th className="p-3 sm:p-4 text-xs font-bold text-slate-400 uppercase hidden sm:table-cell">Status</th><th className="p-3 sm:p-4 text-right"></th></tr></thead>
-                <tbody className="divide-y divide-slate-50">{filtrados.map((p: any) => (
-                    <tr key={p.id} onClick={() => router.push(`/pacientes/${p.id}`)} className="hover:bg-blue-50 cursor-pointer transition-colors group">
-                        <td className="p-3 sm:p-4 pl-4 sm:pl-6 font-bold text-slate-700 text-sm">{p.nome}</td>
-                        <td className="p-3 sm:p-4 text-sm text-slate-500 hidden sm:table-cell">{p.nome_clinica ? <span className="bg-slate-100 px-2 py-0.5 rounded text-xs font-bold text-slate-600">{p.nome_clinica}</span> : <span className="text-slate-300 italic">--</span>}</td>
-                        <td className="p-3 sm:p-4 text-sm text-slate-500">{p.planos ? <span className={`text-[10px] font-bold uppercase px-2 py-1 rounded ${p.planos.tipo === 'particular' ? 'bg-slate-100 text-slate-600' : 'bg-ortus-accent-soft text-ortus-accent-muted'}`}>{p.planos.tipo === 'particular' ? 'Particular' : p.planos.nome}</span> : <span className="text-[10px] font-bold uppercase bg-slate-100 text-slate-500 px-2 py-1 rounded">Particular</span>}</td>
-                        <td className="p-3 sm:p-4 text-sm text-slate-500 hidden md:table-cell">{p.responsavel_nome ? <span className="text-xs font-medium text-slate-600">{p.responsavel_nome} <span className="text-slate-400">({p.responsavel_parentesco || '—'})</span></span> : <span className="text-slate-300 italic">--</span>}</td>
-                        <td className="p-3 sm:p-4 text-sm text-slate-500">{p.telefone}</td>
-                        <td className="p-3 sm:p-4 hidden sm:table-cell"><span className="text-[10px] font-bold uppercase bg-slate-100 text-slate-500 px-2 py-1 rounded">{p.status}</span></td>
-                        <td className="p-3 sm:p-4 text-right pr-4 sm:pr-6">
-                            <div className="flex items-center justify-end gap-1.5" onClick={stopRowClick}>
-                                <PatientContactButtons
-                                    variant="icons"
-                                    channels={['whatsapp']}
-                                    telefone={p.telefone}
-                                    email={p.email}
-                                    clinicaId={p.clinica_id}
-                                    evento="pos_consulta"
-                                    contexto={buildDocumentoContexto({
-                                        paciente_nome: p.nome?.split(' ')[0],
-                                        clinica_nome: p.nome_clinica,
-                                    })}
-                                />
-                                <button type="button" onClick={() => router.push(`/agenda?paciente=${p.id}`)} className="p-2 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-100" title="Agendar consulta"><Calendar size={16}/></button>
-                                <button type="button" onClick={() => router.push(`/proteses?paciente=${p.id}`)} className="p-2 rounded-xl bg-violet-50 text-violet-600 hover:bg-violet-100 border border-violet-100" title="Nova prótese"><Smile size={16}/></button>
-                                <span className="text-slate-300 group-hover:text-blue-500"><ChevronRight size={20}/></span>
-                            </div>
-                        </td>
-                    </tr>
-                ))}</tbody>
-            </table>
+        <div className="overflow-hidden rounded-2xl border border-black/[0.06] bg-white shadow-[0_8px_24px_rgba(0,0,0,.04)]">
+          <div className="flex items-center justify-between px-5 py-4 md:px-6">
+            <h2 className="flex items-center gap-1.5 text-[16px] font-semibold text-[#1d1d1f]">
+              Pacientes
+              <AlertCircle size={14} className="text-[#c7c7cc]" />
+            </h2>
           </div>
+          <div className="hidden grid-cols-[minmax(0,1.5fr)_0.8fr_0.8fr_auto] gap-3 px-6 pb-2 text-[12px] text-[#aeaeb2] md:grid">
+            <span>Nome</span>
+            <span>Plano</span>
+            <span>Status</span>
+            <span className="text-right">Ações</span>
+          </div>
+          <ul>
+            {filtrados.map((p: any) => {
+              const partes = String(p.nome || '').trim().split(/\s+/);
+              const iniciais = ((partes[0]?.[0] || '') + (partes[1]?.[0] || '')).toUpperCase() || '?';
+              const tel = (p.telefone || '').replace(/\D/g, '');
+              const telFmt = tel.length >= 11 ? `(${tel.slice(0, 2)}) ${tel.slice(2, 7)}-${tel.slice(7, 11)}` : (p.telefone || 'Sem telefone');
+              const plano = p.planos ? (p.planos.tipo === 'particular' ? 'Particular' : p.planos.nome) : 'Particular';
+              return (
+                <li key={p.id}>
+                  <div
+                    onClick={() => router.push(`/pacientes/${p.id}`)}
+                    className="grid cursor-pointer grid-cols-1 items-center gap-2 border-t border-black/[0.05] px-5 py-3.5 transition-colors hover:bg-[#fafafa] md:grid-cols-[minmax(0,1.5fr)_0.8fr_0.8fr_auto] md:px-6"
+                  >
+                    <div className="flex min-w-0 items-center gap-3">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#f5f5f7] text-[11px] font-semibold text-[#6e6e73]">{iniciais}</span>
+                      <div className="min-w-0">
+                        <p className="truncate text-[14px] font-medium text-[#1d1d1f]">{p.nome}</p>
+                        <p className="truncate text-[12px] text-[#aeaeb2]">Paciente · {telFmt}</p>
+                      </div>
+                    </div>
+                    <span className="pl-12 text-[14px] font-medium text-ortus-blue md:pl-0">{plano}</span>
+                    <span className="hidden capitalize text-[14px] text-[#1d1d1f] md:block">{p.status}</span>
+                    <div className="hidden items-center justify-end gap-1 md:flex" onClick={stopRowClick}>
+                      <PatientContactButtons
+                        variant="icons"
+                        channels={['whatsapp']}
+                        telefone={p.telefone}
+                        email={p.email}
+                        clinicaId={p.clinica_id}
+                        evento="pos_consulta"
+                        contexto={buildDocumentoContexto({
+                          paciente_nome: p.nome?.split(' ')[0],
+                          clinica_nome: p.nome_clinica,
+                        })}
+                      />
+                      <button type="button" onClick={() => router.push(`/agenda?paciente=${p.id}`)} className="p-1.5 rounded-lg text-[#6e6e73] hover:bg-[#eaf2fd] hover:text-ortus-blue" title="Agendar consulta"><Calendar size={15}/></button>
+                      <button type="button" onClick={() => router.push(`/proteses?paciente=${p.id}`)} className="p-1.5 rounded-lg text-[#6e6e73] hover:bg-[#eaf2fd] hover:text-ortus-blue" title="Nova prótese"><Smile size={15}/></button>
+                      <ChevronRight size={16} className="text-[#c7c7cc]" />
+                    </div>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
         </div>
        ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">{filtrados.map((p: any) => (
