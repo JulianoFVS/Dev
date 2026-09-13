@@ -43,8 +43,8 @@ export function ClinicaProvider({ children }: { children: ReactNode }) {
   const [activeId, setActiveId] = useState<string | 'all' | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const loadClinics = useCallback(async () => {
-    setLoading(true);
+  const loadClinics = useCallback(async (opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setLoading(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
@@ -152,8 +152,11 @@ export function ClinicaProvider({ children }: { children: ReactNode }) {
           localStorage.removeItem(STORAGE_KEY);
         }
       }
-      if (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'TOKEN_REFRESHED') {
+      if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
         loadClinics();
+      }
+      if (event === 'TOKEN_REFRESHED') {
+        loadClinics({ silent: true });
       }
     });
     return () => { sub.subscription.unsubscribe(); };
