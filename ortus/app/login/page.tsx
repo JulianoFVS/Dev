@@ -1,50 +1,84 @@
 'use client';
-import { useState, useEffect, type FormEvent } from 'react';
+import { useState, useEffect, useRef, type FormEvent } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
-import { Lock, Mail, Loader2, ShieldCheck, ArrowLeft, Eye, EyeOff, Calendar, Users, BarChart3 } from 'lucide-react';
+import { Loader2, ShieldCheck, Eye, EyeOff } from 'lucide-react';
 import Link from 'next/link';
 import { registrarAudit } from '@/lib/auditLog';
 import { setAuthMarkerCookie } from '@/lib/authCookies';
-import { bentoInput, bentoPrimaryBtn, bentoGhostBtn } from '@/lib/bentoUi';
 
-function LoginShowcase() {
+const BLOB_SIZE = 300;
+
+function LoginDvdGlow() {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const blobRef = useRef<HTMLDivElement>(null);
+  const motion = useRef({
+    x: 48,
+    y: 40,
+    vx: 1.35,
+    vy: 1.05,
+  });
+
+  useEffect(() => {
+    const container = containerRef.current;
+    const blob = blobRef.current;
+    if (!container || !blob) return;
+
+    let raf = 0;
+    const tick = () => {
+      const w = container.clientWidth;
+      const h = container.clientHeight;
+      const s = motion.current;
+
+      s.x += s.vx;
+      s.y += s.vy;
+
+      const maxX = Math.max(0, w - BLOB_SIZE);
+      const maxY = Math.max(0, h - BLOB_SIZE);
+
+      if (s.x <= 0) {
+        s.x = 0;
+        s.vx = Math.abs(s.vx);
+      } else if (s.x >= maxX) {
+        s.x = maxX;
+        s.vx = -Math.abs(s.vx);
+      }
+      if (s.y <= 0) {
+        s.y = 0;
+        s.vy = Math.abs(s.vy);
+      } else if (s.y >= maxY) {
+        s.y = maxY;
+        s.vy = -Math.abs(s.vy);
+      }
+
+      blob.style.transform = `translate3d(${s.x}px, ${s.y}px, 0)`;
+      raf = requestAnimationFrame(tick);
+    };
+
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
   return (
-    <div className="relative flex h-full min-h-[280px] flex-col justify-between overflow-hidden p-8 text-white lg:min-h-0 lg:p-10">
-      <div className="pointer-events-none absolute -right-16 top-8 h-48 w-48 rounded-full bg-[#c8f053]/15 blur-3xl" aria-hidden />
-      <div className="pointer-events-none absolute -bottom-12 left-0 h-40 w-40 rounded-full bg-white/5 blur-2xl" aria-hidden />
-
-      <div className="relative">
-        <img src="/landing/ortus-mark.svg" alt="" className="mb-6 h-10 w-10 brightness-0 invert" />
-        <p className="max-w-sm text-2xl font-semibold leading-snug tracking-tight text-white lg:text-[1.65rem]">
-          Gestão clínica clara, do agendamento ao financeiro.
-        </p>
-        <p className="mt-3 max-w-sm text-sm leading-relaxed text-white/55">
-          Um só lugar para equipe, pacientes e indicadores — no ritmo do seu consultório.
-        </p>
-      </div>
-
-      <div className="relative mt-8 space-y-2.5 lg:mt-0">
-        <div className="rounded-[1.25rem] border border-white/10 bg-white/[0.06] p-4 backdrop-blur-sm">
-          <div className="mb-3 flex items-center justify-between text-[10px] font-semibold uppercase tracking-wider text-white/45">
-            <span>Hoje</span>
-            <span className="text-[#c8f053]">Ao vivo</span>
-          </div>
-          <div className="grid grid-cols-3 gap-2">
-            {[
-              { icon: Calendar, label: 'Consultas', val: '12' },
-              { icon: Users, label: 'Pacientes', val: '248' },
-              { icon: BarChart3, label: 'Receita', val: 'R$ 18k' },
-            ].map(({ icon: Icon, label, val }) => (
-              <div key={label} className="rounded-xl bg-white/10 px-2 py-2.5 text-center">
-                <Icon size={14} className="mx-auto mb-1 text-white/70" strokeWidth={1.75} />
-                <p className="text-xs font-semibold tabular-nums">{val}</p>
-                <p className="text-[9px] text-white/45">{label}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-        <p className="text-[11px] text-white/35">Ilustração do painel — dados fictícios.</p>
+    <div ref={containerRef} className="relative h-full min-h-[220px] w-full overflow-hidden bg-neutral-950">
+      <div
+        ref={blobRef}
+        aria-hidden
+        className="pointer-events-none absolute left-0 top-0 will-change-transform"
+        style={{
+          width: BLOB_SIZE,
+          height: BLOB_SIZE,
+          background:
+            'radial-gradient(circle at center, rgba(45, 212, 191, 0.55) 0%, rgba(20, 184, 166, 0.28) 38%, rgba(0, 0, 0, 0) 72%)',
+          filter: 'blur(48px)',
+        }}
+      />
+      <div className="relative z-10 flex h-full min-h-[inherit] items-center justify-center px-6">
+        <img
+          src="/landing/ortus-wordmark.svg"
+          alt="Ortus"
+          className="h-9 w-auto max-w-[min(280px,70vw)] brightness-0 invert sm:h-11"
+        />
       </div>
     </div>
   );
@@ -153,37 +187,35 @@ export default function Login() {
     }
   }
 
+  const inputClass =
+    'w-full rounded-xl border border-neutral-200 bg-white px-4 py-3 text-sm text-neutral-900 outline-none transition-colors placeholder:text-neutral-400 focus:border-neutral-400';
+
   return (
-    <div className="min-h-screen bg-[#dfe5df] px-3 py-4 font-poppins sm:px-4 sm:py-6">
-      <div className="mx-auto flex max-w-6xl items-start justify-between gap-4 pb-2 pt-1 sm:px-2">
-        <Link
-          href="/"
-          className={`${bentoGhostBtn} !bg-white/80 !py-2 text-sm`}
-        >
-          <ArrowLeft size={16} aria-hidden />
-          Voltar ao site
-        </Link>
+    <div className="flex min-h-[100dvh] w-full flex-col font-poppins lg:flex-row">
+      {/* Painel escuro — mobile (topo) */}
+      <div className="h-[34vh] min-h-[200px] shrink-0 lg:hidden">
+        <LoginDvdGlow />
       </div>
 
-      <div className="mx-auto flex max-w-6xl min-h-[calc(100vh-5.5rem)] flex-col overflow-hidden rounded-[1.75rem] border border-black/[0.06] bg-[#f3f4f1] shadow-[0_24px_80px_-32px_rgba(0,0,0,0.25)] sm:rounded-[2rem] lg:min-h-[min(640px,calc(100vh-6rem))] lg:flex-row">
-        {/* Formulário */}
-        <div className="flex flex-1 flex-col justify-center px-6 py-10 sm:px-10 lg:max-w-[52%] lg:px-12 lg:py-12">
-          <Link href="/" className="mb-8 inline-flex w-fit items-center gap-2 lg:mb-10">
-            <img src="/landing/ortus-wordmark.svg" alt="Ortus" className="h-7 w-auto sm:h-8" />
-          </Link>
+      {/* Formulário */}
+      <div className="relative z-10 flex flex-1 flex-col bg-white lg:max-w-[50%] lg:shrink-0">
+        <div className="mx-auto flex w-full max-w-[440px] flex-1 flex-col justify-center px-6 py-8 sm:px-10 sm:py-12 lg:max-w-[480px] lg:px-14 lg:py-16">
+          <div className="-mt-10 mb-8 rounded-t-[1.75rem] bg-white pt-8 lg:mt-0 lg:rounded-none lg:pt-0">
+            <Link href="/" className="mb-8 inline-flex lg:hidden">
+              <img src="/landing/ortus-wordmark.svg" alt="Ortus" className="h-7 w-auto" />
+            </Link>
 
-          <div className="mb-8 max-w-md">
-            <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 sm:text-[1.75rem]">
-              Bem-vindo de volta
+            <h1 className="text-[1.65rem] font-bold leading-tight tracking-tight text-neutral-900 sm:text-[1.85rem]">
+              Bem-vindo de volta 👋
             </h1>
-            <p className="mt-2 text-sm leading-relaxed text-neutral-500 sm:text-base">
-              Entre com o e-mail da clínica para continuar no painel Ortus.
+            <p className="mt-3 max-w-sm text-sm leading-relaxed text-neutral-500 sm:text-[15px]">
+              Hoje é um novo dia. Entre com o e-mail da clínica para continuar no painel Ortus.
             </p>
           </div>
 
           {error ? (
             <div
-              className="mb-6 flex max-w-md items-start gap-2 rounded-[1.15rem] border border-red-200/80 bg-red-50 px-4 py-3 text-sm font-medium text-red-800"
+              className="mb-6 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-800"
               role="alert"
             >
               <ShieldCheck size={18} className="mt-0.5 shrink-0" aria-hidden />
@@ -191,53 +223,55 @@ export default function Login() {
             </div>
           ) : null}
 
-          <form onSubmit={handleLogin} className="max-w-md space-y-5">
-            <div className="space-y-1.5">
-              <label htmlFor="login-email" className="text-xs font-medium text-neutral-700">
+          <form onSubmit={handleLogin} className="space-y-5">
+            <div className="space-y-2">
+              <label htmlFor="login-email" className="text-sm font-medium text-neutral-800">
                 E-mail
               </label>
-              <div className="relative">
-                <Mail className="pointer-events-none absolute left-3 top-1/2 size-[18px] -translate-y-1/2 text-neutral-400" aria-hidden />
-                <input
-                  id="login-email"
-                  type="email"
-                  autoComplete="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className={`${bentoInput} pl-10`}
-                  placeholder="seu@clinica.com"
-                  required
-                />
-              </div>
+              <input
+                id="login-email"
+                type="email"
+                autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className={inputClass}
+                placeholder="seu@clinica.com"
+                required
+              />
             </div>
 
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between gap-2">
-                <label htmlFor="login-password" className="text-xs font-medium text-neutral-700">
-                  Senha
-                </label>
-              </div>
+            <div className="space-y-2">
+              <label htmlFor="login-password" className="text-sm font-medium text-neutral-800">
+                Senha
+              </label>
               <div className="relative">
-                <Lock className="pointer-events-none absolute left-3 top-1/2 size-[18px] -translate-y-1/2 text-neutral-400" aria-hidden />
                 <input
                   id="login-password"
                   type={showPassword ? 'text' : 'password'}
                   autoComplete="current-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className={`${bentoInput} pl-10 pr-11`}
-                  placeholder="Sua senha"
+                  className={`${inputClass} pr-11`}
+                  placeholder="Pelo menos 8 caracteres"
                   required
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword((v) => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-0.5 text-neutral-400 transition-colors hover:text-neutral-800"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-0.5 text-neutral-400 hover:text-neutral-700"
                   tabIndex={-1}
                   aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
                 >
                   {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                 </button>
+              </div>
+              <div className="flex justify-end pt-0.5">
+                <Link
+                  href="/#contato"
+                  className="text-sm font-medium text-[#2563eb] hover:underline"
+                >
+                  Esqueceu a senha?
+                </Link>
               </div>
             </div>
 
@@ -251,38 +285,41 @@ export default function Login() {
               Lembrar meu e-mail neste dispositivo
             </label>
 
-            <button type="submit" disabled={loading} className={`${bentoPrimaryBtn} w-full py-3.5 text-base`}>
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-neutral-900 py-3.5 text-base font-semibold text-white transition-colors hover:bg-neutral-800 disabled:opacity-60"
+            >
               {loading ? (
                 <>
                   <Loader2 className="size-5 animate-spin" aria-hidden />
                   Entrando…
                 </>
               ) : (
-                'Entrar no sistema'
+                'Entrar'
               )}
             </button>
           </form>
 
-          <p className="mt-8 max-w-md text-sm text-neutral-500">
+          <p className="mt-8 text-center text-sm text-neutral-500 sm:text-left">
             Ainda não é cliente?{' '}
-            <Link href="/#precos" className="font-semibold text-neutral-900 underline-offset-2 hover:underline">
+            <Link href="/#precos" className="font-semibold text-neutral-900 hover:underline">
               Conheça os planos
             </Link>
           </p>
-        </div>
 
-        {/* Painel visual — desktop */}
-        <div className="hidden min-h-[320px] flex-1 flex-col bg-neutral-950 lg:flex lg:max-w-[48%] lg:rounded-l-none lg:rounded-r-[2rem]">
-          <LoginShowcase />
-        </div>
-
-        {/* Faixa resumida — mobile */}
-        <div className="border-t border-black/5 bg-neutral-950 px-6 py-8 lg:hidden">
-          <LoginShowcase />
+          <p className="mt-auto hidden pt-10 text-center text-xs text-neutral-400 lg:block lg:text-left">
+            © {new Date().getFullYear()} Ortus · Acesso restrito a profissionais autorizados.
+          </p>
         </div>
       </div>
 
-      <p className="mx-auto mt-4 max-w-6xl px-2 text-center text-[11px] text-neutral-500">
+      {/* Painel escuro — desktop */}
+      <div className="hidden min-h-[100dvh] flex-1 lg:block">
+        <LoginDvdGlow />
+      </div>
+
+      <p className="bg-white px-4 py-3 text-center text-[11px] text-neutral-400 lg:hidden">
         Acesso restrito a profissionais autorizados pela clínica.
       </p>
     </div>

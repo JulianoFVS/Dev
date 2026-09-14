@@ -1,7 +1,5 @@
 'use client';
 
-import BentoRouteScroll from '@/components/bento/BentoRouteScroll';
-
 export default function RelatoriosLayout({ children }: { children: React.ReactNode }) {
-  return <BentoRouteScroll>{children}</BentoRouteScroll>;
+  return <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">{children}</div>;
 }
