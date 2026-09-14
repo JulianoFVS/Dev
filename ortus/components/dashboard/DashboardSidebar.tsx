@@ -31,7 +31,7 @@ function NavIcon({ href, label, Icon }: { href: string; label: string; Icon: typ
       href={href}
       title={label}
       className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl transition-colors ${
-        active ? 'bg-ortus-blue text-white' : 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'
+        active ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:bg-white/10 hover:text-slate-200'
       }`}
     >
       <Icon size={20} strokeWidth={1.75} />
@@ -51,8 +51,8 @@ export function DashboardMobileNav() {
             key={item.href}
             href={item.href}
             title={item.label}
-            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-gray-200 ${
-              active ? 'border-ortus-blue bg-ortus-blue text-white' : 'bg-white text-zinc-600'
+            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border ${
+              active ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-slate-100 bg-white text-slate-600'
             }`}
           >
             <Icon size={16} strokeWidth={1.75} />
@@ -65,11 +65,11 @@ export function DashboardMobileNav() {
 
 export default function DashboardSidebar() {
   return (
-    <aside className="flex h-full w-[4.5rem] shrink-0 flex-col items-center overflow-hidden bg-zinc-900 py-4 sm:w-[5rem]">
+    <aside className="flex h-full w-[4.25rem] shrink-0 flex-col items-center overflow-hidden rounded-3xl bg-[#121212] py-4 sm:w-[4.75rem]">
       <Link
         href="/dashboard"
         title="Ortus"
-        className="mb-4 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-zinc-800 text-white"
+        className="mb-4 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white/10 text-white"
       >
         <img src="/landing/ortus-mark.svg" alt="" className="h-6 w-6 object-contain brightness-0 invert" />
       </Link>
@@ -84,14 +84,14 @@ export default function DashboardSidebar() {
         <Link
           href="/configuracoes"
           title="Configurações"
-          className="flex h-10 w-10 items-center justify-center rounded-2xl text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200"
+          className="flex h-10 w-10 items-center justify-center rounded-2xl text-slate-500 hover:bg-white/10 hover:text-slate-200"
         >
           <Settings size={18} strokeWidth={1.75} />
         </Link>
         <Link
           href="/perfil"
           title="Perfil"
-          className="flex h-10 w-10 items-center justify-center rounded-full bg-ortus-blue text-[11px] font-semibold text-white"
+          className="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-600 text-white ring-2 ring-[#121212]"
         >
           <User size={18} strokeWidth={1.75} />
         </Link>
