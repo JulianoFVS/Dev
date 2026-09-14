@@ -443,50 +443,85 @@ export default function Dashboard() {
   const materiais = tratamentos.map((t) => t.observacoes).filter(Boolean).join(' · ') || emAtendimento?.observacoes;
   const graficoLabel = periodo === 'hoje' ? 'Recebimentos por hora · Hoje' : periodo === 'semana' ? 'Recebimentos por dia · Semana' : 'Recebimentos por semana · Mês';
 
-  const card = 'min-h-0 rounded-3xl border border-slate-200 bg-white';
+  const card = 'min-h-0 rounded-2xl border border-slate-200 bg-white';
+
+  const resumoConsultas = agendaHoje.length;
+  const resumoPend = pendencias.length;
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden p-4 sm:p-5 md:p-6">
-      <header className="mb-3 shrink-0 md:mb-4">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-          <div className="min-w-0">
-            <h1 className="text-xl font-semibold tracking-tight text-zinc-900 sm:text-2xl md:text-[1.65rem]">
-              Visão Geral
-            </h1>
-            <p className="mt-0.5 truncate text-xs capitalize text-zinc-500 sm:text-[13px]">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden p-3 sm:p-3.5 md:p-4">
+      <header className="mb-2 shrink-0">
+        <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
+            <h1 className="text-lg font-semibold tracking-tight text-zinc-900 sm:text-xl">Visão Geral</h1>
+            <p className="truncate text-[11px] capitalize text-zinc-500 sm:text-xs">
               {dataTitulo} · {clinicaNome}
             </p>
           </div>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={abrirBusca}
-              className="flex h-9 w-full items-center gap-2 rounded-full border border-gray-200 bg-white px-3 text-xs text-zinc-400 sm:min-w-[200px] md:min-w-[240px] md:text-[13px]"
+              className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-full border border-gray-200 bg-white px-3 text-[11px] text-zinc-400 sm:max-w-[220px] sm:flex-none md:max-w-[260px] sm:text-xs"
             >
-              <Search size={14} />
+              <Search size={13} />
               <span className="truncate">Buscar paciente ou procedimento</span>
             </button>
             <Link
               href="/agenda"
-              className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-full bg-ortus-blue px-4 text-xs font-medium text-white hover:bg-ortus-blueDark md:text-[13px]"
+              className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full bg-ortus-blue px-3 text-[11px] font-medium text-white hover:bg-ortus-blueDark sm:text-xs"
             >
-              <Plus size={15} />
-              Novo agendamento
+              <Plus size={14} />
+              <span className="hidden sm:inline">Novo agendamento</span>
+              <span className="sm:hidden">Novo</span>
             </Link>
           </div>
         </div>
-        <div className="mt-3 flex flex-wrap gap-1.5">
-          {['Visão do dia', 'Agenda', 'Financeiro', 'Pendências'].map((tab, i) => (
-            <span
-              key={tab}
-              className={`rounded-full px-3 py-1 text-[11px] font-medium sm:text-xs ${
-                i === 0 ? 'bg-ortus-blue text-white' : 'border border-gray-200 bg-white text-zinc-600'
-              }`}
-            >
-              {tab}
-            </span>
-          ))}
-        </div>
+
+        {!loading || jaCarregou.current ? (
+          <div className="mt-2 flex flex-wrap items-stretch gap-2">
+            <div className="flex min-w-[7rem] flex-1 items-center gap-2 rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 sm:max-w-[11rem]">
+              <span className="text-[10px] font-medium uppercase tracking-wide text-zinc-400">Hoje</span>
+              <span className="text-sm font-semibold tabular-nums text-zinc-900">{resumoConsultas}</span>
+              <span className="text-[10px] text-zinc-500">consultas</span>
+            </div>
+            <div className="flex min-w-0 flex-[1.4] items-center gap-2 rounded-xl border border-slate-200 bg-white px-2.5 py-1.5">
+              <span className="text-[10px] font-medium uppercase tracking-wide text-zinc-400">Agora</span>
+              <span className="truncate text-xs font-medium text-zinc-900">
+                {emAtendimento?.pacientes?.nome || 'Nenhum em curso'}
+              </span>
+            </div>
+            <div className="flex min-w-[6.5rem] flex-1 items-center gap-2 rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 sm:max-w-[10rem]">
+              <span className="text-[10px] font-medium uppercase tracking-wide text-zinc-400">Recebido</span>
+              <span className="truncate text-xs font-semibold text-ortus-blue">{moeda(financeiro.recebido)}</span>
+            </div>
+            <div className="flex min-w-[5.5rem] flex-1 items-center gap-2 rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 sm:max-w-[9rem]">
+              <span className="text-[10px] font-medium uppercase tracking-wide text-zinc-400">Travando</span>
+              <span className={`text-sm font-semibold tabular-nums ${resumoPend > 0 ? 'text-red-500' : 'text-zinc-700'}`}>
+                {resumoPend}
+              </span>
+            </div>
+            <div className="hidden items-center gap-1 lg:flex">
+              {(
+                [
+                  ['Visão do dia', true],
+                  ['Agenda', false],
+                  ['Financeiro', false],
+                  ['Pendências', false],
+                ] as const
+              ).map(([tab, ativo]) => (
+                <span
+                  key={tab}
+                  className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                    ativo ? 'bg-ortus-blue text-white' : 'border border-gray-200 bg-white text-zinc-500'
+                  }`}
+                >
+                  {tab}
+                </span>
+              ))}
+            </div>
+          </div>
+        ) : null}
       </header>
 
       {loading && !jaCarregou.current ? (
@@ -494,9 +529,9 @@ export default function Dashboard() {
           <Loader2 className="animate-spin" />
         </div>
       ) : (
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-6 overflow-hidden lg:grid-cols-12 lg:gap-8">
-        <div className="flex min-h-0 flex-col gap-6 overflow-hidden lg:col-span-7 xl:col-span-8">
-          <section className={`${card} flex min-h-0 flex-[1.15] flex-col overflow-hidden p-4 sm:p-5`}>
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-2.5 overflow-hidden lg:grid-cols-[minmax(0,1fr)_minmax(248px,300px)] lg:gap-3">
+        <div className="flex min-h-0 flex-col gap-2.5 overflow-hidden">
+          <section className={`${card} flex min-h-0 flex-[1.05] flex-col overflow-hidden p-3 sm:p-3.5`}>
             {emAtendimento ? (
               <>
                 <div className="flex flex-wrap items-start justify-between gap-3">
@@ -505,12 +540,12 @@ export default function Dashboard() {
                       <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-ortus-blue align-middle" />
                       Em atendimento · Cadeira {cadeiraAtual} · {hora(emAtendimento.data_hora)}–{duracaoMin} min
                     </p>
-                    <div className="mt-2 flex items-center gap-3 sm:mt-3">
-                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-[11px] font-semibold text-zinc-800 ring-1 ring-zinc-200 sm:h-11 sm:w-11">
+                    <div className="mt-1.5 flex items-center gap-2.5">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-50 text-[10px] font-semibold text-zinc-800 ring-1 ring-zinc-200">
                         {iniciais(paciente?.nome)}
                       </span>
                       <div className="min-w-0">
-                        <h2 className="truncate text-lg font-semibold tracking-tight text-zinc-900 sm:text-xl">
+                        <h2 className="truncate text-base font-semibold tracking-tight text-zinc-900 sm:text-lg">
                           {paciente?.nome || 'Paciente'}
                         </h2>
                         <p className="truncate text-xs text-zinc-500 sm:text-[13px]">
@@ -549,7 +584,7 @@ export default function Dashboard() {
                   </div>
                 </div>
 
-                <div className="mt-3 grid grid-cols-3 gap-2 border-t border-gray-200 pt-3">
+                <div className="mt-2 grid grid-cols-3 gap-1.5 border-t border-gray-200 pt-2">
                   <div>
                     <p className="text-[10px] font-medium uppercase tracking-wide text-zinc-400">Alergias</p>
                     <p className="mt-0.5 line-clamp-2 text-xs font-medium text-amber-700">{alergiaDe(paciente?.ficha_medica)}</p>
@@ -564,8 +599,8 @@ export default function Dashboard() {
                   </div>
                 </div>
 
-                <div className="mt-3 min-h-0 flex-1 overflow-y-auto">
-                  <p className="mb-1.5 text-[10px] font-medium uppercase tracking-wide text-zinc-400">Plano desta sessão</p>
+                <div className="mt-2 min-h-0 flex-1 overflow-y-auto">
+                  <p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-zinc-400">Plano desta sessão</p>
                   {tratamentos.length === 0 ? (
                     <p className="text-[13px] text-[#aeaeb2]">{emAtendimento.procedimento || 'Sem procedimentos lançados nesta ficha.'}</p>
                   ) : (
@@ -573,7 +608,7 @@ export default function Dashboard() {
                       {tratamentos.map((t) => {
                         const feito = t.status === 'concluido';
                         return (
-                          <li key={t.id} className="flex items-center gap-2 border-t border-gray-200 py-2 first:border-t-0">
+                          <li key={t.id} className="flex items-center gap-2 border-t border-gray-200 py-1.5 first:border-t-0">
                             <span className={`flex h-3.5 w-3.5 items-center justify-center rounded border ${feito ? 'border-ortus-blue bg-ortus-blue text-white' : 'border-gray-300 bg-white'}`}>
                               {feito && <Check size={10} strokeWidth={3} />}
                             </span>
@@ -585,8 +620,8 @@ export default function Dashboard() {
                   )}
                 </div>
 
-                <p className="mt-2 shrink-0 border-t border-gray-200 pt-2 text-[11px] text-zinc-500">
-                  Materiais reservados · {materiais || 'nenhum item lançado nesta sessão'}
+                <p className="mt-1.5 shrink-0 truncate border-t border-gray-200 pt-1.5 text-[10px] text-zinc-500">
+                  Materiais · {materiais || 'nenhum nesta sessão'}
                 </p>
               </>
             ) : (
@@ -600,7 +635,7 @@ export default function Dashboard() {
             )}
           </section>
 
-          <section className={`${card} flex min-h-0 flex-1 flex-col overflow-hidden p-4 sm:p-5`}>
+          <section className={`${card} flex min-h-0 flex-1 flex-col overflow-hidden p-3 sm:p-3.5`}>
             <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
               <div className="flex min-w-0 flex-wrap items-center gap-2">
                 <h3 className="text-sm font-semibold text-zinc-900">Saúde financeira</h3>
@@ -628,27 +663,27 @@ export default function Dashboard() {
               </Link>
             </div>
 
-            <div className="mt-4 grid shrink-0 grid-cols-3 gap-3">
-              <div className="rounded-2xl border border-slate-200 bg-white p-2.5 sm:p-3">
-                <p className="text-[10px] font-medium uppercase tracking-wide text-zinc-400">Recebido</p>
-                <p className="mt-0.5 text-base font-semibold text-ortus-blue sm:text-lg">{moeda(financeiro.recebido)}</p>
-                <p className="text-[10px] text-zinc-500 sm:text-xs">{financeiro.pagamentos} pag.</p>
+            <div className="mt-2 grid shrink-0 grid-cols-3 divide-x divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white">
+              <div className="px-2 py-2 sm:px-2.5">
+                <p className="text-[9px] font-medium uppercase tracking-wide text-zinc-400">Recebido</p>
+                <p className="mt-0.5 text-sm font-semibold text-ortus-blue">{moeda(financeiro.recebido)}</p>
+                <p className="text-[9px] text-zinc-500">{financeiro.pagamentos} pag.</p>
               </div>
-              <div className="rounded-2xl border border-slate-200 bg-white p-2.5 sm:p-3">
-                <p className="text-[10px] font-medium uppercase tracking-wide text-zinc-400">Previsto</p>
-                <p className="mt-0.5 text-base font-semibold text-zinc-900 sm:text-lg">{moeda(financeiro.previsto)}</p>
-                <p className="text-[10px] text-zinc-500 sm:text-xs">{financeiro.restantes} rest.</p>
+              <div className="px-2 py-2 sm:px-2.5">
+                <p className="text-[9px] font-medium uppercase tracking-wide text-zinc-400">Previsto</p>
+                <p className="mt-0.5 text-sm font-semibold text-zinc-900">{moeda(financeiro.previsto)}</p>
+                <p className="text-[9px] text-zinc-500">{financeiro.restantes} rest.</p>
               </div>
-              <div className="rounded-2xl border border-slate-200 bg-white p-2.5 sm:p-3">
-                <p className="text-[10px] font-medium uppercase tracking-wide text-zinc-400">Em atraso</p>
-                <p className="mt-0.5 text-base font-semibold text-red-500 sm:text-lg">{moeda(financeiro.atraso)}</p>
-                <p className="text-[10px] text-zinc-500 sm:text-xs">{financeiro.atrasados} pac.</p>
+              <div className="px-2 py-2 sm:px-2.5">
+                <p className="text-[9px] font-medium uppercase tracking-wide text-zinc-400">Em atraso</p>
+                <p className="mt-0.5 text-sm font-semibold text-red-500">{moeda(financeiro.atraso)}</p>
+                <p className="text-[9px] text-zinc-500">{financeiro.atrasados} pac.</p>
               </div>
             </div>
 
-            <div className="mt-4 flex min-h-0 flex-1 flex-col border-t border-slate-200 pt-4">
-              <p className="mb-3 shrink-0 text-[11px] font-medium text-slate-500">{graficoLabel}</p>
-              <div className="relative flex min-h-[5rem] flex-1 items-end justify-between gap-1 sm:gap-2">
+            <div className="mt-2 flex min-h-0 flex-1 flex-col border-t border-slate-200 pt-2">
+              <p className="mb-1.5 shrink-0 text-[10px] font-medium text-slate-500">{graficoLabel}</p>
+              <div className="relative flex min-h-[3.25rem] flex-1 items-end justify-between gap-0.5 sm:gap-1">
                 <div className="pointer-events-none absolute inset-x-0 bottom-6 top-0 flex flex-col justify-between">
                   {[0, 1, 2, 3].map((i) => (
                     <div key={i} className="h-px w-full bg-slate-100" />
@@ -657,8 +692,8 @@ export default function Dashboard() {
                 {barras.map((item) => {
                   const altura = Math.max(item.valor > 0 ? 6 : 3, (item.valor / maxBarra) * 52);
                   return (
-                    <div key={item.rotulo} className="relative z-[1] flex flex-1 flex-col items-center gap-2">
-                      <div className="flex h-16 w-full items-end justify-center sm:h-[4.5rem]">
+                    <div key={item.rotulo} className="relative z-[1] flex flex-1 flex-col items-center gap-1">
+                      <div className="flex h-12 w-full items-end justify-center sm:h-14">
                         <div
                           className="w-1.5 rounded-full bg-slate-800 sm:w-2"
                           style={{ height: `${altura}px` }}
@@ -673,9 +708,9 @@ export default function Dashboard() {
           </section>
         </div>
 
-        <aside className="flex min-h-0 flex-col gap-6 overflow-hidden lg:col-span-5 lg:gap-8 xl:col-span-4">
+        <aside className="flex min-h-0 flex-col gap-2.5 overflow-hidden">
           <section className={`${card} flex min-h-0 flex-1 flex-col overflow-hidden`}>
-            <div className="flex shrink-0 items-center justify-between border-b border-slate-200 px-4 py-3 sm:px-5">
+            <div className="flex shrink-0 items-center justify-between border-b border-slate-200 px-3 py-2">
               <h3 className="text-sm font-semibold text-zinc-900">Fila do dia</h3>
               <span className="text-xs text-zinc-400">{agendaHoje.length}</span>
             </div>
@@ -689,7 +724,7 @@ export default function Dashboard() {
                       <li key={linha.id}>
                         <Link
                           href="/agenda"
-                          className="grid grid-cols-[48px_1fr] gap-2 border-b border-gray-100 px-3 py-2 text-zinc-400 last:border-0 sm:px-4"
+                          className="grid grid-cols-[44px_1fr] gap-1.5 border-b border-gray-100 px-2.5 py-1.5 text-zinc-400 last:border-0 sm:px-3"
                         >
                           <span className="text-xs tabular-nums">{linha.inicio}</span>
                           <p className="text-xs">Horário livre</p>
@@ -702,7 +737,7 @@ export default function Dashboard() {
                     <li key={linha.id}>
                       <Link
                         href={linha.ag.pacientes?.id ? `/pacientes/${linha.ag.pacientes.id}` : '/agenda'}
-                        className={`grid grid-cols-[48px_1fr] gap-2 border-b border-gray-100 px-3 py-2 last:border-0 sm:px-4 ${
+                        className={`grid grid-cols-[44px_1fr] gap-1.5 border-b border-gray-100 px-2.5 py-1.5 last:border-0 sm:px-3 ${
                           atual ? 'border-l-2 border-l-ortus-blue bg-white' : 'hover:bg-zinc-50/80'
                         }`}
                       >
@@ -723,8 +758,8 @@ export default function Dashboard() {
             )}
           </section>
 
-          <section className={`${card} flex min-h-0 flex-[0.85] flex-col overflow-hidden`}>
-            <div className="flex shrink-0 items-center justify-between border-b border-slate-200 px-4 py-3 sm:px-5">
+          <section className={`${card} flex min-h-0 flex-[0.9] flex-col overflow-hidden`}>
+            <div className="flex shrink-0 items-center justify-between border-b border-slate-200 px-3 py-2">
               <h3 className="text-sm font-semibold text-zinc-900">Pendências que travam o dia</h3>
               <Link href="/tarefas" className="text-[11px] font-medium text-ortus-blue">Ver</Link>
             </div>
@@ -734,7 +769,7 @@ export default function Dashboard() {
               <ul className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
                 {pendencias.map((item) => (
                   <li key={item.id}>
-                    <Link href={item.href} className="block border-b border-gray-100 px-3 py-2.5 last:border-0 hover:bg-zinc-50/80 sm:px-4">
+                    <Link href={item.href} className="block border-b border-gray-100 px-2.5 py-1.5 last:border-0 hover:bg-zinc-50/80 sm:px-3">
                       <p className="truncate text-xs font-medium text-zinc-900">{item.titulo}</p>
                       <p className="truncate text-[11px] text-zinc-500">{item.detalhe}</p>
                     </Link>

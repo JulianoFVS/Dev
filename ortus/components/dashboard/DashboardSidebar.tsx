@@ -65,7 +65,7 @@ export function DashboardMobileNav() {
 
 export default function DashboardSidebar() {
   return (
-    <aside className="flex h-[calc(100vh-1.5rem)] w-[4.25rem] shrink-0 flex-col items-center overflow-hidden rounded-3xl bg-slate-900 py-4 shadow-sm md:h-[calc(100vh-2rem)] sm:w-[4.75rem]">
+    <aside className="flex h-[calc(100vh-1rem)] w-[4rem] shrink-0 flex-col items-center overflow-hidden rounded-2xl bg-slate-900 py-3 shadow-sm md:h-[calc(100vh-1.25rem)] sm:w-[4.25rem]">
       <Link
         href="/dashboard"
         title="Ortus"
