@@ -18,7 +18,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-slate-50 font-poppins">
-      <div className="hidden h-full shrink-0 sm:block">
+      <div className="hidden shrink-0 py-3 pl-3 sm:block md:py-4 md:pl-4">
         <DashboardSidebar />
       </div>
 
@@ -27,7 +27,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <img src="/landing/ortus-wordmark.svg" alt="ortus" className="h-5 w-auto" />
           <Link
             href="/agenda"
-            className="rounded-full bg-teal-600 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-teal-700"
+            className="rounded-full bg-ortus-blue px-3 py-1.5 text-[11px] font-medium text-white hover:bg-ortus-blueDark"
           >
             + Agendar
           </Link>
