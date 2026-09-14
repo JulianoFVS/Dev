@@ -449,12 +449,12 @@ export default function Dashboard() {
   const resumoPend = pendencias.length;
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden p-3 sm:p-3.5 md:p-4">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden p-4 sm:p-4 md:p-5 lg:px-6">
       <header className="mb-2 shrink-0">
         <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
-            <h1 className="text-lg font-semibold tracking-tight text-zinc-900 sm:text-xl">Visão Geral</h1>
-            <p className="truncate text-[11px] capitalize text-zinc-500 sm:text-xs">
+            <h1 className="text-xl font-semibold tracking-tight text-zinc-900 sm:text-2xl">Visão Geral</h1>
+            <p className="truncate text-[12px] capitalize text-zinc-500 sm:text-sm">
               {dataTitulo} · {clinicaNome}
             </p>
           </div>
@@ -462,16 +462,16 @@ export default function Dashboard() {
             <button
               type="button"
               onClick={abrirBusca}
-              className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-full border border-gray-200 bg-white px-3 text-[11px] text-zinc-400 sm:max-w-[220px] sm:flex-none md:max-w-[260px] sm:text-xs"
+              className="flex h-9 min-w-0 flex-1 items-center gap-2 rounded-full border border-gray-200 bg-white px-3.5 text-[12px] text-zinc-400 sm:max-w-[240px] sm:flex-none md:max-w-[280px] sm:text-sm"
             >
-              <Search size={13} />
+              <Search size={15} />
               <span className="truncate">Buscar paciente ou procedimento</span>
             </button>
             <Link
               href="/agenda"
-              className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full bg-ortus-blue px-3 text-[11px] font-medium text-white hover:bg-ortus-blueDark sm:text-xs"
+              className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-ortus-blue px-3.5 text-[12px] font-medium text-white hover:bg-ortus-blueDark sm:text-sm"
             >
-              <Plus size={14} />
+              <Plus size={16} />
               <span className="hidden sm:inline">Novo agendamento</span>
               <span className="sm:hidden">Novo</span>
             </Link>
@@ -481,23 +481,23 @@ export default function Dashboard() {
         {!loading || jaCarregou.current ? (
           <div className="mt-2 flex flex-wrap items-stretch gap-2">
             <div className="flex min-w-[7rem] flex-1 items-center gap-2 rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 sm:max-w-[11rem]">
-              <span className="text-[10px] font-medium uppercase tracking-wide text-zinc-400">Hoje</span>
-              <span className="text-sm font-semibold tabular-nums text-zinc-900">{resumoConsultas}</span>
-              <span className="text-[10px] text-zinc-500">consultas</span>
+              <span className="text-[12px] font-medium uppercase tracking-wide text-zinc-400">Hoje</span>
+              <span className="text-base font-semibold tabular-nums text-zinc-900">{resumoConsultas}</span>
+              <span className="text-[12px] text-zinc-500">consultas</span>
             </div>
             <div className="flex min-w-0 flex-[1.4] items-center gap-2 rounded-xl border border-slate-200 bg-white px-2.5 py-1.5">
-              <span className="text-[10px] font-medium uppercase tracking-wide text-zinc-400">Agora</span>
-              <span className="truncate text-xs font-medium text-zinc-900">
+              <span className="text-[12px] font-medium uppercase tracking-wide text-zinc-400">Agora</span>
+              <span className="truncate text-sm font-medium text-zinc-900">
                 {emAtendimento?.pacientes?.nome || 'Nenhum em curso'}
               </span>
             </div>
             <div className="flex min-w-[6.5rem] flex-1 items-center gap-2 rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 sm:max-w-[10rem]">
-              <span className="text-[10px] font-medium uppercase tracking-wide text-zinc-400">Recebido</span>
-              <span className="truncate text-xs font-semibold text-ortus-blue">{moeda(financeiro.recebido)}</span>
+              <span className="text-[12px] font-medium uppercase tracking-wide text-zinc-400">Recebido</span>
+              <span className="truncate text-sm font-semibold text-ortus-blue">{moeda(financeiro.recebido)}</span>
             </div>
             <div className="flex min-w-[5.5rem] flex-1 items-center gap-2 rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 sm:max-w-[9rem]">
-              <span className="text-[10px] font-medium uppercase tracking-wide text-zinc-400">Travando</span>
-              <span className={`text-sm font-semibold tabular-nums ${resumoPend > 0 ? 'text-red-500' : 'text-zinc-700'}`}>
+              <span className="text-[12px] font-medium uppercase tracking-wide text-zinc-400">Travando</span>
+              <span className={`text-base font-semibold tabular-nums ${resumoPend > 0 ? 'text-red-500' : 'text-zinc-700'}`}>
                 {resumoPend}
               </span>
             </div>
@@ -512,7 +512,7 @@ export default function Dashboard() {
               ).map(([tab, ativo]) => (
                 <span
                   key={tab}
-                  className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                  className={`rounded-full px-2 py-0.5 text-[12px] font-medium ${
                     ativo ? 'bg-ortus-blue text-white' : 'border border-gray-200 bg-white text-zinc-500'
                   }`}
                 >
@@ -531,24 +531,24 @@ export default function Dashboard() {
       ) : (
       <div className="grid min-h-0 flex-1 grid-cols-1 gap-2.5 overflow-hidden lg:grid-cols-[minmax(0,1fr)_minmax(248px,300px)] lg:gap-3">
         <div className="flex min-h-0 flex-col gap-2.5 overflow-hidden">
-          <section className={`${card} flex min-h-0 flex-[1.05] flex-col overflow-hidden p-3 sm:p-3.5`}>
+          <section className={`${card} flex min-h-0 flex-[1.05] flex-col overflow-hidden p-3.5 sm:p-4`}>
             {emAtendimento ? (
               <>
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-[11px] text-zinc-500 sm:text-xs">
+                    <p className="text-[12px] text-zinc-500 sm:text-sm">
                       <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-ortus-blue align-middle" />
                       Em atendimento · Cadeira {cadeiraAtual} · {hora(emAtendimento.data_hora)}–{duracaoMin} min
                     </p>
                     <div className="mt-1.5 flex items-center gap-2.5">
-                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-50 text-[10px] font-semibold text-zinc-800 ring-1 ring-zinc-200">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-50 text-[12px] font-semibold text-zinc-800 ring-1 ring-zinc-200">
                         {iniciais(paciente?.nome)}
                       </span>
                       <div className="min-w-0">
-                        <h2 className="truncate text-base font-semibold tracking-tight text-zinc-900 sm:text-lg">
+                        <h2 className="truncate text-lg font-semibold tracking-tight text-zinc-900 sm:text-xl">
                           {paciente?.nome || 'Paciente'}
                         </h2>
-                        <p className="truncate text-xs text-zinc-500 sm:text-[13px]">
+                        <p className="truncate text-sm text-zinc-500 sm:text-base">
                           {emAtendimento.procedimento || 'Consulta'}
                           {anos != null ? ` · ${anos} anos` : ''}
                           {` · ${planoNome(paciente?.planos)}`}
@@ -561,7 +561,7 @@ export default function Dashboard() {
                       type="button"
                       onClick={concluirAtual}
                       disabled={concluindo}
-                      className="inline-flex h-8 items-center gap-1.5 rounded-full bg-ortus-blue px-3 text-xs font-medium text-white hover:bg-ortus-blueDark disabled:opacity-60 sm:h-9 sm:text-[13px]"
+                      className="inline-flex h-9 items-center gap-1.5 rounded-full bg-ortus-blue px-3.5 text-sm font-medium text-white hover:bg-ortus-blueDark disabled:opacity-60 sm:h-10 sm:text-base"
                     >
                       {concluindo ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}
                       Concluir
@@ -586,23 +586,23 @@ export default function Dashboard() {
 
                 <div className="mt-2 grid grid-cols-3 gap-1.5 border-t border-gray-200 pt-2">
                   <div>
-                    <p className="text-[10px] font-medium uppercase tracking-wide text-zinc-400">Alergias</p>
-                    <p className="mt-0.5 line-clamp-2 text-xs font-medium text-amber-700">{alergiaDe(paciente?.ficha_medica)}</p>
+                    <p className="text-[12px] font-medium uppercase tracking-wide text-zinc-400">Alergias</p>
+                    <p className="mt-0.5 line-clamp-2 text-sm font-medium text-amber-700">{alergiaDe(paciente?.ficha_medica)}</p>
                   </div>
                   <div>
-                    <p className="text-[10px] font-medium uppercase tracking-wide text-zinc-400">Última visita</p>
-                    <p className="mt-0.5 text-xs text-zinc-800">{ultimaVisita || 'Primeira sessão'}</p>
+                    <p className="text-[12px] font-medium uppercase tracking-wide text-zinc-400">Última visita</p>
+                    <p className="mt-0.5 text-sm text-zinc-800">{ultimaVisita || 'Primeira sessão'}</p>
                   </div>
                   <div>
-                    <p className="text-[10px] font-medium uppercase tracking-wide text-zinc-400">Saldo em aberto</p>
-                    <p className={`mt-0.5 text-xs font-medium ${saldoAberto > 0 ? 'text-red-500' : 'text-zinc-700'}`}>{moeda(saldoAberto)}</p>
+                    <p className="text-[12px] font-medium uppercase tracking-wide text-zinc-400">Saldo em aberto</p>
+                    <p className={`mt-0.5 text-sm font-medium ${saldoAberto > 0 ? 'text-red-500' : 'text-zinc-700'}`}>{moeda(saldoAberto)}</p>
                   </div>
                 </div>
 
                 <div className="mt-2 min-h-0 flex-1 overflow-y-auto">
-                  <p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-zinc-400">Plano desta sessão</p>
+                  <p className="mb-1 text-[12px] font-medium uppercase tracking-wide text-zinc-400">Plano desta sessão</p>
                   {tratamentos.length === 0 ? (
-                    <p className="text-[13px] text-[#aeaeb2]">{emAtendimento.procedimento || 'Sem procedimentos lançados nesta ficha.'}</p>
+                    <p className="text-[14px] text-[#aeaeb2]">{emAtendimento.procedimento || 'Sem procedimentos lançados nesta ficha.'}</p>
                   ) : (
                     <ul>
                       {tratamentos.map((t) => {
@@ -612,7 +612,7 @@ export default function Dashboard() {
                             <span className={`flex h-3.5 w-3.5 items-center justify-center rounded border ${feito ? 'border-ortus-blue bg-ortus-blue text-white' : 'border-gray-300 bg-white'}`}>
                               {feito && <Check size={10} strokeWidth={3} />}
                             </span>
-                            <span className={`text-xs sm:text-sm ${feito ? 'text-zinc-500' : 'text-zinc-900'}`}>{t.procedimento}</span>
+                            <span className={`text-sm sm:text-base ${feito ? 'text-zinc-500' : 'text-zinc-900'}`}>{t.procedimento}</span>
                           </li>
                         );
                       })}
@@ -620,25 +620,25 @@ export default function Dashboard() {
                   )}
                 </div>
 
-                <p className="mt-1.5 shrink-0 truncate border-t border-gray-200 pt-1.5 text-[10px] text-zinc-500">
+                <p className="mt-1.5 shrink-0 truncate border-t border-gray-200 pt-1.5 text-[12px] text-zinc-500">
                   Materiais · {materiais || 'nenhum nesta sessão'}
                 </p>
               </>
             ) : (
               <div className="flex flex-1 flex-col items-center justify-center py-6 text-center">
-                <p className="text-sm font-medium text-zinc-900">Nenhum atendimento em curso</p>
-                <p className="mt-1 text-xs text-zinc-500">A fila do dia está livre neste momento.</p>
-                <Link href="/agenda" className="mt-3 inline-flex h-8 items-center rounded-full bg-ortus-blue px-4 text-xs font-medium text-white hover:bg-ortus-blueDark">
+                <p className="text-base font-medium text-zinc-900">Nenhum atendimento em curso</p>
+                <p className="mt-1 text-sm text-zinc-500">A fila do dia está livre neste momento.</p>
+                <Link href="/agenda" className="mt-3 inline-flex h-9 items-center rounded-full bg-ortus-blue px-4 text-sm font-medium text-white hover:bg-ortus-blueDark">
                   Novo agendamento
                 </Link>
               </div>
             )}
           </section>
 
-          <section className={`${card} flex min-h-0 flex-1 flex-col overflow-hidden p-3 sm:p-3.5`}>
+          <section className={`${card} flex min-h-0 flex-1 flex-col overflow-hidden p-3.5 sm:p-4`}>
             <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
               <div className="flex min-w-0 flex-wrap items-center gap-2">
-                <h3 className="text-sm font-semibold text-zinc-900">Saúde financeira</h3>
+                <h3 className="text-base font-semibold text-zinc-900">Saúde financeira</h3>
                 <div className="flex rounded-full border border-gray-200 bg-white p-0.5">
                   {([
                     ['hoje', 'Hoje'],
@@ -649,7 +649,7 @@ export default function Dashboard() {
                       key={id}
                       type="button"
                       onClick={() => setPeriodo(id)}
-                      className={`rounded-full px-2 py-0.5 text-[11px] font-medium transition-colors sm:text-xs ${
+                      className={`rounded-full px-2.5 py-1 text-[12px] font-medium transition-colors sm:text-sm ${
                         periodo === id ? 'bg-ortus-blue text-white' : 'text-zinc-600 hover:text-ortus-blue'
                       }`}
                     >
@@ -658,31 +658,31 @@ export default function Dashboard() {
                   ))}
                 </div>
               </div>
-              <Link href="/financeiro" className="inline-flex items-center gap-1 text-xs font-medium text-ortus-blue hover:text-ortus-blueDark">
+              <Link href="/financeiro" className="inline-flex items-center gap-1 text-sm font-medium text-ortus-blue hover:text-ortus-blueDark">
                 Fechamento de caixa <ArrowUpRight size={12} />
               </Link>
             </div>
 
             <div className="mt-2 grid shrink-0 grid-cols-3 divide-x divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white">
               <div className="px-2 py-2 sm:px-2.5">
-                <p className="text-[9px] font-medium uppercase tracking-wide text-zinc-400">Recebido</p>
-                <p className="mt-0.5 text-sm font-semibold text-ortus-blue">{moeda(financeiro.recebido)}</p>
-                <p className="text-[9px] text-zinc-500">{financeiro.pagamentos} pag.</p>
+                <p className="text-[12px] font-medium uppercase tracking-wide text-zinc-400">Recebido</p>
+                <p className="mt-0.5 text-base font-semibold text-ortus-blue">{moeda(financeiro.recebido)}</p>
+                <p className="text-[12px] text-zinc-500">{financeiro.pagamentos} pag.</p>
               </div>
               <div className="px-2 py-2 sm:px-2.5">
-                <p className="text-[9px] font-medium uppercase tracking-wide text-zinc-400">Previsto</p>
-                <p className="mt-0.5 text-sm font-semibold text-zinc-900">{moeda(financeiro.previsto)}</p>
-                <p className="text-[9px] text-zinc-500">{financeiro.restantes} rest.</p>
+                <p className="text-[12px] font-medium uppercase tracking-wide text-zinc-400">Previsto</p>
+                <p className="mt-0.5 text-base font-semibold text-zinc-900">{moeda(financeiro.previsto)}</p>
+                <p className="text-[12px] text-zinc-500">{financeiro.restantes} rest.</p>
               </div>
               <div className="px-2 py-2 sm:px-2.5">
-                <p className="text-[9px] font-medium uppercase tracking-wide text-zinc-400">Em atraso</p>
-                <p className="mt-0.5 text-sm font-semibold text-red-500">{moeda(financeiro.atraso)}</p>
-                <p className="text-[9px] text-zinc-500">{financeiro.atrasados} pac.</p>
+                <p className="text-[12px] font-medium uppercase tracking-wide text-zinc-400">Em atraso</p>
+                <p className="mt-0.5 text-base font-semibold text-red-500">{moeda(financeiro.atraso)}</p>
+                <p className="text-[12px] text-zinc-500">{financeiro.atrasados} pac.</p>
               </div>
             </div>
 
             <div className="mt-2 flex min-h-0 flex-1 flex-col border-t border-slate-200 pt-2">
-              <p className="mb-1.5 shrink-0 text-[10px] font-medium text-slate-500">{graficoLabel}</p>
+              <p className="mb-1.5 shrink-0 text-[12px] font-medium text-slate-500">{graficoLabel}</p>
               <div className="relative flex min-h-[3.25rem] flex-1 items-end justify-between gap-0.5 sm:gap-1">
                 <div className="pointer-events-none absolute inset-x-0 bottom-6 top-0 flex flex-col justify-between">
                   {[0, 1, 2, 3].map((i) => (
@@ -699,7 +699,7 @@ export default function Dashboard() {
                           style={{ height: `${altura}px` }}
                         />
                       </div>
-                      <span className="text-[9px] tabular-nums text-slate-400 sm:text-[10px]">{item.rotulo}</span>
+                      <span className="text-[12px] tabular-nums text-slate-400 sm:text-[12px]">{item.rotulo}</span>
                     </div>
                   );
                 })}
@@ -710,12 +710,12 @@ export default function Dashboard() {
 
         <aside className="flex min-h-0 flex-col gap-2.5 overflow-hidden">
           <section className={`${card} flex min-h-0 flex-1 flex-col overflow-hidden`}>
-            <div className="flex shrink-0 items-center justify-between border-b border-slate-200 px-3 py-2">
-              <h3 className="text-sm font-semibold text-zinc-900">Fila do dia</h3>
-              <span className="text-xs text-zinc-400">{agendaHoje.length}</span>
+            <div className="flex shrink-0 items-center justify-between border-b border-slate-200 px-3.5 py-2.5">
+              <h3 className="text-base font-semibold text-zinc-900">Fila do dia</h3>
+              <span className="text-sm text-zinc-400">{agendaHoje.length}</span>
             </div>
             {fila.length === 0 ? (
-              <p className="p-4 text-xs text-zinc-400">Nenhuma consulta hoje.</p>
+              <p className="p-4 text-sm text-zinc-400">Nenhuma consulta hoje.</p>
             ) : (
               <ul className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
                 {fila.map((linha) => {
@@ -726,8 +726,8 @@ export default function Dashboard() {
                           href="/agenda"
                           className="grid grid-cols-[44px_1fr] gap-1.5 border-b border-gray-100 px-2.5 py-1.5 text-zinc-400 last:border-0 sm:px-3"
                         >
-                          <span className="text-xs tabular-nums">{linha.inicio}</span>
-                          <p className="text-xs">Horário livre</p>
+                          <span className="text-sm tabular-nums">{linha.inicio}</span>
+                          <p className="text-sm">Horário livre</p>
                         </Link>
                       </li>
                     );
@@ -741,10 +741,10 @@ export default function Dashboard() {
                           atual ? 'border-l-2 border-l-ortus-blue bg-white' : 'hover:bg-zinc-50/80'
                         }`}
                       >
-                        <span className="text-xs font-medium tabular-nums text-zinc-900">{hora(linha.ag.data_hora)}</span>
+                        <span className="text-sm font-medium tabular-nums text-zinc-900">{hora(linha.ag.data_hora)}</span>
                         <div className="min-w-0">
-                          <p className="truncate text-xs font-medium text-zinc-900">{linha.ag.pacientes?.nome || 'Horário'}</p>
-                          <p className="truncate text-[11px] text-zinc-500">
+                          <p className="truncate text-sm font-medium text-zinc-900">{linha.ag.pacientes?.nome || 'Horário'}</p>
+                          <p className="truncate text-[12px] text-zinc-500">
                             {linha.ag.status === 'concluido' ? 'Concluído · ' : ''}
                             {linha.ag.procedimento || 'Consulta'}
                             {` · Cadeira ${linha.cadeira}`}
@@ -759,19 +759,19 @@ export default function Dashboard() {
           </section>
 
           <section className={`${card} flex min-h-0 flex-[0.9] flex-col overflow-hidden`}>
-            <div className="flex shrink-0 items-center justify-between border-b border-slate-200 px-3 py-2">
-              <h3 className="text-sm font-semibold text-zinc-900">Pendências que travam o dia</h3>
-              <Link href="/tarefas" className="text-[11px] font-medium text-ortus-blue">Ver</Link>
+            <div className="flex shrink-0 items-center justify-between border-b border-slate-200 px-3.5 py-2.5">
+              <h3 className="text-base font-semibold text-zinc-900">Pendências que travam o dia</h3>
+              <Link href="/tarefas" className="text-sm font-medium text-ortus-blue">Ver</Link>
             </div>
             {pendencias.length === 0 ? (
-              <p className="p-4 text-xs text-zinc-400">Nada travando o dia.</p>
+              <p className="p-4 text-sm text-zinc-400">Nada travando o dia.</p>
             ) : (
               <ul className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
                 {pendencias.map((item) => (
                   <li key={item.id}>
                     <Link href={item.href} className="block border-b border-gray-100 px-2.5 py-1.5 last:border-0 hover:bg-zinc-50/80 sm:px-3">
-                      <p className="truncate text-xs font-medium text-zinc-900">{item.titulo}</p>
-                      <p className="truncate text-[11px] text-zinc-500">{item.detalhe}</p>
+                      <p className="truncate text-sm font-medium text-zinc-900">{item.titulo}</p>
+                      <p className="truncate text-[12px] text-zinc-500">{item.detalhe}</p>
                     </Link>
                   </li>
                 ))}

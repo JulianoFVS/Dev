@@ -18,11 +18,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-slate-50 font-poppins">
-      <div className="hidden shrink-0 py-2 pl-2 sm:block md:py-2.5 md:pl-2.5">
+      <div className="hidden shrink-0 py-2.5 pl-2.5 sm:block md:py-3 md:pl-3">
         <DashboardSidebar />
       </div>
 
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-slate-50">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-slate-50 pr-2.5 md:pr-3">
         <div className="flex shrink-0 items-center justify-between gap-2 border-b border-slate-200 bg-white px-3 py-2.5 sm:hidden">
           <img src="/landing/ortus-wordmark.svg" alt="ortus" className="h-5 w-auto" />
           <Link
