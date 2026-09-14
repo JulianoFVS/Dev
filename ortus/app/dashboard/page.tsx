@@ -9,15 +9,18 @@ import { carregarConfig } from '@/lib/configClinica';
 import { usePatientSlideOver } from '@/components/PatientSlideOver';
 import {
   ArrowUpRight,
+  Bell,
   CalendarDays,
   Check,
   FileText,
   Loader2,
+  Mail,
   Plus,
   Search,
   Settings,
   Users,
 } from 'lucide-react';
+import { useInboxCounts } from '@/hooks/useInboxCounts';
 
 type AgendaItem = {
   id: string;
@@ -254,6 +257,7 @@ export default function Dashboard() {
   const [fiados, setFiados] = useState<{ id: string; valor_final?: number | null; pacientes?: { id?: string; nome?: string } | null }[]>([]);
   const { activeClinicId, activeClinic, clinics, loading: clinicLoading } = useClinica();
   const { openPatient } = usePatientSlideOver();
+  const { mensagensCount, notificacoesCount } = useInboxCounts();
   const jaCarregou = useRef(false);
   const reqId = useRef(0);
   const periodoReqId = useRef(0);
@@ -526,6 +530,26 @@ export default function Dashboard() {
             >
               <Search size={18} />
             </button>
+            <Link
+              href="/mensagens"
+              className="relative flex h-11 w-11 items-center justify-center rounded-full border border-black/10 bg-white text-neutral-700 hover:bg-neutral-50"
+              title="Mensagens"
+            >
+              <Mail size={18} />
+              {mensagensCount > 0 && (
+                <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-neutral-900 ring-2 ring-white" aria-hidden />
+              )}
+            </Link>
+            <Link
+              href="/inbox"
+              className="relative flex h-11 w-11 items-center justify-center rounded-full border border-black/10 bg-white text-neutral-700 hover:bg-neutral-50"
+              title="Notificações"
+            >
+              <Bell size={18} />
+              {notificacoesCount > 0 && (
+                <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-red-500 ring-2 ring-white" aria-hidden />
+              )}
+            </Link>
             <Link
               href="/configuracoes"
               className="flex h-11 w-11 items-center justify-center rounded-full border border-black/10 bg-white text-neutral-700 hover:bg-neutral-50"

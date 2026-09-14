@@ -7,6 +7,7 @@ import {
   BarChart3,
   Calendar,
   CheckSquare,
+  ClipboardList,
   ChevronLeft,
   ChevronRight,
   DollarSign,
@@ -18,10 +19,12 @@ import {
   User,
   Users,
 } from 'lucide-react';
+import BentoClinicSwitcher from '@/components/dashboard/BentoClinicSwitcher';
 
 export type DashboardSidebarNavOptions = {
   showTarefas?: boolean;
   showEquipe?: boolean;
+  showTratamentosBase?: boolean;
   showPainelSaas?: boolean;
   tarefasBadge?: number;
   profilePhotoUrl?: string | null;
@@ -124,16 +127,20 @@ function NavItem({
 export function DashboardMobileNav({
   showTarefas = true,
   showEquipe = true,
+  showTratamentosBase = true,
   showPainelSaas = false,
 }: DashboardSidebarNavOptions = {}) {
   const pathname = usePathname();
-  const extra = [
+  const mid = [
     showTarefas ? { href: '/tarefas', label: 'Tarefas', icon: CheckSquare } : null,
     showEquipe ? { href: '/ajustes/equipe', label: 'Equipe', icon: ShieldCheck } : null,
-    showPainelSaas ? { href: '/super-admin', label: 'Painel SaaS', icon: ShieldAlert } : null,
+    showTratamentosBase ? { href: '/ajustes/tratamentos', label: 'Tratamentos base', icon: ClipboardList } : null,
   ].filter(Boolean) as { href: string; label: string; icon: typeof LayoutDashboard }[];
+  const footer = showPainelSaas
+    ? [{ href: '/super-admin', label: 'Painel SaaS', icon: ShieldAlert }]
+    : [];
 
-  const all = [...LINKS, ...extra];
+  const all = [...LINKS, ...mid, ...footer];
 
   return (
     <>
@@ -160,6 +167,7 @@ export function DashboardMobileNav({
 export default function DashboardSidebar({
   showTarefas = true,
   showEquipe = true,
+  showTratamentosBase = true,
   showPainelSaas = false,
   tarefasBadge = 0,
   profilePhotoUrl = null,
@@ -192,9 +200,9 @@ export default function DashboardSidebar({
 
   return (
     <aside
-      className={`flex h-[calc(100vh-0.75rem)] shrink-0 flex-col overflow-hidden rounded-[1.75rem] bg-neutral-950 py-3 transition-[width] duration-200 ease-out sm:h-[calc(100vh-1rem)] sm:rounded-[2rem] md:rounded-[2.25rem] ${widthClass}`}
+      className={`flex h-[calc(100vh-0.75rem)] shrink-0 flex-col overflow-visible rounded-[1.75rem] bg-neutral-950 py-3 transition-[width] duration-200 ease-out sm:h-[calc(100vh-1rem)] sm:rounded-[2rem] md:rounded-[2.25rem] ${widthClass}`}
     >
-      <div className={`mb-4 ${collapsed ? 'flex justify-center px-2' : 'px-3'}`}>
+      <div className={`mb-2 ${collapsed ? 'flex justify-center px-2' : 'px-3'}`}>
         <Link
           href="/dashboard"
           title="ortus — Visão geral"
@@ -213,21 +221,19 @@ export default function DashboardSidebar({
         </Link>
       </div>
 
+      <div className={`mb-3 ${collapsed ? 'flex justify-center px-2' : 'px-2.5'}`}>
+        <BentoClinicSwitcher variant="sidebar" collapsed={collapsed} className={collapsed ? '' : 'w-full'} />
+      </div>
+
       <nav
-        className={`flex flex-1 flex-col gap-1 overflow-y-auto overflow-x-hidden ${collapsed ? 'items-center px-2' : 'px-2.5'}`}
+        className={`flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto overflow-x-hidden ${collapsed ? 'items-center px-2' : 'px-2.5'}`}
       >
         {LINKS.map((item) => (
           <NavItem key={item.href} href={item.href} label={item.label} Icon={item.icon} collapsed={collapsed} />
         ))}
-        {showPainelSaas && (
-          <>
-            <div className={`my-1.5 h-px bg-white/10 ${collapsed ? 'mx-2 w-7' : 'mx-1'}`} role="presentation" />
-            <NavItem href="/super-admin" label="Painel SaaS" Icon={ShieldAlert} collapsed={collapsed} />
-          </>
+        {(showTarefas || showEquipe || showTratamentosBase) && (
+          <div className={`my-1.5 h-px bg-white/10 ${collapsed ? 'mx-2 w-7' : 'mx-1'}`} role="presentation" />
         )}
-      </nav>
-
-      <div className={`mt-auto flex flex-col gap-1.5 ${collapsed ? 'items-center px-2' : 'px-2.5'}`}>
         {showTarefas && (
           <NavItem
             href="/tarefas"
@@ -240,7 +246,16 @@ export default function DashboardSidebar({
         {showEquipe && (
           <NavItem href="/ajustes/equipe" label="Equipe" Icon={ShieldCheck} collapsed={collapsed} />
         )}
-        {(showTarefas || showEquipe) && (
+        {showTratamentosBase && (
+          <NavItem href="/ajustes/tratamentos" label="Tratamentos base" Icon={ClipboardList} collapsed={collapsed} />
+        )}
+      </nav>
+
+      <div className={`mt-auto flex flex-col gap-1.5 ${collapsed ? 'items-center px-2' : 'px-2.5'}`}>
+        {showPainelSaas && (
+          <NavItem href="/super-admin" label="Painel SaaS" Icon={ShieldAlert} collapsed={collapsed} />
+        )}
+        {showPainelSaas && (
           <div className={`h-px bg-white/10 ${collapsed ? 'my-0.5 w-7' : 'mx-1 my-0.5'}`} role="presentation" />
         )}
         <button

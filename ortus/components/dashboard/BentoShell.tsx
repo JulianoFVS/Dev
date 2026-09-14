@@ -22,16 +22,13 @@ export default function BentoShell({
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-[1.75rem] bg-[#f3f4f1] shadow-[0_1px_0_rgba(0,0,0,0.04)] sm:rounded-[2rem] md:rounded-[2.25rem]">
         <div className="flex shrink-0 items-center justify-between gap-2 border-b border-black/5 bg-[#f3f4f1] px-3 py-2.5 sm:hidden">
-          <BentoClinicSwitcher className="min-w-0 flex-1" />
-          <Link
-            href="/agenda"
-            className="shrink-0 rounded-full bg-neutral-900 px-3 py-1.5 text-[11px] font-medium text-white"
-          >
-            + Agendar
-          </Link>
-        </div>
-        <div className="hidden shrink-0 items-center border-b border-black/5 bg-[#f3f4f1] px-4 py-2.5 sm:flex md:px-5">
-          <BentoClinicSwitcher className="max-w-md" />
+          <img src="/landing/ortus-wordmark.svg" alt="ortus" className="h-5 w-auto" />
+          <div className="flex shrink-0 items-center gap-2">
+            <BentoClinicSwitcher collapsed className="shrink-0" />
+            <Link href="/agenda" className="rounded-full bg-neutral-900 px-3 py-1.5 text-[11px] font-medium text-white">
+              + Agendar
+            </Link>
+          </div>
         </div>
         <div className="flex shrink-0 gap-1.5 overflow-x-auto border-b border-black/5 bg-[#f3f4f1] px-3 py-2 sm:hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <DashboardMobileNav {...sidebarNav} />

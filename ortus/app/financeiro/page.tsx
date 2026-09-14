@@ -510,7 +510,7 @@ export default function Financeiro() {
             <p className="mt-1 text-xl font-semibold text-amber-800 sm:text-2xl">R$ {resumo.andamento.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
           )}
         </section>
-        <section className={`${cardShell} border border-neutral-800 bg-neutral-950 p-4 text-white sm:p-5`}>
+        <section className="rounded-[1.35rem] border border-neutral-800 bg-neutral-950 p-4 text-white sm:rounded-[1.5rem] sm:p-5">
           <div className="mb-2 flex items-center justify-between">
             <span className="rounded-full bg-white/10 p-2 text-[#c8f053]"><Wallet size={18} /></span>
             <span className="text-[10px] font-semibold uppercase tracking-wide text-white/70">Resultado</span>

@@ -19,7 +19,15 @@ import { useClinica, getClinicLabel } from '@/app/context/ClinicaContext';
 import type { ModuleName } from '@/lib/types/permissions';
 import { buildModuleAccessMap } from '@/lib/modules';
 import { moduleForPath } from '@/lib/permissionPresets';
-import { clearAuthCookies, setAuthMarkerCookie, syncModuleAccessCookie } from '@/lib/authCookies';
+import {
+  clearAuthCookies,
+  clearSuperAdminCache,
+  readModuleAccessMapFromCookie,
+  readSuperAdminCache,
+  setAuthMarkerCookie,
+  syncModuleAccessCookie,
+  writeSuperAdminCache,
+} from '@/lib/authCookies';
 
 function CadeirasOcupadas({ recolhido }: { recolhido: boolean }) {
   const { clinics, activeClinicId, loading } = useClinica();
@@ -101,7 +109,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const [notificacoesCount, setNotificacoesCount] = useState(0);
   const [mensagensCount, setMensagensCount] = useState(0);
   const [tarefasPendentes, setTarefasPendentes] = useState(0);
-  const [moduleAccess, setModuleAccess] = useState<Record<ModuleName, boolean>>(() => buildModuleAccessMap(false));
+  const [moduleAccess, setModuleAccess] = useState<Record<ModuleName, boolean>>(() => readModuleAccessMapFromCookie(false));
   const [permissoesResolvidas, setPermissoesResolvidas] = useState(false);
   
   const router = useRouter();
@@ -116,6 +124,10 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     validarSessao();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (perfil) writeSuperAdminCache(!!perfil.is_super_admin);
+  }, [perfil?.is_super_admin]);
 
   useEffect(() => {
     if (!sessaoPronta.current || !session || !perfil) return;
@@ -227,6 +239,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     const { data: prof } = await supabase.from('profissionais').select('*').eq('user_id', sess.user.id).single();
     if (prof) {
       setPerfil(prof);
+      writeSuperAdminCache(!!prof.is_super_admin);
       if (prof.precisa_trocar_senha && pathname !== '/primeiro-acesso') {
         router.replace('/primeiro-acesso');
         setLoading(false);
@@ -304,6 +317,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
       await supabase.auth.signOut();
       localStorage.removeItem('ortus_clinica_id');
       clearAuthCookies();
+      clearSuperAdminCache();
       router.push('/login');
   }
 
@@ -394,9 +408,10 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
         <PatientActionModalProvider>
           <BentoShell
             sidebarNav={{
-              showTarefas: canAccessModule('agenda'),
-              showEquipe: canAccessModule('configuracoes'),
-              showPainelSaas: !!perfil?.is_super_admin,
+              showTarefas: !permissoesResolvidas || canAccessModule('agenda'),
+              showEquipe: !permissoesResolvidas || canAccessModule('configuracoes'),
+              showTratamentosBase: !permissoesResolvidas || canAccessModule('configuracoes'),
+              showPainelSaas: !!perfil?.is_super_admin || (!perfil && readSuperAdminCache()),
               tarefasBadge: tarefasPendentes,
               profilePhotoUrl: perfil?.foto_url ?? null,
               profileName: perfil?.nome ?? null,
