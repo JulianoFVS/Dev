@@ -46,6 +46,12 @@
   --ortus-accent-700: 51 65 85;
 }
 
+html.ortus-dashboard-fixed,
+body.ortus-dashboard-fixed {
+  overflow: hidden;
+  height: 100%;
+}
+
 html {
   scrollbar-width: thin;
   scrollbar-color: #c7c7cc transparent;

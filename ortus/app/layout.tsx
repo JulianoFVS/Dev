@@ -32,8 +32,8 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="pt-BR">
-      <body className={`${inter.className} ${poppins.variable}`}>
+    <html lang="pt-BR" className="h-full">
+      <body className={`${inter.className} ${poppins.variable} h-full min-h-0`}>
         <CustomAlertProvider>
           <ClinicaProvider>
             <ThemeProvider>

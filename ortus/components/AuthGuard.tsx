@@ -358,6 +358,17 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const filteredNavLinks = navLinks.filter((link) => canAccessModule(link.module));
   const filteredFooterLinks = footerLinks.filter((link) => canAccessModule(link.module));
 
+  if (isDashboard) {
+    return (
+      <PatientSlideOverProvider>
+        <PatientActionModalProvider>
+          {children}
+          <Omnibar moduleAccess={moduleAccess} isAdmin={isPerfilAdmin} />
+        </PatientActionModalProvider>
+      </PatientSlideOverProvider>
+    );
+  }
+
   return (
     <PatientSlideOverProvider>
     <PatientActionModalProvider>

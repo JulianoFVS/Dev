@@ -443,59 +443,77 @@ export default function Dashboard() {
   const materiais = tratamentos.map((t) => t.observacoes).filter(Boolean).join(' · ') || emAtendimento?.observacoes;
   const graficoLabel = periodo === 'hoje' ? 'Recebimentos por hora · Hoje' : periodo === 'semana' ? 'Recebimentos por dia · Semana' : 'Recebimentos por semana · Mês';
 
+  const card = 'min-h-0 rounded-3xl border border-zinc-200 bg-zinc-50';
+
   return (
-    <div className="mx-auto w-full max-w-[1180px] space-y-5 pb-10 font-poppins">
-      <header className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="min-w-0">
-          <h1 className="text-[22px] font-semibold tracking-[-0.03em] text-[#1d1d1f] md:text-[26px]">Visão Geral</h1>
-          <p className="mt-0.5 truncate text-[13px] capitalize text-[#6e6e73]">
-            {dataTitulo} · {clinicaNome}
-          </p>
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
+      <header className="mb-3 shrink-0 md:mb-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0">
+            <h1 className="text-xl font-semibold tracking-tight text-zinc-900 sm:text-2xl md:text-[1.65rem]">
+              Visão Geral
+            </h1>
+            <p className="mt-0.5 truncate text-xs capitalize text-zinc-500 sm:text-[13px]">
+              {dataTitulo} · {clinicaNome}
+            </p>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <button
+              type="button"
+              onClick={abrirBusca}
+              className="flex h-9 w-full items-center gap-2 rounded-full border border-zinc-200 bg-white px-3 text-xs text-zinc-400 sm:min-w-[200px] md:min-w-[240px] md:text-[13px]"
+            >
+              <Search size={14} />
+              <span className="truncate">Buscar paciente ou procedimento</span>
+            </button>
+            <Link
+              href="/agenda"
+              className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-full bg-zinc-900 px-4 text-xs font-medium text-white md:text-[13px]"
+            >
+              <Plus size={15} />
+              Novo agendamento
+            </Link>
+          </div>
         </div>
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <button
-            type="button"
-            onClick={abrirBusca}
-            className="flex h-10 w-full items-center gap-2 rounded-full border border-black/[0.08] bg-[#f7f7f8] px-3.5 text-[13px] text-[#aeaeb2] hover:border-black/[0.14] sm:min-w-[240px] lg:min-w-[280px]"
-          >
-            <Search size={14} />
-            <span className="truncate">Buscar paciente ou procedimento</span>
-          </button>
-          <Link
-            href="/agenda"
-            className="inline-flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-full bg-ortus-blue px-4 text-[13px] font-medium text-white hover:bg-ortus-blueDark"
-          >
-            <Plus size={15} />
-            Novo agendamento
-          </Link>
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {['Visão do dia', 'Agenda', 'Financeiro', 'Pendências'].map((tab, i) => (
+            <span
+              key={tab}
+              className={`rounded-full px-3 py-1 text-[11px] font-medium sm:text-xs ${
+                i === 0 ? 'bg-zinc-900 text-white' : 'bg-zinc-100 text-zinc-600'
+              }`}
+            >
+              {tab}
+            </span>
+          ))}
         </div>
       </header>
 
       {loading && !jaCarregou.current ? (
-        <div className="flex h-[40vh] items-center justify-center text-[#aeaeb2]">
+        <div className="flex flex-1 items-center justify-center text-zinc-400">
           <Loader2 className="animate-spin" />
         </div>
       ) : (
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_300px] xl:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="space-y-4">
-          <section className="rounded-2xl border border-black/[0.06] bg-white p-4 md:p-5">
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-hidden lg:grid-cols-12 lg:gap-4">
+        <div className="flex min-h-0 flex-col gap-3 overflow-hidden lg:col-span-7 xl:col-span-8">
+          <section className={`${card} flex min-h-0 flex-[1.15] flex-col overflow-hidden p-3 sm:p-4`}>
             {emAtendimento ? (
               <>
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-[12px] text-[#6e6e73]">
-                      <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-[#1e8e3e] align-middle" />
+                    <p className="text-[11px] text-zinc-500 sm:text-xs">
+                      <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-emerald-500 align-middle" />
                       Em atendimento · Cadeira {cadeiraAtual} · {hora(emAtendimento.data_hora)}–{duracaoMin} min
                     </p>
-                    <div className="mt-3 flex items-center gap-3">
-                      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#eaf2fd] text-[12px] font-semibold text-ortus-blue">
+                    <div className="mt-2 flex items-center gap-3 sm:mt-3">
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-[11px] font-semibold text-zinc-800 ring-1 ring-zinc-200 sm:h-11 sm:w-11">
                         {iniciais(paciente?.nome)}
                       </span>
                       <div className="min-w-0">
-                        <h2 className="truncate text-[20px] font-semibold tracking-[-0.02em] text-[#1d1d1f] md:text-[22px]">
+                        <h2 className="truncate text-lg font-semibold tracking-tight text-zinc-900 sm:text-xl">
                           {paciente?.nome || 'Paciente'}
                         </h2>
-                        <p className="truncate text-[13px] text-[#6e6e73]">
+                        <p className="truncate text-xs text-zinc-500 sm:text-[13px]">
                           {emAtendimento.procedimento || 'Consulta'}
                           {anos != null ? ` · ${anos} anos` : ''}
                           {` · ${planoNome(paciente?.planos)}`}
@@ -508,7 +526,7 @@ export default function Dashboard() {
                       type="button"
                       onClick={concluirAtual}
                       disabled={concluindo}
-                      className="inline-flex h-9 items-center gap-1.5 rounded-full bg-ortus-blue px-3.5 text-[13px] font-medium text-white hover:bg-ortus-blueDark disabled:opacity-60"
+                      className="inline-flex h-8 items-center gap-1.5 rounded-full bg-zinc-900 px-3 text-xs font-medium text-white disabled:opacity-60 sm:h-9 sm:text-[13px]"
                     >
                       {concluindo ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}
                       Concluir
@@ -516,14 +534,14 @@ export default function Dashboard() {
                     <button
                       type="button"
                       onClick={() => openPatient(paciente?.id)}
-                      className="flex h-9 w-9 items-center justify-center rounded-full border border-black/[0.08] text-[#6e6e73] hover:bg-[#f5f5f7]"
+                      className="flex h-8 w-8 items-center justify-center rounded-full border border-zinc-200 bg-white text-zinc-600 sm:h-9 sm:w-9"
                       title="Abrir ficha"
                     >
                       <FileText size={15} />
                     </button>
                     <Link
                       href="/agenda"
-                      className="flex h-9 w-9 items-center justify-center rounded-full border border-black/[0.08] text-[#6e6e73] hover:bg-[#f5f5f7]"
+                      className="flex h-8 w-8 items-center justify-center rounded-full border border-zinc-200 bg-white text-zinc-600 sm:h-9 sm:w-9"
                       title="Mais"
                     >
                       <MoreHorizontal size={15} />
@@ -531,23 +549,23 @@ export default function Dashboard() {
                   </div>
                 </div>
 
-                <div className="mt-5 grid grid-cols-1 gap-3 border-t border-black/[0.05] pt-4 sm:grid-cols-3">
+                <div className="mt-3 grid grid-cols-3 gap-2 border-t border-zinc-200/80 pt-3">
                   <div>
-                    <p className="text-[11px] font-medium uppercase tracking-[0.04em] text-[#aeaeb2]">Alergias</p>
-                    <p className="mt-1 text-[13px] font-medium text-[#ea8600]">{alergiaDe(paciente?.ficha_medica)}</p>
+                    <p className="text-[10px] font-medium uppercase tracking-wide text-zinc-400">Alergias</p>
+                    <p className="mt-0.5 line-clamp-2 text-xs font-medium text-amber-700">{alergiaDe(paciente?.ficha_medica)}</p>
                   </div>
                   <div>
-                    <p className="text-[11px] font-medium uppercase tracking-[0.04em] text-[#aeaeb2]">Última visita</p>
-                    <p className="mt-1 text-[13px] text-[#1d1d1f]">{ultimaVisita || 'Primeira sessão'}</p>
+                    <p className="text-[10px] font-medium uppercase tracking-wide text-zinc-400">Última visita</p>
+                    <p className="mt-0.5 text-xs text-zinc-800">{ultimaVisita || 'Primeira sessão'}</p>
                   </div>
                   <div>
-                    <p className="text-[11px] font-medium uppercase tracking-[0.04em] text-[#aeaeb2]">Saldo em aberto</p>
-                    <p className={`mt-1 text-[13px] font-medium ${saldoAberto > 0 ? 'text-[#d93025]' : 'text-[#1e8e3e]'}`}>{moeda(saldoAberto)}</p>
+                    <p className="text-[10px] font-medium uppercase tracking-wide text-zinc-400">Saldo em aberto</p>
+                    <p className={`mt-0.5 text-xs font-medium ${saldoAberto > 0 ? 'text-red-600' : 'text-emerald-700'}`}>{moeda(saldoAberto)}</p>
                   </div>
                 </div>
 
-                <div className="mt-5">
-                  <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.04em] text-[#aeaeb2]">Plano desta sessão</p>
+                <div className="mt-3 min-h-0 flex-1 overflow-y-auto">
+                  <p className="mb-1.5 text-[10px] font-medium uppercase tracking-wide text-zinc-400">Plano desta sessão</p>
                   {tratamentos.length === 0 ? (
                     <p className="text-[13px] text-[#aeaeb2]">{emAtendimento.procedimento || 'Sem procedimentos lançados nesta ficha.'}</p>
                   ) : (
@@ -555,11 +573,11 @@ export default function Dashboard() {
                       {tratamentos.map((t) => {
                         const feito = t.status === 'concluido';
                         return (
-                          <li key={t.id} className="flex items-center gap-2.5 border-t border-black/[0.05] py-2.5 first:border-t-0">
-                            <span className={`flex h-4 w-4 items-center justify-center rounded border ${feito ? 'border-ortus-blue bg-ortus-blue text-white' : 'border-[#d2d2d7] bg-white'}`}>
+                          <li key={t.id} className="flex items-center gap-2 border-t border-zinc-200/80 py-2 first:border-t-0">
+                            <span className={`flex h-3.5 w-3.5 items-center justify-center rounded border ${feito ? 'border-zinc-800 bg-zinc-800 text-white' : 'border-zinc-300 bg-white'}`}>
                               {feito && <Check size={10} strokeWidth={3} />}
                             </span>
-                            <span className={`text-[14px] ${feito ? 'text-[#6e6e73]' : 'text-[#1d1d1f]'}`}>{t.procedimento}</span>
+                            <span className={`text-xs sm:text-sm ${feito ? 'text-zinc-500' : 'text-zinc-900'}`}>{t.procedimento}</span>
                           </li>
                         );
                       })}
@@ -567,26 +585,26 @@ export default function Dashboard() {
                   )}
                 </div>
 
-                <p className="mt-4 border-t border-black/[0.05] pt-3 text-[12px] text-[#6e6e73]">
+                <p className="mt-2 shrink-0 border-t border-zinc-200/80 pt-2 text-[11px] text-zinc-500">
                   Materiais reservados · {materiais || 'nenhum item lançado nesta sessão'}
                 </p>
               </>
             ) : (
-              <div className="py-10 text-center">
-                <p className="text-[15px] font-medium text-[#1d1d1f]">Nenhum atendimento em curso</p>
-                <p className="mt-1 text-[13px] text-[#6e6e73]">A fila do dia está livre neste momento.</p>
-                <Link href="/agenda" className="mt-4 inline-flex h-9 items-center rounded-full bg-ortus-blue px-4 text-[13px] font-medium text-white">
+              <div className="flex flex-1 flex-col items-center justify-center py-6 text-center">
+                <p className="text-sm font-medium text-zinc-900">Nenhum atendimento em curso</p>
+                <p className="mt-1 text-xs text-zinc-500">A fila do dia está livre neste momento.</p>
+                <Link href="/agenda" className="mt-3 inline-flex h-8 items-center rounded-full bg-zinc-900 px-4 text-xs font-medium text-white">
                   Novo agendamento
                 </Link>
               </div>
             )}
           </section>
 
-          <section className="rounded-2xl border border-black/[0.06] bg-white p-4 md:p-5">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex min-w-0 flex-wrap items-center gap-3">
-                <h3 className="text-[15px] font-semibold text-[#1d1d1f]">Saúde financeira</h3>
-                <div className="flex rounded-full bg-[#f5f5f7] p-0.5">
+          <section className={`${card} flex min-h-0 flex-1 flex-col overflow-hidden p-3 sm:p-4`}>
+            <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
+                <h3 className="text-sm font-semibold text-zinc-900">Saúde financeira</h3>
+                <div className="flex rounded-full bg-white p-0.5 ring-1 ring-zinc-200">
                   {([
                     ['hoje', 'Hoje'],
                     ['semana', 'Semana'],
@@ -596,50 +614,48 @@ export default function Dashboard() {
                       key={id}
                       type="button"
                       onClick={() => setPeriodo(id)}
-                      className={`rounded-full px-2.5 py-0.5 text-[12px] font-medium transition-colors ${periodo === id ? 'bg-white text-[#1d1d1f] shadow-sm' : 'text-[#6e6e73] hover:text-[#1d1d1f]'}`}
+                      className={`rounded-full px-2 py-0.5 text-[11px] font-medium transition-colors sm:text-xs ${
+                        periodo === id ? 'bg-zinc-900 text-white' : 'text-zinc-600 hover:text-zinc-900'
+                      }`}
                     >
                       {label}
                     </button>
                   ))}
                 </div>
               </div>
-              <Link href="/financeiro" className="inline-flex items-center gap-1 text-[13px] font-medium text-ortus-blue">
-                Fechamento de caixa <ArrowUpRight size={13} />
+              <Link href="/financeiro" className="inline-flex items-center gap-1 text-xs font-medium text-zinc-700">
+                Fechamento de caixa <ArrowUpRight size={12} />
               </Link>
             </div>
 
-            <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
-              <div>
-                <p className="text-[11px] font-medium uppercase tracking-[0.04em] text-[#aeaeb2]">Recebido</p>
-                <p className="mt-1 text-[22px] font-semibold tracking-[-0.03em] text-[#1e8e3e]">{moeda(financeiro.recebido)}</p>
-                <p className="text-[12px] text-[#6e6e73]">{financeiro.pagamentos} pagamento{financeiro.pagamentos === 1 ? '' : 's'}</p>
+            <div className="mt-3 grid shrink-0 grid-cols-3 gap-2">
+              <div className="rounded-2xl border border-zinc-200 bg-white p-2.5 sm:p-3">
+                <p className="text-[10px] font-medium uppercase tracking-wide text-zinc-400">Recebido</p>
+                <p className="mt-0.5 text-base font-semibold text-emerald-700 sm:text-lg">{moeda(financeiro.recebido)}</p>
+                <p className="text-[10px] text-zinc-500 sm:text-xs">{financeiro.pagamentos} pag.</p>
               </div>
-              <div>
-                <p className="text-[11px] font-medium uppercase tracking-[0.04em] text-[#aeaeb2]">Previsto restante</p>
-                <p className="mt-1 text-[22px] font-semibold tracking-[-0.03em] text-[#1d1d1f]">{moeda(financeiro.previsto)}</p>
-                <p className="text-[12px] text-[#6e6e73]">
-                  {financeiro.restantes} atendimento{financeiro.restantes === 1 ? '' : 's'} {periodo === 'hoje' ? 'até o fim do dia' : 'no período'}
-                </p>
+              <div className="rounded-2xl border border-zinc-200 bg-lime-100/80 p-2.5 sm:p-3">
+                <p className="text-[10px] font-medium uppercase tracking-wide text-zinc-600">Previsto</p>
+                <p className="mt-0.5 text-base font-semibold text-zinc-900 sm:text-lg">{moeda(financeiro.previsto)}</p>
+                <p className="text-[10px] text-zinc-600 sm:text-xs">{financeiro.restantes} rest.</p>
               </div>
-              <div>
-                <p className="text-[11px] font-medium uppercase tracking-[0.04em] text-[#aeaeb2]">Em atraso</p>
-                <p className="mt-1 text-[22px] font-semibold tracking-[-0.03em] text-[#ea8600]">{moeda(financeiro.atraso)}</p>
-                <p className="text-[12px] text-[#6e6e73]">{financeiro.atrasados} paciente{financeiro.atrasados === 1 ? '' : 's'}</p>
+              <div className="rounded-2xl border border-zinc-200 bg-white p-2.5 sm:p-3">
+                <p className="text-[10px] font-medium uppercase tracking-wide text-zinc-400">Em atraso</p>
+                <p className="mt-0.5 text-base font-semibold text-amber-700 sm:text-lg">{moeda(financeiro.atraso)}</p>
+                <p className="text-[10px] text-zinc-500 sm:text-xs">{financeiro.atrasados} pac.</p>
               </div>
             </div>
 
-            <div className="mt-6">
-              <div className="mb-2 flex items-center justify-between text-[12px] text-[#6e6e73]">
-                <span>{graficoLabel}</span>
-              </div>
-              <div className="flex h-24 items-end gap-1.5 sm:gap-2">
+            <div className="mt-3 flex min-h-0 flex-1 flex-col">
+              <p className="mb-1.5 shrink-0 text-[11px] text-zinc-500">{graficoLabel}</p>
+              <div className="flex min-h-[4.5rem] flex-1 items-end gap-1 sm:gap-1.5">
                 {barras.map((item) => (
                   <div key={item.rotulo} className="flex flex-1 flex-col items-center gap-1">
                     <div
-                      className="w-full rounded-t-sm bg-ortus-blue/80"
-                      style={{ height: `${Math.max(item.valor > 0 ? 12 : 4, (item.valor / maxBarra) * 72)}px` }}
+                      className="w-full max-w-[2rem] rounded-full bg-zinc-800 sm:max-w-none"
+                      style={{ height: `${Math.max(item.valor > 0 ? 10 : 4, (item.valor / maxBarra) * 56)}px` }}
                     />
-                    <span className="text-[10px] text-[#aeaeb2]">{item.rotulo}</span>
+                    <span className="text-[9px] text-zinc-400 sm:text-[10px]">{item.rotulo}</span>
                   </div>
                 ))}
               </div>
@@ -647,26 +663,26 @@ export default function Dashboard() {
           </section>
         </div>
 
-        <aside className="space-y-4">
-          <section className="overflow-hidden rounded-2xl border border-black/[0.06] bg-white">
-            <div className="flex items-center justify-between px-4 py-3">
-              <h3 className="text-[15px] font-semibold text-[#1d1d1f]">Fila do dia</h3>
-              <span className="text-[12px] text-[#aeaeb2]">{agendaHoje.length}</span>
+        <aside className="flex min-h-0 flex-col gap-3 overflow-hidden lg:col-span-5 xl:col-span-4">
+          <section className={`${card} flex min-h-0 flex-1 flex-col overflow-hidden bg-white`}>
+            <div className="flex shrink-0 items-center justify-between border-b border-zinc-200/80 px-3 py-2.5 sm:px-4">
+              <h3 className="text-sm font-semibold text-zinc-900">Fila do dia</h3>
+              <span className="text-xs text-zinc-400">{agendaHoje.length}</span>
             </div>
             {fila.length === 0 ? (
-              <p className="px-4 pb-4 text-[13px] text-[#aeaeb2]">Nenhuma consulta hoje.</p>
+              <p className="p-4 text-xs text-zinc-400">Nenhuma consulta hoje.</p>
             ) : (
-              <ul>
+              <ul className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
                 {fila.map((linha) => {
                   if (linha.tipo === 'livre') {
                     return (
                       <li key={linha.id}>
                         <Link
                           href="/agenda"
-                          className="grid grid-cols-[52px_1fr] gap-2 border-t border-black/[0.05] px-4 py-2.5 text-[#aeaeb2] hover:bg-[#fafafa]"
+                          className="grid grid-cols-[48px_1fr] gap-2 border-b border-zinc-100 px-3 py-2 text-zinc-400 last:border-0 sm:px-4"
                         >
-                          <span className="text-[13px] tabular-nums">{linha.inicio}</span>
-                          <p className="text-[13px]">Horário livre</p>
+                          <span className="text-xs tabular-nums">{linha.inicio}</span>
+                          <p className="text-xs">Horário livre</p>
                         </Link>
                       </li>
                     );
@@ -676,12 +692,14 @@ export default function Dashboard() {
                     <li key={linha.id}>
                       <Link
                         href={linha.ag.pacientes?.id ? `/pacientes/${linha.ag.pacientes.id}` : '/agenda'}
-                        className={`grid grid-cols-[52px_1fr] gap-2 border-t border-black/[0.05] px-4 py-2.5 ${atual ? 'bg-[#eaf2fd]' : 'hover:bg-[#fafafa]'}`}
+                        className={`grid grid-cols-[48px_1fr] gap-2 border-b border-zinc-100 px-3 py-2 last:border-0 sm:px-4 ${
+                          atual ? 'bg-lime-50' : 'hover:bg-zinc-50'
+                        }`}
                       >
-                        <span className="text-[13px] font-medium tabular-nums text-[#1d1d1f]">{hora(linha.ag.data_hora)}</span>
+                        <span className="text-xs font-medium tabular-nums text-zinc-900">{hora(linha.ag.data_hora)}</span>
                         <div className="min-w-0">
-                          <p className="truncate text-[13px] font-medium text-[#1d1d1f]">{linha.ag.pacientes?.nome || 'Horário'}</p>
-                          <p className="truncate text-[12px] text-[#6e6e73]">
+                          <p className="truncate text-xs font-medium text-zinc-900">{linha.ag.pacientes?.nome || 'Horário'}</p>
+                          <p className="truncate text-[11px] text-zinc-500">
                             {linha.ag.status === 'concluido' ? 'Concluído · ' : ''}
                             {linha.ag.procedimento || 'Consulta'}
                             {` · Cadeira ${linha.cadeira}`}
@@ -695,20 +713,20 @@ export default function Dashboard() {
             )}
           </section>
 
-          <section className="overflow-hidden rounded-2xl border border-black/[0.06] bg-white">
-            <div className="flex items-center justify-between px-4 py-3">
-              <h3 className="text-[15px] font-semibold text-[#1d1d1f]">Pendências que travam o dia</h3>
-              <Link href="/tarefas" className="text-[12px] font-medium text-ortus-blue">Ver</Link>
+          <section className={`${card} flex min-h-0 flex-[0.85] flex-col overflow-hidden bg-white`}>
+            <div className="flex shrink-0 items-center justify-between border-b border-zinc-200/80 px-3 py-2.5 sm:px-4">
+              <h3 className="text-sm font-semibold text-zinc-900">Pendências que travam o dia</h3>
+              <Link href="/tarefas" className="text-[11px] font-medium text-zinc-600">Ver</Link>
             </div>
             {pendencias.length === 0 ? (
-              <p className="px-4 pb-4 text-[13px] text-[#aeaeb2]">Nada travando o dia.</p>
+              <p className="p-4 text-xs text-zinc-400">Nada travando o dia.</p>
             ) : (
-              <ul>
+              <ul className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
                 {pendencias.map((item) => (
                   <li key={item.id}>
-                    <Link href={item.href} className="block border-t border-black/[0.05] px-4 py-2.5 hover:bg-[#fafafa]">
-                      <p className="truncate text-[13px] font-medium text-[#1d1d1f]">{item.titulo}</p>
-                      <p className="truncate text-[12px] text-[#6e6e73]">{item.detalhe}</p>
+                    <Link href={item.href} className="block border-b border-zinc-100 px-3 py-2.5 last:border-0 hover:bg-zinc-50 sm:px-4">
+                      <p className="truncate text-xs font-medium text-zinc-900">{item.titulo}</p>
+                      <p className="truncate text-[11px] text-zinc-500">{item.detalhe}</p>
                     </Link>
                   </li>
                 ))}
