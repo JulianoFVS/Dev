@@ -1,5 +1,6 @@
 'use client';
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { clinicScope, readRouteCache, writeRouteCache } from '@/lib/routeListCache';
 import { useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useClinica, getClinicLabel } from '@/app/context/ClinicaContext';
@@ -82,13 +83,24 @@ const formatValorComissao = (tipo: string, valor: number) => (
         : `R$ ${Number(valor).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 );
 
+const EQUIPE_CACHE_KEY = 'ortus:equipe:v1';
+
+function readEquipeBoot(): Profissional[] | null {
+    if (typeof localStorage === 'undefined') return null;
+    const cid = localStorage.getItem('ortus_clinica_id');
+    const clinicId = !cid || cid === 'all' || cid === 'todas' ? 'all' : cid;
+    return readRouteCache<Profissional[]>(EQUIPE_CACHE_KEY, clinicScope(clinicId));
+}
+
 export default function EquipePage() {
     const searchParams = useSearchParams();
     const { clinics, loading: clinicLoading, activeClinicId } = useClinica();
     const { showAlert, showConfirm } = useCustomAlert();
 
-    const [profissionais, setProfissionais] = useState<Profissional[]>([]);
-    const [loading, setLoading] = useState(true);
+    const bootEquipe = readEquipeBoot();
+    const fetchGen = useRef(0);
+    const [profissionais, setProfissionais] = useState<Profissional[]>(() => bootEquipe ?? []);
+    const [loading, setLoading] = useState(() => !(bootEquipe?.length));
     const [perfilCaller, setPerfilCaller] = useState<any>(null);
 
     // Modal de criação
@@ -140,31 +152,39 @@ export default function EquipePage() {
         return registro?.nome || 'Clínica selecionada';
     }, [activeClinicId, clinics]);
 
-    useEffect(() => { carregar(); }, []);
+    useEffect(() => {
+        if (clinicLoading) return;
+        const cached = readRouteCache<Profissional[]>(EQUIPE_CACHE_KEY, clinicScope(activeClinicId));
+        if (cached?.length) {
+            setProfissionais(cached);
+            setLoading(false);
+        }
+        carregar({ silent: !!cached?.length });
+    }, [clinicLoading, activeClinicId]);
 
-    async function carregar() {
-        setLoading(true);
+    async function carregar(opts?: { silent?: boolean }) {
+        const gen = ++fetchGen.current;
+        if (!opts?.silent) setLoading(true);
         try {
             const { data: { user } } = await supabase.auth.getUser();
-            if (!user) { setLoading(false); return; }
+            if (!user) { if (gen === fetchGen.current) setLoading(false); return; }
 
-            // Pega meu perfil só para o gate de acesso (admin/super admin)
             const { data: meu } = await supabase
                 .from('profissionais')
                 .select('id, nome, nivel_acesso, is_super_admin')
                 .eq('user_id', user.id)
                 .single();
-            setPerfilCaller(meu);
+            if (gen === fetchGen.current) setPerfilCaller(meu);
 
-            // Helper centralizado que aplica regras de visibilidade:
-            //  - super admin: todos
-            //  - demais: colegas das mesmas clínicas
-            const lista = await fetchUserEquipe();
-            setProfissionais(lista as any);
+            const lista = (await fetchUserEquipe()) as Profissional[];
+            if (gen !== fetchGen.current) return;
+
+            setProfissionais(lista);
+            writeRouteCache(EQUIPE_CACHE_KEY, clinicScope(activeClinicId), lista);
         } catch (e) {
             console.error(e);
         }
-        setLoading(false);
+        if (gen === fetchGen.current) setLoading(false);
     }
 
     function abrirModal() {
@@ -225,7 +245,7 @@ export default function EquipePage() {
 
             setModalOpen(false);
             setCredenciais({ nome: form.nome.trim(), email: json.email, senha: json.senha_temporaria });
-            await carregar();
+            await carregar({ silent: true });
         } catch (e: any) {
             setErro(e?.message || 'Erro inesperado.');
         }
@@ -860,7 +880,7 @@ export default function EquipePage() {
                 </button>
             }
         >
-            {(loading || clinicLoading) ? (
+            {loading && profissionais.length === 0 ? (
                 <div className="space-y-3">
                     <div className="h-32 animate-pulse rounded-[1.35rem] bg-neutral-200" />
                     <div className="h-64 animate-pulse rounded-[1.35rem] bg-neutral-100" />

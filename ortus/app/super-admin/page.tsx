@@ -1,5 +1,6 @@
 'use client';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { readRouteCache, writeRouteCache } from '@/lib/routeListCache';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import {
@@ -19,12 +20,19 @@ type Credenciais = {
     senha: string;
 };
 
+const SA_CACHE_KEY = 'ortus:super-admin:v1';
+const SA_SCOPE = 'global';
+
+type SaSnapshot = { redes: Rede[]; metricas: Metricas };
+
 export default function SuperAdminPage() {
     const router = useRouter();
+    const bootSa = typeof sessionStorage !== 'undefined' ? readRouteCache<SaSnapshot>(SA_CACHE_KEY, SA_SCOPE) : null;
+    const fetchGen = useRef(0);
     const [autorizado, setAutorizado] = useState<boolean | null>(null);
-    const [carregando, setCarregando] = useState(true);
-    const [redes, setRedes] = useState<Rede[]>([]);
-    const [metricas, setMetricas] = useState<Metricas>({ redes: 0, clinicas: 0, usuarios: 0 });
+    const [carregando, setCarregando] = useState(() => !bootSa);
+    const [redes, setRedes] = useState<Rede[]>(() => bootSa?.redes ?? []);
+    const [metricas, setMetricas] = useState<Metricas>(() => bootSa?.metricas ?? { redes: 0, clinicas: 0, usuarios: 0 });
 
     const [modalOpen, setModalOpen] = useState(false);
     const [salvando, setSalvando] = useState(false);
@@ -49,11 +57,18 @@ export default function SuperAdminPage() {
             return;
         }
         setAutorizado(true);
-        await carregar();
+        const snap = readRouteCache<SaSnapshot>(SA_CACHE_KEY, SA_SCOPE);
+        if (snap) {
+            setRedes(snap.redes);
+            setMetricas(snap.metricas);
+            setCarregando(false);
+        }
+        await carregar({ silent: !!snap });
     }
 
-    async function carregar() {
-        setCarregando(true);
+    async function carregar(opts?: { silent?: boolean }) {
+        const gen = ++fetchGen.current;
+        if (!opts?.silent) setCarregando(true);
         try {
             const [redesResp, clinicasResp, usuariosResp] = await Promise.all([
                 supabase.from('redes').select('id, nome, created_at').order('created_at', { ascending: false }),
@@ -61,16 +76,21 @@ export default function SuperAdminPage() {
                 supabase.from('profissionais').select('id', { count: 'exact', head: true }),
             ]);
 
-            setRedes((redesResp.data || []) as Rede[]);
-            setMetricas({
+            if (gen !== fetchGen.current) return;
+
+            const nextRedes = (redesResp.data || []) as Rede[];
+            const nextMetricas = {
                 redes: redesResp.data?.length || 0,
                 clinicas: clinicasResp.count || 0,
                 usuarios: usuariosResp.count || 0,
-            });
+            };
+            writeRouteCache(SA_CACHE_KEY, SA_SCOPE, { redes: nextRedes, metricas: nextMetricas });
+            setRedes(nextRedes);
+            setMetricas(nextMetricas);
         } catch (e) {
             console.error(e);
         }
-        setCarregando(false);
+        if (gen === fetchGen.current) setCarregando(false);
     }
 
     function abrirModal() {

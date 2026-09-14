@@ -1,6 +1,7 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
+import { clinicScope, readRouteCache, writeRouteCache } from '@/lib/routeListCache';
 import { 
     Plus, Search, Filter, Calendar, AlertCircle, CheckCircle, 
     User, Loader2, X, Save, Trash2, CheckSquare, ArrowRight, ArrowLeft,
@@ -44,16 +45,33 @@ interface Paciente {
     telefone: string | null;
 }
 
+const TAREFAS_CACHE_KEY = 'ortus:tarefas:v1';
+
+type TarefasSnapshot = {
+    tarefas: Tarefa[];
+    profissionais: Profissional[];
+    pacientes: Paciente[];
+};
+
+function readTarefasBoot(): TarefasSnapshot | null {
+    if (typeof localStorage === 'undefined') return null;
+    const cid = localStorage.getItem('ortus_clinica_id');
+    const clinicId = !cid || cid === 'all' || cid === 'todas' ? 'all' : cid;
+    return readRouteCache<TarefasSnapshot>(TAREFAS_CACHE_KEY, clinicScope(clinicId));
+}
+
 export default function Tarefas() {
-    const { activeClinicId } = useClinica();
+    const { activeClinicId, clinics, loading: clinicLoading } = useClinica();
+    const boot = readTarefasBoot();
+    const fetchGen = useRef(0);
     const { showAlert, showConfirm } = useCustomAlert();
     const router = useRouter();
     
-    const [tarefas, setTarefas] = useState<Tarefa[]>([]);
-    const [profissionais, setProfissionais] = useState<Profissional[]>([]);
-    const [pacientes, setPacientes] = useState<Paciente[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [clinicas, setClinicas] = useState<any[]>([]);
+    const [tarefas, setTarefas] = useState<Tarefa[]>(() => boot?.tarefas ?? []);
+    const [profissionais, setProfissionais] = useState<Profissional[]>(() => boot?.profissionais ?? []);
+    const [pacientes, setPacientes] = useState<Paciente[]>(() => boot?.pacientes ?? []);
+    const [loading, setLoading] = useState(() => !(boot?.tarefas?.length));
+    const clinicas = useMemo(() => clinics, [clinics]);
 
     // Filtros
     const [filtroStatus, setFiltroStatus] = useState<string>('todos');
@@ -78,53 +96,57 @@ export default function Tarefas() {
     });
 
     useEffect(() => {
-        carregarDados();
-    }, [activeClinicId]);
-
-    async function carregarDados() {
-        setLoading(true);
-        
-        const listaClinicas = await fetchUserClinicas();
-        setClinicas(listaClinicas);
-        
-        const clinicasIds = listaClinicas.map(c => c.id);
-        
-        if (clinicasIds.length === 0) {
+        if (clinicLoading) return;
+        const scope = clinicScope(activeClinicId);
+        const snap = readRouteCache<TarefasSnapshot>(TAREFAS_CACHE_KEY, scope);
+        if (snap) {
+            setTarefas(snap.tarefas);
+            setProfissionais(snap.profissionais);
+            setPacientes(snap.pacientes);
             setLoading(false);
+        }
+        carregarDados({ silent: !!snap });
+    }, [activeClinicId, clinicLoading]);
+
+    const clinicasIds = useMemo(() => {
+        if (activeClinicId && activeClinicId !== 'all') return [Number(activeClinicId)].filter(Number.isFinite);
+        return clinics.map((c) => Number(c.id)).filter(Number.isFinite);
+    }, [activeClinicId, clinics]);
+
+    async function carregarDados(opts?: { silent?: boolean }) {
+        const gen = ++fetchGen.current;
+        if (!opts?.silent) setLoading(true);
+
+        if (clinicasIds.length === 0) {
+            if (gen === fetchGen.current) setLoading(false);
             return;
         }
-        
-        // Carregar tarefas
-        const { data: tarefasData } = await supabase
-            .from('v_tarefas_completo')
-            .select('*')
-            .in('clinica_id', clinicasIds)
-            .order('data_limite', { ascending: true });
-        
-        setTarefas(tarefasData || []);
-        
-        // Carregar profissionais
-        const { data: vinculosData } = await supabase
-            .from('profissionais_clinicas')
-            .select('profissional_id')
-            .in('clinica_id', clinicasIds);
-        
-        const profissionalIds = [...new Set((vinculosData || []).map(v => v.profissional_id))];
-        
+
+        const [tarefasRes, vinculosRes, pacsRes] = await Promise.all([
+            supabase.from('v_tarefas_completo').select('*').in('clinica_id', clinicasIds).order('data_limite', { ascending: true }),
+            supabase.from('profissionais_clinicas').select('profissional_id').in('clinica_id', clinicasIds),
+            supabase.from('pacientes').select('id, nome, telefone').in('clinica_id', clinicasIds).order('nome'),
+        ]);
+
+        if (gen !== fetchGen.current) return;
+
+        const profissionalIds = [...new Set((vinculosRes.data || []).map((v) => v.profissional_id))];
         const { data: profsData } = profissionalIds.length > 0
             ? await supabase.from('profissionais').select('id, nome').in('id', profissionalIds)
-            : { data: [] };
-        
-        setProfissionais(profsData || []);
-        
-        // Carregar pacientes (para o select)
-        const { data: pacsData } = await supabase
-            .from('pacientes')
-            .select('id, nome, telefone')
-            .in('clinica_id', clinicasIds)
-            .order('nome');
-        
-        setPacientes(pacsData || []);
+            : { data: [] as Profissional[] };
+
+        if (gen !== fetchGen.current) return;
+
+        const snapshot: TarefasSnapshot = {
+            tarefas: (tarefasRes.data || []) as Tarefa[],
+            profissionais: profsData || [],
+            pacientes: (pacsRes.data || []) as Paciente[],
+        };
+        writeRouteCache(TAREFAS_CACHE_KEY, clinicScope(activeClinicId), snapshot);
+
+        setTarefas(snapshot.tarefas);
+        setProfissionais(snapshot.profissionais);
+        setPacientes(snapshot.pacientes);
         setLoading(false);
     }
 
@@ -201,7 +223,7 @@ export default function Tarefas() {
 
         setSalvando(false);
         setModalOpen(false);
-        carregarDados();
+        carregarDados({ silent: true });
     }
 
     async function excluirTarefa(id: string) {
@@ -211,14 +233,21 @@ export default function Tarefas() {
         if (error) showAlert('Erro ao excluir: ' + error.message, { type: 'error' });
         else {
             showAlert('Tarefa excluída!', { type: 'success' });
-            carregarDados();
+            carregarDados({ silent: true });
         }
     }
 
     async function moverStatus(id: string, novoStatus: 'a_fazer' | 'em_andamento' | 'concluido') {
+        const prev = tarefas;
+        setTarefas((list) => list.map((t) => (t.id === id ? { ...t, status: novoStatus } : t)));
         const { error } = await supabase.from('tarefas').update({ status: novoStatus }).eq('id', id);
-        if (error) showAlert('Erro ao mover: ' + error.message, { type: 'error' });
-        else carregarDados();
+        if (error) {
+            setTarefas(prev);
+            showAlert('Erro ao mover: ' + error.message, { type: 'error' });
+        } else {
+            const next = prev.map((t) => (t.id === id ? { ...t, status: novoStatus } : t));
+            writeRouteCache(TAREFAS_CACHE_KEY, clinicScope(activeClinicId), { tarefas: next, profissionais, pacientes });
+        }
     }
 
     // Filtrar tarefas
@@ -413,9 +442,11 @@ export default function Tarefas() {
                         </div>
                     </div>
 
-                    {loading ? (
-                        <div className="py-20 text-center text-neutral-400">
-                            <Loader2 className="animate-spin mx-auto mb-2"/> Carregando...
+                    {loading && tarefas.length === 0 ? (
+                        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                            {[1, 2, 3].map((i) => (
+                                <div key={i} className="min-h-[320px] animate-pulse rounded-2xl bg-neutral-200" />
+                            ))}
                         </div>
                     ) : tarefasFiltradas.length === 0 ? (
                         <div className="text-center py-16 text-neutral-400">

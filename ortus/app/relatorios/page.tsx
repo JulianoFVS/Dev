@@ -1,8 +1,8 @@
 'use client';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useClinica } from '@/app/context/ClinicaContext';
-import { fetchUserClinicas } from '@/lib/clinicScoped';
+import { clinicScope, readRouteCache, writeRouteCache } from '@/lib/routeListCache';
 import { carregarConfig } from '@/lib/configClinica';
 import CustomSelect from '@/components/ui/CustomSelect';
 import {
@@ -22,6 +22,27 @@ type Agendamento = {
 };
 
 type ReportType = 'resumo' | 'financeiro' | 'comparecimento' | 'fiados' | 'procedimentos';
+
+const REL_CACHE_KEY = 'ortus:relatorios:v1';
+
+type RelSnapshot = {
+    agendamentos: Agendamento[];
+    pacientesTotal: number;
+    despesas: any[];
+    profissionais: { id: number; nome: string }[];
+    meta: Record<string, unknown>;
+};
+
+function relScope(clinicId: string | 'all' | null, periodo: string) {
+    return `${clinicScope(clinicId)}:${periodo}`;
+}
+
+function readRelBoot(): RelSnapshot | null {
+    if (typeof localStorage === 'undefined') return null;
+    const cid = localStorage.getItem('ortus_clinica_id');
+    const clinicId = !cid || cid === 'all' || cid === 'todas' ? 'all' : cid;
+    return readRouteCache<RelSnapshot>(REL_CACHE_KEY, relScope(clinicId, 'mes'));
+}
 
 const REPORT_OPTIONS: { value: ReportType; label: string }[] = [
     { value: 'resumo', label: 'Resumo geral' },
@@ -43,13 +64,15 @@ function despesaCancelada(d: { id: string | number; status?: string }, meta: Rec
 }
 
 export default function Relatorios() {
-    const { activeClinicId, loading: clinicLoading } = useClinica();
-    const [loading, setLoading] = useState(true);
-    const [agendamentos, setAgendamentos] = useState<Agendamento[]>([]);
-    const [pacientesTotal, setPacientesTotal] = useState(0);
-    const [despesas, setDespesas] = useState<any[]>([]);
-    const [profissionais, setProfissionais] = useState<{ id: number; nome: string }[]>([]);
-    const [meta, setMeta] = useState<Record<string, unknown>>({});
+    const { activeClinicId, clinics, loading: clinicLoading } = useClinica();
+    const boot = readRelBoot();
+    const [loading, setLoading] = useState(() => !boot);
+    const [agendamentos, setAgendamentos] = useState<Agendamento[]>(() => boot?.agendamentos ?? []);
+    const [pacientesTotal, setPacientesTotal] = useState(() => boot?.pacientesTotal ?? 0);
+    const [despesas, setDespesas] = useState<any[]>(() => boot?.despesas ?? []);
+    const [profissionais, setProfissionais] = useState<{ id: number; nome: string }[]>(() => boot?.profissionais ?? []);
+    const [meta, setMeta] = useState<Record<string, unknown>>(() => boot?.meta ?? {});
+    const fetchGen = useRef(0);
 
     const [periodo, setPeriodo] = useState<'mes' | '3meses' | '6meses' | 'ano'>('mes');
     const [filtroProfissional, setFiltroProfissional] = useState('todos');
@@ -57,19 +80,33 @@ export default function Relatorios() {
     const [filtroCategoria, setFiltroCategoria] = useState('todos');
     const [tipoRelatorio, setTipoRelatorio] = useState<ReportType>('resumo');
 
-    useEffect(() => { if (!clinicLoading) carregar(); }, [clinicLoading, activeClinicId, periodo]);
+    useEffect(() => {
+        if (clinicLoading) return;
+        const snap = readRouteCache<RelSnapshot>(REL_CACHE_KEY, relScope(activeClinicId, periodo));
+        if (snap) {
+            setAgendamentos(snap.agendamentos);
+            setPacientesTotal(snap.pacientesTotal);
+            setDespesas(snap.despesas);
+            setProfissionais(snap.profissionais);
+            setMeta(snap.meta);
+            setLoading(false);
+        }
+        carregar({ silent: !!snap });
+    }, [clinicLoading, activeClinicId, periodo]);
 
-    async function carregar() {
-        setLoading(true);
+    async function carregar(opts?: { silent?: boolean }) {
+        const gen = ++fetchGen.current;
+        const scope = relScope(activeClinicId, periodo);
+        if (!opts?.silent) setLoading(true);
+
         const { data: { user } } = await supabase.auth.getUser();
-        if (!user) { setLoading(false); return; }
+        if (!user) { if (gen === fetchGen.current) setLoading(false); return; }
 
-        const clinicas = await fetchUserClinicas();
-        let filtrosIds = clinicas.map(c => c.id);
+        let filtrosIds = clinics.map((c) => Number(c.id)).filter((n) => Number.isFinite(n));
         if (activeClinicId && activeClinicId !== 'all') {
             filtrosIds = filtrosIds.filter(id => id === Number(activeClinicId));
         }
-        if (filtrosIds.length === 0) { setLoading(false); return; }
+        if (filtrosIds.length === 0) { if (gen === fetchGen.current) setLoading(false); return; }
 
         const agora = new Date();
         let dataInicio: Date;
@@ -89,19 +126,32 @@ export default function Relatorios() {
             carregarConfig<Record<string, unknown>>(cidMeta, 'lancamentos_meta', 'ortus_lancamentos_meta', {}),
         ]);
 
-        setAgendamentos((agRes.data || []) as unknown as Agendamento[]);
-        setPacientesTotal(pacRes.count || 0);
-        setDespesas(despRes.data || []);
-        setMeta(metaRes || {});
+        if (gen !== fetchGen.current) return;
 
+        const nextAg = (agRes.data || []) as unknown as Agendamento[];
+        let nextProf: { id: number; nome: string }[] = [];
         const profIds = [...new Set((agRes.data || []).map((a: { profissional_id?: number }) => a.profissional_id).filter(Boolean))] as number[];
         if (profIds.length > 0) {
             const { data: profData } = await supabase.from('profissionais').select('id, nome').in('id', profIds).order('nome');
-            setProfissionais((profData || []) as { id: number; nome: string }[]);
-        } else {
-            setProfissionais([]);
+            nextProf = (profData || []) as { id: number; nome: string }[];
         }
 
+        if (gen !== fetchGen.current) return;
+
+        const snapshot: RelSnapshot = {
+            agendamentos: nextAg,
+            pacientesTotal: pacRes.count || 0,
+            despesas: despRes.data || [],
+            profissionais: nextProf,
+            meta: metaRes || {},
+        };
+        writeRouteCache(REL_CACHE_KEY, scope, snapshot);
+
+        setAgendamentos(snapshot.agendamentos);
+        setPacientesTotal(snapshot.pacientesTotal);
+        setDespesas(snapshot.despesas);
+        setProfissionais(snapshot.profissionais);
+        setMeta(snapshot.meta);
         setLoading(false);
     }
 
@@ -372,7 +422,7 @@ export default function Relatorios() {
                 </div>
             </div>
 
-            {loading ? (
+            {loading && agendamentos.length === 0 ? (
               <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
                 {Array.from({ length: 4 }).map((_, i) => (
                   <div key={i} className="h-28 animate-pulse rounded-[1.35rem] bg-neutral-200" />

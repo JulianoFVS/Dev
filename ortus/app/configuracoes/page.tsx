@@ -26,6 +26,7 @@ import { DOCUMENTO_VARIAVEIS, inserirTokenVariavel, tokenVariavelLabel, aplicarV
 import { applyTheme, THEME_OPTIONS, type ThemeId } from '@/lib/themePresets';
 import { FUSO_HORARIO_OPTIONS, UF_OPTIONS } from '@/lib/formOptions';
 import BentoPageShell from '@/components/bento/BentoPageShell';
+import { useClinica } from '@/app/context/ClinicaContext';
 import { bentoTab, bentoSection, bentoPrimaryBtn, bentoGhostBtn, bentoInput, bentoChip, bentoChipOutline, bentoToggleTrackOn, bentoToggleTrackOff, bentoModalPanel } from '@/lib/bentoUi';
 
 interface ModeloDocumento { id: string; tipo: 'contrato' | 'receita' | 'atestado' | 'outro'; nome: string; conteudo: string; }
@@ -54,15 +55,25 @@ const DOCS_PADRAO: ModeloDocumento[] = [
 ];
 
 
+function bootClinicasFromStorage(): any[] {
+  if (typeof localStorage === 'undefined') return [];
+  try {
+    return JSON.parse(localStorage.getItem('ortus_clinics_cache') || '[]');
+  } catch {
+    return [];
+  }
+}
+
 export default function Configuracoes() {
   const router = useRouter();
+  const { clinics: ctxClinics, loading: clinicLoading } = useClinica();
   const [abaAtiva, setAbaAtiva] = useState('geral');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => bootClinicasFromStorage().length === 0);
   const { showAlert, showConfirm } = useCustomAlert();
   // Gate de acesso: só admin de tenant ou super admin podem entrar.
   const [perfilCaller, setPerfilCaller] = useState<any>(null);
 
-  const [clinicas, setClinicas] = useState<any[]>([]);
+  const [clinicas, setClinicas] = useState<any[]>(() => bootClinicasFromStorage());
   const [profissionais, setProfissionais] = useState<any[]>([]);
   
   // MODAL CLÍNICA (criação e edição completas)
@@ -140,10 +151,15 @@ export default function Configuracoes() {
           }
           if (aba) setAbaAtiva(aba);
       }
-      carregarDados();
+      if (clinicLoading) return;
+      carregarDados({ silent: ctxClinics.length > 0 || bootClinicasFromStorage().length > 0 });
       setModelos(carregarModelos());
       recarregarBackups();
-  }, [router]);
+  }, [router, clinicLoading, ctxClinics.length]);
+
+  useEffect(() => {
+      if (ctxClinics.length > 0) setClinicas(ctxClinics);
+  }, [ctxClinics]);
 
   // Carregar configs do Supabase após clinicas carregarem
   useEffect(() => {
@@ -518,10 +534,8 @@ export default function Configuracoes() {
       }
   }
 
-  async function carregarDados() {
-      setLoading(true);
-      // 1) Identifica o usuário logado e checa permissão antes de
-      //    qualquer SELECT em tabelas sensíveis.
+  async function carregarDados(opts?: { silent?: boolean }) {
+      if (!opts?.silent) setLoading(true);
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { setPerfilCaller(null); setLoading(false); return; }
       const { data: meu } = await supabase
@@ -531,8 +545,12 @@ export default function Configuracoes() {
           .maybeSingle();
       setPerfilCaller(meu);
 
-      const c = await fetchUserClinicas();
-      setClinicas(c || []);
+      if (ctxClinics.length > 0) {
+          setClinicas(ctxClinics);
+      } else {
+          const c = await fetchUserClinicas();
+          setClinicas(c || []);
+      }
       setProfissionais([]);
       setLoading(false);
   }
@@ -646,7 +664,7 @@ export default function Configuracoes() {
 
           setModalClinicaCompleto(false);
           setClinicaEditando(null);
-          carregarDados();
+          carregarDados({ silent: true });
       } catch (e: any) {
           showAlert('Erro ao salvar: ' + (e?.message || e), { type: 'error' });
       }
@@ -662,7 +680,7 @@ export default function Configuracoes() {
           showAlert('Não foi possível excluir: ' + error.message + '\nDica: Verifique se existem pacientes ou vínculos dependentes desta clínica.', { type: 'error' });
       } else {
           showAlert('Clínica excluída com sucesso!', { type: 'success' });
-          carregarDados();
+          carregarDados({ silent: true });
       }
   }
 
@@ -791,7 +809,7 @@ export default function Configuracoes() {
           if (!res.ok) throw new Error(json.error);
 
           setModalProf(false);
-          carregarDados();
+          carregarDados({ silent: true });
           showAlert(editandoProf ? 'Dados atualizados!' : 'Profissional cadastrado com acesso ao sistema!', { type: 'success' });
 
       } catch (err: any) {
@@ -809,7 +827,7 @@ export default function Configuracoes() {
       if (error) showAlert('Erro ao excluir: ' + error.message, { type: 'error' });
       else {
           setModalProf(false);
-          carregarDados();
+          carregarDados({ silent: true });
       }
   }
 
@@ -846,7 +864,7 @@ export default function Configuracoes() {
               <button type="button" onClick={() => setAbaAtiva('backup')} className={`${bentoTab(abaAtiva === 'backup')} flex items-center gap-2`}><Database size={16}/> Backup</button>
       </div>
 
-      {loading ? (
+      {loading && clinicas.length === 0 ? (
         <div className="space-y-3 py-8">
           <div className="h-40 animate-pulse rounded-[1.35rem] bg-neutral-200" />
           <div className="h-56 animate-pulse rounded-[1.35rem] bg-neutral-100" />

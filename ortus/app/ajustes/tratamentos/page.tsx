@@ -1,6 +1,7 @@
 'use client';
 
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { clinicScope, readRouteCache, writeRouteCache } from '@/lib/routeListCache';
 import { supabase } from '@/lib/supabase';
 import { useClinica } from '@/app/context/ClinicaContext';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
@@ -68,18 +69,42 @@ function formatDateLabel(value?: string) {
     return date.toLocaleDateString('pt-BR');
 }
 
+const TRAT_CACHE_KEY = 'ortus:tratamentos:v1';
+
+type TratSnapshot = {
+    especialidades: Especialidade[];
+    selectedEspecialidadeId: string | null;
+    tratamentos: TratamentoBase[];
+};
+
+function tratScope(clinicaId: number | null) {
+    return clinicScope(clinicaId == null ? null : String(clinicaId));
+}
+
+function readTratBoot(): TratSnapshot | null {
+    if (typeof localStorage === 'undefined') return null;
+    const cid = localStorage.getItem('ortus_clinica_id');
+    if (!cid || cid === 'all' || cid === 'todas') return null;
+    const n = Number(cid);
+    if (!Number.isFinite(n)) return null;
+    return readRouteCache<TratSnapshot>(TRAT_CACHE_KEY, tratScope(n));
+}
+
 export default function TratamentosBasePage() {
-    const { activeClinicId } = useClinica();
+    const { activeClinicId, loading: clinicLoading } = useClinica();
+    const fetchEspGen = useRef(0);
+    const fetchTratGen = useRef(0);
+    const bootTrat = readTratBoot();
     const { showAlert, showConfirm } = useCustomAlert();
 
     const clinicaId = activeClinicId && activeClinicId !== 'all' ? Number(activeClinicId) : null;
 
-    const [especialidades, setEspecialidades] = useState<Especialidade[]>([]);
-    const [especialidadesLoading, setEspecialidadesLoading] = useState(false);
-    const [selectedEspecialidadeId, setSelectedEspecialidadeId] = useState<string | null>(null);
+    const [especialidades, setEspecialidades] = useState<Especialidade[]>(() => bootTrat?.especialidades ?? []);
+    const [especialidadesLoading, setEspecialidadesLoading] = useState(() => !(bootTrat?.especialidades?.length));
+    const [selectedEspecialidadeId, setSelectedEspecialidadeId] = useState<string | null>(() => bootTrat?.selectedEspecialidadeId ?? null);
     const [excluindoEspecialidadeId, setExcluindoEspecialidadeId] = useState<string | null>(null);
 
-    const [tratamentos, setTratamentos] = useState<TratamentoBase[]>([]);
+    const [tratamentos, setTratamentos] = useState<TratamentoBase[]>(() => bootTrat?.tratamentos ?? []);
     const [tratamentosLoading, setTratamentosLoading] = useState(false);
     const [excluindoTratamentoId, setExcluindoTratamentoId] = useState<number | null>(null);
 
@@ -94,21 +119,33 @@ export default function TratamentosBasePage() {
     const [tratamentoSalvando, setTratamentoSalvando] = useState(false);
 
     useEffect(() => {
+        if (clinicLoading) return;
         if (!clinicaId) {
             setEspecialidades([]);
             setSelectedEspecialidadeId(null);
             setTratamentos([]);
             return;
         }
-        carregarEspecialidades();
-    }, [clinicaId]);
+        const snap = readRouteCache<TratSnapshot>(TRAT_CACHE_KEY, tratScope(clinicaId));
+        if (snap) {
+            setEspecialidades(snap.especialidades);
+            setSelectedEspecialidadeId(snap.selectedEspecialidadeId);
+            setTratamentos(snap.tratamentos);
+            setEspecialidadesLoading(false);
+        }
+        carregarEspecialidades(undefined, { silent: !!snap?.especialidades?.length });
+    }, [clinicLoading, clinicaId]);
 
     useEffect(() => {
         if (!clinicaId || !selectedEspecialidadeId) {
-            setTratamentos([]);
+            if (!clinicaId) setTratamentos([]);
             return;
         }
-        carregarTratamentos(selectedEspecialidadeId);
+        const snap = readRouteCache<TratSnapshot>(TRAT_CACHE_KEY, tratScope(clinicaId));
+        if (snap?.selectedEspecialidadeId === selectedEspecialidadeId && snap.tratamentos.length) {
+            setTratamentos(snap.tratamentos);
+        }
+        carregarTratamentos(selectedEspecialidadeId, { silent: snap?.selectedEspecialidadeId === selectedEspecialidadeId && !!snap.tratamentos.length });
     }, [clinicaId, selectedEspecialidadeId]);
 
     const especialidadeSelecionada = useMemo(
@@ -116,9 +153,20 @@ export default function TratamentosBasePage() {
         [especialidades, selectedEspecialidadeId]
     );
 
-    async function carregarEspecialidades(focusId?: string | null) {
+    function persistTratSnapshot(partial: Partial<TratSnapshot>) {
         if (!clinicaId) return;
-        setEspecialidadesLoading(true);
+        const prev = readRouteCache<TratSnapshot>(TRAT_CACHE_KEY, tratScope(clinicaId)) ?? {
+            especialidades: [],
+            selectedEspecialidadeId: null,
+            tratamentos: [],
+        };
+        writeRouteCache(TRAT_CACHE_KEY, tratScope(clinicaId), { ...prev, ...partial });
+    }
+
+    async function carregarEspecialidades(focusId?: string | null, opts?: { silent?: boolean }) {
+        if (!clinicaId) return;
+        const gen = ++fetchEspGen.current;
+        if (!opts?.silent) setEspecialidadesLoading(true);
         try {
             const { data, error } = await supabase
                 .from('especialidades')
@@ -138,17 +186,21 @@ export default function TratamentosBasePage() {
                 proxima = lista[0].id;
             }
             setSelectedEspecialidadeId(proxima ?? null);
+            if (gen === fetchEspGen.current) {
+                persistTratSnapshot({ especialidades: lista, selectedEspecialidadeId: proxima ?? null });
+            }
         } catch (err) {
             console.error('[Tratamentos] carregarEspecialidades', err);
             showAlert('Não foi possível carregar as especialidades.', { type: 'error' });
         } finally {
-            setEspecialidadesLoading(false);
+            if (gen === fetchEspGen.current) setEspecialidadesLoading(false);
         }
     }
 
-    async function carregarTratamentos(especialidadeId: string) {
+    async function carregarTratamentos(especialidadeId: string, opts?: { silent?: boolean }) {
         if (!clinicaId) return;
-        setTratamentosLoading(true);
+        const gen = ++fetchTratGen.current;
+        if (!opts?.silent) setTratamentosLoading(true);
         try {
             const { data, error } = await supabase
                 .from('tratamentos_base')
@@ -157,12 +209,15 @@ export default function TratamentosBasePage() {
                 .eq('especialidade_id', especialidadeId)
                 .order('nome');
             if (error) throw error;
-            setTratamentos(data || []);
+            const lista = data || [];
+            if (gen !== fetchTratGen.current) return;
+            setTratamentos(lista);
+            persistTratSnapshot({ selectedEspecialidadeId: especialidadeId, tratamentos: lista });
         } catch (err) {
             console.error('[Tratamentos] carregarTratamentos', err);
             showAlert('Erro ao carregar os tratamentos base.', { type: 'error' });
         } finally {
-            setTratamentosLoading(false);
+            if (gen === fetchTratGen.current) setTratamentosLoading(false);
         }
     }
 
