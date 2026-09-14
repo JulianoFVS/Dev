@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useRef, type FormEvent } from 'react';
+import { useState, useEffect, useRef, type CSSProperties, type FormEvent } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import { Loader2, ShieldCheck, Eye, EyeOff } from 'lucide-react';
@@ -7,78 +7,189 @@ import Link from 'next/link';
 import { registrarAudit } from '@/lib/auditLog';
 import { setAuthMarkerCookie } from '@/lib/authCookies';
 
-const BLOB_SIZE = 300;
+type BlobMotion = {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  phase: number;
+  squashX: number;
+  squashY: number;
+};
 
-function LoginDvdGlow() {
+const BLOB_DIAM = 380;
+const BLOB_R = BLOB_DIAM / 2;
+const WALL_PAD = 28;
+const MAX_SPEED = 1.85;
+const DAMPING = 0.992;
+const WALL_SOFT = 0.045;
+
+function LoginFluidGlow() {
   const containerRef = useRef<HTMLDivElement>(null);
-  const blobRef = useRef<HTMLDivElement>(null);
-  const motion = useRef({
-    x: 48,
-    y: 40,
-    vx: 1.35,
-    vy: 1.05,
+  const blobARef = useRef<HTMLDivElement>(null);
+  const blobBRef = useRef<HTMLDivElement>(null);
+  const state = useRef<{ a: BlobMotion; b: BlobMotion; t: number }>({
+    a: { x: 0, y: 0, vx: 0.65, vy: 0.48, phase: 0, squashX: 1, squashY: 1 },
+    b: { x: 0, y: 0, vx: -0.42, vy: 0.55, phase: 1.7, squashX: 1, squashY: 1 },
+    t: 0,
   });
 
   useEffect(() => {
     const container = containerRef.current;
-    const blob = blobRef.current;
-    if (!container || !blob) return;
+    const elA = blobARef.current;
+    const elB = blobBRef.current;
+    if (!container || !elA || !elB) return;
+
+    const init = () => {
+      const w = container.clientWidth;
+      const h = container.clientHeight;
+      state.current.a.x = w * 0.35 - BLOB_R;
+      state.current.a.y = h * 0.4 - BLOB_R;
+      state.current.b.x = w * 0.62 - BLOB_R;
+      state.current.b.y = h * 0.55 - BLOB_R;
+    };
+    init();
+
+    const stepBlob = (s: BlobMotion, w: number, h: number) => {
+      s.x += s.vx;
+      s.y += s.vy;
+
+      const cx = s.x + BLOB_R;
+      const cy = s.y + BLOB_R;
+      const minC = WALL_PAD + BLOB_R * 0.55;
+      const maxCx = w - WALL_PAD - BLOB_R * 0.55;
+      const maxCy = h - WALL_PAD - BLOB_R * 0.55;
+
+      let hitX = 0;
+      let hitY = 0;
+
+      if (cx < minC) {
+        const d = minC - cx;
+        s.vx += d * WALL_SOFT;
+        hitX = 1;
+      } else if (cx > maxCx) {
+        const d = cx - maxCx;
+        s.vx -= d * WALL_SOFT;
+        hitX = -1;
+      }
+      if (cy < minC) {
+        const d = minC - cy;
+        s.vy += d * WALL_SOFT;
+        hitY = 1;
+      } else if (cy > maxCy) {
+        const d = cy - maxCy;
+        s.vy -= d * WALL_SOFT;
+        hitY = -1;
+      }
+
+      if (hitX !== 0) {
+        s.vx *= -0.68;
+        s.squashX = Math.min(s.squashX, 0.82);
+        s.squashY = Math.max(s.squashY, 1.12);
+      }
+      if (hitY !== 0) {
+        s.vy *= -0.68;
+        s.squashY = Math.min(s.squashY, 0.82);
+        s.squashX = Math.max(s.squashX, 1.12);
+      }
+
+      s.squashX += (1 - s.squashX) * 0.06;
+      s.squashY += (1 - s.squashY) * 0.06;
+
+      s.vx += (Math.random() - 0.5) * 0.018;
+      s.vy += (Math.random() - 0.5) * 0.018;
+      s.vx *= DAMPING;
+      s.vy *= DAMPING;
+
+      const speed = Math.hypot(s.vx, s.vy);
+      if (speed > MAX_SPEED) {
+        s.vx = (s.vx / speed) * MAX_SPEED;
+        s.vy = (s.vy / speed) * MAX_SPEED;
+      } else if (speed < 0.35) {
+        const angle = Math.random() * Math.PI * 2;
+        s.vx += Math.cos(angle) * 0.25;
+        s.vy += Math.sin(angle) * 0.25;
+      }
+
+      s.phase += 0.012;
+    };
+
+    const applyTransform = (el: HTMLDivElement, s: BlobMotion, wobble: number) => {
+      const morph = 1 + Math.sin(s.phase) * 0.08;
+      el.style.transform = `translate3d(${s.x}px, ${s.y}px, 0) scale(${s.squashX * morph}, ${s.squashY * (2 - morph) * 0.5 + 0.5})`;
+      el.style.opacity = String(0.55 + wobble * 0.15);
+    };
 
     let raf = 0;
     const tick = () => {
       const w = container.clientWidth;
       const h = container.clientHeight;
-      const s = motion.current;
-
-      s.x += s.vx;
-      s.y += s.vy;
-
-      const maxX = Math.max(0, w - BLOB_SIZE);
-      const maxY = Math.max(0, h - BLOB_SIZE);
-
-      if (s.x <= 0) {
-        s.x = 0;
-        s.vx = Math.abs(s.vx);
-      } else if (s.x >= maxX) {
-        s.x = maxX;
-        s.vx = -Math.abs(s.vx);
-      }
-      if (s.y <= 0) {
-        s.y = 0;
-        s.vy = Math.abs(s.vy);
-      } else if (s.y >= maxY) {
-        s.y = maxY;
-        s.vy = -Math.abs(s.vy);
+      if (w < 1 || h < 1) {
+        raf = requestAnimationFrame(tick);
+        return;
       }
 
-      blob.style.transform = `translate3d(${s.x}px, ${s.y}px, 0)`;
+      state.current.t += 0.016;
+      const { a, b } = state.current;
+      stepBlob(a, w, h);
+      stepBlob(b, w, h);
+
+      applyTransform(elA, a, 0);
+      applyTransform(elB, b, 1);
+
       raf = requestAnimationFrame(tick);
     };
 
+    const ro = new ResizeObserver(() => init());
+    ro.observe(container);
     raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
+    return () => {
+      cancelAnimationFrame(raf);
+      ro.disconnect();
+    };
   }, []);
 
+  const blobStyle = (gradient: string): CSSProperties => ({
+    width: BLOB_DIAM,
+    height: BLOB_DIAM,
+    background: gradient,
+    filter: 'blur(56px)',
+  });
+
   return (
-    <div ref={containerRef} className="relative h-full min-h-[220px] w-full overflow-hidden bg-neutral-950">
+    <div ref={containerRef} className="relative h-full min-h-[inherit] w-full overflow-hidden bg-neutral-950">
       <div
-        ref={blobRef}
+        ref={blobARef}
         aria-hidden
         className="pointer-events-none absolute left-0 top-0 will-change-transform"
-        style={{
-          width: BLOB_SIZE,
-          height: BLOB_SIZE,
-          background:
-            'radial-gradient(circle at center, rgba(45, 212, 191, 0.55) 0%, rgba(20, 184, 166, 0.28) 38%, rgba(0, 0, 0, 0) 72%)',
-          filter: 'blur(48px)',
-        }}
+        style={blobStyle(
+          'radial-gradient(circle at 42% 38%, rgba(52, 211, 193, 0.7) 0%, rgba(20, 184, 166, 0.35) 42%, rgba(0, 0, 0, 0) 74%)',
+        )}
       />
-      <div className="relative z-10 flex h-full min-h-[inherit] items-center justify-center px-6">
+      <div
+        ref={blobBRef}
+        aria-hidden
+        className="pointer-events-none absolute left-0 top-0 will-change-transform"
+        style={blobStyle(
+          'radial-gradient(circle at 58% 62%, rgba(56, 189, 248, 0.35) 0%, rgba(45, 212, 191, 0.22) 45%, rgba(0, 0, 0, 0) 76%)',
+        )}
+      />
+      <div className="relative z-10 flex h-full min-h-[inherit] items-center justify-center px-8">
         <img
           src="/landing/ortus-wordmark.svg"
           alt="Ortus"
-          className="h-9 w-auto max-w-[min(280px,70vw)] brightness-0 invert sm:h-11"
+          className="h-12 w-auto max-w-[min(360px,78vw)] brightness-0 invert drop-shadow-[0_0_40px_rgba(255,255,255,0.12)] sm:h-14 lg:h-[4.25rem] xl:h-[4.75rem]"
         />
+      </div>
+    </div>
+  );
+}
+
+function LoginBrandPanel({ className = '' }: { className?: string }) {
+  return (
+    <div className={`flex min-h-[inherit] flex-col p-3 sm:p-4 md:p-5 lg:p-6 ${className}`}>
+      <div className="relative min-h-0 flex-1 overflow-hidden rounded-[1.35rem] bg-neutral-950 sm:rounded-[1.65rem] md:rounded-[1.85rem] lg:rounded-[2rem]">
+        <LoginFluidGlow />
       </div>
     </div>
   );
@@ -193,8 +304,8 @@ export default function Login() {
   return (
     <div className="flex min-h-[100dvh] w-full flex-col font-poppins lg:flex-row">
       {/* Painel escuro — mobile (topo) */}
-      <div className="h-[34vh] min-h-[200px] shrink-0 lg:hidden">
-        <LoginDvdGlow />
+      <div className="h-[36vh] min-h-[210px] shrink-0 bg-white pt-3 sm:pt-4 lg:hidden">
+        <LoginBrandPanel className="h-full !p-0 px-3 pb-0 sm:px-4" />
       </div>
 
       {/* Formulário */}
@@ -314,9 +425,9 @@ export default function Login() {
         </div>
       </div>
 
-      {/* Painel escuro — desktop */}
-      <div className="hidden min-h-[100dvh] flex-1 lg:block">
-        <LoginDvdGlow />
+      {/* Painel escuro — desktop (com respiro nas bordas) */}
+      <div className="hidden min-h-[100dvh] flex-1 bg-white lg:flex lg:flex-col">
+        <LoginBrandPanel className="flex-1" />
       </div>
 
       <p className="bg-white px-4 py-3 text-center text-[11px] text-neutral-400 lg:hidden">
