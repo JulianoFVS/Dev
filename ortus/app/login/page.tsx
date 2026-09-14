@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef, type CSSProperties, type FormEvent } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
-import { Loader2, ShieldCheck, Eye, EyeOff } from 'lucide-react';
+import { Loader2, ShieldCheck, Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import { registrarAudit } from '@/lib/auditLog';
 import { setAuthMarkerCookie } from '@/lib/authCookies';
@@ -310,20 +310,32 @@ export default function Login() {
 
       {/* Formulário */}
       <div className="relative z-10 flex flex-1 flex-col bg-white lg:max-w-[50%] lg:shrink-0">
-        <div className="mx-auto flex w-full max-w-[440px] flex-1 flex-col justify-center px-6 py-8 sm:px-10 sm:py-12 lg:max-w-[480px] lg:px-14 lg:py-16">
-          <div className="-mt-10 mb-8 rounded-t-[1.75rem] bg-white pt-8 lg:mt-0 lg:rounded-none lg:pt-0">
-            <Link href="/" className="mb-8 inline-flex lg:hidden">
-              <img src="/landing/ortus-wordmark.svg" alt="Ortus" className="h-7 w-auto" />
+        <Link
+          href="/"
+          className="absolute left-4 top-4 z-20 inline-flex items-center gap-1 text-xs font-medium text-neutral-400 transition-colors hover:text-neutral-800 sm:left-6 sm:top-6 lg:left-8 lg:top-8"
+        >
+          <ArrowLeft size={14} aria-hidden />
+          Voltar
+        </Link>
+
+        <div className="flex flex-1 flex-col items-center justify-center px-6 py-12 sm:px-10 sm:py-14">
+          <div className="-mt-6 w-full max-w-[400px] rounded-t-[1.75rem] bg-white pt-6 lg:mt-0 lg:rounded-none lg:pt-0">
+            <Link href="/" className="mb-6 flex justify-center">
+              <img
+                src="/landing/ortus-wordmark.svg"
+                alt="Ortus"
+                className="h-6 w-auto brightness-0 sm:h-[1.65rem]"
+              />
             </Link>
 
-            <h1 className="text-[1.65rem] font-bold leading-tight tracking-tight text-neutral-900 sm:text-[1.85rem]">
-              Bem-vindo de volta 👋
-            </h1>
-            <p className="mt-3 max-w-sm text-sm leading-relaxed text-neutral-500 sm:text-[15px]">
-              Hoje é um novo dia. Entre com o e-mail da clínica para continuar no painel Ortus.
-            </p>
-          </div>
-
+            <div className="mb-8 text-center">
+              <h1 className="text-[1.5rem] font-bold leading-tight tracking-tight text-neutral-900 sm:text-[1.65rem]">
+                Bem-vindo de volta
+              </h1>
+              <p className="mx-auto mt-2 max-w-[320px] text-xs leading-relaxed text-neutral-500 sm:text-[13px]">
+                Entre com o e-mail da clínica para continuar no painel Ortus.
+              </p>
+            </div>
           {error ? (
             <div
               className="mb-6 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-800"
@@ -334,7 +346,7 @@ export default function Login() {
             </div>
           ) : null}
 
-          <form onSubmit={handleLogin} className="space-y-5">
+          <form onSubmit={handleLogin} className="space-y-5 text-left">
             <div className="space-y-2">
               <label htmlFor="login-email" className="text-sm font-medium text-neutral-800">
                 E-mail
@@ -412,16 +424,17 @@ export default function Login() {
             </button>
           </form>
 
-          <p className="mt-8 text-center text-sm text-neutral-500 sm:text-left">
+          <p className="mt-8 text-center text-sm text-neutral-500">
             Ainda não é cliente?{' '}
             <Link href="/#precos" className="font-semibold text-neutral-900 hover:underline">
               Conheça os planos
             </Link>
           </p>
 
-          <p className="mt-auto hidden pt-10 text-center text-xs text-neutral-400 lg:block lg:text-left">
+          <p className="mt-6 hidden text-center text-[11px] text-neutral-400 lg:block">
             © {new Date().getFullYear()} Ortus · Acesso restrito a profissionais autorizados.
           </p>
+          </div>
         </div>
       </div>
 
