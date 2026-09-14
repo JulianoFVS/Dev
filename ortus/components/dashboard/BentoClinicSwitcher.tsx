@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Building2, Check, ChevronsUpDown, Globe } from 'lucide-react';
 import { getClinicLabel, useClinica } from '@/app/context/ClinicaContext';
+import BentoSidebarTooltip from '@/components/bento/BentoSidebarTooltip';
 
 type BentoClinicSwitcherProps = {
   className?: string;
@@ -79,29 +80,39 @@ export default function BentoClinicSwitcher({
   const panelClass =
     'z-[200] max-h-[min(70vh,22rem)] w-[min(100vw-1.5rem,18rem)] overflow-hidden overflow-y-auto rounded-[1.15rem] border border-black/8 bg-white shadow-[0_12px_40px_rgba(0,0,0,0.12)] sm:rounded-[1.25rem]';
 
+  const trigger = (
+    <button
+      ref={triggerRef}
+      type="button"
+      onClick={() => setOpen((v) => !v)}
+      className={triggerClass}
+      aria-expanded={open}
+      aria-haspopup="listbox"
+      title={isSidebar && collapsed ? undefined : fullLabel}
+    >
+      {showGlobe ? (
+        <Globe size={16} className={iconClass} strokeWidth={1.75} />
+      ) : (
+        <Building2 size={16} className={iconClass} strokeWidth={1.75} />
+      )}
+      {!collapsed && (
+        <>
+          <span className="min-w-0 flex-1 truncate">{label}</span>
+          <ChevronsUpDown size={14} className={chevronClass} />
+        </>
+      )}
+    </button>
+  );
+
   return (
     <div ref={rootRef} className={`relative min-w-0 ${className}`}>
-      <button
-        ref={triggerRef}
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className={triggerClass}
-        aria-expanded={open}
-        aria-haspopup="listbox"
-        title={fullLabel}
-      >
-        {showGlobe ? (
-          <Globe size={16} className={iconClass} strokeWidth={1.75} />
-        ) : (
-          <Building2 size={16} className={iconClass} strokeWidth={1.75} />
-        )}
-        {!collapsed && (
-          <>
-            <span className="min-w-0 flex-1 truncate">{label}</span>
-            <ChevronsUpDown size={14} className={chevronClass} />
-          </>
-        )}
-      </button>
+      {isSidebar && collapsed ? (
+        <BentoSidebarTooltip label={fullLabel} show>
+          {trigger}
+        </BentoSidebarTooltip>
+      ) : (
+        trigger
+      )}
 
       {open && (
         <div

@@ -20,6 +20,7 @@ import {
   Users,
 } from 'lucide-react';
 import BentoClinicSwitcher from '@/components/dashboard/BentoClinicSwitcher';
+import BentoSidebarTooltip from '@/components/bento/BentoSidebarTooltip';
 
 export type DashboardSidebarNavOptions = {
   showTarefas?: boolean;
@@ -98,10 +99,10 @@ function NavItem({
   const active = isNavActive(pathname, href);
   const showBadge = typeof badge === 'number' && badge > 0;
 
-  return (
+  const link = (
     <Link
       href={href}
-      title={label}
+      title={collapsed ? undefined : label}
       className={`relative flex shrink-0 items-center transition-colors ${
         collapsed ? 'h-11 w-11 justify-center rounded-2xl' : 'h-10 w-full gap-3 rounded-2xl px-3'
       } ${active ? 'bg-white/15 text-white' : 'text-white/80 hover:bg-white/10 hover:text-white'}`}
@@ -121,6 +122,12 @@ function NavItem({
         <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-[#c8f053]" aria-hidden />
       )}
     </Link>
+  );
+
+  return (
+    <BentoSidebarTooltip label={label} show={collapsed}>
+      {link}
+    </BentoSidebarTooltip>
   );
 }
 
@@ -203,22 +210,23 @@ export default function DashboardSidebar({
       className={`flex h-[calc(100vh-0.75rem)] shrink-0 flex-col overflow-visible rounded-[1.75rem] bg-neutral-950 py-3 transition-[width] duration-200 ease-out sm:h-[calc(100vh-1rem)] sm:rounded-[2rem] md:rounded-[2.25rem] ${widthClass}`}
     >
       <div className={`mb-2 ${collapsed ? 'flex justify-center px-2' : 'px-3'}`}>
-        <Link
-          href="/dashboard"
-          title="ortus — Visão geral"
-          className={`flex shrink-0 items-center transition-colors hover:opacity-90 ${
-            collapsed ? 'h-11 w-11 justify-center rounded-2xl' : 'gap-2 rounded-2xl px-1 py-1.5'
-          }`}
-        >
-          <img
-            src="/landing/ortus-mark.svg"
-            alt=""
-            className={`shrink-0 brightness-0 invert ${collapsed ? 'h-7 w-7' : 'h-6 w-6'}`}
-          />
-          {!collapsed && (
-            <img src="/landing/ortus-wordmark.svg" alt="ortus" className="h-4 w-auto brightness-0 invert" />
-          )}
-        </Link>
+        <BentoSidebarTooltip label="Visão geral" show={collapsed}>
+          <Link
+            href="/dashboard"
+            className={`flex shrink-0 items-center transition-colors hover:opacity-90 ${
+              collapsed ? 'h-11 w-11 justify-center rounded-2xl' : 'gap-2 rounded-2xl px-1 py-1.5'
+            }`}
+          >
+            <img
+              src="/landing/ortus-mark.svg"
+              alt=""
+              className={`shrink-0 brightness-0 invert ${collapsed ? 'h-7 w-7' : 'h-6 w-6'}`}
+            />
+            {!collapsed && (
+              <img src="/landing/ortus-wordmark.svg" alt="ortus" className="h-4 w-auto brightness-0 invert" />
+            )}
+          </Link>
+        </BentoSidebarTooltip>
       </div>
 
       <div className={`mb-3 ${collapsed ? 'flex justify-center px-2' : 'px-2.5'}`}>
@@ -226,7 +234,7 @@ export default function DashboardSidebar({
       </div>
 
       <nav
-        className={`flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto overflow-x-hidden ${collapsed ? 'items-center px-2' : 'px-2.5'}`}
+        className={`flex min-h-0 flex-1 flex-col gap-1 ${collapsed ? 'items-center overflow-visible px-2' : 'overflow-x-hidden overflow-y-auto px-2.5'}`}
       >
         {LINKS.map((item) => (
           <NavItem key={item.href} href={item.href} label={item.label} Icon={item.icon} collapsed={collapsed} />
@@ -258,36 +266,40 @@ export default function DashboardSidebar({
         {showPainelSaas && (
           <div className={`h-px bg-white/10 ${collapsed ? 'my-0.5 w-7' : 'mx-1 my-0.5'}`} role="presentation" />
         )}
-        <button
-          type="button"
-          onClick={toggleCollapsed}
-          className={`flex items-center text-white/40 transition-colors hover:bg-white/10 hover:text-white/80 ${
-            collapsed ? 'h-10 w-10 justify-center rounded-2xl' : 'h-9 w-full gap-2 rounded-2xl px-3 text-sm font-medium'
-          }`}
-          aria-expanded={!collapsed}
-          aria-label={collapsed ? 'Expandir menu' : 'Recolher menu'}
-        >
-          {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
-          {!collapsed && <span>Recolher</span>}
-        </button>
-        <Link
-          href="/configuracoes"
-          title="Configurações"
-          className={`flex items-center text-white/45 hover:bg-white/10 hover:text-white/90 ${
-            collapsed ? 'h-10 w-10 justify-center rounded-2xl' : 'h-10 w-full gap-3 rounded-2xl px-3'
-          }`}
-        >
-          <Settings size={18} strokeWidth={1.65} className="shrink-0" />
-          {!collapsed && <span className="text-sm font-medium">Configurações</span>}
-        </Link>
-        <Link
-          href="/perfil"
-          title="Perfil"
-          className={`flex items-center ${collapsed ? 'h-11 w-11 justify-center overflow-hidden rounded-2xl ring-2 ring-neutral-800' : 'gap-3 rounded-2xl px-3 py-2 hover:bg-white/10'}`}
-        >
-          <ProfileAvatar photoUrl={profilePhotoUrl} profileName={profileName} collapsed={collapsed} />
-          {!collapsed && <span className="truncate text-sm font-medium text-white/90">Meu perfil</span>}
-        </Link>
+        <BentoSidebarTooltip label={collapsed ? 'Expandir menu' : 'Recolher menu'} show={collapsed}>
+          <button
+            type="button"
+            onClick={toggleCollapsed}
+            className={`flex items-center text-white/40 transition-colors hover:bg-white/10 hover:text-white/80 ${
+              collapsed ? 'h-10 w-10 justify-center rounded-2xl' : 'h-9 w-full gap-2 rounded-2xl px-3 text-sm font-medium'
+            }`}
+            aria-expanded={!collapsed}
+            aria-label={collapsed ? 'Expandir menu' : 'Recolher menu'}
+          >
+            {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+            {!collapsed && <span>Recolher</span>}
+          </button>
+        </BentoSidebarTooltip>
+        <BentoSidebarTooltip label="Configurações" show={collapsed}>
+          <Link
+            href="/configuracoes"
+            className={`flex items-center text-white/45 hover:bg-white/10 hover:text-white/90 ${
+              collapsed ? 'h-10 w-10 justify-center rounded-2xl' : 'h-10 w-full gap-3 rounded-2xl px-3'
+            }`}
+          >
+            <Settings size={18} strokeWidth={1.65} className="shrink-0" />
+            {!collapsed && <span className="text-sm font-medium">Configurações</span>}
+          </Link>
+        </BentoSidebarTooltip>
+        <BentoSidebarTooltip label="Meu perfil" show={collapsed}>
+          <Link
+            href="/perfil"
+            className={`flex items-center ${collapsed ? 'h-11 w-11 justify-center overflow-hidden rounded-2xl ring-2 ring-neutral-800' : 'gap-3 rounded-2xl px-3 py-2 hover:bg-white/10'}`}
+          >
+            <ProfileAvatar photoUrl={profilePhotoUrl} profileName={profileName} collapsed={collapsed} />
+            {!collapsed && <span className="truncate text-sm font-medium text-white/90">Meu perfil</span>}
+          </Link>
+        </BentoSidebarTooltip>
       </div>
     </aside>
   );

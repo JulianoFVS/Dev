@@ -15,8 +15,8 @@ export default function BentoShell({
   sidebarNav?: DashboardSidebarNavOptions;
 }) {
   return (
-    <div className="flex h-screen w-full gap-1.5 overflow-hidden bg-[#dfe5df] p-1.5 font-poppins sm:gap-2 sm:p-2">
-      <div className="hidden shrink-0 sm:block">
+    <div className="flex h-screen w-full gap-1.5 overflow-x-visible overflow-y-hidden bg-[#dfe5df] p-1.5 font-poppins sm:gap-2 sm:p-2">
+      <div className="hidden shrink-0 overflow-visible sm:block">
         <DashboardSidebar {...sidebarNav} />
       </div>
 

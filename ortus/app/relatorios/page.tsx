@@ -6,12 +6,16 @@ import { clinicScope, readRouteCache, writeRouteCache } from '@/lib/routeListCac
 import { carregarConfig } from '@/lib/configClinica';
 import CustomSelect from '@/components/ui/CustomSelect';
 import {
-    BarChart3, TrendingDown, Users, DollarSign,
-    Loader2, Activity, CheckCircle, XCircle, Clock, ArrowUpRight, ArrowDownRight, Printer, Filter, Tag
+    TrendingDown, Users, DollarSign,
+    Activity, CheckCircle, XCircle, Clock, ArrowUpRight, ArrowDownRight, Printer, Filter, Tag,
 } from 'lucide-react';
+import type { ReactNode } from 'react';
 import { printDocument, printTable, escapePrintHtml } from '@/lib/printDocument';
 import BentoPageShell from '@/components/bento/BentoPageShell';
 import { bentoCard, bentoPill, bentoGhostBtn, bentoChartBar, bentoChartFill } from '@/lib/bentoUi';
+
+const reportSection = `${bentoCard} border border-black/10 p-4 sm:p-6`;
+const sectionHeading = 'mb-4 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider text-neutral-500';
 
 type Agendamento = {
     id: string; data_hora: string; procedimento: string; status: string;
@@ -429,172 +433,179 @@ export default function Relatorios() {
                 ))}
               </div>
             ) : (
-            <>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <KPI icon={<DollarSign size={20}/>} iconBg="bg-emerald-50 text-emerald-600" label="Receita Total" value={fmt(metricas.receitaTotal)} sub={`${metricas.concluidos} consultas concluídas`} trend="up"/>
-                <KPI icon={<TrendingDown size={20}/>} iconBg="bg-rose-50 text-rose-600" label="Despesas" value={fmt(metricas.despesaTotal)} sub={`${despesasAtivas.filter(d => d.tipo === 'saida').length} lançamentos (exc. cancelados)`} trend="down"/>
-                <KPI icon={<Activity size={20}/>} iconBg="bg-neutral-100 text-neutral-800" label="Lucro Líquido" value={fmt(metricas.lucro)} sub={metricas.receitaTotal > 0 ? `Margem ${Math.round((metricas.lucro / metricas.receitaTotal) * 100)}%` : ''} trend={metricas.lucro >= 0 ? 'up' : 'down'}/>
-                <KPI icon={<Users size={20}/>} iconBg="bg-indigo-50 text-indigo-600" label="Pacientes Atendidos" value={String(metricas.pacientesUnicos)} sub={`De ${pacientesTotal} cadastrados`}/>
+            <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
+                <KPI icon={<DollarSign size={20}/>} label="Receita total" value={fmt(metricas.receitaTotal)} sub={`${metricas.concluidos} consultas concluídas`} trend="up"/>
+                <KPI icon={<TrendingDown size={20}/>} label="Despesas" value={fmt(metricas.despesaTotal)} sub={`${despesasAtivas.filter(d => d.tipo === 'saida').length} lançamentos (exc. cancelados)`} trend="down"/>
+                <KPI icon={<Activity size={20}/>} label="Lucro líquido" value={fmt(metricas.lucro)} sub={metricas.receitaTotal > 0 ? `Margem ${Math.round((metricas.lucro / metricas.receitaTotal) * 100)}%` : ''} trend={metricas.lucro >= 0 ? 'up' : 'down'}/>
+                <KPI icon={<Users size={20}/>} label="Pacientes atendidos" value={String(metricas.pacientesUnicos)} sub={`De ${pacientesTotal} cadastrados`}/>
             </div>
 
-            {/* Row 2: Comparecimento + Fiados */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-white p-5 rounded-2xl border border-neutral-200 shadow-sm">
-                    <div className="text-[10px] font-bold text-neutral-400 uppercase mb-3">Taxa de Comparecimento</div>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                <section className={reportSection}>
+                    <h2 className={`${sectionHeading} mb-3`}>Taxa de comparecimento</h2>
                     <div className="flex items-end gap-4">
-                        <div className="relative w-20 h-20">
-                            <svg viewBox="0 0 36 36" className="w-20 h-20 -rotate-90">
-                                <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#e2e8f0" strokeWidth="3"/>
-                                <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#10b981" strokeWidth="3" strokeDasharray={`${metricas.taxaComparecimento}, 100`} strokeLinecap="round"/>
+                        <div className="relative h-20 w-20 shrink-0">
+                            <svg viewBox="0 0 36 36" className="h-20 w-20 -rotate-90" aria-hidden>
+                                <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#e5e5e5" strokeWidth="3"/>
+                                <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#171717" strokeWidth="3" strokeDasharray={`${metricas.taxaComparecimento}, 100`} strokeLinecap="round"/>
                             </svg>
                             <div className="absolute inset-0 flex items-center justify-center">
-                                <span className="text-lg font-black text-neutral-800">{metricas.taxaComparecimento}%</span>
+                                <span className="text-lg font-semibold text-neutral-900">{metricas.taxaComparecimento}%</span>
                             </div>
                         </div>
-                        <div className="text-xs text-neutral-500 space-y-1">
-                            <div className="flex items-center gap-1.5"><CheckCircle size={12} className="text-emerald-500"/> {metricas.concluidos + metricas.fiados} compareceram</div>
-                            <div className="flex items-center gap-1.5"><XCircle size={12} className="text-rose-500"/> {metricas.cancelados} cancelaram/faltaram</div>
-                            <div className="flex items-center gap-1.5"><Clock size={12} className="text-neutral-400"/> {metricas.total} total</div>
-                        </div>
+                        <ul className="space-y-1 text-xs text-neutral-600">
+                            <li className="flex items-center gap-1.5"><CheckCircle size={12} className="text-neutral-800"/> {metricas.concluidos + metricas.fiados} compareceram</li>
+                            <li className="flex items-center gap-1.5"><XCircle size={12} className="text-neutral-500"/> {metricas.cancelados} cancelaram/faltaram</li>
+                            <li className="flex items-center gap-1.5"><Clock size={12} className="text-neutral-400"/> {metricas.total} total</li>
+                        </ul>
                     </div>
-                </div>
+                </section>
 
-                <div className="bg-white p-5 rounded-2xl border border-neutral-200 shadow-sm">
-                    <div className="text-[10px] font-bold text-neutral-400 uppercase mb-3">Valores em Aberto (Fiados)</div>
-                    <div className="text-3xl font-black text-amber-600 mb-2">{fmt(metricas.fiado)}</div>
-                    <div className="text-xs text-neutral-500">{metricas.fiados} atendimento{metricas.fiados !== 1 ? 's' : ''} pendente{metricas.fiados !== 1 ? 's' : ''} de pagamento</div>
-                    {metricas.fiado > 0 && <div className="mt-3 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-[11px] text-amber-700 font-semibold">Valor a receber acumulado no período</div>}
-                </div>
+                <section className={reportSection}>
+                    <h2 className={`${sectionHeading} mb-3`}>Valores em aberto (fiados)</h2>
+                    <p className="text-2xl font-semibold tracking-tight text-neutral-900 sm:text-3xl">{fmt(metricas.fiado)}</p>
+                    <p className="mt-1 text-xs text-neutral-500">{metricas.fiados} atendimento{metricas.fiados !== 1 ? 's' : ''} pendente{metricas.fiados !== 1 ? 's' : ''} de pagamento</p>
+                    {metricas.fiado > 0 && (
+                        <p className="mt-3 rounded-xl border border-black/10 bg-neutral-50 px-3 py-2 text-[11px] font-medium text-neutral-700">
+                            Valor a receber acumulado no período
+                        </p>
+                    )}
+                </section>
 
-                <div className="bg-white p-5 rounded-2xl border border-neutral-200 shadow-sm">
-                    <div className="text-[10px] font-bold text-neutral-400 uppercase mb-3">Ticket Médio</div>
-                    <div className="text-3xl font-black text-neutral-800 mb-2">
+                <section className={reportSection}>
+                    <h2 className={`${sectionHeading} mb-3`}>Ticket médio</h2>
+                    <p className="text-2xl font-semibold tracking-tight text-neutral-900 sm:text-3xl">
                         {metricas.concluidos > 0 ? fmt(metricas.faturamento / metricas.concluidos) : 'R$ 0,00'}
-                    </div>
-                    <div className="text-xs text-neutral-500">Valor médio por consulta concluída</div>
-                    {metricas.receitaManual > 0 && <div className="mt-3 px-3 py-2 bg-neutral-50 border border-black/10 rounded-lg text-[11px] text-neutral-800 font-semibold">+ {fmt(metricas.receitaManual)} em receitas manuais</div>}
-                </div>
+                    </p>
+                    <p className="mt-1 text-xs text-neutral-500">Valor médio por consulta concluída</p>
+                    {metricas.receitaManual > 0 && (
+                        <p className="mt-3 rounded-xl border border-black/10 bg-neutral-50 px-3 py-2 text-[11px] font-medium text-neutral-800">
+                            + {fmt(metricas.receitaManual)} em receitas manuais
+                        </p>
+                    )}
+                </section>
             </div>
 
-            {/* Fiados em aberto — lista detalhada */}
             {metricas.fiadosEmAberto.length > 0 && (
-                <div className="bg-white p-6 rounded-2xl border border-amber-200 shadow-sm">
-                    <div className="text-[10px] font-bold text-amber-600 uppercase mb-4 flex items-center gap-2">
-                        <Clock size={14}/> Fiados em Aberto ({metricas.fiadosEmAberto.length})
-                    </div>
-                    <div className="divide-y divide-neutral-100">
+                <ReportSection title={`Fiados em aberto (${metricas.fiadosEmAberto.length})`} icon={<Clock size={14} />}>
+                    <ul className="divide-y divide-black/5">
                         {metricas.fiadosEmAberto.map(f => (
-                            <div key={f.id} className="py-3 flex items-center justify-between gap-4">
+                            <li key={f.id} className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0">
                                 <div className="min-w-0">
-                                    <p className="font-bold text-neutral-800 text-sm truncate">{f.paciente}</p>
-                                    <p className="text-xs text-neutral-500 truncate">{f.procedimento}{f.profissional ? ` · ${f.profissional}` : ''}</p>
-                                    <p className="text-[10px] text-neutral-400 mt-0.5">{new Date(f.data).toLocaleDateString('pt-BR')}</p>
+                                    <p className="truncate text-sm font-medium text-neutral-900">{f.paciente}</p>
+                                    <p className="truncate text-xs text-neutral-500">{f.procedimento}{f.profissional ? ` · ${f.profissional}` : ''}</p>
+                                    <p className="mt-0.5 text-[10px] text-neutral-400">{new Date(f.data).toLocaleDateString('pt-BR')}</p>
                                 </div>
-                                <span className="font-black text-amber-600 whitespace-nowrap">{fmt(f.valor)}</span>
-                            </div>
+                                <span className="whitespace-nowrap text-sm font-semibold text-neutral-900">{fmt(f.valor)}</span>
+                            </li>
                         ))}
-                    </div>
-                </div>
+                    </ul>
+                </ReportSection>
             )}
 
-            {/* Breakdown por categoria */}
-            <div className="bg-white p-6 rounded-2xl border border-neutral-200 shadow-sm">
-                <div className="text-[10px] font-bold text-neutral-400 uppercase mb-4 flex items-center gap-2">
-                    <Tag size={14}/> Resumo por Categoria
-                </div>
+            <ReportSection title="Resumo por categoria" icon={<Tag size={14} />}>
                 {metricas.categoriasBreakdown.length === 0 ? (
-                    <p className="text-sm text-neutral-400 italic">Nenhum lançamento no período.</p>
+                    <p className="text-sm text-neutral-500">Nenhum lançamento no período.</p>
                 ) : (
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
+                    <div className="-mx-1 overflow-x-auto">
+                        <table className="w-full min-w-[320px] text-sm">
                             <thead>
-                                <tr className="text-[10px] font-bold text-neutral-400 uppercase border-b border-neutral-100">
-                                    <th className="text-left py-2 pr-4">Categoria</th>
-                                    <th className="text-right py-2 px-2">Entradas</th>
-                                    <th className="text-right py-2 px-2">Saídas</th>
-                                    <th className="text-right py-2 pl-2">Saldo</th>
+                                <tr className="border-b border-black/5 text-[10px] font-semibold uppercase tracking-wider text-neutral-500">
+                                    <th className="py-2 pr-4 text-left">Categoria</th>
+                                    <th className="px-2 py-2 text-right">Entradas</th>
+                                    <th className="px-2 py-2 text-right">Saídas</th>
+                                    <th className="py-2 pl-2 text-right">Saldo</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {metricas.categoriasBreakdown.map(([nome, v]) => (
-                                    <tr key={nome} className="border-b border-neutral-50 hover:bg-neutral-50/50">
-                                        <td className="py-2.5 pr-4 font-bold text-neutral-700">{nome}</td>
-                                        <td className="py-2.5 px-2 text-right text-emerald-600 font-bold">{fmt(v.entrada)}</td>
-                                        <td className="py-2.5 px-2 text-right text-rose-600 font-bold">{fmt(v.saida)}</td>
-                                        <td className={`py-2.5 pl-2 text-right font-black ${v.entrada - v.saida >= 0 ? 'text-neutral-800' : 'text-rose-600'}`}>{fmt(v.entrada - v.saida)}</td>
+                                    <tr key={nome} className="border-b border-black/[0.03] hover:bg-neutral-50/80">
+                                        <td className="py-2.5 pr-4 font-medium text-neutral-800">{nome}</td>
+                                        <td className="px-2 py-2.5 text-right font-medium text-neutral-800">{fmt(v.entrada)}</td>
+                                        <td className="px-2 py-2.5 text-right font-medium text-neutral-500">{fmt(v.saida)}</td>
+                                        <td className={`py-2.5 pl-2 text-right font-semibold ${v.entrada - v.saida >= 0 ? 'text-neutral-900' : 'text-neutral-600'}`}>{fmt(v.entrada - v.saida)}</td>
                                     </tr>
                                 ))}
                             </tbody>
                         </table>
                     </div>
                 )}
-            </div>
+            </ReportSection>
 
-            {/* Faturamento mensal (bar chart via CSS) */}
             {metricas.meses.length > 1 && (
-                <div className="bg-white p-6 rounded-2xl border border-neutral-200 shadow-sm">
-                    <div className="text-[10px] font-bold text-neutral-400 uppercase mb-4">Faturamento Mensal (Consultas Concluídas)</div>
-                    <div className="flex items-end gap-2 h-40">
+                <ReportSection title="Faturamento mensal (consultas concluídas)">
+                    <div className="flex h-36 items-end gap-1.5 sm:h-40 sm:gap-2">
                         {metricas.meses.map(m => {
                             const val = metricas.fatMensal[m];
                             const pct = Math.max((val / metricas.maxFat) * 100, 4);
                             return (
-                                <div key={m} className="flex-1 flex flex-col items-center gap-1 group">
-                                    <div className="text-[9px] font-bold text-neutral-500 opacity-0 group-hover:opacity-100 transition-opacity">{fmt(val)}</div>
-                                    <div className={`w-full ${bentoChartBar}`} style={{ height: `${pct}%` }}/>
-                                    <div className="text-[9px] font-bold text-neutral-400 mt-1">{fmtMes(m)}</div>
+                                <div key={m} className="group flex flex-1 flex-col items-center gap-1">
+                                    <div className="text-[9px] font-medium text-neutral-600 opacity-0 transition-opacity group-hover:opacity-100">{fmt(val)}</div>
+                                    <div className={`w-full min-h-[4px] ${bentoChartBar}`} style={{ height: `${pct}%` }} />
+                                    <div className="mt-1 text-[9px] font-medium text-neutral-500">{fmtMes(m)}</div>
                                 </div>
                             );
                         })}
                     </div>
-                </div>
+                </ReportSection>
             )}
 
-            {/* Top Procedimentos */}
-            <div className="bg-white p-6 rounded-2xl border border-neutral-200 shadow-sm">
-                <div className="text-[10px] font-bold text-neutral-400 uppercase mb-4">Procedimentos Mais Realizados</div>
+            <ReportSection title="Procedimentos mais realizados">
                 {metricas.topProcedimentos.length === 0 ? (
-                    <p className="text-sm text-neutral-400 italic">Nenhum procedimento concluído no período.</p>
+                    <p className="text-sm text-neutral-500">Nenhum procedimento concluído no período.</p>
                 ) : (
-                    <div className="space-y-2">
+                    <ul className="space-y-3">
                         {metricas.topProcedimentos.map(([nome, data], i) => {
                             const maxCount = metricas.topProcedimentos[0][1].count;
                             const pct = Math.round((data.count / maxCount) * 100);
                             return (
-                                <div key={nome} className="flex items-center gap-3">
-                                    <span className="w-6 text-xs font-black text-neutral-400 text-right">{i + 1}.</span>
-                                    <div className="flex-1">
-                                        <div className="flex justify-between mb-1">
-                                            <span className="text-sm font-bold text-neutral-700 truncate">{nome}</span>
-                                            <span className="text-xs font-bold text-neutral-500">{data.count}x · {fmt(data.valor)}</span>
+                                <li key={nome} className="flex items-center gap-3">
+                                    <span className="w-6 text-right text-xs font-semibold text-neutral-400">{i + 1}.</span>
+                                    <div className="min-w-0 flex-1">
+                                        <div className="mb-1 flex justify-between gap-2">
+                                            <span className="truncate text-sm font-medium text-neutral-800">{nome}</span>
+                                            <span className="shrink-0 text-xs font-medium text-neutral-500">{data.count}x · {fmt(data.valor)}</span>
                                         </div>
-                                        <div className="h-2 bg-neutral-100 rounded-full overflow-hidden">
-                                            <div className={bentoChartFill} style={{ width: `${pct}%` }}/>
+                                        <div className="h-1.5 overflow-hidden rounded-full bg-neutral-100">
+                                            <div className={bentoChartFill} style={{ width: `${pct}%` }} />
                                         </div>
                                     </div>
-                                </div>
+                                </li>
                             );
                         })}
-                    </div>
+                    </ul>
                 )}
+            </ReportSection>
             </div>
-            </>
             )}
         </BentoPageShell>
     );
 }
 
-function KPI({ icon, iconBg, label, value, sub, trend }: { icon: React.ReactNode; iconBg: string; label: string; value: string; sub?: string; trend?: 'up' | 'down' }) {
+function KPI({ icon, label, value, sub, trend }: { icon: ReactNode; label: string; value: string; sub?: string; trend?: 'up' | 'down' }) {
     return (
-        <div className={`${bentoCard} border border-black/5 p-5`}>
-            <div className="flex items-center justify-between mb-3">
-                <div className={`p-2.5 rounded-xl ${iconBg}`}>{icon}</div>
-                {trend === 'up' && <ArrowUpRight size={18} className="text-emerald-500"/>}
-                {trend === 'down' && <ArrowDownRight size={18} className="text-rose-500"/>}
+        <div className={`${bentoCard} border border-black/10 p-4 sm:p-5`}>
+            <div className="mb-3 flex items-center justify-between">
+                <div className="rounded-xl bg-neutral-100 p-2.5 text-neutral-800">{icon}</div>
+                {trend === 'up' && <ArrowUpRight size={18} className="text-neutral-600" aria-hidden />}
+                {trend === 'down' && <ArrowDownRight size={18} className="text-neutral-600" aria-hidden />}
             </div>
-            <div className="text-[10px] font-semibold uppercase text-neutral-500">{label}</div>
-            <div className="mt-0.5 text-xl font-semibold text-neutral-900">{value}</div>
-            {sub && <div className="mt-1 text-[11px] text-neutral-500">{sub}</div>}
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500">{label}</p>
+            <p className="mt-0.5 text-lg font-semibold tracking-tight text-neutral-900 sm:text-xl">{value}</p>
+            {sub ? <p className="mt-1 text-[11px] text-neutral-500">{sub}</p> : null}
         </div>
+    );
+}
+
+function ReportSection({ title, icon, children }: { title: string; icon?: ReactNode; children: ReactNode }) {
+    return (
+        <section className={reportSection}>
+            <h2 className={sectionHeading}>
+                {icon}
+                {title}
+            </h2>
+            {children}
+        </section>
     );
 }
