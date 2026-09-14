@@ -44,6 +44,9 @@ interface ToothState { faces: Partial<Record<Face, FaceStatus>>; cond: ToothCond
 
 const TOOLS = ODONTO_TOOLS;
 
+const prontuarioPanel =
+  'rounded-[1.35rem] border border-black/5 bg-white p-4 sm:rounded-[1.5rem] sm:p-6 md:p-8';
+
 const PATIENT_NAV_SECTIONS = [
   { key: 'dados', label: 'Dados', icon: User },
   { key: 'anamnese', label: 'Anamnese', icon: FileText },
@@ -282,13 +285,14 @@ export default function PacienteDetalhe() {
   const [anamnesePreview, setAnamnesePreview] = useState<any>(null);
   const odontogramaFromServer = useRef(true);
   const fichaFromServer = useRef(true);
+  const prontuarioIdCarregado = useRef<string | null>(null);
 
   // Revalida quando o Action Hub registrar tratamento in-place neste paciente
   useEffect(() => {
       function handle(event: Event) {
           const detail = (event as CustomEvent<{ pacienteId?: string | number }>).detail;
           if (!detail || String(detail.pacienteId) === String(id)) {
-              carregar();
+              carregar({ silent: true });
           }
       }
       window.addEventListener('ortus:tratamento-changed', handle as EventListener);
@@ -422,7 +426,11 @@ export default function PacienteDetalhe() {
   // DEBITOS
   const [debitos, setDebitos] = useState<any[]>([]);
 
-  useEffect(() => { if(id) carregar(); }, [id]);
+  useEffect(() => {
+    if (!id) return;
+    carregar({ silent: prontuarioIdCarregado.current === id });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
 
   useEffect(() => {
     return () => { useOdontogramStore.getState().resetAll(); };
@@ -440,8 +448,8 @@ export default function PacienteDetalhe() {
 
   const menorDeIdade = isMenorDeIdade(form.data_nascimento);
 
-  async function carregar() {
-      setLoading(true);
+  async function carregar(opts?: { silent?: boolean }) {
+      if (!opts?.silent) setLoading(true);
       odontogramaFromServer.current = true;
       fichaFromServer.current = true;
       const listaClinicas = await fetchUserClinicas();
@@ -485,6 +493,7 @@ export default function PacienteDetalhe() {
       setDebitos(debitosLista);
 
       setModelosAnamnese(carregarModelos());
+      prontuarioIdCarregado.current = String(id);
       setLoading(false);
   }
 
@@ -1512,7 +1521,13 @@ export default function PacienteDetalhe() {
       });
   }
 
-  if (loading) return <div className="h-screen flex items-center justify-center text-slate-400"><Loader2 className="animate-spin mr-2"/> Carregando Prontuário...</div>;
+  if (loading && prontuarioIdCarregado.current !== id) {
+    return (
+      <div className="flex h-full min-h-[40vh] items-center justify-center text-neutral-400">
+        <Loader2 className="mr-2 animate-spin" /> Carregando prontuário...
+      </div>
+    );
+  }
 
   return (
     <div className="w-full space-y-3 px-2.5 py-2.5 pb-16 sm:px-3 sm:py-3 md:px-4 md:py-3.5">
@@ -1697,7 +1712,7 @@ export default function PacienteDetalhe() {
 
             <div className="lg:col-span-3">
                 {abaAtiva === 'dados' && (
-                    <div className="rounded-[1.35rem] border border-black/5 bg-white p-5 sm:rounded-[1.5rem] sm:p-6 md:p-8">
+                    <div className={prontuarioPanel}>
                         <div className="flex flex-wrap justify-between items-center gap-3 mb-6">
                             <h3 className="text-lg font-black text-slate-800 flex items-center gap-2"><User size={20} className="text-blue-500"/> Informações do Paciente</h3>
                             <div className="flex gap-2">
@@ -2003,7 +2018,7 @@ export default function PacienteDetalhe() {
                         )}
 
                         {/* FICHA MÉDICA (mantida) */}
-                        <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm">
+                        <div className={prontuarioPanel}>
                             <h3 className="text-lg font-black text-slate-800 mb-4 flex items-center gap-2"><Stethoscope size={20} className="text-pink-500"/> Ficha Médica Rápida</h3>
                             <p className="text-xs text-slate-400 mb-3">Digite condições relevantes e pressione Enter para adicionar.</p>
                             <TagInput
@@ -2012,7 +2027,7 @@ export default function PacienteDetalhe() {
                                 placeholder="Ex: Diabetes, Hipertensão..."
                             />
                         </div>
-                        <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm">
+                        <div className={prontuarioPanel}>
                             <h3 className="text-lg font-black text-slate-800 mb-4 flex items-center gap-2"><Pill size={20} className="text-purple-500"/> Medicamentos em Uso</h3>
                             <TagInput
                                 value={getMedicamentosFromFicha(ficha)}
@@ -2021,7 +2036,7 @@ export default function PacienteDetalhe() {
                                 placeholder="Digite o medicamento e pressione Enter..."
                             />
                         </div>
-                        <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm">
+                        <div className={prontuarioPanel}>
                             <h3 className="text-lg font-black text-slate-800 mb-4 flex items-center gap-2"><AlertTriangle size={20} className="text-amber-500"/> Observações Clínicas</h3>
                             <textarea value={form.anamnese || ''} onChange={e => setForm({...form, anamnese: e.target.value})} className="w-full p-4 bg-yellow-50 border border-yellow-200 rounded-xl outline-none focus:ring-2 focus:ring-yellow-300 h-40 resize-none text-slate-700" placeholder="Histórico detalhado, queixas principais e evolução..." />
                         </div>
@@ -2029,19 +2044,19 @@ export default function PacienteDetalhe() {
                 )}
 
                 {abaAtiva === 'tratamentos' && (
-                    <div className="space-y-6 animate-in fade-in">
-                        <div className="flex bg-slate-100 border border-slate-200 rounded-xl p-1 w-fit">
+                    <div className="animate-in fade-in space-y-4">
+                        <div className="flex w-fit rounded-full border border-black/10 bg-[#f3f4f1] p-1">
                             <button
                                 type="button"
                                 onClick={() => setSubAbaTratamentos('tratamentos')}
-                                className={`px-5 py-2.5 text-sm font-bold rounded-lg transition-all ${subAbaTratamentos === 'tratamentos' ? 'bg-white text-blue-600 shadow' : 'text-slate-500 hover:text-slate-700'}`}
+                                className={`rounded-full px-4 py-2 text-sm font-semibold transition-colors ${subAbaTratamentos === 'tratamentos' ? 'bg-neutral-900 text-white' : 'text-neutral-600 hover:text-neutral-900'}`}
                             >
                                 Tratamentos
                             </button>
                             <button
                                 type="button"
                                 onClick={() => setSubAbaTratamentos('evolucoes')}
-                                className={`px-5 py-2.5 text-sm font-bold rounded-lg transition-all ${subAbaTratamentos === 'evolucoes' ? 'bg-white text-teal-600 shadow' : 'text-slate-500 hover:text-slate-700'}`}
+                                className={`rounded-full px-4 py-2 text-sm font-semibold transition-colors ${subAbaTratamentos === 'evolucoes' ? 'bg-neutral-900 text-white' : 'text-neutral-600 hover:text-neutral-900'}`}
                             >
                                 Evoluções
                             </button>
@@ -2052,16 +2067,17 @@ export default function PacienteDetalhe() {
                         ) : (
                         <>
                         {/* ODONTOGRAMA */}
-                        <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-200 shadow-sm">
-                            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 mb-5">
-                                <h3 className="text-lg font-black text-slate-800 flex items-center gap-2"><Smile size={20} className="text-blue-500"/> Odontograma</h3>
-                                <div className="flex gap-2 flex-wrap">
-                                    <div className="flex bg-slate-100 border border-slate-200 rounded-lg p-0.5">
+                        <div className={prontuarioPanel}>
+                            <div className="mb-5 flex flex-col justify-between gap-3 lg:flex-row lg:items-center">
+                                <h3 className="flex items-center gap-2 text-lg font-semibold text-neutral-900"><Smile size={20} className="text-neutral-700"/> Odontograma</h3>
+                                <div className="flex flex-wrap gap-2">
+                                    <div className="flex rounded-full border border-black/10 bg-[#f3f4f1] p-0.5">
                                         {(['anatomica', 'esquematica', 'livre'] as const).map(v => (
                                             <button
                                                 key={v}
+                                                type="button"
                                                 onClick={() => setVisaoOdonto(v)}
-                                                className={`px-4 py-2 text-xs font-bold rounded-md min-h-[44px] transition-all ${visaoOdonto === v ? 'bg-white text-blue-600 shadow' : 'text-slate-500 hover:text-slate-700'}`}
+                                                className={`min-h-[40px] rounded-full px-3 py-2 text-xs font-semibold transition-colors sm:text-sm ${visaoOdonto === v ? 'bg-neutral-900 text-white' : 'text-neutral-600'}`}
                                             >
                                                 {v === 'anatomica' ? 'Anatômica' : v === 'esquematica' ? 'Esquemática' : 'Texto Livre'}
                                             </button>
@@ -2069,16 +2085,17 @@ export default function PacienteDetalhe() {
                                     </div>
                                     {visaoOdonto !== 'livre' && (
                                         <button
+                                            type="button"
                                             onClick={async () => {
                                                 if (await showConfirm('Limpar todo o odontograma?', { title: 'Limpar', type: 'warning', confirmLabel: 'Limpar' })) resetOdontogramAll();
                                             }}
-                                            className="px-2.5 py-1.5 text-xs font-semibold rounded-md bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center gap-1"
+                                            className="flex items-center gap-1 rounded-full border border-black/10 px-3 py-2 text-xs font-semibold text-neutral-700 hover:bg-neutral-50"
                                         >
                                             <Eraser size={14}/> Limpar
                                         </button>
                                     )}
-                                    <button onClick={imprimirOrcamento} className="px-2.5 py-1.5 text-xs font-semibold rounded-md bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center gap-1"><Printer size={14}/> PDF</button>
-                                    {savingOdo && <span className="text-xs text-slate-400 font-semibold flex items-center gap-1"><Loader2 size={12} className="animate-spin"/> Salvando...</span>}
+                                    <button type="button" onClick={imprimirOrcamento} className="flex items-center gap-1 rounded-full border border-black/10 px-3 py-2 text-xs font-semibold text-neutral-700 hover:bg-neutral-50"><Printer size={14}/> PDF</button>
+                                    {savingOdo && <span className="flex items-center gap-1 text-xs font-medium text-neutral-400"><Loader2 size={12} className="animate-spin"/> Salvando...</span>}
                                 </div>
                             </div>
 
@@ -2095,17 +2112,15 @@ export default function PacienteDetalhe() {
                             ) : (
                             <>
                             {/* Tabs Permanente/Leite */}
-                            <div className="mb-4 p-4 bg-gradient-to-br from-slate-50 to-blue-50/30 rounded-xl border border-slate-200">
-                                <div className="flex justify-end">
-                                    <div className="flex bg-white border border-slate-200 rounded-lg p-0.5">
-                                        <button onClick={() => setTipoArcada('permanente')} className={`px-4 py-2 text-xs font-bold rounded-md min-h-[44px] transition-all ${tipoArcada === 'permanente' ? 'bg-blue-600 text-white shadow' : 'text-slate-600 hover:bg-slate-50'}`}>Dentes Permanentes</button>
-                                        <button onClick={() => setTipoArcada('leite')} className={`px-4 py-2 text-xs font-bold rounded-md min-h-[44px] transition-all ${tipoArcada === 'leite' ? 'bg-blue-600 text-white shadow' : 'text-slate-600 hover:bg-slate-50'}`}>Dentes de Leite</button>
+                            <div className="mb-4 flex justify-end rounded-2xl border border-black/5 bg-[#f8f8f6] p-3">
+                                    <div className="flex rounded-full border border-black/10 bg-white p-0.5">
+                                        <button type="button" onClick={() => setTipoArcada('permanente')} className={`min-h-[40px] rounded-full px-4 py-2 text-xs font-semibold transition-colors sm:text-sm ${tipoArcada === 'permanente' ? 'bg-neutral-900 text-white' : 'text-neutral-600'}`}>Dentes Permanentes</button>
+                                        <button type="button" onClick={() => setTipoArcada('leite')} className={`min-h-[40px] rounded-full px-4 py-2 text-xs font-semibold transition-colors sm:text-sm ${tipoArcada === 'leite' ? 'bg-neutral-900 text-white' : 'text-neutral-600'}`}>Dentes de Leite</button>
                                     </div>
-                                </div>
                             </div>
 
                             {/* Toolbar de ferramentas */}
-                            <div className="flex flex-wrap gap-2 mb-6 p-3 bg-slate-50 rounded-xl border border-slate-200">
+                            <div className="mb-6 flex flex-wrap gap-2 rounded-2xl border border-black/5 bg-[#f8f8f6] p-3">
                                 {TOOLS.map(t => (
                                     <button
                                         key={t.key}
@@ -2124,8 +2139,8 @@ export default function PacienteDetalhe() {
                                 </div>
                             </div>
 
-                            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:gap-4 mb-4 p-3 bg-slate-50 rounded-xl border border-slate-200">
-                                <div className="text-[11px] font-black uppercase tracking-wider text-slate-500">Zoom e Navegação</div>
+                            <div className="mb-4 flex flex-col gap-3 rounded-2xl border border-black/5 bg-[#f8f8f6] p-3 lg:flex-row lg:items-center lg:gap-4">
+                                <div className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500">Zoom e navegação</div>
                                 <div className="flex flex-1 flex-wrap items-center gap-2">
                                     <button onClick={() => nudgeOdontogramaZoom(-0.1)} className="px-3 py-2 rounded-lg border border-slate-200 min-h-[44px] text-sm font-bold text-slate-600 hover:border-slate-400" aria-label="Diminuir zoom do odontograma">−</button>
                                     <input
@@ -2693,7 +2708,7 @@ export default function PacienteDetalhe() {
                 )}
 
                 {abaAtiva === 'historico' && (
-                    <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm animate-in fade-in">
+                    <div className={`${prontuarioPanel} animate-in fade-in`}>
                         <h3 className="text-lg font-black text-slate-800 mb-6 flex items-center gap-2"><Clock size={20} className="text-blue-500"/> Histórico de Atendimentos</h3>
                         {historico.length === 0 ? (
                             <div className="text-center py-12 text-slate-400 border-2 border-dashed border-slate-100 rounded-2xl">Nenhum atendimento registrado.</div>

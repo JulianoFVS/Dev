@@ -473,7 +473,9 @@ export default function Dashboard() {
   const cadeiraAtual = emAtendimento ? cadeiraDe(emAtendimento, mapaCadeiras) : 1;
   const graficoLabel = periodo === 'hoje' ? 'Recebimentos por hora · Hoje' : periodo === 'semana' ? 'Recebimentos por dia · Semana' : 'Recebimentos por semana · Mês';
 
-  const bento = 'min-h-0 rounded-[1.35rem] bg-white sm:rounded-[1.5rem] md:rounded-[1.65rem]';
+  const bentoShell = 'min-h-0 rounded-[1.35rem] sm:rounded-[1.5rem] md:rounded-[1.65rem]';
+  const bento = `${bentoShell} bg-white`;
+  const bentoAgenda = `${bentoShell} border border-neutral-800 bg-neutral-950 text-white shadow-md`;
 
   const resumoConsultas = agendaHoje.length;
   const resumoPend = pendencias.length;
@@ -587,9 +589,9 @@ export default function Dashboard() {
               </div>
             </section>
 
-            <section className={`${bento} relative flex min-h-[10rem] flex-col justify-between overflow-hidden border border-neutral-800 bg-neutral-950 p-4 sm:min-h-[11rem] sm:p-5 lg:col-span-1`}>
-              <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_100%_0%,rgba(200,240,83,0.12),transparent_55%)]" />
-              <div className="relative z-[1] text-white">
+            <section className={`${bentoAgenda} relative flex min-h-[10rem] flex-col justify-between overflow-hidden p-4 sm:min-h-[11rem] sm:p-5 lg:col-span-1`}>
+              <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_100%_0%,rgba(200,240,83,0.18),transparent_50%)]" />
+              <div className="relative z-[1]">
                 {emAtendimento ? (
                   <>
                     <p className="text-sm text-neutral-300 sm:text-base">

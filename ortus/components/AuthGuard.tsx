@@ -106,7 +106,19 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const [headerSwitchOpen, setHeaderSwitchOpen] = useState(false);
   const sessaoPronta = useRef(false);
 
-  useEffect(() => { validarSessao(); }, [pathname]);
+  useEffect(() => {
+    validarSessao();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!sessaoPronta.current || !session || !perfil) return;
+    if (perfil.precisa_trocar_senha && pathname !== '/primeiro-acesso') {
+      router.replace('/primeiro-acesso');
+    } else if (pathname.startsWith('/super-admin') && !perfil.is_super_admin) {
+      router.replace('/dashboard');
+    }
+  }, [pathname, session, perfil, router]);
 
   useEffect(() => {
     if (clinicLoading) return;

@@ -38,25 +38,40 @@ export default function Pacientes() {
   }, [activeClinicId]);
 
   const lastClinicRef = useRef<string | null>(null);
+  const jaCarregou = useRef(false);
+
+  useEffect(() => {
+    if (!activeClinicId || clinicLoading) return;
+    try {
+      const raw = sessionStorage.getItem('ortus:pacientes-lista');
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as { clinicId: string; items: any[] };
+      if (parsed.clinicId === activeClinicId && Array.isArray(parsed.items)) {
+        setPacientes(parsed.items);
+        jaCarregou.current = true;
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [activeClinicId, clinicLoading]);
 
   useEffect(() => { 
-      if (!clinicLoading && activeClinicId) {
-          // Só recarrega se a clínica realmente mudou
-          if (lastClinicRef.current === activeClinicId) return;
-          lastClinicRef.current = activeClinicId;
-          carregarDados();
-      }
+      if (!clinicLoading || !activeClinicId) return;
+      if (lastClinicRef.current === activeClinicId && jaCarregou.current) return;
+      const silent = jaCarregou.current;
+      lastClinicRef.current = activeClinicId;
+      carregarDados({ silent });
   }, [clinicLoading, activeClinicId]);
 
   // Atualiza a lista quando um paciente é criado/alterado em outro lugar (ex.: Quick Capture)
   useEffect(() => {
-      function handle() { carregarDados(); }
+      function handle() { carregarDados({ silent: true }); }
       window.addEventListener('ortus:paciente-changed', handle);
       return () => window.removeEventListener('ortus:paciente-changed', handle);
   }, []);
 
-  async function carregarDados() {
-    setLoading(true);
+  async function carregarDados(opts?: { silent?: boolean }) {
+    if (!opts?.silent) setLoading(true);
     
     // 1. Carregar Clínicas (apenas as do usuário logado — multi-tenant)
     const listaClinicas = await fetchUserClinicas();
@@ -87,8 +102,17 @@ export default function Pacientes() {
             return { ...p, status, nome_clinica: p.clinicas?.nome };
         });
         setPacientes(formatados);
+        try {
+          sessionStorage.setItem(
+            'ortus:pacientes-lista',
+            JSON.stringify({ clinicId: activeClinicId, items: formatados }),
+          );
+        } catch {
+          /* ignore */
+        }
     }
     setLoading(false);
+    jaCarregou.current = true;
   }
 
   function novoPaciente() {
@@ -255,7 +279,11 @@ export default function Pacientes() {
           )}
       </div>
 
-      {loading ? <div className="py-20 text-center text-slate-400"><Loader2 className="animate-spin mx-auto mb-2"/> Carregando...</div> : 
+      {loading && !jaCarregou.current ? (
+        <div className="flex flex-col items-center justify-center py-16 text-neutral-400">
+          <Loader2 className="mb-2 animate-spin" /> Carregando...
+        </div>
+      ) : 
        visualizacao === 'lista' ? (
         <div className={`${card} overflow-hidden`}>
           <div className="flex items-center justify-between border-b border-black/5 px-4 py-3 md:px-5">
