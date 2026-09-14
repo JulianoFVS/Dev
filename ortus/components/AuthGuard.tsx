@@ -85,10 +85,16 @@ function CadeirasOcupadas({ recolhido }: { recolhido: boolean }) {
   );
 }
 
+function hasAuthCookie(): boolean {
+  if (typeof document === 'undefined') return false;
+  return document.cookie.split(';').some((c) => c.trim().startsWith('ortus_auth=1'));
+}
+
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<any>(null);
   const [perfil, setPerfil] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  // Se já existe cookie de auth, renderiza a casca imediatamente (sem spinner)
+  const [loading, setLoading] = useState(() => !hasAuthCookie());
   
   const [menuMobileAberto, setMenuMobileAberto] = useState(false);
   const [menuRecolhido, setMenuRecolhido] = useState(false);
@@ -302,8 +308,11 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   }
 
   if (['/login', '/', '/site', '/termos', '/checkout', '/cadastro', '/teste-3d'].includes(pathname)) return <>{children}</>;
+  // Mostra spinner bloqueante APENAS se não temos cookie de auth (primeiro acesso)
   if (loading) return <div className="h-screen w-screen bg-slate-50 flex items-center justify-center text-ortus-accent-muted animate-pulse"><Building2 size={40}/></div>;
-  if (!session) return null;
+  // Se validação em background ainda não terminou mas já temos cookie, continua renderizando
+  // Se não tem session e não tem cookie (ex: sessão expirada), redireciona via validarSessao
+  if (!session && !hasAuthCookie()) return null;
 
   // LAYOUT LIMPO PARA SELEÇÃO, PRIMEIRO ACESSO E SUPER ADMIN
   if (pathname === '/selecao' || pathname === '/primeiro-acesso' || pathname.startsWith('/super-admin')) {

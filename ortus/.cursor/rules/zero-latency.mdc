@@ -1,0 +1,33 @@
+---
+description: Zero Latency — casca instantânea, sem spinner bloqueante, cache e UI otimista
+alwaysApply: true
+---
+
+# Zero Latency (fluidez obrigatória)
+
+O sistema precisa parecer instantâneo. Nunca bloqueie a casca da tela (sidebar, header, títulos, tabs) esperando Supabase. `loading = true` no mount **não** autoriza `return <Spinner />`.
+
+## Data fetching
+
+- Prefira Server Component (`async function Page`) + `initialData` quando a raiz não precisar de hooks pesados.
+- No cliente: bootstrap **síncrono** (`useState(() => cache)`) — nunca só `useEffect` para hidratar lista.
+- Reuse dados já em memória (`ClinicaContext.clinics`). Não refetch o que o contexto já tem.
+- `loading.tsx` da rota = skeletons `animate-pulse` no mesmo layout. Sem spinner genérico no centro.
+- Condição de fetch: `if (clinicLoading || !activeClinicId) return` — **nunca** inverter `!clinicLoading`.
+
+## Mutações
+
+Atualize o estado **no clique**. Depois confirme no servidor; se falhar, reverta. Não espere o INSERT/UPDATE para pintar a UI.
+
+```tsx
+// ❌ BAD — tela vazia até o fetch; casca some
+const [loading, setLoading] = useState(true);
+if (loading) return <Loader2 className="animate-spin" />;
+
+// ✅ GOOD — casca já renderiza; skeleton só no miolo sem cache
+const cached = useRef(readCache(clinicId));
+const [items, setItems] = useState(cached.current);
+const [loading, setLoading] = useState(cached.current.length === 0);
+```
+
+Não feche tela nova/alterada com spinner bloqueante ou fetch redundante.

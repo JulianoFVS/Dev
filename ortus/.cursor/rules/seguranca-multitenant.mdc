@@ -1,0 +1,31 @@
+---
+description: Segurança multi-tenant — sessão, cookies, RLS e isolamento por clínica
+alwaysApply: true
+---
+
+# Segurança e isolamento (multi-tenant)
+
+Fluidez não relaxa auth. Toda query de negócio fica no perímetro do usuário e da clínica ativa. Super-admin é exceção explícita, nunca o default.
+
+## Sessão e cookies
+
+- Rotas internas: cookie `ortus_auth` pode liberar a **casca** na hora; validar sessão em background. Sem cookie, não renderize dados.
+- Sem sessão válida → `/login`. Sem clínica quando há várias → `/selecao`. Troca de senha obrigatória → `/primeiro-acesso`.
+- Logout: `signOut` + limpar `ortus_auth`, `ortus_modules`, `ortus_clinica_id`, `ortus_clinics_cache` e caches de lista em `sessionStorage`.
+
+## Dados
+
+- Filtre por clínicas do usuário (`ClinicaContext` / `profissionais_clinicas`). Não confie só na UI.
+- `clinica_id` em create/update vem do contexto ativo, não de input livre sem checagem.
+- Não exponha IDs, tokens ou dados de outra clínica. Cache (`localStorage`/`sessionStorage`) é por sessão/clínica: valide `clinicId` antes de hidratar.
+- Permissões: respeite `moduleAccess` / cookie `ortus_modules`. Admin e super-admin não são o mesmo papel.
+
+```tsx
+// ❌ BAD — lista global ou fetch sem perímetro
+supabase.from('pacientes').select('*');
+
+// ✅ GOOD — só clínicas do usuário (+ null se o produto permitir)
+query.or(`clinica_id.in.(${ids}),clinica_id.is.null`);
+```
+
+Não feche CRUD, fetch ou cache sem isolamento de clínica e limpeza no logout.

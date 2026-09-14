@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Search, Plus, LayoutGrid, List as ListIcon, User, Phone, Edit, Trash2, Activity, Loader2, ChevronRight, Building2, Download, Filter, AlertCircle, Calendar, Clock, X, Smile } from 'lucide-react';
+import { Search, Plus, LayoutGrid, List as ListIcon, User, Phone, Edit, Trash2, Activity, ChevronRight, Building2, Download, Filter, AlertCircle, Calendar, Clock, X, Smile } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { usePatientActionModal } from '@/components/PatientActionModal';
@@ -12,16 +12,35 @@ import PatientContactButtons from '@/components/PatientContactButtons';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
 import { buildDocumentoContexto } from '@/lib/documentVariables';
 
+/** Lê o cache do sessionStorage de forma síncrona para o useState inicial */
+function readPacientesCache(clinicId: string | null): any[] {
+  if (!clinicId || typeof window === 'undefined') return [];
+  try {
+    const raw = sessionStorage.getItem('ortus:pacientes-lista');
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as { clinicId: string; items: any[] };
+    if (parsed.clinicId === clinicId && Array.isArray(parsed.items)) return parsed.items;
+  } catch { /* ignore */ }
+  return [];
+}
+
 export default function Pacientes() {
-  const [pacientes, setPacientes] = useState<any[]>([]);
+  const { activeClinicId, loading: clinicLoading, clinics } = useClinica();
+
+  // Inicializa com cache instantâneo — sem esperar useEffect
+  const cachedRef = useRef(readPacientesCache(activeClinicId));
+  const [pacientes, setPacientes] = useState<any[]>(cachedRef.current);
   const [clinicas, setClinicas] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Só mostra loading se não tem nada em cache
+  const [loading, setLoading] = useState(cachedRef.current.length === 0);
   const { showAlert } = useCustomAlert();
   const [visualizacao, setVisualizacao] = useState('lista');
   const [busca, setBusca] = useState('');
-  
+
   // Filtros
-  const [filtroClinica, setFiltroClinica] = useState('todas');
+  const [filtroClinica, setFiltroClinica] = useState(() =>
+    activeClinicId ? (activeClinicId === 'all' ? 'todas' : activeClinicId) : 'todas'
+  );
   const [filtroStatus, setFiltroStatus] = useState('todos');
   const [filtroDebito, setFiltroDebito] = useState(false);
   const [filtroSemConsulta, setFiltroSemConsulta] = useState<number | null>(null);
@@ -30,7 +49,6 @@ export default function Pacientes() {
 
   const router = useRouter();
   const { openQuickCapture } = usePatientActionModal();
-  const { activeClinicId, loading: clinicLoading } = useClinica();
 
   // Sincroniza filtro de clínica com contexto global
   useEffect(() => {
@@ -38,25 +56,11 @@ export default function Pacientes() {
   }, [activeClinicId]);
 
   const lastClinicRef = useRef<string | null>(null);
-  const jaCarregou = useRef(false);
+  const jaCarregou = useRef(cachedRef.current.length > 0);
 
   useEffect(() => {
-    if (!activeClinicId || clinicLoading) return;
-    try {
-      const raw = sessionStorage.getItem('ortus:pacientes-lista');
-      if (!raw) return;
-      const parsed = JSON.parse(raw) as { clinicId: string; items: any[] };
-      if (parsed.clinicId === activeClinicId && Array.isArray(parsed.items)) {
-        setPacientes(parsed.items);
-        jaCarregou.current = true;
-      }
-    } catch {
-      /* ignore */
-    }
-  }, [activeClinicId, clinicLoading]);
-
-  useEffect(() => { 
-      if (!clinicLoading || !activeClinicId) return;
+      // clinicLoading=true → ainda aguardando; =false → pronto
+      if (clinicLoading || !activeClinicId) return;
       if (lastClinicRef.current === activeClinicId && jaCarregou.current) return;
       const silent = jaCarregou.current;
       lastClinicRef.current = activeClinicId;
@@ -72,10 +76,10 @@ export default function Pacientes() {
 
   async function carregarDados(opts?: { silent?: boolean }) {
     if (!opts?.silent) setLoading(true);
-    
-    // 1. Carregar Clínicas (apenas as do usuário logado — multi-tenant)
-    const listaClinicas = await fetchUserClinicas();
-    setClinicas(listaClinicas);
+
+    // 1. Usar clínicas já carregadas pelo ClinicaContext (sem fetch redundante)
+    const listaClinicas = clinics.length > 0 ? clinics : await fetchUserClinicas();
+    setClinicas(listaClinicas as any[]);
     const idsPermitidos = listaClinicas.map((c) => c.id);
 
     // 2. Carregar Pacientes restritos às clínicas do usuário
@@ -88,7 +92,7 @@ export default function Pacientes() {
         const idsStr = idsPermitidos.join(',');
         pacientesQuery = pacientesQuery.or(`clinica_id.in.(${idsStr}),clinica_id.is.null`);
     } else {
-        // Sessão pode não estar pronta ainda; aguarda próximo ciclo
+        // Nenhuma clínica disponível para esse usuário
         setLoading(false); return;
     }
     const { data } = await pacientesQuery;
@@ -279,12 +283,21 @@ export default function Pacientes() {
           )}
       </div>
 
+      {/* Sem spinner bloqueante — skeletons inline se não há dados ainda */}
       {loading && !jaCarregou.current ? (
-        <div className="flex flex-col items-center justify-center py-16 text-neutral-400">
-          <Loader2 className="mb-2 animate-spin" /> Carregando...
+        <div className={`${card} overflow-hidden`}>
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-3 border-b border-black/5 px-4 py-3 last:border-0 md:px-5">
+              <div className="h-9 w-9 animate-pulse rounded-full bg-neutral-100 sm:h-10 sm:w-10" />
+              <div className="flex-1 space-y-1.5">
+                <div className="h-4 w-36 animate-pulse rounded-lg bg-neutral-100" />
+                <div className="h-3 w-24 animate-pulse rounded-lg bg-neutral-50" />
+              </div>
+              <div className="h-5 w-14 animate-pulse rounded-full bg-neutral-100" />
+            </div>
+          ))}
         </div>
-      ) : 
-       visualizacao === 'lista' ? (
+      ) : visualizacao === 'lista' ? (
         <div className={`${card} overflow-hidden`}>
           <div className="flex items-center justify-between border-b border-black/5 px-4 py-3 md:px-5">
             <h2 className="flex items-center gap-1.5 text-base font-semibold text-neutral-900">

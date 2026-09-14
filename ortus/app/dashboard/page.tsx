@@ -555,24 +555,28 @@ export default function Dashboard() {
         </div>
       </header>
 
-      {loading && !jaCarregou.current ? (
-        <div className="flex flex-1 items-center justify-center text-neutral-400">
-          <Loader2 className="animate-spin" />
-        </div>
-      ) : (
-        <div className="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)] gap-2.5 overflow-hidden sm:gap-3">
+      {/* Renderiza sempre — skeletons inline enquanto carrega */}
+      <div className="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)] gap-2.5 overflow-hidden sm:gap-3">
           <div className="grid shrink-0 grid-cols-1 gap-2.5 sm:gap-3 lg:grid-cols-3">
             <section className={`${bento} flex flex-col p-4 sm:p-5`}>
               <div className="flex items-start justify-between gap-2">
                 <p className="text-sm font-medium text-neutral-500 sm:text-base">Consultas do dia</p>
-                <span className="rounded-full bg-neutral-100 px-2.5 py-0.5 text-xs font-medium text-neutral-600 sm:text-sm">
-                  {concluidas} concluídas
-                </span>
+                {loading && !jaCarregou.current ? (
+                  <span className="h-5 w-20 animate-pulse rounded-full bg-neutral-100" />
+                ) : (
+                  <span className="rounded-full bg-neutral-100 px-2.5 py-0.5 text-xs font-medium text-neutral-600 sm:text-sm">
+                    {concluidas} concluídas
+                  </span>
+                )}
               </div>
-              <p className="mt-2 text-3xl font-semibold tracking-tight text-neutral-900 sm:text-4xl">
-                {resumoConsultas}
-                <span className="text-lg font-medium text-neutral-400 sm:text-xl"> / {Math.max(resumoConsultas, 1)}</span>
-              </p>
+              {loading && !jaCarregou.current ? (
+                <div className="mt-2 h-10 w-24 animate-pulse rounded-xl bg-neutral-100" />
+              ) : (
+                <p className="mt-2 text-3xl font-semibold tracking-tight text-neutral-900 sm:text-4xl">
+                  {resumoConsultas}
+                  <span className="text-lg font-medium text-neutral-400 sm:text-xl"> / {Math.max(resumoConsultas, 1)}</span>
+                </p>
+              )}
               <div className="mt-4">
                 <PillMeter ratio={ratioConsultas} accent="lime" />
               </div>
@@ -580,10 +584,16 @@ export default function Dashboard() {
 
             <section className={`${bento} flex flex-col bg-[#c8f053] p-4 sm:p-5`}>
               <p className="text-sm font-medium text-neutral-800 sm:text-base">Recebimentos · Hoje</p>
-              <p className="mt-2 text-3xl font-semibold tracking-tight text-neutral-900 sm:text-4xl">
-                {moeda(financeiro.recebido)}
+              {loading && !jaCarregou.current ? (
+                <div className="mt-2 h-10 w-36 animate-pulse rounded-xl bg-lime-200/60" />
+              ) : (
+                <p className="mt-2 text-3xl font-semibold tracking-tight text-neutral-900 sm:text-4xl">
+                  {moeda(financeiro.recebido)}
+                </p>
+              )}
+              <p className="mt-1 text-sm text-neutral-700 sm:text-base">
+                {loading && !jaCarregou.current ? '' : `Previsto ${moeda(financeiro.previsto)}`}
               </p>
-              <p className="mt-1 text-sm text-neutral-700 sm:text-base">Previsto {moeda(financeiro.previsto)}</p>
               <div className="mt-4">
                 <PillMeter ratio={ratioCaixa} accent="dark" />
               </div>
@@ -854,7 +864,6 @@ export default function Dashboard() {
             </aside>
           </div>
         </div>
-      )}
     </div>
   );
 }

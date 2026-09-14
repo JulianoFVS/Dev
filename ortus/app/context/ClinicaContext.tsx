@@ -38,10 +38,37 @@ function pickRede(c?: ClinicRecord | null): { id: string; nome: string } | null 
   return Array.isArray(r) ? (r[0] || null) : r;
 }
 
+const CLINICS_CACHE_KEY = 'ortus_clinics_cache';
+
+function readStoredClinicId(): string | 'all' | null {
+  if (typeof window === 'undefined') return null;
+  const v = localStorage.getItem(STORAGE_KEY);
+  if (!v) return null;
+  if (v === 'all' || v === 'todas') return 'all';
+  return v;
+}
+
+function readClinicsCache(): ClinicRecord[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(CLINICS_CACHE_KEY);
+    if (!raw) return [];
+    return JSON.parse(raw) as ClinicRecord[];
+  } catch { return []; }
+}
+
+function writeClinicsCache(list: ClinicRecord[]) {
+  if (typeof window === 'undefined') return;
+  try { localStorage.setItem(CLINICS_CACHE_KEY, JSON.stringify(list)); } catch { /* ignore */ }
+}
+
 export function ClinicaProvider({ children }: { children: ReactNode }) {
-  const [clinics, setClinics] = useState<ClinicRecord[]>([]);
-  const [activeId, setActiveId] = useState<string | 'all' | null>(null);
-  const [loading, setLoading] = useState(true);
+  // Bootstrap síncrono do cache — sem esperar queries
+  const [clinics, setClinics] = useState<ClinicRecord[]>(readClinicsCache);
+  // Bootstrap imediato do id — evita flash/carregando nas páginas dependentes
+  const [activeId, setActiveId] = useState<string | 'all' | null>(readStoredClinicId);
+  // Se já temos cache, não bloquear as páginas (otimista; valida em background)
+  const [loading, setLoading] = useState(() => readClinicsCache().length === 0);
 
   const loadClinics = useCallback(async (opts?: { silent?: boolean }) => {
     if (!opts?.silent) setLoading(true);
@@ -116,6 +143,7 @@ export function ClinicaProvider({ children }: { children: ReactNode }) {
       }
 
       setClinics(lista);
+      writeClinicsCache(lista);
 
       // Resolve a clínica ativa — cada início de sessão deve escolher novamente se houver múltiplas
       const stored = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null;
@@ -150,7 +178,10 @@ export function ClinicaProvider({ children }: { children: ReactNode }) {
       if (event === 'SIGNED_OUT') {
         if (typeof window !== 'undefined') {
           localStorage.removeItem(STORAGE_KEY);
+          localStorage.removeItem(CLINICS_CACHE_KEY);
         }
+        setClinics([]);
+        setActiveId(null);
       }
       if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
         loadClinics();
