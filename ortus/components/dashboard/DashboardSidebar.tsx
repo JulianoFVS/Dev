@@ -48,10 +48,10 @@ function NavItem({
       title={label}
       className={`flex shrink-0 items-center transition-colors ${
         collapsed ? 'h-11 w-11 justify-center rounded-2xl' : 'h-10 w-full gap-3 rounded-2xl px-3'
-      } ${active ? 'bg-white/15 text-white' : 'text-white/45 hover:bg-white/10 hover:text-white/90'}`}
+      } ${active ? 'bg-white/15 text-white' : 'text-white/80 hover:bg-white/10 hover:text-white'}`}
     >
       <Icon size={20} strokeWidth={1.65} className="shrink-0" />
-      {!collapsed && <span className="truncate text-sm font-medium">{label}</span>}
+      {!collapsed && <span className={`truncate text-sm font-medium ${active ? 'text-white' : 'text-white/85'}`}>{label}</span>}
     </Link>
   );
 }

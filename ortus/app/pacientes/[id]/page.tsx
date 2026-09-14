@@ -1515,19 +1515,19 @@ export default function PacienteDetalhe() {
   if (loading) return <div className="h-screen flex items-center justify-center text-slate-400"><Loader2 className="animate-spin mr-2"/> Carregando Prontuário...</div>;
 
   return (
-    <div className="max-w-7xl mx-auto pb-20 space-y-6 animate-in slide-in-from-right-4 duration-500">
+    <div className="w-full space-y-3 px-2.5 py-2.5 pb-16 sm:px-3 sm:py-3 md:px-4 md:py-3.5">
         
         {/* HEADER */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+        <div className="flex flex-col items-start justify-between gap-4 rounded-[1.35rem] border border-black/5 bg-white p-4 sm:flex-row sm:items-center sm:rounded-[1.5rem] sm:p-5">
             <div className="flex items-center gap-4">
-                <Link href="/pacientes" className="p-2.5 bg-slate-50 border border-slate-100 rounded-xl hover:bg-slate-100 text-slate-500 transition-colors"><ArrowLeft size={20}/></Link>
+                <Link href="/pacientes" className="rounded-2xl border border-black/10 bg-[#f8f8f6] p-2.5 text-neutral-600 transition-colors hover:bg-white"><ArrowLeft size={20}/></Link>
                 <div>
-                    <h1 className="text-2xl font-black text-slate-800">{form.nome}</h1>
-                    <p className="text-slate-400 text-xs font-bold uppercase tracking-wide flex items-center gap-2"><User size={12}/> Prontuário Digital</p>
+                    <h1 className="text-2xl font-semibold text-neutral-900">{form.nome}</h1>
+                    <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-neutral-500"><User size={12}/> Prontuário digital</p>
                 </div>
             </div>
-            <div className="flex gap-2 flex-wrap">
-                {form.nome && <button onClick={handleExportarDados} className="px-3 py-2 bg-slate-50 border border-slate-200 text-slate-600 rounded-xl font-bold text-xs hover:bg-slate-100 transition-colors flex items-center gap-1.5" title="Exportar prontuário (LGPD)"><Download size={14}/> LGPD</button>}
+            <div className="flex flex-wrap gap-2">
+                {form.nome && <button onClick={handleExportarDados} className="flex items-center gap-1.5 rounded-full border border-black/10 bg-white px-3 py-2 text-xs font-semibold text-neutral-700 hover:bg-neutral-50" title="Exportar prontuário (LGPD)"><Download size={14}/> LGPD</button>}
                 <PatientContactButtons
                     variant="buttons"
                     telefone={form.telefone}
@@ -1641,8 +1641,8 @@ export default function PacienteDetalhe() {
         </Modal>
 
         {/* Navegação rápida mobile */}
-        <div className="lg:hidden sticky top-16 z-30 pb-4 bg-white/95 backdrop-blur border-b border-slate-100">
-            <div className="flex gap-2 overflow-x-auto pb-1 snap-x snap-mandatory [-ms-overflow-style:none] [scrollbar-width:none]">
+        <div className="sticky top-0 z-30 border-b border-black/5 bg-[#f3f4f1]/95 pb-3 pt-1 backdrop-blur lg:hidden">
+            <div className="flex snap-x snap-mandatory gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none]">
                 {PATIENT_NAV_SECTIONS.map((section) => {
                     const Icon = section.icon;
                     const active = abaAtiva === section.key;
@@ -1651,12 +1651,10 @@ export default function PacienteDetalhe() {
                             type="button"
                             key={section.key}
                             onClick={() => setAbaAtiva(section.key)}
-                            className={`touch-target snap-start flex-none min-w-[120px] rounded-2xl border px-3 py-3 text-left text-xs font-black transition-all ${active ? 'bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-200' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'}`}
+                            className={`touch-target min-w-[120px] flex-none snap-start rounded-full border px-3 py-2 text-left text-xs font-semibold transition-colors ${active ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-black/10 bg-white text-neutral-600'}`}
                         >
                             <div className="flex items-center gap-2">
-                                <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${active ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'}`}>
-                                    <Icon size={16} />
-                                </div>
+                                <Icon size={16} />
                                 <span className="text-sm">{section.label}</span>
                             </div>
                         </button>
@@ -1665,8 +1663,8 @@ export default function PacienteDetalhe() {
             </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-            <div className="hidden lg:block lg:col-span-1 space-y-2">
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-4 lg:gap-4">
+            <div className="hidden space-y-1.5 lg:col-span-1 lg:block">
                 {PATIENT_NAV_SECTIONS.map((section) => {
                     const Icon = section.icon;
                     const active = abaAtiva === section.key;
@@ -1677,20 +1675,20 @@ export default function PacienteDetalhe() {
                         : section.key === 'hof' && marcacoesHof.length > 0 ? marcacoesHof.length
                         : null;
                     const badgeClass =
-                        section.key === 'debitos' ? 'bg-rose-500 text-white animate-pulse'
-                        : section.key === 'tratamentos' ? 'bg-teal-100 text-teal-600'
-                        : section.key === 'hof' ? 'bg-purple-100 text-purple-600'
-                        : 'bg-slate-200 text-slate-600';
+                        section.key === 'debitos' ? 'bg-red-500 text-white'
+                        : section.key === 'tratamentos' ? 'bg-[#c8f053] text-neutral-900'
+                        : section.key === 'hof' ? 'bg-neutral-200 text-neutral-700'
+                        : 'bg-neutral-200 text-neutral-700';
                     return (
                         <button
                             key={section.key}
                             type="button"
                             onClick={() => setAbaAtiva(section.key)}
-                            className={`w-full text-left px-5 py-4 rounded-xl font-bold flex items-center gap-3 transition-all ${active ? 'bg-white shadow-sm border border-blue-100 text-blue-700' : 'text-slate-500 hover:bg-white/50'}`}
+                            className={`flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition-colors ${active ? 'bg-white text-neutral-900 shadow-sm' : 'text-neutral-600 hover:bg-white/70'}`}
                         >
-                            <Icon size={20}/> {section.label}
+                            <Icon size={18}/> {section.label}
                             {badge != null && (
-                                <span className={`ml-auto text-[10px] font-black px-1.5 py-0.5 rounded ${badgeClass}`}>{badge}</span>
+                                <span className={`ml-auto rounded-full px-1.5 py-0.5 text-[10px] font-bold ${badgeClass}`}>{badge}</span>
                             )}
                         </button>
                     );
@@ -1699,7 +1697,7 @@ export default function PacienteDetalhe() {
 
             <div className="lg:col-span-3">
                 {abaAtiva === 'dados' && (
-                    <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm animate-in fade-in">
+                    <div className="rounded-[1.35rem] border border-black/5 bg-white p-5 sm:rounded-[1.5rem] sm:p-6 md:p-8">
                         <div className="flex flex-wrap justify-between items-center gap-3 mb-6">
                             <h3 className="text-lg font-black text-slate-800 flex items-center gap-2"><User size={20} className="text-blue-500"/> Informações do Paciente</h3>
                             <div className="flex gap-2">

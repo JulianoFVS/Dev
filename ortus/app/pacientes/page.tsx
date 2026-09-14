@@ -195,36 +195,38 @@ export default function Pacientes() {
       e.stopPropagation();
   }
 
+  const card = 'rounded-[1.35rem] bg-white sm:rounded-[1.5rem]';
+
   return (
-    <div className="mx-auto w-full max-w-[920px] space-y-5 pb-16 font-poppins">
+    <div className="w-full space-y-3 px-2.5 py-2.5 pb-12 font-poppins sm:px-3 sm:py-3 md:px-4 md:py-3.5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <h1 className="text-[26px] font-semibold tracking-[-0.03em] text-[#1d1d1f] md:text-[32px]">Pacientes</h1>
-            <p className="mt-1 text-[14px] text-[#6e6e73]">{filtrados.length} {filtrados.length === 1 ? 'paciente' : 'pacientes'}</p>
+            <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 md:text-[2rem]">Pacientes</h1>
+            <p className="mt-1 text-sm text-neutral-500 sm:text-base">{filtrados.length} {filtrados.length === 1 ? 'paciente' : 'pacientes'}</p>
           </div>
           <div className="flex w-full gap-2 sm:w-auto">
-              <button onClick={exportarCSV} className="flex-1 sm:flex-none inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-black/[0.11] bg-white px-3 text-[13px] font-medium text-[#1d1d1f] hover:bg-[#f5f5f7]" title="Exportar lista filtrada para CSV"><Download size={14}/> <span className="hidden sm:inline">Exportar</span></button>
-              <button onClick={novoPaciente} className="flex-1 sm:flex-none inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-ortus-blue px-4 text-[13px] font-medium text-white hover:bg-ortus-blueDark"><Plus size={16}/> Novo paciente</button>
+              <button onClick={exportarCSV} className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-full border border-black/10 bg-white px-4 text-sm font-medium text-neutral-800 hover:bg-neutral-50 sm:flex-none" title="Exportar lista filtrada para CSV"><Download size={15}/> <span className="hidden sm:inline">Exportar</span></button>
+              <button onClick={novoPaciente} className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-full bg-neutral-900 px-4 text-sm font-medium text-white hover:bg-neutral-800 sm:flex-none"><Plus size={16}/> Novo paciente</button>
           </div>
       </div>
 
-      <div className="flex flex-col gap-2">
+      <div className={`${card} flex flex-col gap-2 p-3 sm:p-4`}>
           <div className="flex flex-col gap-2 md:flex-row">
               <div className="relative flex-1">
-                  <Search className="absolute left-0 top-2.5 text-[#aeaeb2]" size={18}/>
-                  <input type="text" placeholder="Buscar nome, CPF ou telefone…" className="w-full border-b border-black/[0.08] bg-transparent py-2 pl-7 pr-3 text-[14px] outline-none placeholder:text-[#aeaeb2] focus:border-ortus-blue" value={busca} onChange={e => setBusca(e.target.value)} />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" size={18}/>
+                  <input type="text" placeholder="Buscar nome, CPF ou telefone…" className="h-10 w-full rounded-full border border-black/10 bg-[#f8f8f6] py-2 pl-10 pr-3 text-sm outline-none placeholder:text-neutral-400 focus:border-neutral-400" value={busca} onChange={e => setBusca(e.target.value)} />
               </div>
               
               <CustomSelect value={filtroClinica} onChange={setFiltroClinica} options={[{value:'todas',label:'Todas as Clínicas'}, ...clinicas.map((c:any) => ({value:String(c.id),label:c.nome}))]} size="sm" className="min-w-[180px]"/>
 
-              <button onClick={() => setShowFiltros(!showFiltros)} className={`inline-flex h-9 items-center gap-2 rounded-lg px-3 text-[13px] font-medium transition-colors ${showFiltros || filtrosAtivos ? 'bg-[#eaf2fd] text-ortus-blue' : 'text-[#6e6e73] hover:bg-[#f5f5f7]'}`}>
+              <button onClick={() => setShowFiltros(!showFiltros)} className={`inline-flex h-10 items-center gap-2 rounded-full px-3 text-sm font-medium transition-colors ${showFiltros || filtrosAtivos ? 'bg-neutral-900 text-white' : 'border border-black/10 text-neutral-700 hover:bg-neutral-50'}`}>
                   <Filter size={15}/> Filtros
-                  {filtrosAtivos && <span className="h-1.5 w-1.5 rounded-full bg-ortus-blue"></span>}
+                  {filtrosAtivos && <span className="h-1.5 w-1.5 rounded-full bg-[#c8f053]"></span>}
               </button>
 
-              <div className="flex rounded-lg bg-[#f5f5f7] p-0.5">
-                  <button onClick={() => setVisualizacao('lista')} className={`rounded-md p-2 ${visualizacao === 'lista' ? 'bg-white text-ortus-blue shadow-sm' : 'text-[#aeaeb2]'}`}><ListIcon size={18}/></button>
-                  <button onClick={() => setVisualizacao('cards')} className={`rounded-md p-2 ${visualizacao === 'cards' ? 'bg-white text-ortus-blue shadow-sm' : 'text-[#aeaeb2]'}`}><LayoutGrid size={18}/></button>
+              <div className="flex rounded-full border border-black/10 bg-[#f3f4f1] p-0.5">
+                  <button onClick={() => setVisualizacao('lista')} className={`rounded-full p-2 ${visualizacao === 'lista' ? 'bg-neutral-900 text-white' : 'text-neutral-500'}`}><ListIcon size={18}/></button>
+                  <button onClick={() => setVisualizacao('cards')} className={`rounded-full p-2 ${visualizacao === 'cards' ? 'bg-neutral-900 text-white' : 'text-neutral-500'}`}><LayoutGrid size={18}/></button>
               </div>
           </div>
 
@@ -255,14 +257,14 @@ export default function Pacientes() {
 
       {loading ? <div className="py-20 text-center text-slate-400"><Loader2 className="animate-spin mx-auto mb-2"/> Carregando...</div> : 
        visualizacao === 'lista' ? (
-        <div className="overflow-hidden rounded-2xl border border-black/[0.06] bg-white shadow-[0_8px_24px_rgba(0,0,0,.04)]">
-          <div className="flex items-center justify-between px-5 py-4 md:px-6">
-            <h2 className="flex items-center gap-1.5 text-[16px] font-semibold text-[#1d1d1f]">
-              Pacientes
-              <AlertCircle size={14} className="text-[#c7c7cc]" />
+        <div className={`${card} overflow-hidden`}>
+          <div className="flex items-center justify-between border-b border-black/5 px-4 py-3 md:px-5">
+            <h2 className="flex items-center gap-1.5 text-base font-semibold text-neutral-900">
+              Lista
+              <AlertCircle size={14} className="text-neutral-300" />
             </h2>
           </div>
-          <div className="hidden grid-cols-[minmax(0,1.5fr)_0.8fr_0.8fr_auto] gap-3 px-6 pb-2 text-[12px] text-[#aeaeb2] md:grid">
+          <div className="hidden grid-cols-[minmax(0,1.5fr)_0.8fr_0.8fr_auto] gap-3 px-5 pb-2 pt-2 text-xs font-medium text-neutral-400 md:grid">
             <span>Nome</span>
             <span>Plano</span>
             <span>Status</span>
@@ -279,7 +281,7 @@ export default function Pacientes() {
                 <li key={p.id}>
                   <div
                     onClick={() => router.push(`/pacientes/${p.id}`)}
-                    className="grid cursor-pointer grid-cols-1 items-center gap-2 border-t border-black/[0.05] px-5 py-3.5 transition-colors hover:bg-[#fafafa] md:grid-cols-[minmax(0,1.5fr)_0.8fr_0.8fr_auto] md:px-6"
+                    className="grid cursor-pointer grid-cols-1 items-center gap-2 border-t border-black/[0.05] px-4 py-3 transition-colors hover:bg-[#f8f8f6] md:grid-cols-[minmax(0,1.5fr)_0.8fr_0.8fr_auto] md:px-5"
                   >
                     <div className="flex min-w-0 items-center gap-3">
                       <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#f5f5f7] text-[11px] font-semibold text-[#6e6e73]">{iniciais}</span>
@@ -314,8 +316,8 @@ export default function Pacientes() {
           </ul>
         </div>
        ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">{filtrados.map((p: any) => (
-            <div key={p.id} onClick={() => router.push(`/pacientes/${p.id}`)} className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm hover:shadow-md cursor-pointer transition-all hover:border-blue-200 group">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">{filtrados.map((p: any) => (
+            <div key={p.id} onClick={() => router.push(`/pacientes/${p.id}`)} className={`${card} group cursor-pointer border border-black/5 p-4 transition-colors hover:bg-neutral-50 sm:p-5`}>
                 <div className="flex items-center gap-4 mb-4"><div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center font-bold text-lg group-hover:bg-blue-600 group-hover:text-white transition-colors">{p.nome.charAt(0)}</div><div className="flex-1 min-w-0"><h3 className="font-bold text-slate-800 truncate">{p.nome}</h3><p className="text-xs text-slate-400 uppercase font-bold">{p.nome_clinica || 'Sem Clínica'}</p></div>
                     <div className="flex items-center gap-1.5" onClick={stopRowClick}>
                         <PatientContactButtons variant="icons" channels={['whatsapp']} telefone={p.telefone} email={p.email} clinicaId={p.clinica_id} evento="pos_consulta" contexto={buildDocumentoContexto({ paciente_nome: p.nome?.split(' ')[0], clinica_nome: p.nome_clinica })} />

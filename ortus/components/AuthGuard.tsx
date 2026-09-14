@@ -8,6 +8,7 @@ import Link from 'next/link';
 import { PatientSlideOverProvider } from '@/components/PatientSlideOver';
 import { PatientActionModalProvider } from '@/components/PatientActionModal';
 import Omnibar from '@/components/Omnibar';
+import BentoShell from '@/components/dashboard/BentoShell';
 import { 
     LayoutDashboard, Users, LogOut, Calendar, Menu, X, DollarSign, 
     Settings, Building2, Bell, Mail, User, ChevronRight, ChevronsUpDown, 
@@ -298,6 +299,8 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   }
 
   const isDashboard = pathname === '/dashboard' || pathname.startsWith('/dashboard');
+  const isBentoShell =
+    isDashboard || pathname === '/pacientes' || pathname.startsWith('/pacientes/');
   const isPerfilAdmin = perfil?.nivel_acesso === 'admin' || perfil?.is_super_admin;
 
   const canAccessModule = (module?: ModuleName) => {
@@ -358,11 +361,11 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const filteredNavLinks = navLinks.filter((link) => canAccessModule(link.module));
   const filteredFooterLinks = footerLinks.filter((link) => canAccessModule(link.module));
 
-  if (isDashboard) {
+  if (isBentoShell) {
     return (
       <PatientSlideOverProvider>
         <PatientActionModalProvider>
-          {children}
+          <BentoShell>{children}</BentoShell>
           <Omnibar moduleAccess={moduleAccess} isAdmin={isPerfilAdmin} />
         </PatientActionModalProvider>
       </PatientSlideOverProvider>

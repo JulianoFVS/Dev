@@ -151,49 +151,61 @@ export default function Omnibar({ moduleAccess, isAdmin }: OmnibarProps) {
     };
     let flatIdx = 0;
 
+    const rowClass = (idx: number) =>
+        idx === activeIdx
+            ? 'border border-black/10 bg-white shadow-sm'
+            : 'border border-transparent bg-[#f8f8f6] hover:bg-white hover:border-black/5';
+
     return (
-        <div className="fixed inset-0 z-[100] bg-slate-900/40 backdrop-blur-sm flex items-start justify-center pt-[15vh] animate-in fade-in duration-150" onClick={() => setOpen(false)}>
-            <div className="bg-white w-full max-w-xl rounded-2xl shadow-2xl border border-slate-200 overflow-hidden animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
-                {/* Search input */}
-                <div className="flex items-center gap-3 px-5 py-4 border-b border-slate-100">
-                    <Search size={20} className="text-slate-400 shrink-0"/>
+        <div className="fixed inset-0 z-[100] flex items-start justify-center bg-neutral-950/45 pt-[12vh] backdrop-blur-[2px]" onClick={() => setOpen(false)}>
+            <div
+                className="w-full max-w-xl overflow-hidden rounded-[1.65rem] border border-black/10 bg-[#f3f4f1] shadow-2xl"
+                onClick={(e) => e.stopPropagation()}
+            >
+                <div className="flex items-center gap-3 border-b border-black/5 bg-white px-4 py-3.5 sm:px-5">
+                    <Search size={20} className="shrink-0 text-neutral-500" />
                     <input
                         ref={inputRef}
                         value={query}
-                        onChange={e => setQuery(e.target.value)}
+                        onChange={(e) => setQuery(e.target.value)}
                         onKeyDown={handleKeyNav}
                         placeholder="Buscar pacientes, páginas, comandos..."
-                        className="flex-1 text-sm font-medium text-slate-800 outline-none placeholder:text-slate-400"
+                        className="flex-1 bg-transparent text-sm font-medium text-neutral-900 outline-none placeholder:text-neutral-400 sm:text-base"
                     />
-                    <kbd className="hidden sm:inline-flex items-center gap-0.5 px-2 py-1 bg-slate-100 text-slate-400 text-[10px] font-bold rounded border border-slate-200">
+                    <kbd className="hidden rounded-full border border-black/10 bg-[#f3f4f1] px-2.5 py-1 text-[10px] font-semibold text-neutral-500 sm:inline-flex">
                         ESC
                     </kbd>
                 </div>
 
-                {/* Results */}
-                <div className="max-h-[50vh] overflow-y-auto p-2">
+                <div className="max-h-[50vh] overflow-y-auto p-2 sm:p-3">
                     {results.length === 0 && query && (
-                        <div className="text-center py-8 text-slate-400 text-sm">
-                            Nenhum resultado para "<span className="font-bold text-slate-600">{query}</span>"
+                        <div className="py-8 text-center text-sm text-neutral-500">
+                            Nenhum resultado para &quot;<span className="font-semibold text-neutral-800">{query}</span>&quot;
                         </div>
                     )}
 
                     {grouped.paciente.length > 0 && (
-                        <div className="mb-1">
-                            <div className="px-3 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Pacientes</div>
-                            {grouped.paciente.map(r => {
+                        <div className="mb-2">
+                            <div className="px-2 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-neutral-400">Pacientes</div>
+                            {grouped.paciente.map((r) => {
                                 const idx = flatIdx++;
                                 return (
-                                    <button key={r.id} onClick={() => { r.action(); setOpen(false); }}
-                                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-colors ${idx === activeIdx ? 'bg-blue-50 text-blue-700' : 'text-slate-700 hover:bg-slate-50'}`}
+                                    <button
+                                        key={r.id}
+                                        type="button"
+                                        onClick={() => {
+                                            r.action();
+                                            setOpen(false);
+                                        }}
+                                        className={`mb-1.5 flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left transition-colors ${rowClass(idx)}`}
                                         onMouseEnter={() => setActiveIdx(idx)}
                                     >
-                                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${idx === activeIdx ? 'bg-blue-100' : 'bg-slate-100'}`}>{r.icon}</div>
-                                        <div className="flex-1 min-w-0">
-                                            <div className="text-sm font-bold truncate">{r.label}</div>
-                                            {r.sublabel && <div className="text-[11px] text-slate-400 truncate">{r.sublabel}</div>}
+                                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white">{r.icon}</div>
+                                        <div className="min-w-0 flex-1">
+                                            <div className="truncate text-sm font-semibold text-neutral-900">{r.label}</div>
+                                            {r.sublabel && <div className="truncate text-xs text-neutral-500">{r.sublabel}</div>}
                                         </div>
-                                        <ArrowRight size={14} className={`shrink-0 ${idx === activeIdx ? 'text-blue-400' : 'text-slate-300'}`}/>
+                                        <ArrowRight size={15} className="shrink-0 text-neutral-400" />
                                     </button>
                                 );
                             })}
@@ -202,20 +214,26 @@ export default function Omnibar({ moduleAccess, isAdmin }: OmnibarProps) {
 
                     {grouped.navegacao.length > 0 && (
                         <div className="mb-1">
-                            <div className="px-3 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Páginas</div>
-                            {grouped.navegacao.map(r => {
+                            <div className="px-2 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-neutral-400">Páginas</div>
+                            {grouped.navegacao.map((r) => {
                                 const idx = flatIdx++;
                                 return (
-                                    <button key={r.id} onClick={() => { r.action(); setOpen(false); }}
-                                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-colors ${idx === activeIdx ? 'bg-blue-50 text-blue-700' : 'text-slate-700 hover:bg-slate-50'}`}
+                                    <button
+                                        key={r.id}
+                                        type="button"
+                                        onClick={() => {
+                                            r.action();
+                                            setOpen(false);
+                                        }}
+                                        className={`mb-1.5 flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left transition-colors ${rowClass(idx)}`}
                                         onMouseEnter={() => setActiveIdx(idx)}
                                     >
-                                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${idx === activeIdx ? 'bg-blue-100' : 'bg-slate-100'}`}>{r.icon}</div>
-                                        <div className="flex-1 min-w-0">
-                                            <div className="text-sm font-bold truncate">{r.label}</div>
-                                            {r.sublabel && <div className="text-[11px] text-slate-400 truncate">{r.sublabel}</div>}
+                                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white">{r.icon}</div>
+                                        <div className="min-w-0 flex-1">
+                                            <div className="truncate text-sm font-semibold text-neutral-900">{r.label}</div>
+                                            {r.sublabel && <div className="truncate text-xs text-neutral-500">{r.sublabel}</div>}
                                         </div>
-                                        <ArrowRight size={14} className={`shrink-0 ${idx === activeIdx ? 'text-blue-400' : 'text-slate-300'}`}/>
+                                        <ArrowRight size={15} className="shrink-0 text-neutral-400" />
                                     </button>
                                 );
                             })}
@@ -223,14 +241,21 @@ export default function Omnibar({ moduleAccess, isAdmin }: OmnibarProps) {
                     )}
                 </div>
 
-                {/* Footer */}
-                <div className="px-4 py-2.5 border-t border-slate-100 bg-slate-50 flex items-center justify-between text-[10px] text-slate-400 font-semibold">
-                    <div className="flex items-center gap-3">
-                        <span className="flex items-center gap-1"><kbd className="px-1 py-0.5 bg-white border border-slate-200 rounded text-[9px]">↑↓</kbd> navegar</span>
-                        <span className="flex items-center gap-1"><kbd className="px-1 py-0.5 bg-white border border-slate-200 rounded text-[9px]">↵</kbd> selecionar</span>
-                        <span className="flex items-center gap-1"><kbd className="px-1 py-0.5 bg-white border border-slate-200 rounded text-[9px]">esc</kbd> fechar</span>
+                <div className="flex items-center justify-between border-t border-black/5 bg-white px-4 py-2.5 text-[11px] font-medium text-neutral-500">
+                    <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                        <span className="flex items-center gap-1">
+                            <kbd className="rounded-md border border-black/10 bg-[#f3f4f1] px-1.5 py-0.5 text-[10px]">↑↓</kbd> navegar
+                        </span>
+                        <span className="flex items-center gap-1">
+                            <kbd className="rounded-md border border-black/10 bg-[#f3f4f1] px-1.5 py-0.5 text-[10px]">↵</kbd> selecionar
+                        </span>
+                        <span className="hidden items-center gap-1 sm:flex">
+                            <kbd className="rounded-md border border-black/10 bg-[#f3f4f1] px-1.5 py-0.5 text-[10px]">esc</kbd> fechar
+                        </span>
                     </div>
-                    <span className="flex items-center gap-1"><Command size={10}/> K</span>
+                    <span className="flex items-center gap-1">
+                        <Command size={11} /> K
+                    </span>
                 </div>
             </div>
         </div>

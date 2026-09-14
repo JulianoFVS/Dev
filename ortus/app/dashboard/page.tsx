@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useClinica } from '@/app/context/ClinicaContext';
 import { carregarConfig } from '@/lib/configClinica';
@@ -446,6 +447,16 @@ export default function Dashboard() {
     [agendaHoje, duracaoMin, abertura, fechamento, mapaCadeiras],
   );
 
+  const proximoAgendamento = useMemo(() => {
+    const agora = Date.now();
+    const futuros = agendaHoje.filter(
+      (a) => a.status !== 'concluido' && new Date(a.data_hora).getTime() >= agora,
+    );
+    return futuros[0] || agendaHoje.find((a) => a.status !== 'concluido') || null;
+  }, [agendaHoje]);
+
+  const pathname = usePathname();
+
   async function concluirAtual() {
     if (!emAtendimento) return;
     setConcluindo(true);
@@ -471,17 +482,22 @@ export default function Dashboard() {
   const totalCaixa = financeiro.recebido + financeiro.previsto;
   const ratioCaixa = totalCaixa > 0 ? financeiro.recebido / totalCaixa : 0;
 
-  const tabs = [
-    ['Visão do dia', true],
-    ['Agenda', false],
-    ['Financeiro', false],
-    ['Pendências', false],
-    ['Relatórios', false],
+  const dashTabs = [
+    { label: 'Visão do dia', href: '/dashboard' },
+    { label: 'Agenda', href: '/agenda' },
+    { label: 'Financeiro', href: '/financeiro' },
+    { label: 'Pendências', href: '/tarefas' },
+    { label: 'Relatórios', href: '/relatorios' },
   ] as const;
+
+  function tabAtivo(href: string) {
+    if (href === '/dashboard') return pathname === '/dashboard';
+    return pathname === href || pathname.startsWith(`${href}/`);
+  }
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden px-2.5 py-2.5 sm:px-3 sm:py-3 md:px-4 md:py-3.5">
-      <header className="mb-3 shrink-0">
+      <header className="relative z-20 mb-3 shrink-0">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0">
             <h1 className="max-w-3xl text-[1.65rem] font-semibold leading-[1.12] tracking-tight text-neutral-900 sm:text-[1.85rem] md:text-[2.05rem] lg:text-[2.15rem]">
@@ -520,16 +536,20 @@ export default function Dashboard() {
         </div>
 
         <div className="mt-3 flex gap-2 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {tabs.map(([tab, ativo]) => (
-            <span
-              key={tab}
-              className={`shrink-0 rounded-full px-4 py-2 text-sm font-medium sm:px-5 sm:text-base ${
-                ativo ? 'bg-neutral-900 text-white' : 'border border-black/10 bg-white text-neutral-600'
-              }`}
-            >
-              {tab}
-            </span>
-          ))}
+          {dashTabs.map(({ label, href }) => {
+            const ativo = tabAtivo(href);
+            return (
+              <Link
+                key={href}
+                href={href}
+                className={`shrink-0 rounded-full px-4 py-2 text-sm font-medium transition-colors sm:px-5 sm:text-base ${
+                  ativo ? 'bg-neutral-900 text-white' : 'border border-black/10 bg-white text-neutral-700 hover:border-black/20'
+                }`}
+              >
+                {label}
+              </Link>
+            );
+          })}
         </div>
       </header>
 
@@ -567,16 +587,16 @@ export default function Dashboard() {
               </div>
             </section>
 
-            <section className={`${bento} relative flex min-h-[11rem] flex-col justify-between overflow-hidden bg-neutral-950 p-4 text-white sm:min-h-[12rem] sm:p-5 lg:col-span-1`}>
-              <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(200,240,83,0.35),transparent_45%)]" />
-              <div className="relative z-[1]">
+            <section className={`${bento} relative flex min-h-[10rem] flex-col justify-between overflow-hidden border border-neutral-800 bg-neutral-950 p-4 sm:min-h-[11rem] sm:p-5 lg:col-span-1`}>
+              <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_100%_0%,rgba(200,240,83,0.12),transparent_55%)]" />
+              <div className="relative z-[1] text-white">
                 {emAtendimento ? (
                   <>
-                    <p className="text-sm text-white/70 sm:text-base">
+                    <p className="text-sm text-neutral-300 sm:text-base">
                       Em atendimento · Cadeira {cadeiraAtual} · {hora(emAtendimento.data_hora)}
                     </p>
-                    <h2 className="mt-2 truncate text-xl font-semibold sm:text-2xl">{paciente?.nome || 'Paciente'}</h2>
-                    <p className="mt-1 truncate text-sm text-white/75 sm:text-base">
+                    <h2 className="mt-2 truncate text-xl font-semibold text-white sm:text-2xl">{paciente?.nome || 'Paciente'}</h2>
+                    <p className="mt-1 truncate text-sm text-neutral-200 sm:text-base">
                       {emAtendimento.procedimento || 'Consulta'}
                       {anos != null ? ` · ${anos} anos` : ''}
                       {tratamentos.length > 0 ? ` · ${tratamentos.length} itens no plano` : ''}
@@ -584,9 +604,15 @@ export default function Dashboard() {
                   </>
                 ) : (
                   <>
-                    <p className="text-sm text-white/70 sm:text-base">Sala livre agora</p>
-                    <h2 className="mt-2 text-xl font-semibold sm:text-2xl">Nenhum paciente em curso</h2>
-                    <p className="mt-1 text-sm text-white/75 sm:text-base">Abra a agenda e encaixe o próximo horário.</p>
+                    <p className="text-sm text-neutral-300 sm:text-base">Sala livre agora</p>
+                    <h2 className="mt-2 truncate text-xl font-semibold text-white sm:text-2xl">
+                      {proximoAgendamento?.pacientes?.nome || 'Nenhum paciente em curso'}
+                    </h2>
+                    <p className="mt-1 text-sm text-neutral-200 sm:text-base">
+                      {proximoAgendamento
+                        ? `Próximo horário · ${hora(proximoAgendamento.data_hora)} · ${proximoAgendamento.procedimento || 'Consulta'}`
+                        : 'Abra a agenda e encaixe o próximo horário.'}
+                    </p>
                   </>
                 )}
               </div>
@@ -717,19 +743,25 @@ export default function Dashboard() {
               )}
             </section>
 
-            <aside className="flex min-h-0 flex-col gap-2.5 overflow-hidden sm:gap-3">
-              <div className="grid shrink-0 grid-cols-2 gap-2.5 sm:gap-3">
-                <Link href="/agenda" className={`${bento} flex flex-col items-center justify-center gap-2 p-4 text-center hover:bg-neutral-50 sm:p-5`}>
-                  <CalendarDays size={22} className="text-neutral-800" />
-                  <span className="text-sm font-semibold text-neutral-900 sm:text-base">Agenda</span>
+            <aside className="flex min-h-0 flex-col gap-2 overflow-hidden">
+              <div className="grid shrink-0 grid-cols-2 gap-2">
+                <Link
+                  href="/agenda"
+                  className={`${bento} flex items-center gap-2.5 px-3 py-2.5 transition-colors hover:bg-neutral-50`}
+                >
+                  <CalendarDays size={18} className="shrink-0 text-neutral-800" />
+                  <span className="text-sm font-semibold text-neutral-900">Agenda</span>
                 </Link>
-                <Link href="/pacientes" className={`${bento} flex flex-col items-center justify-center gap-2 p-4 text-center hover:bg-neutral-50 sm:p-5`}>
-                  <Users size={22} className="text-neutral-800" />
-                  <span className="text-sm font-semibold text-neutral-900 sm:text-base">Pacientes</span>
+                <Link
+                  href="/pacientes"
+                  className={`${bento} flex items-center gap-2.5 px-3 py-2.5 transition-colors hover:bg-neutral-50`}
+                >
+                  <Users size={18} className="shrink-0 text-neutral-800" />
+                  <span className="text-sm font-semibold text-neutral-900">Pacientes</span>
                 </Link>
               </div>
 
-              <section className={`${bento} flex min-h-0 flex-1 flex-col overflow-hidden`}>
+              <section className={`${bento} flex min-h-0 flex-[1.2] flex-col overflow-hidden`}>
                 <div className="flex items-center justify-between border-b border-black/5 px-4 py-3">
                   <h3 className="text-base font-semibold text-neutral-900 sm:text-lg">Fila do dia</h3>
                   <span className="text-sm text-neutral-400">{agendaHoje.length}</span>
@@ -738,14 +770,14 @@ export default function Dashboard() {
                   {fila.length === 0 ? (
                     <li className="p-3 text-sm text-neutral-400 sm:text-base">Nenhuma consulta hoje.</li>
                   ) : (
-                    fila.slice(0, 8).map((linha) => {
+                    fila.map((linha) => {
                       if (linha.tipo === 'livre') {
                         return (
                           <li key={linha.id}>
                             <Link href="/agenda" className="mb-2 flex items-start justify-between gap-2 rounded-2xl border border-black/5 bg-[#f8f8f6] p-3 hover:bg-white">
                               <div>
                                 <p className="font-medium text-neutral-900 sm:text-base">Horário livre</p>
-                                <p className="text-sm text-neutral-500">{linha.inicio}</p>
+                                <p className="text-sm font-medium text-neutral-600">{linha.inicio}</p>
                               </div>
                               <ArrowUpRight size={16} className="shrink-0 text-neutral-400" />
                             </Link>
@@ -763,7 +795,7 @@ export default function Dashboard() {
                           >
                             <div className="min-w-0">
                               <p className="truncate font-medium text-neutral-900 sm:text-base">{linha.ag.pacientes?.nome || 'Consulta'}</p>
-                              <p className="truncate text-sm text-neutral-500">
+                              <p className="truncate text-sm font-medium text-neutral-600">
                                 {hora(linha.ag.data_hora)} · {linha.ag.procedimento || 'Consulta'}
                               </p>
                             </div>
@@ -776,7 +808,7 @@ export default function Dashboard() {
                 </ul>
               </section>
 
-              <section className={`${bento} flex max-h-[40%] min-h-[8rem] flex-col overflow-hidden sm:max-h-none sm:min-h-0 sm:flex-1`}>
+              <section className={`${bento} flex min-h-0 flex-1 flex-col overflow-hidden`}>
                 <div className="flex items-center justify-between border-b border-black/5 px-4 py-3">
                   <h3 className="text-base font-semibold text-neutral-900 sm:text-lg">Pendências</h3>
                   <Link href="/tarefas" className="text-sm font-medium text-neutral-600 hover:text-neutral-900 sm:text-base">
@@ -795,7 +827,7 @@ export default function Dashboard() {
                         >
                           <div className="min-w-0">
                             <p className="truncate font-medium text-neutral-900 sm:text-base">{item.titulo}</p>
-                            <p className="truncate text-sm text-neutral-500">{item.detalhe}</p>
+                            <p className="truncate text-sm font-medium text-neutral-600">{item.detalhe}</p>
                           </div>
                           <ArrowUpRight size={16} className="shrink-0 text-neutral-400" />
                         </Link>
@@ -807,7 +839,7 @@ export default function Dashboard() {
 
               <Link
                 href="/financeiro"
-                className={`${bento} flex shrink-0 items-center justify-between gap-2 px-4 py-3 hover:bg-neutral-50 sm:px-5 sm:py-4`}
+                className={`${bento} flex shrink-0 items-center justify-between gap-2 px-3 py-2.5 hover:bg-neutral-50 sm:px-4 sm:py-3`}
               >
                 <div>
                   <p className="font-semibold text-neutral-900 sm:text-lg">Fechamento de caixa</p>
