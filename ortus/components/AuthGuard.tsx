@@ -321,7 +321,11 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
 
   const isDashboard = pathname === '/dashboard' || pathname.startsWith('/dashboard');
   const isBentoShell =
-    isDashboard || pathname === '/pacientes' || pathname.startsWith('/pacientes/');
+    isDashboard ||
+    pathname === '/pacientes' ||
+    pathname.startsWith('/pacientes/') ||
+    pathname === '/proteses' ||
+    pathname.startsWith('/proteses/');
   const isPerfilAdmin = perfil?.nivel_acesso === 'admin' || perfil?.is_super_admin;
 
   const canAccessModule = (module?: ModuleName) => {
