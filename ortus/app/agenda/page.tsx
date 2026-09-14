@@ -10,15 +10,10 @@ import listPlugin from '@fullcalendar/list';
 import ptBrLocale from '@fullcalendar/core/locales/pt-br';
 import { usePatientSlideOver } from '@/components/PatientSlideOver';
 import { usePatientActionModal } from '@/components/PatientActionModal';
-import { useClinica } from '@/app/context/ClinicaContext';
+import { getClinicLabel, useClinica } from '@/app/context/ClinicaContext';
 import { fetchUserClinicas, fetchUserEquipe } from '@/lib/clinicScoped';
 
-import { 
-  Plus, X, Loader2, CheckCircle, 
-  Calendar as CalIcon, 
-  UserPlus, DollarSign, Phone, Trash2,
-  Clock, Ban, Bell
-} from 'lucide-react';
+import { Plus, X, Loader2, UserPlus, Trash2, Clock, Bell, ChevronDown } from 'lucide-react';
 import CustomSelect from '@/components/ui/CustomSelect';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
 import { validarAgendamentoCompleto } from '@/lib/horarioProfissional';
@@ -33,23 +28,15 @@ import {
   type LembreteAgendamento,
 } from '@/lib/lembretesAgenda';
 
-// Paleta de cores por tema (gradiente + acento + texto)
-const TEMA_CORES: Record<string, { grad: string; accent: string; text: string; soft: string; ring: string; label: string }> = {
-  blue:   { grad: 'from-blue-500 to-blue-600',     accent: 'bg-blue-700',     text: 'text-white', soft: 'bg-blue-50 text-blue-700 border-blue-200',       ring: 'ring-blue-400',   label: 'Azul' },
-  green:  { grad: 'from-emerald-500 to-emerald-600', accent: 'bg-emerald-700', text: 'text-white', soft: 'bg-emerald-50 text-emerald-700 border-emerald-200', ring: 'ring-emerald-400', label: 'Verde' },
-  red:    { grad: 'from-rose-500 to-rose-600',     accent: 'bg-rose-700',     text: 'text-white', soft: 'bg-rose-50 text-rose-700 border-rose-200',       ring: 'ring-rose-400',   label: 'Vermelho' },
-  yellow: { grad: 'from-amber-400 to-amber-500',   accent: 'bg-amber-600',    text: 'text-amber-950', soft: 'bg-amber-50 text-amber-700 border-amber-200', ring: 'ring-amber-400',  label: 'Amarelo' },
-  purple: { grad: 'from-violet-500 to-violet-600', accent: 'bg-violet-700',   text: 'text-white', soft: 'bg-violet-50 text-violet-700 border-violet-200', ring: 'ring-violet-400', label: 'Roxo' },
-  slate:  { grad: 'from-slate-500 to-slate-600',   accent: 'bg-slate-700',    text: 'text-white', soft: 'bg-slate-50 text-slate-700 border-slate-200',     ring: 'ring-slate-400',  label: 'Cinza' },
-};
-
 export default function Agenda() {
   const calendarRef = useRef(null);
   const searchParams = useSearchParams();
   const pacientePreSelecionado = searchParams?.get('paciente');
   const { openPatient } = usePatientSlideOver();
   const { openQuickCapture } = usePatientActionModal();
-  const { activeClinicId, loading: clinicLoading } = useClinica();
+  const { activeClinicId, activeClinic, loading: clinicLoading } = useClinica();
+  const clinicaFiltro =
+    !activeClinicId || activeClinicId === 'all' ? 'todas' : String(activeClinicId);
   const { showAlert, showConfirm } = useCustomAlert();
   const [events, setEvents] = useState<any[]>([]);
   const [usuarioAtual, setUsuarioAtual] = useState<any>(null);
@@ -60,9 +47,8 @@ export default function Agenda() {
   const [pacientes, setPacientes] = useState<any[]>([]);
   const [tratamentosBase, setTratamentosBase] = useState<any[]>([]);
   const [especialidades, setEspecialidades] = useState<{ id: string; nome: string }[]>([]);
-  const [clinicaFiltro, setClinicaFiltro] = useState('todas');
-  const [clinicaGlobal, setClinicaGlobal] = useState<string | null>(null);
   const [openModal, setOpenModal] = useState(false);
+  const [lembretesAbertos, setLembretesAbertos] = useState(true);
   const [loading, setLoading] = useState(false);
   const [lembretesPendentes, setLembretesPendentes] = useState<LembreteAgendamento[]>([]);
   const [lembretesLoading, setLembretesLoading] = useState(false);
@@ -72,14 +58,6 @@ export default function Agenda() {
       paciente_id: '', valor: '0', desconto: '0', observacoes: '', 
       status: 'agendado', clinica_id: '', profissional_id: '' 
   });
-
-  // Sincroniza filtro com contexto global (reativo)
-  useEffect(() => {
-      if (!activeClinicId) return;
-      const cid = activeClinicId === 'all' ? 'todas' : activeClinicId;
-      setClinicaFiltro(cid);
-      setClinicaGlobal(activeClinicId === 'all' ? null : activeClinicId);
-  }, [activeClinicId]);
 
   useEffect(() => { 
       if (!clinicLoading) inicializar(); 
@@ -321,6 +299,7 @@ export default function Agenda() {
       
       setOpenModal(false); 
       carregarEventos(); 
+      window.dispatchEvent(new CustomEvent('ortus:agenda-changed'));
       setLoading(false); 
   }
 
@@ -337,281 +316,252 @@ export default function Agenda() {
       openQuickCapture(clinicaId);
   }
 
-  const renderEventContent = (eventInfo:any) => {
+  function irParaView(view: string) {
+      const api = (calendarRef.current as { getApi?: () => { changeView: (v: string) => void } } | null)?.getApi?.();
+      api?.changeView(view);
+  }
+
+  function abrirNovoAgendamento() {
+      const hoje = new Date().toISOString().split('T')[0];
+      const preClinica = clinicaFiltro !== 'todas' ? clinicaFiltro : '';
+      const preProfissional =
+          usuarioAtual?.nivel !== 'admin' && usuarioAtual?.profissional_id ? usuarioAtual.profissional_id : '';
+      setFormData({
+          id: null,
+          title: '',
+          date: hoje,
+          time: '08:00',
+          theme: 'blue',
+          paciente_id: '',
+          valor: '0',
+          desconto: '0',
+          observacoes: '',
+          status: 'agendado',
+          clinica_id: preClinica,
+          profissional_id: preProfissional,
+      });
+      setOpenModal(true);
+  }
+
+  const cardShell = 'rounded-[1.35rem] bg-white sm:rounded-[1.5rem]';
+  const pill = (ativo: boolean) =>
+      `shrink-0 rounded-full px-3 py-2 text-xs font-medium transition-colors sm:px-4 sm:text-sm ${
+          ativo ? 'bg-neutral-900 text-white' : 'border border-black/10 bg-white text-neutral-600 hover:bg-neutral-50'
+      }`;
+
+  const renderEventContent = (eventInfo: any) => {
       const props = eventInfo.event.extendedProps;
-      const status = props.status;
-      const viewType = eventInfo.view.type;
-      const tema = TEMA_CORES[props.cor] || TEMA_CORES.blue;
-      const isList = viewType === 'listWeek';
-      const isMonth = viewType === 'dayGridMonth';
+      const status = props.status as string;
+      const compact = eventInfo.view.type === 'listWeek' || eventInfo.view.type === 'dayGridMonth';
       const patientName = Array.isArray(props.pacientes) ? props.pacientes[0]?.nome : props.pacientes?.nome;
       const procedure = props.procedimento || eventInfo.event.title;
-      const PatientTrigger = ({ className }: { className?: string }) => (
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            openPatient(props.paciente_id);
-          }}
-          className={`font-extrabold hover:underline hover:decoration-2 underline-offset-2 ${className || ''}`}
-          title="Abrir visão 360º do paciente"
-        >
-          {patientName || 'Paciente'}
-        </button>
-      );
 
-      // Mês e Lista: pílula compacta colorida
-      if (isList || isMonth) {
-        if (status === 'cancelado') {
-          return (
-            <div className="flex items-center gap-1.5 overflow-hidden w-full px-1.5 py-0.5 rounded-md bg-rose-50 border border-rose-200">
-              <Ban size={10} className="text-rose-500 shrink-0"/>
-              <span className="text-[11px] font-semibold truncate line-through text-rose-500">
-                {eventInfo.timeText && <span className="mr-1 opacity-70">{eventInfo.timeText}</span>}<PatientTrigger /> <span className="opacity-80">- {procedure}</span>
-              </span>
-            </div>
-          );
-        }
-        if (status === 'concluido') {
-          return (
-            <div className="flex items-center gap-1.5 overflow-hidden w-full px-1.5 py-0.5 rounded-md bg-emerald-50 border border-emerald-200">
-              <CheckCircle size={10} className="text-emerald-600 shrink-0"/>
-              <span className="text-[11px] font-semibold truncate text-emerald-700">
-                {eventInfo.timeText && <span className="mr-1 opacity-70">{eventInfo.timeText}</span>}<PatientTrigger /> <span className="opacity-80">- {procedure}</span>
-              </span>
-            </div>
-          );
-        }
-        return (
-          <div className={`flex items-center gap-1.5 overflow-hidden w-full px-1.5 py-0.5 rounded-md border ${tema.soft}`}>
-            <div className={`w-2 h-2 rounded-full bg-gradient-to-br ${tema.grad} shrink-0 shadow-sm`}></div>
-            <span className="text-[11px] font-semibold truncate">
-              {eventInfo.timeText && <span className="mr-1 opacity-70">{eventInfo.timeText}</span>}<PatientTrigger /> <span className="opacity-80">- {procedure}</span>
-            </span>
-          </div>
-        );
-      }
+      const shell =
+          status === 'cancelado'
+              ? 'bg-rose-50 text-rose-800 border-rose-200'
+              : status === 'concluido'
+                ? 'bg-emerald-50 text-emerald-900 border-emerald-200'
+                : status === 'fiado'
+                  ? 'bg-amber-50 text-amber-900 border-amber-200'
+                  : 'bg-neutral-900 text-white border-neutral-800';
 
-      // Visões timeGrid (Dia/Semana)
-      if (status === 'fiado') {
-        return (
-          <div className="w-full h-full p-1.5 rounded-md bg-amber-50 border-l-[4px] border-amber-500 text-amber-800 flex flex-col justify-center overflow-hidden">
-            <div className="flex items-center gap-1">
-              <DollarSign size={10} className="shrink-0"/>
-              <span className="text-[9px] uppercase font-extrabold tracking-wide">Fiado</span>
-            </div>
-            <span className="font-bold text-[11px] truncate"><PatientTrigger /> <span className="opacity-80">- {procedure}</span></span>
-          </div>
-        );
-      }
-      if (status === 'cancelado') {
-        return (
-          <div className="w-full h-full p-1.5 rounded-md bg-rose-50 border-l-[4px] border-rose-500 text-rose-700 flex flex-col justify-center relative overflow-hidden">
-            <div className="flex items-center gap-1">
-              <Ban size={10} className="shrink-0"/>
-              <span className="text-[9px] uppercase font-extrabold tracking-wide">Cancelado</span>
-            </div>
-            <span className="font-bold text-[11px] line-through truncate opacity-80"><PatientTrigger /> <span>- {procedure}</span></span>
-          </div>
-        );
-      }
-      if (status === 'concluido') {
-        return (
-          <div className="w-full h-full p-1.5 rounded-md bg-emerald-50 border-l-[4px] border-emerald-500 text-emerald-800 flex flex-col justify-center overflow-hidden">
-            <div className="flex items-center gap-1">
-              <CheckCircle size={10} className="shrink-0"/>
-              <span className="text-[9px] uppercase font-extrabold tracking-wide">Concluído</span>
-            </div>
-            <span className="font-bold text-[11px] truncate"><PatientTrigger /> <span className="opacity-80">- {procedure}</span></span>
-          </div>
-        );
-      }
       return (
-        <div className={`w-full h-full px-2 py-1 rounded-md shadow-sm bg-gradient-to-br ${tema.grad} ${tema.text} border-l-[4px] ${tema.accent.replace('bg-', 'border-')} overflow-hidden hover:shadow-md hover:brightness-110 transition-all`}>
-          <div className="flex items-center gap-1 text-[10px] font-bold opacity-95">
-            <Clock size={9} className="shrink-0"/>
-            <span>{eventInfo.timeText}</span>
-          </div>
-          <div className="text-[12px] font-extrabold truncate leading-tight drop-shadow-sm"><PatientTrigger /> <span className="opacity-90">- {procedure}</span></div>
+        <div
+          className={`flex w-full overflow-hidden border ${shell} ${
+              compact ? 'items-center gap-1.5 rounded-lg px-2 py-1' : 'h-full flex-col justify-center rounded-xl px-2 py-1.5'
+          }`}
+        >
+          {!compact && eventInfo.timeText && (
+            <span className="flex items-center gap-1 text-[10px] font-medium opacity-80">
+              <Clock size={10} />
+              {eventInfo.timeText}
+            </span>
+          )}
+          <span className={`truncate text-[11px] font-semibold sm:text-xs ${status === 'cancelado' ? 'line-through opacity-80' : ''}`}>
+            {compact && eventInfo.timeText && <span className="mr-1 opacity-70">{eventInfo.timeText}</span>}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                openPatient(props.paciente_id);
+              }}
+              className="font-semibold hover:underline underline-offset-2"
+              title="Abrir paciente"
+            >
+              {patientName || 'Paciente'}
+            </button>
+            <span className="opacity-80"> · {procedure}</span>
+          </span>
         </div>
       );
   };
 
+  const subtituloUnidade =
+    clinicaFiltro === 'todas'
+      ? 'Todas as clínicas'
+      : activeClinic
+        ? getClinicLabel(activeClinic)
+        : clinicas.find((c: any) => String(c.id) === clinicaFiltro)?.nome || 'Unidade';
+
+  const fcProps = {
+    plugins: [dayGridPlugin, timeGridPlugin, interactionPlugin, listPlugin],
+    locale: ptBrLocale,
+    slotMinTime: '07:00:00',
+    slotMaxTime: '20:00:00',
+    allDaySlot: false as const,
+    events,
+    eventContent: renderEventContent,
+    dateClick: handleDateClick,
+    eventClick: handleEventClick,
+    height: '100%' as const,
+    slotDuration: '00:30:00',
+    dayHeaderFormat: { weekday: 'short' as const, day: 'numeric' as const },
+    nowIndicator: true,
+    navLinks: true,
+    buttonText: { today: 'Hoje', month: 'Mês', week: 'Semana', day: 'Dia', list: 'Lista' },
+  };
+
+  const inputClass =
+    'w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm font-medium text-neutral-800 outline-none focus:border-neutral-400';
+
   return (
-    <div className="h-[calc(100vh-6rem)] md:h-[calc(100vh-2rem)] flex flex-col space-y-4">
-      <style jsx global>{`
-        .fc { font-family: inherit; }
-        .fc-header-toolbar { margin-bottom: 1.25rem !important; }
-        .fc-toolbar-title { font-size: 1.25rem !important; font-weight: 800 !important; color: #1e293b; text-transform: capitalize; }
-        .fc-button { background-color: white !important; color: #475569 !important; border: 1px solid #e2e8f0 !important; font-weight: 600 !important; font-size: 0.875rem !important; padding: 0.5rem 1rem !important; box-shadow: none; text-transform: capitalize; transition: all 0.2s; }
-        .fc-button:hover { background-color: #eff6ff !important; color: #1d4ed8 !important; border-color: #bfdbfe !important; }
-        .fc-button-active { background: #2563eb !important; color: white !important; border-color: #2563eb !important; box-shadow: none !important; }
-        .fc-today-button { background: linear-gradient(135deg, #f0fdf4, #dcfce7) !important; color: #15803d !important; border-color: #bbf7d0 !important; }
-        .fc-today-button:hover:not(:disabled) { background: linear-gradient(135deg, #dcfce7, #bbf7d0) !important; }
-        .fc-button-primary:focus { box-shadow: 0 0 0 3px rgba(59,130,246,0.35) !important; }
-
-        .fc-theme-standard td, .fc-theme-standard th { border-color: #e2e8f0; }
-        .fc-scrollgrid { border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; }
-
-        /* Cabeçalho dos dias com gradiente sutil */
-        .fc-col-header-cell { background: linear-gradient(180deg, #f8fafc, #f1f5f9); padding: 10px 0; }
-        .fc-col-header-cell-cushion { color: #475569; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; }
-        .fc-col-header-cell.fc-day-today { background: linear-gradient(180deg, #dbeafe, #bfdbfe) !important; }
-        .fc-col-header-cell.fc-day-today .fc-col-header-cell-cushion { color: #1d4ed8; }
-        .fc-col-header-cell.fc-day-sat .fc-col-header-cell-cushion,
-        .fc-col-header-cell.fc-day-sun .fc-col-header-cell-cushion { color: #9333ea; }
-
-        /* Coluna do dia atual destacada */
-        .fc-day-today { background-color: #eff6ff !important; }
-        .fc-timegrid-col.fc-day-today { background: linear-gradient(180deg, rgba(59,130,246,0.06), rgba(59,130,246,0.02)) !important; }
-        .fc-daygrid-day.fc-day-today .fc-daygrid-day-number { background: #2563eb; color: white; border-radius: 9999px; padding: 2px 8px; font-weight: 800; }
-
-        /* Fim de semana com tom suave */
-        .fc-day-sat, .fc-day-sun { background-color: #faf5ff20; }
-        .fc-timegrid-col.fc-day-sat, .fc-timegrid-col.fc-day-sun { background-color: rgba(168,85,247,0.04); }
-
-        /* Slots de tempo */
-        .fc-timegrid-slot-label { color: #64748b; font-size: 11px; font-weight: 600; }
-        .fc-timegrid-slot { height: 2.4em; }
-        .fc-timegrid-slot-minor { border-top-style: dotted !important; }
-
-        /* Indicador "agora" mais visível */
-        .fc-timegrid-now-indicator-line { border-color: #ef4444 !important; border-width: 2px !important; box-shadow: 0 0 8px rgba(239,68,68,0.4); }
-        .fc-timegrid-now-indicator-arrow { border-color: #ef4444 !important; border-width: 6px !important; }
-
-        /* Eventos - usamos custom render */
-        .fc-event { border: none; background: transparent; box-shadow: none; cursor: pointer; }
-        .fc-event:hover { z-index: 5; }
-        .fc-daygrid-event { white-space: normal !important; align-items: center; padding: 1px 0; }
-        .fc-timegrid-event { box-shadow: 0 2px 4px rgba(15,23,42,0.08) !important; border-radius: 6px; }
-        .fc-timegrid-event .fc-event-main { padding: 0; }
-
-        /* Lista */
-        .fc-list { border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; }
-        .fc-list-day-cushion { background: linear-gradient(90deg, #eff6ff, #f8fafc) !important; color: #1e40af !important; font-weight: 800 !important; }
-        .fc-list-event:hover td { background-color: #eff6ff !important; cursor: pointer; }
-        .fc-list-event-time { color: #2563eb !important; font-weight: 700 !important; }
-
-        /* Números do mês */
-        .fc-daygrid-day-number { color: #475569; font-weight: 700; padding: 6px 8px !important; }
-        .fc-day-other .fc-daygrid-day-number { color: #cbd5e1; }
-      `}</style>
-      
-      <div className="space-y-3">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-slate-200 gap-3 sm:gap-4">
-            <div className="flex items-center gap-3 flex-1 min-w-0">
-                <div className="hidden sm:flex bg-gradient-to-br from-blue-500 to-blue-600 p-2.5 rounded-xl text-white shadow-md shrink-0 items-center justify-center"><CalIcon size={20}/></div>
-                <div className="flex-1 min-w-0">
-                    <h1 className="text-base sm:text-lg font-black text-slate-800 leading-tight">Agenda</h1>
-                    {(() => {
-                        const isTodas = clinicaFiltro === 'todas';
-                        const cAtual = clinicas.find((c:any) => String(c.id) === String(clinicaFiltro));
-                        const cGlobal = clinicas.find((c:any) => String(c.id) === String(clinicaGlobal));
-                        const divergente = !isTodas && clinicaGlobal && String(clinicaFiltro) !== String(clinicaGlobal);
-                        const wrap = divergente
-                            ? 'bg-rose-50 border-rose-300 text-rose-700 ring-2 ring-rose-200 animate-pulse'
-                            : isTodas
-                                ? 'bg-amber-50 border-amber-300 text-amber-800'
-                                : 'bg-blue-50 border-blue-200 text-blue-700';
-                        return (
-                            <div className="mt-1 flex items-center gap-1.5 sm:gap-2">
-                                <CustomSelect
-                                  value={clinicaFiltro}
-                                  onChange={setClinicaFiltro}
-                                  options={[{ value: 'todas', label: 'Todas as Clínicas' }, ...clinicas.map((c:any) => ({ value: String(c.id), label: c.nome }))]}
-                                  size="sm"
-                                  triggerClassName={`!rounded-lg !border ${wrap}`}
-                                />
-                                {divergente && <span className="text-[10px] font-black uppercase bg-rose-600 text-white px-1.5 py-0.5 rounded shrink-0">≠ {cGlobal?.nome || 'global'}</span>}
-                                {isTodas && <span className="text-[10px] font-black uppercase bg-amber-600 text-white px-1.5 py-0.5 rounded shrink-0">visão geral</span>}
-                            </div>
-                        );
-                    })()}
-                </div>
-            </div>
-            <div className="flex items-center gap-2 sm:gap-3 shrink-0 w-full sm:w-auto">
-                <div className="hidden lg:flex items-center gap-3 text-[11px] font-bold uppercase tracking-wide pr-3 border-r border-slate-200">
-                    <span className="flex items-center gap-1.5 text-slate-600"><span className="w-2.5 h-2.5 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 shadow-sm"></span> Agendado</span>
-                    <span className="flex items-center gap-1.5 text-emerald-700"><CheckCircle size={12}/> Concluído</span>
-                    <span className="flex items-center gap-1.5 text-amber-700"><DollarSign size={12}/> Fiado</span>
-                    <span className="flex items-center gap-1.5 text-rose-600"><Ban size={12}/> Cancelado</span>
-                </div>
-                <button onClick={() => { setOpenModal(true); setFormData(prev => ({...prev, id: null, clinica_id: clinicaFiltro !== 'todas' ? clinicaFiltro : ''})); }} className="w-full sm:w-auto bg-gradient-to-br from-blue-600 to-blue-700 text-white px-4 sm:px-5 py-2.5 rounded-lg font-bold hover:from-blue-700 hover:to-blue-800 flex items-center justify-center gap-2 text-sm shadow-md hover:shadow-lg transition-all"><Plus size={18}/> <span className="hidden sm:inline">Novo</span> Agendamento</button>
-            </div>
+    <div className="flex h-full min-h-0 flex-col overflow-hidden px-2.5 py-2.5 font-poppins sm:px-3 sm:py-3 md:px-4 md:py-3.5">
+      <header className="mb-3 shrink-0 space-y-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 md:text-[2rem]">Agenda</h1>
+            <p className="mt-1 truncate text-sm text-neutral-500 sm:text-base">{subtituloUnidade} · arraste ou clique no horário</p>
+          </div>
+          <button
+            type="button"
+            onClick={abrirNovoAgendamento}
+            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-full bg-neutral-900 px-5 text-sm font-medium text-white hover:bg-neutral-800 sm:w-auto"
+          >
+            <Plus size={18} />
+            Novo agendamento
+          </button>
         </div>
 
-        {/* Aviso de divergência */}
-        {clinicaFiltro !== 'todas' && clinicaGlobal && String(clinicaFiltro) !== String(clinicaGlobal) && (() => {
-            const cAtual = clinicas.find((c:any) => String(c.id) === String(clinicaFiltro));
-            const cGlobal = clinicas.find((c:any) => String(c.id) === String(clinicaGlobal));
-            return (
-                <div className="bg-rose-50 border-2 border-rose-300 rounded-xl p-3 flex items-center gap-3 shadow-sm">
-                    <div className="w-9 h-9 rounded-lg bg-rose-500 text-white flex items-center justify-center shrink-0 animate-pulse"><Ban size={16}/></div>
-                    <div className="flex-1 text-sm">
-                        <div className="font-black text-rose-800">Atenção! Você está visualizando outra clínica.</div>
-                        <div className="text-rose-600 text-xs">Clínica atual selecionada: <strong>{cGlobal?.nome}</strong>. Visualizando: <strong>{cAtual?.nome}</strong>.</div>
-                    </div>
-                    <button onClick={() => setClinicaFiltro(clinicaGlobal!)} className="px-3 py-1.5 bg-rose-600 text-white text-xs font-bold rounded-lg hover:bg-rose-700 shrink-0">Voltar para minha clínica</button>
-                </div>
-            );
-        })()}
+        <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex gap-2 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <button type="button" className={pill(false)} onClick={() => irParaView('timeGridWeek')}>
+              Semana
+            </button>
+            <button type="button" className={pill(false)} onClick={() => irParaView('timeGridDay')}>
+              Dia
+            </button>
+            <button type="button" className={pill(false)} onClick={() => irParaView('dayGridMonth')}>
+              Mês
+            </button>
+            <button type="button" className={pill(false)} onClick={() => irParaView('listWeek')}>
+              Lista
+            </button>
+          </div>
+          <div className="hidden flex-wrap items-center gap-3 text-[11px] font-medium text-neutral-500 lg:flex">
+            <span className="flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-neutral-900" /> Agendado
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-emerald-500" /> Concluído
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-amber-500" /> Fiado
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-rose-500" /> Cancelado
+            </span>
+          </div>
+        </div>
 
         {(lembretesLoading || lembretesPendentes.length > 0) && (
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 shadow-sm">
-                <div className="flex items-center justify-between gap-3 mb-3">
-                    <div className="flex items-center gap-2">
-                        <Bell size={18} className="text-amber-600"/>
-                        <div>
-                            <p className="font-black text-amber-900 text-sm">Lembretes 24h — consultas de amanhã</p>
-                            <p className="text-xs text-amber-700">{lembretesLoading ? 'Carregando...' : `${lembretesPendentes.length} pendente(s) de envio`}</p>
-                            <p className="text-[10px] text-amber-600/80 mt-0.5">SMS e e-mail automáticos rodam via cron (10h). WhatsApp é manual.</p>
-                        </div>
-                    </div>
+          <section className={`${cardShell} border border-amber-200/80 bg-amber-50/80 p-3 sm:p-4`}>
+            <button
+              type="button"
+              onClick={() => setLembretesAbertos((v) => !v)}
+              className="flex w-full items-center justify-between gap-2 text-left"
+            >
+              <div className="flex min-w-0 items-center gap-2">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-amber-700">
+                  <Bell size={18} />
+                </span>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-amber-950">Lembretes 24h</p>
+                  <p className="truncate text-xs text-amber-800/90">
+                    {lembretesLoading ? 'Carregando…' : `${lembretesPendentes.length} consulta(s) amanhã`}
+                  </p>
                 </div>
-                {!lembretesLoading && lembretesPendentes.length > 0 && (
-                    <div className="space-y-2 max-h-40 overflow-y-auto">
-                        {lembretesPendentes.map((ag) => (
-                            <div key={ag.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-white rounded-xl border border-amber-100">
-                                <div className="min-w-0 text-sm">
-                                    <span className="font-bold text-slate-800">{ag.paciente_nome}</span>
-                                    <span className="text-slate-500 ml-2">{new Date(ag.data_hora).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} — {ag.procedimento}</span>
-                                </div>
-                                <PatientContactButtons
-                                    variant="row"
-                                    telefone={ag.paciente_telefone}
-                                    email={ag.paciente_email}
-                                    clinicaId={ag.clinica_id}
-                                    evento="lembrete"
-                                    contexto={ctxLembreteAgendamento(ag)}
-                                    onEnviado={(canal) => {
-                                        marcarLembreteEnviado(ag.clinica_id, ag.id, canal === 'whatsapp' ? 'whatsapp' : canal === 'email' ? 'email' : canal === 'sms' ? 'sms' : 'manual');
-                                        setLembretesPendentes((prev) => prev.filter((x) => x.id !== ag.id));
-                                    }}
-                                />
-                            </div>
-                        ))}
+              </div>
+              <ChevronDown size={18} className={`shrink-0 text-amber-800 transition-transform ${lembretesAbertos ? 'rotate-180' : ''}`} />
+            </button>
+            {lembretesAbertos && !lembretesLoading && lembretesPendentes.length > 0 && (
+              <div className="mt-3 max-h-36 space-y-2 overflow-y-auto">
+                {lembretesPendentes.map((ag) => (
+                  <div
+                    key={ag.id}
+                    className="flex flex-col gap-2 rounded-xl border border-amber-100 bg-white p-3 sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div className="min-w-0 text-sm">
+                      <span className="font-semibold text-neutral-900">{ag.paciente_nome}</span>
+                      <span className="ml-2 text-neutral-500">
+                        {new Date(ag.data_hora).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} · {ag.procedimento}
+                      </span>
                     </div>
-                )}
-            </div>
+                    <PatientContactButtons
+                      variant="row"
+                      telefone={ag.paciente_telefone}
+                      email={ag.paciente_email}
+                      clinicaId={ag.clinica_id}
+                      evento="lembrete"
+                      contexto={ctxLembreteAgendamento(ag)}
+                      onEnviado={(canal) => {
+                        marcarLembreteEnviado(
+                          ag.clinica_id,
+                          ag.id,
+                          canal === 'whatsapp' ? 'whatsapp' : canal === 'email' ? 'email' : canal === 'sms' ? 'sms' : 'manual',
+                        );
+                        setLembretesPendentes((prev) => prev.filter((x) => x.id !== ag.id));
+                      }}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
         )}
+      </header>
+
+      <div className={`${cardShell} bento-calendar min-h-0 flex-1 overflow-hidden p-2 sm:p-4`}>
+        <div className="hidden h-full min-h-[320px] sm:block">
+          <FullCalendar
+            ref={calendarRef}
+            {...fcProps}
+            initialView="timeGridWeek"
+            headerToolbar={{ left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,timeGridDay,listWeek' }}
+          />
+        </div>
+        <div className="h-full min-h-[360px] sm:hidden">
+          <FullCalendar
+            ref={calendarRef}
+            {...fcProps}
+            initialView="listWeek"
+            headerToolbar={{ left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridDay,listWeek' }}
+            titleFormat={{ year: 'numeric', month: 'long' }}
+          />
+        </div>
       </div>
 
-      <div className="flex-1 bg-white rounded-xl shadow-sm border border-slate-200 p-2 sm:p-4 overflow-hidden">
-        <div className="hidden sm:block h-full">
-          <FullCalendar ref={calendarRef} plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, listPlugin]} initialView="timeGridWeek" headerToolbar={{ left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,timeGridDay,listWeek' }} buttonText={{ today: 'Hoje', month: 'Mês', week: 'Semana', day: 'Dia', list: 'Lista' }} locale={ptBrLocale} slotMinTime="07:00:00" slotMaxTime="20:00:00" allDaySlot={false} events={events} eventContent={renderEventContent} dateClick={handleDateClick} eventClick={handleEventClick} height="100%" slotDuration="00:30:00" dayHeaderFormat={{ weekday: 'short', day: 'numeric' }} nowIndicator={true} navLinks={true} />
-        </div>
-        <div className="sm:hidden h-full">
-          <FullCalendar ref={calendarRef} plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, listPlugin]} initialView="listWeek" headerToolbar={{ left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridDay,listWeek' }} buttonText={{ today: 'Hoje', month: 'Mês', day: 'Dia', list: 'Lista' }} titleFormat={{ year: 'numeric', month: 'long' }} locale={ptBrLocale} slotMinTime="07:00:00" slotMaxTime="20:00:00" allDaySlot={false} events={events} eventContent={renderEventContent} dateClick={handleDateClick} eventClick={handleEventClick} height="100%" slotDuration="00:30:00" dayHeaderFormat={{ weekday: 'short', day: 'numeric' }} nowIndicator={true} navLinks={true} />
-        </div>
-      </div>
-      
-      {/* MODAL PRINCIPAL OMITIDO PARA BREVIDADE (Mantido Igual) */}
-      <Modal open={openModal} onClose={() => setOpenModal(false)} maxWidth="lg" hideCloseButton panelClassName="bg-white rounded-2xl shadow-xl border border-slate-100 flex flex-col max-h-[95vh]">
-                  <div className="p-5 border-b bg-slate-50 flex justify-between items-center shrink-0">
-                      <h3 className="font-bold text-slate-800 flex items-center gap-2">{formData.id ? 'Editar Agendamento' : 'Novo Agendamento'}</h3>
-                      <button onClick={() => setOpenModal(false)} className="text-slate-400 hover:text-red-500 p-1"><X size={20}/></button>
+      <Modal
+        open={openModal}
+        onClose={() => setOpenModal(false)}
+        maxWidth="lg"
+        hideCloseButton
+        panelClassName="flex max-h-[95vh] flex-col overflow-hidden rounded-[1.35rem] border border-black/8 bg-white shadow-xl sm:rounded-[1.5rem]"
+      >
+                  <div className="flex shrink-0 items-center justify-between border-b border-black/6 px-5 py-4">
+                      <h3 className="text-lg font-semibold text-neutral-900">{formData.id ? 'Editar agendamento' : 'Novo agendamento'}</h3>
+                      <button type="button" onClick={() => setOpenModal(false)} className="rounded-full p-2 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-800"><X size={20}/></button>
                   </div>
-                  <div className="p-6 space-y-5 overflow-y-auto flex-1">
+                  <div className="flex-1 space-y-5 overflow-y-auto p-5 sm:p-6">
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           <div>
                               <label className="text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-1">
@@ -625,20 +575,20 @@ export default function Agenda() {
                                   options={clinicas.map((c:any) => ({ value: String(c.id), label: c.nome }))}
                                   placeholder="Selecione..."
                               />
-                              {clinicaFiltro !== 'todas' && <p className="text-[10px] text-slate-400 mt-1">Para escolher outra clínica, troque o filtro para "Todas as Clínicas".</p>}
+                              {clinicaFiltro !== 'todas' && <p className="mt-1 text-[11px] text-neutral-400">Unidade definida no menu lateral. Selecione &quot;Todas&quot; lá para agendar em outra clínica.</p>}
                           </div>
-                          <div><label className="text-xs font-bold text-slate-500 uppercase mb-1">Profissional</label><CustomSelect value={formData.profissional_id} onChange={v => setFormData({...formData,profissional_id: v})} disabled={usuarioAtual?.nivel !== 'admin'} options={profissionaisFiltrados.map((p:any) => ({ value: String(p.id), label: p.nome }))} placeholder="Qualquer um..."/></div>
+                          <div><label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-neutral-500">Profissional</label><CustomSelect value={formData.profissional_id} onChange={v => setFormData({...formData,profissional_id: v})} disabled={usuarioAtual?.nivel !== 'admin'} options={profissionaisFiltrados.map((p:any) => ({ value: String(p.id), label: p.nome }))} placeholder="Qualquer um..."/></div>
                       </div>
                       <div>
-                          <div className="flex justify-between items-center mb-1">
-                              <label className="text-xs font-bold text-slate-500 uppercase">Paciente</label>
-                              <button type="button" onClick={abrirCadastroPaciente} className="text-[10px] font-bold text-blue-600 hover:underline flex items-center gap-1 uppercase"><UserPlus size={12}/> Cadastrar Novo</button>
+                          <div className="mb-1 flex items-center justify-between">
+                              <label className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Paciente</label>
+                              <button type="button" onClick={abrirCadastroPaciente} className="flex items-center gap-1 text-[11px] font-semibold text-neutral-700 hover:underline"><UserPlus size={12}/> Novo paciente</button>
                           </div>
                           <CustomSelect value={formData.paciente_id} onChange={v => setFormData({...formData, paciente_id: v})} options={pacientes.filter((p:any) => !formData.clinica_id || p.clinica_id == formData.clinica_id).map((p:any) => ({ value: String(p.id), label: p.nome }))} placeholder="Selecione..." searchable/>
                       </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                          <div><label className="text-xs font-bold text-slate-500 uppercase mb-1">Data</label><input type="date" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} className="w-full p-2.5 border border-slate-200 rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none" /></div>
-                          <div><label className="text-xs font-bold text-slate-500 uppercase mb-1">Hora</label><input type="time" value={formData.time} onChange={e => setFormData({...formData, time: e.target.value})} className="w-full p-2.5 border border-slate-200 rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none" /></div>
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                          <div><label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-neutral-500">Data</label><input type="date" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} className={inputClass} /></div>
+                          <div><label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-neutral-500">Hora</label><input type="time" value={formData.time} onChange={e => setFormData({...formData, time: e.target.value})} className={inputClass} /></div>
                       </div>
                       <div>
                           <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Procedimento</label>
@@ -657,20 +607,36 @@ export default function Agenda() {
                               disabled={!formData.clinica_id}
                           />
                       </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200/60">
+                      <div className="grid grid-cols-1 gap-4 rounded-xl border border-black/6 bg-[#f3f4f1] p-4 sm:grid-cols-3">
                           <div>
-                              <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Valor (R$)</label>
-                              <input type="number" step="0.01" value={formData.valor} onChange={e => setFormData({...formData, valor: e.target.value})} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500 placeholder-slate-300" placeholder="0.00" />
+                              <label className="mb-1 block text-[10px] font-semibold uppercase text-neutral-500">Valor (R$)</label>
+                              <input type="number" step="0.01" value={formData.valor} onChange={e => setFormData({...formData, valor: e.target.value})} className={inputClass} placeholder="0,00" />
                           </div>
                           <div>
-                              <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Desconto (R$)</label>
-                              <input type="number" step="0.01" value={formData.desconto} onChange={e => setFormData({...formData, desconto: e.target.value})} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-sm font-bold text-red-500 outline-none focus:ring-2 focus:ring-red-200 placeholder-red-200" placeholder="0.00" />
+                              <label className="mb-1 block text-[10px] font-semibold uppercase text-neutral-500">Desconto (R$)</label>
+                              <input type="number" step="0.01" value={formData.desconto} onChange={e => setFormData({...formData, desconto: e.target.value})} className={inputClass} placeholder="0,00" />
                           </div>
-                          <div className="text-right flex flex-col justify-center">
-                              <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Total Final</label>
-                              <span className="text-xl font-black text-slate-900">R$ {(parseFloat(formData.valor || '0') - parseFloat(formData.desconto || '0')).toFixed(2)}</span>
+                          <div className="flex flex-col justify-center sm:text-right">
+                              <label className="mb-1 block text-[10px] font-semibold uppercase text-neutral-500">Total</label>
+                              <span className="text-xl font-semibold text-neutral-900">R$ {(parseFloat(formData.valor || '0') - parseFloat(formData.desconto || '0')).toFixed(2)}</span>
                           </div>
                       </div>
+                      {formData.id && (
+                        <div className="flex flex-wrap gap-2">
+                          {(['agendado', 'concluido', 'cancelado'] as const).map((st) => (
+                            <button
+                              key={st}
+                              type="button"
+                              onClick={() => setFormData((p) => ({ ...p, status: st }))}
+                              className={`rounded-full px-3 py-1.5 text-xs font-medium capitalize ${
+                                formData.status === st ? 'bg-neutral-900 text-white' : 'border border-black/10 bg-white text-neutral-600'
+                              }`}
+                            >
+                              {st}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                       
                       {(() => {
                           const pac = pacientes.find((p: any) => p.id == formData.paciente_id);
@@ -698,15 +664,21 @@ export default function Agenda() {
                               </div>
                           );
                       })()}
-                      {formData.id && (
-                          <div className="flex gap-3 pt-2">
-                              <button onClick={excluirAgendamento} className="p-3 text-red-400 hover:bg-red-50 rounded-lg transition-colors" title="Excluir agendamento"><Trash2 size={20}/></button>
-                          </div>
-                      )}
                   </div>
-                  <div className="p-5 border-t bg-slate-50 flex justify-end gap-3 shrink-0">
-                      <button onClick={() => setOpenModal(false)} className="px-4 py-2 text-slate-500 font-bold hover:bg-slate-200 rounded-lg text-sm transition-colors">Fechar</button>
-                      <button onClick={() => saveOrUpdate()} disabled={loading} className="px-6 py-2 bg-blue-600 text-white rounded-lg font-bold flex items-center gap-2 hover:bg-blue-700 transition-colors shadow-sm">{loading && <Loader2 className="animate-spin" size={16}/>} Salvar</button>
+                  <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-black/6 px-5 py-4">
+                      {formData.id ? (
+                        <button type="button" onClick={excluirAgendamento} className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50" title="Excluir">
+                          <Trash2 size={18} /> Excluir
+                        </button>
+                      ) : (
+                        <span />
+                      )}
+                      <div className="flex flex-wrap gap-2 sm:ml-auto">
+                        <button type="button" onClick={() => setOpenModal(false)} className="rounded-full px-4 py-2.5 text-sm font-medium text-neutral-600 hover:bg-neutral-100">Cancelar</button>
+                        <button type="button" onClick={() => saveOrUpdate()} disabled={loading} className="inline-flex items-center gap-2 rounded-full bg-neutral-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-60">
+                          {loading && <Loader2 className="animate-spin" size={16} />} Salvar
+                        </button>
+                      </div>
                   </div>
       </Modal>
     </div>

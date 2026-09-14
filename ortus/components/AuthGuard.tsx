@@ -336,6 +336,8 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const isDashboard = pathname === '/dashboard' || pathname.startsWith('/dashboard');
   const isBentoShell =
     isDashboard ||
+    pathname === '/agenda' ||
+    pathname.startsWith('/agenda/') ||
     pathname === '/pacientes' ||
     pathname.startsWith('/pacientes/') ||
     pathname === '/proteses' ||
