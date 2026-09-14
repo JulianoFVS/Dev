@@ -10,6 +10,7 @@ import {
   ChevronRight,
   DollarSign,
   LayoutDashboard,
+  Plus,
   Settings,
   Smile,
   User,
@@ -45,11 +46,11 @@ function NavItem({
     <Link
       href={href}
       title={label}
-      className={`flex shrink-0 items-center rounded-xl transition-colors ${
-        collapsed ? 'h-11 w-11 justify-center' : 'h-10 w-full gap-3 px-3'
-      } ${active ? 'bg-ortus-blue text-white' : 'text-slate-400 hover:bg-white/10 hover:text-slate-100'}`}
+      className={`flex shrink-0 items-center transition-colors ${
+        collapsed ? 'h-11 w-11 justify-center rounded-2xl' : 'h-10 w-full gap-3 rounded-2xl px-3'
+      } ${active ? 'bg-white/15 text-white' : 'text-white/45 hover:bg-white/10 hover:text-white/90'}`}
     >
-      <Icon size={20} strokeWidth={1.75} className="shrink-0" />
+      <Icon size={20} strokeWidth={1.65} className="shrink-0" />
       {!collapsed && <span className="truncate text-sm font-medium">{label}</span>}
     </Link>
   );
@@ -68,7 +69,7 @@ export function DashboardMobileNav() {
             href={item.href}
             title={item.label}
             className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border ${
-              active ? 'border-ortus-blue bg-ortus-blue text-white' : 'border-slate-200 bg-white text-slate-600'
+              active ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-black/10 bg-white text-neutral-600'
             }`}
           >
             <Icon size={16} strokeWidth={1.75} />
@@ -80,17 +81,15 @@ export function DashboardMobileNav() {
 }
 
 export default function DashboardSidebar() {
-  const [collapsed, setCollapsed] = useState(false);
-  const [ready, setReady] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
 
   useEffect(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved === 'collapsed') setCollapsed(true);
+      if (saved === 'expanded') setCollapsed(false);
     } catch {
       /* ignore */
     }
-    setReady(true);
   }, []);
 
   function toggleCollapsed() {
@@ -105,32 +104,31 @@ export default function DashboardSidebar() {
     });
   }
 
-  const widthClass = collapsed ? 'w-[4.25rem]' : 'w-[14.5rem]';
+  const widthClass = collapsed ? 'w-[4.5rem]' : 'w-[14rem]';
 
   return (
     <aside
-      className={`flex h-[calc(100vh-1.25rem)] shrink-0 flex-col overflow-hidden rounded-2xl bg-slate-900 py-3 shadow-sm transition-[width] duration-200 ease-out md:h-[calc(100vh-1.5rem)] ${widthClass} ${
-        ready ? '' : collapsed ? 'w-[4.25rem]' : 'w-[14.5rem]'
-      }`}
+      className={`flex h-[calc(100vh-0.75rem)] shrink-0 flex-col overflow-hidden rounded-[1.75rem] bg-neutral-950 py-3 transition-[width] duration-200 ease-out sm:h-[calc(100vh-1rem)] sm:rounded-[2rem] md:rounded-[2.25rem] ${widthClass}`}
     >
-      <div className={`mb-3 flex items-center ${collapsed ? 'justify-center px-2' : 'gap-2.5 px-3'}`}>
+      <div className={`mb-4 flex flex-col gap-2 ${collapsed ? 'items-center px-2' : 'px-3'}`}>
         <Link
-          href="/dashboard"
-          title="Ortus"
-          className={`flex shrink-0 items-center justify-center rounded-xl bg-white/10 text-white ${
-            collapsed ? 'h-10 w-10' : 'h-10 w-10'
-          }`}
+          href="/agenda"
+          title="Novo agendamento"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/10 text-white hover:bg-white/15"
         >
-          <img src="/landing/ortus-mark.svg" alt="" className="h-6 w-6 object-contain brightness-0 invert" />
+          <Plus size={22} strokeWidth={1.75} />
         </Link>
         {!collapsed && (
-          <Link href="/dashboard" className="min-w-0 flex-1">
-            <img src="/landing/ortus-wordmark.svg" alt="ortus" className="h-5 w-auto max-w-full brightness-0 invert" />
+          <Link href="/dashboard" className="flex items-center gap-2 px-1">
+            <img src="/landing/ortus-mark.svg" alt="" className="h-6 w-6 brightness-0 invert" />
+            <img src="/landing/ortus-wordmark.svg" alt="ortus" className="h-4 w-auto brightness-0 invert" />
           </Link>
         )}
       </div>
 
-      <nav className={`flex flex-1 flex-col gap-1 overflow-y-auto overflow-x-hidden ${collapsed ? 'items-center px-2' : 'px-2.5'}`}>
+      <nav
+        className={`flex flex-1 flex-col gap-1 overflow-y-auto overflow-x-hidden ${collapsed ? 'items-center px-2' : 'px-2.5'}`}
+      >
         {LINKS.map((item) => (
           <NavItem key={item.href} href={item.href} label={item.label} Icon={item.icon} collapsed={collapsed} />
         ))}
@@ -140,43 +138,38 @@ export default function DashboardSidebar() {
         <button
           type="button"
           onClick={toggleCollapsed}
-          className={`flex items-center rounded-xl text-slate-500 transition-colors hover:bg-white/10 hover:text-slate-200 ${
-            collapsed ? 'h-10 w-10 justify-center' : 'h-9 w-full gap-2.5 px-3 text-sm font-medium'
+          className={`flex items-center text-white/40 transition-colors hover:bg-white/10 hover:text-white/80 ${
+            collapsed ? 'h-10 w-10 justify-center rounded-2xl' : 'h-9 w-full gap-2 rounded-2xl px-3 text-sm font-medium'
           }`}
           aria-expanded={!collapsed}
           aria-label={collapsed ? 'Expandir menu' : 'Recolher menu'}
         >
-          {collapsed ? <ChevronRight size={18} strokeWidth={1.75} /> : <ChevronLeft size={18} strokeWidth={1.75} />}
-          {!collapsed && <span>Recolher menu</span>}
+          {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+          {!collapsed && <span>Recolher</span>}
         </button>
-
         <Link
           href="/configuracoes"
           title="Configurações"
-          className={`flex items-center rounded-xl text-slate-500 transition-colors hover:bg-white/10 hover:text-slate-200 ${
-            collapsed ? 'h-10 w-10 justify-center' : 'h-10 w-full gap-3 px-3'
+          className={`flex items-center text-white/45 hover:bg-white/10 hover:text-white/90 ${
+            collapsed ? 'h-10 w-10 justify-center rounded-2xl' : 'h-10 w-full gap-3 rounded-2xl px-3'
           }`}
         >
-          <Settings size={18} strokeWidth={1.75} className="shrink-0" />
+          <Settings size={18} strokeWidth={1.65} className="shrink-0" />
           {!collapsed && <span className="text-sm font-medium">Configurações</span>}
         </Link>
         <Link
           href="/perfil"
           title="Perfil"
-          className={`flex items-center rounded-xl ring-2 ring-slate-900 ${
-            collapsed ? 'h-10 w-10 justify-center rounded-full bg-ortus-blue text-white' : 'gap-3 bg-white/5 px-3 py-2 hover:bg-white/10'
-          }`}
+          className={`flex items-center ${collapsed ? 'h-11 w-11 justify-center overflow-hidden rounded-2xl ring-2 ring-neutral-800' : 'gap-3 rounded-2xl px-3 py-2 hover:bg-white/10'}`}
         >
           <span
-            className={`flex shrink-0 items-center justify-center bg-ortus-blue text-white ${
-              collapsed ? 'h-full w-full rounded-full' : 'h-8 w-8 rounded-full'
+            className={`flex shrink-0 items-center justify-center bg-[#c8f053] text-neutral-900 ${
+              collapsed ? 'h-full w-full' : 'h-9 w-9 rounded-xl'
             }`}
           >
             <User size={18} strokeWidth={1.75} />
           </span>
-          {!collapsed && (
-            <span className="min-w-0 truncate text-sm font-medium text-slate-200">Meu perfil</span>
-          )}
+          {!collapsed && <span className="truncate text-sm font-medium text-white/90">Meu perfil</span>}
         </Link>
       </div>
     </aside>
