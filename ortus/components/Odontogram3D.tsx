@@ -229,4 +229,6 @@ export default function Odontogram3D(props: React.ComponentProps<'group'>) {
   return <Model {...props} />;
 }
 
-useGLTF.preload('/arcada4k.glb');
+// Sem useGLTF.preload aqui: o .glb tem ~10MB e o preload no escopo do módulo
+// disparava o download assim que a página de prontuário era importada.
+// O carregamento acontece só quando a vista 3D é realmente montada.

@@ -35,7 +35,15 @@ import { FACE_COLORS, FACE_LABELS, ODONTO_TOOLS } from '@/lib/odontogram/constan
 import type { LegacyToothState, OdontoFace, OdontoFaceStatus, OdontoToothStatus } from '@/lib/odontogram/types';
 import { FDI_MISSING_IN_3D } from '@/lib/odontogram/meshToFdi';
 import { selectLegacyOdontogram, useOdontogramStore } from '@/store/useOdontogramStore';
-import OdontogramaContainer from '@/components/OdontogramaContainer';
+import dynamic from 'next/dynamic';
+
+// three.js + drei + modelo de ~10MB só entram no bundle quando a vista 3D é aberta
+const OdontogramaContainer = dynamic(() => import('@/components/OdontogramaContainer'), {
+  ssr: false,
+  loading: () => (
+    <div className="h-[380px] w-full animate-pulse rounded-xl bg-slate-100 sm:h-[480px] md:h-[600px]" />
+  ),
+});
 
 // =============== ODONTOGRAMA - Padrão Codental (Vista Lateral + Oclusal) ===============
 type Face = OdontoFace;
@@ -352,6 +360,7 @@ export default function PacienteDetalhe() {
   const [tipoArcada, setTipoArcada] = useState<'permanente' | 'leite'>('permanente');
   const [savingOdo, setSavingOdo] = useState(false);
   const [visaoOdonto, setVisaoOdonto] = useState<'anatomica' | 'esquematica' | 'livre'>('anatomica');
+  const [mostrar3D, setMostrar3D] = useState(false);
   const [textoOdontogramaLivre, setTextoOdontogramaLivre] = useState('');
   const [modalTrat, setModalTrat] = useState(false);
   const [salvandoTrat, setSalvandoTrat] = useState(false);
@@ -2237,8 +2246,31 @@ export default function PacienteDetalhe() {
                             </div>
 
                             <div className="mt-6">
-                                <div className="text-[10px] uppercase font-bold text-slate-400 mb-2">Vista 3D (sincronizada com o odontograma 2D)</div>
-                                <OdontogramaContainer />
+                                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                                    <div className="text-[10px] font-bold uppercase text-slate-400">Vista 3D (sincronizada com o odontograma 2D)</div>
+                                    {mostrar3D && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setMostrar3D(false)}
+                                            className="rounded-full border border-black/10 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-600 hover:bg-neutral-50"
+                                        >
+                                            Ocultar 3D
+                                        </button>
+                                    )}
+                                </div>
+                                {mostrar3D ? (
+                                    <OdontogramaContainer />
+                                ) : (
+                                    <button
+                                        type="button"
+                                        onClick={() => setMostrar3D(true)}
+                                        className="flex h-32 w-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-black/15 bg-[#f8f8f6] text-neutral-600 transition-colors hover:bg-white sm:h-40"
+                                    >
+                                        <Smile size={26} className="text-neutral-400" />
+                                        <span className="text-sm font-semibold">Carregar vista 3D</span>
+                                        <span className="text-xs text-neutral-400">Modelo pesado — carrega só quando você abrir</span>
+                                    </button>
+                                )}
                                 {FDI_MISSING_IN_3D.length > 0 && (
                                     <p className="text-[10px] text-slate-400 mt-2">
                                         Sem modelo 3D: {FDI_MISSING_IN_3D.join(', ')} — marque esses dentes no odontograma acima.
@@ -2429,9 +2461,12 @@ export default function PacienteDetalhe() {
 
                 {abaAtiva === 'hof' && (
                     <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-200 shadow-sm animate-in fade-in">
-                        {/* Preload face images for instant render */}
-                        <link rel="preload" as="image" href="/hof/imagem_feminina.png" />
-                        <link rel="preload" as="image" href="/hof/imagem_masculina.png" />
+                        {/* Preload só a face ativa — cada imagem tem ~6MB */}
+                        <link
+                            rel="preload"
+                            as="image"
+                            href={faceHofAtiva === 'feminina' ? '/hof/imagem_feminina.png' : '/hof/imagem_masculina.png'}
+                        />
                         <div className="flex flex-wrap justify-between items-center gap-3 mb-5">
                             <h3 className="text-lg font-black text-slate-800 flex items-center gap-2"><Sparkles size={20} className="text-purple-500"/> Harmonização Orofacial (HOF)</h3>
                             <div className="flex gap-2 flex-wrap">
