@@ -52,10 +52,6 @@ body.ortus-dashboard-fixed {
   height: 100%;
 }
 
-body.ortus-dashboard-canvas {
-  background-color: #e2e8e4;
-}
-
 html {
   scrollbar-width: thin;
   scrollbar-color: #c7c7cc transparent;

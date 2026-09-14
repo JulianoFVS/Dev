@@ -443,10 +443,10 @@ export default function Dashboard() {
   const materiais = tratamentos.map((t) => t.observacoes).filter(Boolean).join(' · ') || emAtendimento?.observacoes;
   const graficoLabel = periodo === 'hoje' ? 'Recebimentos por hora · Hoje' : periodo === 'semana' ? 'Recebimentos por dia · Semana' : 'Recebimentos por semana · Mês';
 
-  const card = 'min-h-0 rounded-3xl border border-slate-100 bg-white';
+  const card = 'min-h-0 rounded-3xl border border-slate-200 bg-white';
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden p-4 sm:p-5 md:p-6">
       <header className="mb-3 shrink-0 md:mb-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0">
@@ -468,7 +468,7 @@ export default function Dashboard() {
             </button>
             <Link
               href="/agenda"
-              className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-full bg-indigo-600 px-4 text-xs font-medium text-white hover:bg-indigo-700 md:text-[13px]"
+              className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-full bg-teal-600 px-4 text-xs font-medium text-white hover:bg-teal-700 md:text-[13px]"
             >
               <Plus size={15} />
               Novo agendamento
@@ -480,7 +480,7 @@ export default function Dashboard() {
             <span
               key={tab}
               className={`rounded-full px-3 py-1 text-[11px] font-medium sm:text-xs ${
-                i === 0 ? 'bg-indigo-600 text-white' : 'border border-gray-200 bg-white text-zinc-600'
+                i === 0 ? 'bg-teal-600 text-white' : 'border border-gray-200 bg-white text-zinc-600'
               }`}
             >
               {tab}
@@ -502,7 +502,7 @@ export default function Dashboard() {
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="text-[11px] text-zinc-500 sm:text-xs">
-                      <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-indigo-600 align-middle" />
+                      <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-teal-600 align-middle" />
                       Em atendimento · Cadeira {cadeiraAtual} · {hora(emAtendimento.data_hora)}–{duracaoMin} min
                     </p>
                     <div className="mt-2 flex items-center gap-3 sm:mt-3">
@@ -526,7 +526,7 @@ export default function Dashboard() {
                       type="button"
                       onClick={concluirAtual}
                       disabled={concluindo}
-                      className="inline-flex h-8 items-center gap-1.5 rounded-full bg-indigo-600 px-3 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-60 sm:h-9 sm:text-[13px]"
+                      className="inline-flex h-8 items-center gap-1.5 rounded-full bg-teal-600 px-3 text-xs font-medium text-white hover:bg-teal-700 disabled:opacity-60 sm:h-9 sm:text-[13px]"
                     >
                       {concluindo ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}
                       Concluir
@@ -574,7 +574,7 @@ export default function Dashboard() {
                         const feito = t.status === 'concluido';
                         return (
                           <li key={t.id} className="flex items-center gap-2 border-t border-gray-200 py-2 first:border-t-0">
-                            <span className={`flex h-3.5 w-3.5 items-center justify-center rounded border ${feito ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-gray-300 bg-white'}`}>
+                            <span className={`flex h-3.5 w-3.5 items-center justify-center rounded border ${feito ? 'border-teal-600 bg-teal-600 text-white' : 'border-gray-300 bg-white'}`}>
                               {feito && <Check size={10} strokeWidth={3} />}
                             </span>
                             <span className={`text-xs sm:text-sm ${feito ? 'text-zinc-500' : 'text-zinc-900'}`}>{t.procedimento}</span>
@@ -593,7 +593,7 @@ export default function Dashboard() {
               <div className="flex flex-1 flex-col items-center justify-center py-6 text-center">
                 <p className="text-sm font-medium text-zinc-900">Nenhum atendimento em curso</p>
                 <p className="mt-1 text-xs text-zinc-500">A fila do dia está livre neste momento.</p>
-                <Link href="/agenda" className="mt-3 inline-flex h-8 items-center rounded-full bg-indigo-600 px-4 text-xs font-medium text-white hover:bg-indigo-700">
+                <Link href="/agenda" className="mt-3 inline-flex h-8 items-center rounded-full bg-teal-600 px-4 text-xs font-medium text-white hover:bg-teal-700">
                   Novo agendamento
                 </Link>
               </div>
@@ -615,7 +615,7 @@ export default function Dashboard() {
                       type="button"
                       onClick={() => setPeriodo(id)}
                       className={`rounded-full px-2 py-0.5 text-[11px] font-medium transition-colors sm:text-xs ${
-                        periodo === id ? 'bg-indigo-600 text-white' : 'text-zinc-600 hover:text-indigo-600'
+                        periodo === id ? 'bg-teal-600 text-white' : 'text-zinc-600 hover:text-teal-600'
                       }`}
                     >
                       {label}
@@ -623,30 +623,30 @@ export default function Dashboard() {
                   ))}
                 </div>
               </div>
-              <Link href="/financeiro" className="inline-flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-700">
+              <Link href="/financeiro" className="inline-flex items-center gap-1 text-xs font-medium text-teal-600 hover:text-teal-700">
                 Fechamento de caixa <ArrowUpRight size={12} />
               </Link>
             </div>
 
             <div className="mt-4 grid shrink-0 grid-cols-3 gap-3">
-              <div className="rounded-2xl border border-slate-100 bg-white p-2.5 sm:p-3">
+              <div className="rounded-2xl border border-slate-200 bg-white p-2.5 sm:p-3">
                 <p className="text-[10px] font-medium uppercase tracking-wide text-zinc-400">Recebido</p>
-                <p className="mt-0.5 text-base font-semibold text-indigo-600 sm:text-lg">{moeda(financeiro.recebido)}</p>
+                <p className="mt-0.5 text-base font-semibold text-teal-600 sm:text-lg">{moeda(financeiro.recebido)}</p>
                 <p className="text-[10px] text-zinc-500 sm:text-xs">{financeiro.pagamentos} pag.</p>
               </div>
-              <div className="rounded-2xl border border-slate-100 bg-white p-2.5 sm:p-3">
+              <div className="rounded-2xl border border-slate-200 bg-white p-2.5 sm:p-3">
                 <p className="text-[10px] font-medium uppercase tracking-wide text-zinc-400">Previsto</p>
                 <p className="mt-0.5 text-base font-semibold text-zinc-900 sm:text-lg">{moeda(financeiro.previsto)}</p>
                 <p className="text-[10px] text-zinc-500 sm:text-xs">{financeiro.restantes} rest.</p>
               </div>
-              <div className="rounded-2xl border border-slate-100 bg-white p-2.5 sm:p-3">
+              <div className="rounded-2xl border border-slate-200 bg-white p-2.5 sm:p-3">
                 <p className="text-[10px] font-medium uppercase tracking-wide text-zinc-400">Em atraso</p>
                 <p className="mt-0.5 text-base font-semibold text-red-500 sm:text-lg">{moeda(financeiro.atraso)}</p>
                 <p className="text-[10px] text-zinc-500 sm:text-xs">{financeiro.atrasados} pac.</p>
               </div>
             </div>
 
-            <div className="mt-4 flex min-h-0 flex-1 flex-col border-t border-slate-100 pt-4">
+            <div className="mt-4 flex min-h-0 flex-1 flex-col border-t border-slate-200 pt-4">
               <p className="mb-3 shrink-0 text-[11px] font-medium text-slate-500">{graficoLabel}</p>
               <div className="relative flex min-h-[5rem] flex-1 items-end justify-between gap-1 sm:gap-2">
                 <div className="pointer-events-none absolute inset-x-0 bottom-6 top-0 flex flex-col justify-between">
@@ -675,7 +675,7 @@ export default function Dashboard() {
 
         <aside className="flex min-h-0 flex-col gap-6 overflow-hidden lg:col-span-5 lg:gap-8 xl:col-span-4">
           <section className={`${card} flex min-h-0 flex-1 flex-col overflow-hidden`}>
-            <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-4 py-3 sm:px-5">
+            <div className="flex shrink-0 items-center justify-between border-b border-slate-200 px-4 py-3 sm:px-5">
               <h3 className="text-sm font-semibold text-zinc-900">Fila do dia</h3>
               <span className="text-xs text-zinc-400">{agendaHoje.length}</span>
             </div>
@@ -703,7 +703,7 @@ export default function Dashboard() {
                       <Link
                         href={linha.ag.pacientes?.id ? `/pacientes/${linha.ag.pacientes.id}` : '/agenda'}
                         className={`grid grid-cols-[48px_1fr] gap-2 border-b border-gray-100 px-3 py-2 last:border-0 sm:px-4 ${
-                          atual ? 'border-l-2 border-l-indigo-600 bg-white' : 'hover:bg-zinc-50/80'
+                          atual ? 'border-l-2 border-l-teal-600 bg-white' : 'hover:bg-zinc-50/80'
                         }`}
                       >
                         <span className="text-xs font-medium tabular-nums text-zinc-900">{hora(linha.ag.data_hora)}</span>
@@ -724,9 +724,9 @@ export default function Dashboard() {
           </section>
 
           <section className={`${card} flex min-h-0 flex-[0.85] flex-col overflow-hidden`}>
-            <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-4 py-3 sm:px-5">
+            <div className="flex shrink-0 items-center justify-between border-b border-slate-200 px-4 py-3 sm:px-5">
               <h3 className="text-sm font-semibold text-zinc-900">Pendências que travam o dia</h3>
-              <Link href="/tarefas" className="text-[11px] font-medium text-indigo-600">Ver</Link>
+              <Link href="/tarefas" className="text-[11px] font-medium text-teal-600">Ver</Link>
             </div>
             {pendencias.length === 0 ? (
               <p className="p-4 text-xs text-zinc-400">Nada travando o dia.</p>
