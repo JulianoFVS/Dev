@@ -3,7 +3,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { Building2, Users, Plus, Trash2, MapPin, Check, X, Loader2, Edit, UserPlus, Shield, User, FileText, Phone, Mail, Save, Lock, ClipboardList, HelpCircle, FileSignature, Tag, SlidersHorizontal, Database, Download, Upload, Bell, Palette, RotateCcw, AlertTriangle, Clock, DollarSign, Layers3, MessageCircle, CreditCard, Eye } from 'lucide-react';
-import PlanosEmbedded from '@/app/planos/page';
+import { PlanosContent } from '@/app/planos/page';
 import { carregarModelos, carregarModelosAsync, salvarModelos, salvarModelosAsync, novoIdModelo, novoIdPergunta, type ModeloAnamnese, type PerguntaAnamnese, type TipoPergunta } from '@/lib/anamnese';
 import { listarBackups, criarBackupAgora, baixarBackupComoJson, excluirBackup as deletarBackupServer, restaurarBackup } from '@/lib/backup';
 import { fetchUserClinicas } from '@/lib/clinicScoped';
@@ -25,6 +25,8 @@ import { useCustomAlert } from '@/components/ui/CustomAlert';
 import { DOCUMENTO_VARIAVEIS, inserirTokenVariavel, tokenVariavelLabel, aplicarVariaveisDocumento, buildDocumentoContexto } from '@/lib/documentVariables';
 import { applyTheme, THEME_OPTIONS, type ThemeId } from '@/lib/themePresets';
 import { FUSO_HORARIO_OPTIONS, UF_OPTIONS } from '@/lib/formOptions';
+import BentoPageShell from '@/components/bento/BentoPageShell';
+import { bentoTab, bentoSection, bentoPrimaryBtn, bentoGhostBtn, bentoInput, bentoChip, bentoChipOutline, bentoToggleTrackOn, bentoToggleTrackOff, bentoModalPanel } from '@/lib/bentoUi';
 
 interface ModeloDocumento { id: string; tipo: 'contrato' | 'receita' | 'atestado' | 'outro'; nome: string; conteudo: string; }
 
@@ -831,52 +833,49 @@ export default function Configuracoes() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto pb-20 space-y-6 sm:space-y-8 animate-fade-in">
-      
-      <div>
-          <h1 className="text-2xl sm:text-3xl font-black text-slate-800">Configurações</h1>
-          <p className="text-slate-500 text-sm font-medium">Gerencie clínicas, preferências e configurações do sistema.</p>
+    <BentoPageShell title="Configurações" subtitle="Clínicas, preferências e integrações">
+      <div className="-mx-1 mb-4 flex gap-1 overflow-x-auto border-b border-black/8 pb-0">
+              <button type="button" onClick={() => setAbaAtiva('geral')} className={`${bentoTab(abaAtiva === 'geral')} flex items-center gap-2`}><SlidersHorizontal size={16}/> Geral</button>
+              <button type="button" onClick={() => setAbaAtiva('clinicas')} className={`${bentoTab(abaAtiva === 'clinicas')} flex items-center gap-2`}><Building2 size={16}/> Clínicas</button>
+              <button type="button" onClick={() => setAbaAtiva('anamnese')} className={`${bentoTab(abaAtiva === 'anamnese')} flex items-center gap-2`}><ClipboardList size={16}/> Anamnese</button>
+              <button type="button" onClick={() => setAbaAtiva('documentos')} className={`${bentoTab(abaAtiva === 'documentos')} flex items-center gap-2`}><FileSignature size={16}/> Docs</button>
+              <button type="button" onClick={() => setAbaAtiva('planos')} className={`${bentoTab(abaAtiva === 'planos')} flex items-center gap-2`}><Layers3 size={16}/> Planos</button>
+              <button type="button" onClick={() => setAbaAtiva('categorias')} className={`${bentoTab(abaAtiva === 'categorias')} flex items-center gap-2`}><Tag size={16}/> Categorias</button>
+              <button type="button" onClick={() => setAbaAtiva('taxas')} className={`${bentoTab(abaAtiva === 'taxas')} flex items-center gap-2`}><CreditCard size={16}/> Taxas</button>
+              <button type="button" onClick={() => setAbaAtiva('comunicacao')} className={`${bentoTab(abaAtiva === 'comunicacao')} flex items-center gap-2`}><MessageCircle size={16}/> Comunicação</button>
+              <button type="button" onClick={() => setAbaAtiva('backup')} className={`${bentoTab(abaAtiva === 'backup')} flex items-center gap-2`}><Database size={16}/> Backup</button>
       </div>
 
-      <div className="flex gap-4 border-b border-slate-200">
-          <div className="flex gap-1 overflow-x-auto pb-1 -mb-1">
-              <button onClick={() => setAbaAtiva('geral')} className={`pb-4 px-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${abaAtiva === 'geral' ? 'border-ortus-accent-strong text-ortus-accent' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><SlidersHorizontal size={16}/> Geral</button>
-              <button onClick={() => setAbaAtiva('clinicas')} className={`pb-4 px-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${abaAtiva === 'clinicas' ? 'border-ortus-accent-strong text-ortus-accent' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><Building2 size={16}/> Clínicas</button>
-              <button onClick={() => setAbaAtiva('anamnese')} className={`pb-4 px-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${abaAtiva === 'anamnese' ? 'border-ortus-accent-strong text-ortus-accent' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><ClipboardList size={16}/> Anamnese</button>
-              <button onClick={() => setAbaAtiva('documentos')} className={`pb-4 px-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${abaAtiva === 'documentos' ? 'border-ortus-accent-strong text-ortus-accent' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><FileSignature size={16}/> Contratos & Docs</button>
-              <button onClick={() => setAbaAtiva('planos')} className={`pb-4 px-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${abaAtiva === 'planos' ? 'border-ortus-accent-strong text-ortus-accent' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><Layers3 size={16}/> Planos</button>
-              <button onClick={() => setAbaAtiva('categorias')} className={`pb-4 px-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${abaAtiva === 'categorias' ? 'border-ortus-accent-strong text-ortus-accent' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><Tag size={16}/> Categorias Fin.</button>
-              <button onClick={() => setAbaAtiva('taxas')} className={`pb-4 px-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${abaAtiva === 'taxas' ? 'border-ortus-accent-strong text-ortus-accent' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><CreditCard size={16}/> Taxas</button>
-              <button onClick={() => setAbaAtiva('comunicacao')} className={`pb-4 px-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${abaAtiva === 'comunicacao' ? 'border-ortus-accent-strong text-ortus-accent' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><MessageCircle size={16}/> Comunicação</button>
-              <button onClick={() => setAbaAtiva('backup')} className={`pb-4 px-3 font-bold text-sm flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${abaAtiva === 'backup' ? 'border-ortus-accent-strong text-ortus-accent' : 'border-transparent text-slate-400 hover:text-slate-600'}`}><Database size={16}/> Backup</button>
-          </div>
-      </div>
-
-      {loading ? <div className="py-20 flex justify-center"><Loader2 className="animate-spin text-slate-300"/></div> : (
+      {loading ? (
+        <div className="space-y-3 py-8">
+          <div className="h-40 animate-pulse rounded-[1.35rem] bg-neutral-200" />
+          <div className="h-56 animate-pulse rounded-[1.35rem] bg-neutral-100" />
+        </div>
+      ) : (
         <>
             {/* ABA CLÍNICAS */}
             {abaAtiva === 'clinicas' && (
                 <div className="space-y-6 animate-in slide-in-from-left-4">
-                    <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+                    <div className={`${bentoSection}`}>
                         <div className="flex justify-between items-center mb-6">
-                            <h3 className="font-bold text-slate-700 text-lg">Unidades Cadastradas</h3>
-                            <button onClick={abrirNovaClinica} className="btn-ortus-primary px-4 py-2 text-sm flex items-center gap-2 shadow-ortus-accent"><Plus size={16}/> Nova Clínica</button>
+                            <h3 className="font-bold text-neutral-700 text-lg">Unidades Cadastradas</h3>
+                            <button onClick={abrirNovaClinica} className={`${bentoPrimaryBtn} px-4 py-2 text-sm`}><Plus size={16}/> Nova Clínica</button>
                         </div>
                         <div className="space-y-3">
                             {clinicas.map(c => (
-                                <div key={c.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100 hover:border-blue-200 transition-colors">
+                                <div key={c.id} className="flex items-center justify-between p-4 bg-neutral-50 rounded-xl border border-neutral-100 hover:border-neutral-300 transition-colors">
                                     <div className="flex items-center gap-4">
-                                        <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center text-ortus-accent-muted border border-slate-200 font-bold overflow-hidden">
+                                        <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center text-neutral-700 border border-neutral-200 font-bold overflow-hidden">
                                             {c.logo_url ? <img src={c.logo_url} className="w-full h-full object-cover"/> : <Building2 size={20}/>}
                                         </div>
                                         <div>
-                                            <span className="font-bold text-slate-700 block">{c.nome}</span>
-                                            {c.cnpj && <span className="text-xs text-slate-400">CNPJ: {c.cnpj}</span>}
+                                            <span className="font-bold text-neutral-700 block">{c.nome}</span>
+                                            {c.cnpj && <span className="text-xs text-neutral-400">CNPJ: {c.cnpj}</span>}
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-1">
-                                        <button onClick={() => abrirEdicaoClinica(c)} className="p-2 text-slate-400 hover:text-ortus-accent-muted hover:bg-white rounded-lg transition-all" title="Editar"><Edit size={18}/></button>
-                                        <button onClick={() => excluirClinica(c.id)} className="p-2 text-slate-400 hover:text-red-500 hover:bg-white rounded-lg transition-all" title="Excluir"><Trash2 size={18}/></button>
+                                        <button onClick={() => abrirEdicaoClinica(c)} className="p-2 text-neutral-400 hover:text-neutral-700 hover:bg-white rounded-lg transition-all" title="Editar"><Edit size={18}/></button>
+                                        <button onClick={() => excluirClinica(c.id)} className="p-2 text-neutral-400 hover:text-red-500 hover:bg-white rounded-lg transition-all" title="Excluir"><Trash2 size={18}/></button>
                                     </div>
                                 </div>
                             ))}
@@ -888,7 +887,7 @@ export default function Configuracoes() {
             {/* ABA PLANOS */}
             {abaAtiva === 'planos' && (perfilCaller?.nivel_acesso === 'admin' || perfilCaller?.is_super_admin) && (
                 <div className="animate-in fade-in">
-                    <PlanosEmbedded />
+                    <PlanosContent embedded />
                 </div>
             )}
             {abaAtiva === 'planos' && !(perfilCaller?.nivel_acesso === 'admin' || perfilCaller?.is_super_admin) && (
@@ -898,43 +897,43 @@ export default function Configuracoes() {
             {/* ABA ANAMNESE */}
             {abaAtiva === 'anamnese' && (
                 <div className="space-y-6 animate-in slide-in-from-right-4">
-                    <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+                    <div className={`${bentoSection}`}>
                         <div className="flex justify-between items-center mb-6">
                             <div>
-                                <h3 className="font-bold text-slate-700 text-lg flex items-center gap-2"><ClipboardList size={20} className="text-blue-500"/> Modelos de Anamnese</h3>
-                                <p className="text-xs text-slate-400 font-medium mt-1">Crie modelos com perguntas personalizadas para usar com pacientes.</p>
+                                <h3 className="font-bold text-neutral-700 text-lg flex items-center gap-2"><ClipboardList size={20} className="text-neutral-600"/> Modelos de Anamnese</h3>
+                                <p className="text-xs text-neutral-400 font-medium mt-1">Crie modelos com perguntas personalizadas para usar com pacientes.</p>
                             </div>
-                            <button onClick={abrirNovoModelo} className="btn-ortus-primary px-4 py-2 text-sm flex items-center gap-2 shadow-ortus-accent"><Plus size={16}/> Novo Modelo</button>
+                            <button onClick={abrirNovoModelo} className={`${bentoPrimaryBtn} px-4 py-2 text-sm`}><Plus size={16}/> Novo Modelo</button>
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {modelos.map(m => (
-                                <div key={m.id} className="p-5 border border-slate-100 rounded-2xl bg-slate-50 hover:bg-white hover:shadow-md transition-all relative group">
+                                <div key={m.id} className="p-5 border border-neutral-100 rounded-2xl bg-neutral-50 hover:bg-white hover:shadow-md transition-all relative group">
                                     <div className="flex justify-between items-start mb-3">
                                         <div className="flex-1 min-w-0">
                                             <div className="flex items-center gap-2 mb-1">
-                                                <h4 className="font-bold text-slate-800 truncate">{m.nome}</h4>
-                                                {m.padrao && <span className="text-[9px] uppercase font-black px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 border border-blue-200">Padrão</span>}
+                                                <h4 className="font-bold text-neutral-800 truncate">{m.nome}</h4>
+                                                {m.padrao && <span className="text-[9px] uppercase font-black px-1.5 py-0.5 rounded bg-neutral-100 text-neutral-800 border border-black/10">Padrão</span>}
                                             </div>
-                                            {m.descricao && <p className="text-xs text-slate-500">{m.descricao}</p>}
+                                            {m.descricao && <p className="text-xs text-neutral-500">{m.descricao}</p>}
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-2 text-xs text-slate-500 font-bold mb-4">
+                                    <div className="flex items-center gap-2 text-xs text-neutral-500 font-bold mb-4">
                                         <HelpCircle size={12}/> {m.perguntas.length} pergunta{m.perguntas.length !== 1 ? 's' : ''}
                                     </div>
                                     <div className="space-y-1.5 max-h-32 overflow-y-auto mb-4">
                                         {m.perguntas.slice(0, 5).map(p => (
-                                            <div key={p.id} className="text-[11px] text-slate-600 bg-white p-2 rounded border border-slate-100 truncate">
-                                                <span className="text-slate-400 font-bold mr-1">{p.tipo === 'sim_nao' || p.tipo === 'sim_nao_texto' ? '◉' : p.tipo === 'multipla' ? '☰' : '▭'}</span>
+                                            <div key={p.id} className="text-[11px] text-neutral-600 bg-white p-2 rounded border border-neutral-100 truncate">
+                                                <span className="text-neutral-400 font-bold mr-1">{p.tipo === 'sim_nao' || p.tipo === 'sim_nao_texto' ? '◉' : p.tipo === 'multipla' ? '☰' : '▭'}</span>
                                                 {p.label}
                                             </div>
                                         ))}
-                                        {m.perguntas.length > 5 && <div className="text-[10px] text-slate-400 text-center">+ {m.perguntas.length - 5} mais</div>}
+                                        {m.perguntas.length > 5 && <div className="text-[10px] text-neutral-400 text-center">+ {m.perguntas.length - 5} mais</div>}
                                     </div>
                                     <div className="flex gap-2">
-                                        <button onClick={() => abrirEditarModelo(m)} className="flex-1 py-2 text-xs font-bold rounded-lg bg-white border border-slate-200 text-slate-600 hover:border-blue-400 hover:text-ortus-accent-muted flex items-center justify-center gap-1"><Edit size={12}/> Editar</button>
-                                        <button onClick={() => duplicarModelo(m)} className="py-2 px-3 text-xs font-bold rounded-lg bg-white border border-slate-200 text-slate-500 hover:border-purple-400 hover:text-purple-600">Duplicar</button>
-                                        {!m.padrao && <button onClick={() => excluirModelo(m.id)} className="py-2 px-3 text-xs font-bold rounded-lg bg-white border border-slate-200 text-rose-400 hover:border-rose-400 hover:text-rose-600"><Trash2 size={12}/></button>}
+                                        <button onClick={() => abrirEditarModelo(m)} className="flex-1 py-2 text-xs font-bold rounded-lg bg-white border border-neutral-200 text-neutral-600 hover:border-neutral-400 hover:text-neutral-900 flex items-center justify-center gap-1"><Edit size={12}/> Editar</button>
+                                        <button onClick={() => duplicarModelo(m)} className="py-2 px-3 text-xs font-bold rounded-lg bg-white border border-neutral-200 text-neutral-500 hover:border-purple-400 hover:text-purple-600">Duplicar</button>
+                                        {!m.padrao && <button onClick={() => excluirModelo(m.id)} className="py-2 px-3 text-xs font-bold rounded-lg bg-white border border-neutral-200 text-rose-400 hover:border-rose-400 hover:text-rose-600"><Trash2 size={12}/></button>}
                                     </div>
                                 </div>
                             ))}
@@ -946,39 +945,39 @@ export default function Configuracoes() {
             {/* ABA GERAL / PREFERÊNCIAS */}
             {abaAtiva === 'geral' && (
                 <div className="space-y-6 animate-in fade-in">
-                    <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-5">
-                        <h3 className="font-bold text-slate-700 text-lg flex items-center gap-2"><SlidersHorizontal size={20} className="text-blue-500"/> Preferências Gerais</h3>
+                    <div className={`${bentoSection} space-y-5`}>
+                        <h3 className="font-bold text-neutral-700 text-lg flex items-center gap-2"><SlidersHorizontal size={20} className="text-neutral-600"/> Preferências Gerais</h3>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div><label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Nome para Documentos</label><input value={prefs.nome_clinica} onChange={e => atualizarPref('nome_clinica', e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-ortus-accent font-bold" placeholder="Ex: Clínica Sorriso"/></div>
-                            <div><label className="text-xs font-bold text-slate-400 uppercase mb-1 block">CNPJ</label><input value={prefs.cnpj} onChange={e => atualizarPref('cnpj', e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-ortus-accent font-medium" placeholder="00.000.000/0000-00"/></div>
-                            <div className="md:col-span-2"><label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Slogan / Subtítulo</label><input value={prefs.slogan} onChange={e => atualizarPref('slogan', e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-ortus-accent font-medium" placeholder="Ex: Odontologia Integrada"/></div>
-                            <div className="md:col-span-2"><label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Cabeçalho dos Documentos</label><textarea value={prefs.cabecalho_documentos} onChange={e => atualizarPref('cabecalho_documentos', e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-ortus-accent font-medium h-20 resize-none" placeholder="Endereço, telefone e responsável técnico..."/></div>
-                            <div className="md:col-span-2"><label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Rodapé dos Documentos</label><input value={prefs.rodape_documentos} onChange={e => atualizarPref('rodape_documentos', e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-ortus-accent font-medium"/></div>
+                            <div><label className="text-xs font-bold text-neutral-400 uppercase mb-1 block">Nome para Documentos</label><input value={prefs.nome_clinica} onChange={e => atualizarPref('nome_clinica', e.target.value)} className="w-full p-3 bg-neutral-50 border border-neutral-200 rounded-xl outline-none outline-none focus:border-neutral-400 font-bold" placeholder="Ex: Clínica Sorriso"/></div>
+                            <div><label className="text-xs font-bold text-neutral-400 uppercase mb-1 block">CNPJ</label><input value={prefs.cnpj} onChange={e => atualizarPref('cnpj', e.target.value)} className="w-full p-3 bg-neutral-50 border border-neutral-200 rounded-xl outline-none outline-none focus:border-neutral-400 font-medium" placeholder="00.000.000/0000-00"/></div>
+                            <div className="md:col-span-2"><label className="text-xs font-bold text-neutral-400 uppercase mb-1 block">Slogan / Subtítulo</label><input value={prefs.slogan} onChange={e => atualizarPref('slogan', e.target.value)} className="w-full p-3 bg-neutral-50 border border-neutral-200 rounded-xl outline-none outline-none focus:border-neutral-400 font-medium" placeholder="Ex: Odontologia Integrada"/></div>
+                            <div className="md:col-span-2"><label className="text-xs font-bold text-neutral-400 uppercase mb-1 block">Cabeçalho dos Documentos</label><textarea value={prefs.cabecalho_documentos} onChange={e => atualizarPref('cabecalho_documentos', e.target.value)} className="w-full p-3 bg-neutral-50 border border-neutral-200 rounded-xl outline-none outline-none focus:border-neutral-400 font-medium h-20 resize-none" placeholder="Endereço, telefone e responsável técnico..."/></div>
+                            <div className="md:col-span-2"><label className="text-xs font-bold text-neutral-400 uppercase mb-1 block">Rodapé dos Documentos</label><input value={prefs.rodape_documentos} onChange={e => atualizarPref('rodape_documentos', e.target.value)} className="w-full p-3 bg-neutral-50 border border-neutral-200 rounded-xl outline-none outline-none focus:border-neutral-400 font-medium"/></div>
                         </div>
                     </div>
 
-                    <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
-                        <h3 className="font-bold text-slate-700 text-lg">Horário de Atendimento</h3>
+                    <div className={`${bentoSection} space-y-4`}>
+                        <h3 className="font-bold text-neutral-700 text-lg">Horário de Atendimento</h3>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div><label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Abertura</label><input type="time" value={prefs.horario_abertura} onChange={e => atualizarPref('horario_abertura', e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-ortus-accent font-bold"/></div>
-                            <div><label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Fechamento</label><input type="time" value={prefs.horario_fechamento} onChange={e => atualizarPref('horario_fechamento', e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-ortus-accent font-bold"/></div>
-                            <div><label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Duração Padrão Consulta (min)</label><input type="number" value={prefs.duracao_consulta_padrao} onChange={e => atualizarPref('duracao_consulta_padrao', parseInt(e.target.value)||60)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-ortus-accent font-bold"/></div>
+                            <div><label className="text-xs font-bold text-neutral-400 uppercase mb-1 block">Abertura</label><input type="time" value={prefs.horario_abertura} onChange={e => atualizarPref('horario_abertura', e.target.value)} className="w-full p-3 bg-neutral-50 border border-neutral-200 rounded-xl outline-none outline-none focus:border-neutral-400 font-bold"/></div>
+                            <div><label className="text-xs font-bold text-neutral-400 uppercase mb-1 block">Fechamento</label><input type="time" value={prefs.horario_fechamento} onChange={e => atualizarPref('horario_fechamento', e.target.value)} className="w-full p-3 bg-neutral-50 border border-neutral-200 rounded-xl outline-none outline-none focus:border-neutral-400 font-bold"/></div>
+                            <div><label className="text-xs font-bold text-neutral-400 uppercase mb-1 block">Duração Padrão Consulta (min)</label><input type="number" value={prefs.duracao_consulta_padrao} onChange={e => atualizarPref('duracao_consulta_padrao', parseInt(e.target.value)||60)} className="w-full p-3 bg-neutral-50 border border-neutral-200 rounded-xl outline-none outline-none focus:border-neutral-400 font-bold"/></div>
                         </div>
                         <div>
-                            <label className="text-xs font-bold text-slate-400 uppercase mb-2 block">Dias de Atendimento</label>
+                            <label className="text-xs font-bold text-neutral-400 uppercase mb-2 block">Dias de Atendimento</label>
                             <div className="flex flex-wrap gap-2">
                                 {[{k:'seg',l:'Seg'},{k:'ter',l:'Ter'},{k:'qua',l:'Qua'},{k:'qui',l:'Qui'},{k:'sex',l:'Sex'},{k:'sab',l:'Sáb'},{k:'dom',l:'Dom'}].map(d => (
-                                    <button key={d.k} onClick={() => toggleDia(d.k)} className={`px-4 py-2 rounded-xl text-xs font-black border transition-all ${prefs.dias_atendimento[d.k] ? 'chip-ortus-selected shadow' : 'bg-white text-slate-400 border-slate-200 hover:border-slate-400'}`}>{d.l}</button>
+                                    <button key={d.k} onClick={() => toggleDia(d.k)} className={`px-4 py-2 rounded-full text-xs font-black ${bentoChip(!!prefs.dias_atendimento[d.k])} ${prefs.dias_atendimento[d.k] ? 'shadow-sm' : ''}`}>{d.l}</button>
                                 ))}
                             </div>
                         </div>
                     </div>
 
-                    <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
-                        <h3 className="font-bold text-slate-700 text-lg flex items-center gap-2"><Palette size={18} className="text-indigo-500"/> Aparência do Sistema</h3>
+                    <div className={`${bentoSection} space-y-4`}>
+                        <h3 className="font-bold text-neutral-700 text-lg flex items-center gap-2"><Palette size={18} className="text-indigo-500"/> Aparência do Sistema</h3>
                         <div className="max-w-xs">
-                            <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Cor do tema</label>
+                            <label className="text-xs font-bold text-neutral-400 uppercase mb-1 block">Cor do tema</label>
                             <CustomSelect
                                 value={prefs.cor_tema || 'blue'}
                                 onChange={v => { atualizarPref('cor_tema', v); applyTheme(v as ThemeId); }}
@@ -988,16 +987,16 @@ export default function Configuracoes() {
                         </div>
                     </div>
 
-                    <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-3">
-                        <h3 className="font-bold text-slate-700 text-lg flex items-center gap-2"><Bell size={18} className="text-amber-500"/> Notificações</h3>
+                    <div className={`${bentoSection} space-y-3`}>
+                        <h3 className="font-bold text-neutral-700 text-lg flex items-center gap-2"><Bell size={18} className="text-amber-500"/> Notificações</h3>
                         {[
                             { k: 'notificar_aniversariantes', l: 'Avisar sobre aniversariantes do dia' },
                             { k: 'notificar_debitos', l: 'Avisar sobre pacientes com débitos pendentes' },
                             { k: 'confirmar_exclusao', l: 'Pedir confirmação antes de excluir registros' },
                         ].map(it => (
-                            <label key={it.k} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100 cursor-pointer hover:bg-slate-100">
-                                <span className="text-sm font-bold text-slate-700">{it.l}</span>
-                                <button type="button" onClick={() => atualizarPref(it.k, !prefs[it.k])} className={`w-12 h-6 rounded-full relative transition-all ${prefs[it.k] ? 'toggle-ortus-on' : 'bg-slate-300'}`}>
+                            <label key={it.k} className="flex items-center justify-between p-3 bg-neutral-50 rounded-xl border border-neutral-100 cursor-pointer hover:bg-neutral-100">
+                                <span className="text-sm font-bold text-neutral-700">{it.l}</span>
+                                <button type="button" onClick={() => atualizarPref(it.k, !prefs[it.k])} className={`relative h-6 w-12 rounded-full transition-all ${prefs[it.k] ? bentoToggleTrackOn : bentoToggleTrackOff}`}>
                                     <span className={`absolute top-0.5 ${prefs[it.k] ? 'right-0.5' : 'left-0.5'} w-5 h-5 bg-white rounded-full transition-all shadow`}></span>
                                 </button>
                             </label>
@@ -1009,38 +1008,38 @@ export default function Configuracoes() {
             {/* ABA CONTRATOS & DOCUMENTOS */}
             {abaAtiva === 'documentos' && (
                 <div className="space-y-6 animate-in fade-in">
-                    <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+                    <div className={`${bentoSection}`}>
                         <div className="flex justify-between items-center mb-4">
                             <div>
-                                <h3 className="font-bold text-slate-700 text-lg flex items-center gap-2"><FileSignature size={20} className="text-purple-500"/> Modelos de Contratos & Documentos</h3>
-                                <p className="text-xs text-slate-400 font-medium mt-1">Crie modelos reutilizáveis de contratos, termos e outros documentos. Use variáveis como <code className="bg-slate-100 px-1 rounded">{`{{paciente_nome}}`}</code> — veja os rótulos abaixo ao editar.</p>
+                                <h3 className="font-bold text-neutral-700 text-lg flex items-center gap-2"><FileSignature size={20} className="text-purple-500"/> Modelos de Contratos & Documentos</h3>
+                                <p className="text-xs text-neutral-400 font-medium mt-1">Crie modelos reutilizáveis de contratos, termos e outros documentos. Use variáveis como <code className="bg-neutral-100 px-1 rounded">{`{{paciente_nome}}`}</code> — veja os rótulos abaixo ao editar.</p>
                             </div>
                             <button onClick={abrirNovoDoc} className="bg-purple-600 text-white px-4 py-2 rounded-xl font-bold text-sm hover:bg-purple-700 flex items-center gap-2 shadow-lg shadow-purple-200"><Plus size={16}/> Novo Modelo</button>
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {docs.map(d => (
-                                <div key={d.id} className="p-5 border border-slate-100 rounded-2xl bg-slate-50 hover:bg-white hover:shadow-md transition-all">
+                                <div key={d.id} className="p-5 border border-neutral-100 rounded-2xl bg-neutral-50 hover:bg-white hover:shadow-md transition-all">
                                     <div className="flex items-start justify-between mb-2">
                                         <div className="flex-1 min-w-0">
                                             <span className={`inline-block text-[9px] uppercase font-black px-1.5 py-0.5 rounded mb-2 ${
                                                 d.tipo === 'contrato' ? 'bg-purple-100 text-purple-700' :
-                                                d.tipo === 'receita' ? 'bg-blue-100 text-blue-700' :
+                                                d.tipo === 'receita' ? 'bg-neutral-100 text-neutral-800' :
                                                 d.tipo === 'atestado' ? 'bg-emerald-100 text-emerald-700' :
-                                                'bg-slate-200 text-slate-700'
+                                                'bg-neutral-200 text-neutral-700'
                                             }`}>{d.tipo}</span>
-                                            <h4 className="font-bold text-slate-800 truncate">{d.nome}</h4>
+                                            <h4 className="font-bold text-neutral-800 truncate">{d.nome}</h4>
                                         </div>
                                     </div>
-                                    <p className="text-[11px] text-slate-500 line-clamp-3 mb-3 whitespace-pre-line">{d.conteudo.slice(0, 200)}{d.conteudo.length > 200 ? '...' : ''}</p>
+                                    <p className="text-[11px] text-neutral-500 line-clamp-3 mb-3 whitespace-pre-line">{d.conteudo.slice(0, 200)}{d.conteudo.length > 200 ? '...' : ''}</p>
                                     <div className="flex gap-2">
-                                        <button onClick={() => abrirEditarDoc(d)} className="flex-1 py-2 text-xs font-bold rounded-lg bg-white border border-slate-200 text-slate-600 hover:border-purple-400 hover:text-purple-600 flex items-center justify-center gap-1"><Edit size={12}/> Editar</button>
-                                        <button onClick={() => excluirDoc(d.id)} className="py-2 px-3 text-xs font-bold rounded-lg bg-white border border-slate-200 text-rose-400 hover:border-rose-400 hover:text-rose-600"><Trash2 size={12}/></button>
+                                        <button onClick={() => abrirEditarDoc(d)} className="flex-1 py-2 text-xs font-bold rounded-lg bg-white border border-neutral-200 text-neutral-600 hover:border-purple-400 hover:text-purple-600 flex items-center justify-center gap-1"><Edit size={12}/> Editar</button>
+                                        <button onClick={() => excluirDoc(d.id)} className="py-2 px-3 text-xs font-bold rounded-lg bg-white border border-neutral-200 text-rose-400 hover:border-rose-400 hover:text-rose-600"><Trash2 size={12}/></button>
                                     </div>
                                 </div>
                             ))}
                             {docs.length === 0 && (
-                                <div className="md:col-span-2 text-center py-12 text-slate-400 border-2 border-dashed border-slate-200 rounded-2xl">
+                                <div className="md:col-span-2 text-center py-12 text-neutral-400 border-2 border-dashed border-neutral-200 rounded-2xl">
                                     Nenhum modelo cadastrado. Clique em "Novo Modelo" para começar.
                                 </div>
                             )}
@@ -1052,11 +1051,11 @@ export default function Configuracoes() {
             {/* ABA CATEGORIAS FINANCEIRAS */}
             {abaAtiva === 'categorias' && (
                 <div className="space-y-6 animate-in fade-in">
-                    <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+                    <div className={`${bentoSection}`}>
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
                             <div>
-                                <h3 className="font-bold text-slate-700 text-lg flex items-center gap-2"><Tag size={20} className="text-emerald-500"/> Categorias Financeiras</h3>
-                                <p className="text-xs text-slate-400">Organize receitas e despesas por tipo. Categorias inativas não aparecem no Financeiro.</p>
+                                <h3 className="font-bold text-neutral-700 text-lg flex items-center gap-2"><Tag size={20} className="text-emerald-500"/> Categorias Financeiras</h3>
+                                <p className="text-xs text-neutral-400">Organize receitas e despesas por tipo. Categorias inativas não aparecem no Financeiro.</p>
                             </div>
                             <button onClick={abrirNovaCatFin} className="px-4 py-2 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 flex items-center gap-1.5 text-sm shrink-0"><Plus size={14}/> Adicionar</button>
                         </div>
@@ -1066,30 +1065,30 @@ export default function Configuracoes() {
                                 value={buscaCatFin}
                                 onChange={e => setBuscaCatFin(e.target.value)}
                                 placeholder="Buscar categorias..."
-                                className="flex-1 p-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-ortus-accent font-medium text-sm"
+                                className="flex-1 p-2.5 bg-neutral-50 border border-neutral-200 rounded-xl outline-none outline-none focus:border-neutral-400 font-medium text-sm"
                             />
-                            <span className="text-xs font-bold text-slate-400 whitespace-nowrap px-2">
+                            <span className="text-xs font-bold text-neutral-400 whitespace-nowrap px-2">
                                 {catsFinFiltradas.length} de {catsFin.length}
                             </span>
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                             {catsFinFiltradas.length === 0 ? (
-                                <div className="col-span-2 text-center py-8 text-slate-400 border-2 border-dashed border-slate-200 rounded-xl text-sm">
+                                <div className="col-span-2 text-center py-8 text-neutral-400 border-2 border-dashed border-neutral-200 rounded-xl text-sm">
                                     {buscaCatFin.trim() ? 'Nenhuma categoria encontrada.' : 'Nenhuma categoria cadastrada ainda.'}
                                 </div>
                             ) : catsFinFiltradas.map(c => (
-                                <div key={c.id} className={`p-3 border rounded-xl group transition-all ${c.ativo ? 'bg-slate-50 border-slate-200 hover:bg-white' : 'bg-slate-100 border-slate-100 opacity-60'}`}>
+                                <div key={c.id} className={`p-3 border rounded-xl group transition-all ${c.ativo ? 'bg-neutral-50 border-neutral-200 hover:bg-white' : 'bg-neutral-100 border-neutral-100 opacity-60'}`}>
                                     <div className="flex items-center justify-between gap-2 mb-2">
                                         <div className="flex items-center gap-2 min-w-0 flex-1">
-                                            <span className="w-4 h-4 rounded shrink-0 border border-slate-200" style={{ backgroundColor: c.cor }} title={c.cor}/>
-                                            <span className="font-bold text-slate-700 text-sm truncate">{c.nome}</span>
-                                            <span className={`text-[9px] uppercase font-black px-1.5 py-0.5 rounded shrink-0 ${c.tipo === 'receita' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'}`}>{c.tipo}</span>
+                                            <span className="w-4 h-4 rounded shrink-0 border border-neutral-200" style={{ backgroundColor: c.cor }} title={c.cor}/>
+                                            <span className="font-bold text-neutral-700 text-sm truncate">{c.nome}</span>
+                                            <span className={`text-[9px] uppercase font-black px-1.5 py-0.5 rounded shrink-0 ${c.tipo === 'receita' ? 'bg-emerald-100 text-emerald-700' : 'bg-neutral-200 text-neutral-600'}`}>{c.tipo}</span>
                                         </div>
                                         <div className="flex gap-1 shrink-0">
-                                            <button onClick={() => toggleCatFinAtiva(c.id)} className={`p-1 rounded ${c.ativo ? 'text-emerald-600 hover:bg-emerald-50' : 'text-slate-400 hover:bg-slate-200'}`} title={c.ativo ? 'Desativar' : 'Ativar'}><Check size={14}/></button>
-                                            <button onClick={() => abrirEditarCatFin(c)} className="p-1 text-slate-400 hover:text-ortus-accent-muted"><Edit size={14}/></button>
-                                            <button onClick={() => removerCatFin(c.id)} className="p-1 text-slate-400 hover:text-rose-600"><Trash2 size={14}/></button>
+                                            <button onClick={() => toggleCatFinAtiva(c.id)} className={`p-1 rounded ${c.ativo ? 'text-emerald-600 hover:bg-emerald-50' : 'text-neutral-400 hover:bg-neutral-200'}`} title={c.ativo ? 'Desativar' : 'Ativar'}><Check size={14}/></button>
+                                            <button onClick={() => abrirEditarCatFin(c)} className="p-1 text-neutral-400 hover:text-neutral-700"><Edit size={14}/></button>
+                                            <button onClick={() => removerCatFin(c.id)} className="p-1 text-neutral-400 hover:text-rose-600"><Trash2 size={14}/></button>
                                         </div>
                                     </div>
                                 </div>
@@ -1101,36 +1100,36 @@ export default function Configuracoes() {
 
             {abaAtiva === 'comunicacao' && (
                 <div className="space-y-6 animate-in fade-in">
-                    <div className="bg-blue-50 border border-blue-100 rounded-3xl p-5">
-                        <h4 className="font-black text-blue-900 text-sm mb-2">Automação de lembretes 24h</h4>
-                        <p className="text-xs text-blue-800 leading-relaxed">
+                    <div className="rounded-[1.35rem] border border-black/10 bg-neutral-50 p-5">
+                        <h4 className="font-black text-neutral-900 text-sm mb-2">Automação de lembretes 24h</h4>
+                        <p className="text-xs text-neutral-800 leading-relaxed">
                             Com <code className="bg-white/80 px-1 rounded">CRON_SECRET</code> + deploy na Vercel, o sistema envia lembretes automaticamente todo dia às 10h (Brasília).
                             Configure <strong>Twilio</strong> (SMS) e/ou <strong>Resend</strong> (e-mail) no <code className="bg-white/80 px-1 rounded">.env.local</code> — veja <code className="bg-white/80 px-1 rounded">.env.example</code>.
                             WhatsApp continua manual (confirmação e lembrete na agenda e ficha do paciente).
                         </p>
                     </div>
-                    <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+                    <div className={`${bentoSection}`}>
                         <div className="flex justify-between items-center mb-6">
                             <div>
-                                <h3 className="font-bold text-slate-700 text-lg flex items-center gap-2"><MessageCircle size={20} className="text-green-500"/> Templates de Comunicação</h3>
-                                <p className="text-xs text-slate-400 mt-1">Mensagens para WhatsApp, e-mail e SMS. Use variáveis como <code className="bg-slate-100 px-1 rounded">{`{{paciente_nome}}`}</code>.</p>
+                                <h3 className="font-bold text-neutral-700 text-lg flex items-center gap-2"><MessageCircle size={20} className="text-green-500"/> Templates de Comunicação</h3>
+                                <p className="text-xs text-neutral-400 mt-1">Mensagens para WhatsApp, e-mail e SMS. Use variáveis como <code className="bg-neutral-100 px-1 rounded">{`{{paciente_nome}}`}</code>.</p>
                             </div>
                             <button onClick={abrirNovoTemplateCom} className="bg-green-600 text-white px-4 py-2 rounded-xl font-bold text-sm hover:bg-green-700 flex items-center gap-2"><Plus size={16}/> Novo Template</button>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {templatesComunicacao.map(t => (
-                                <div key={t.id} className={`p-4 border rounded-2xl ${t.ativo ? 'bg-slate-50 border-slate-200' : 'bg-slate-100 border-slate-100 opacity-60'}`}>
+                                <div key={t.id} className={`p-4 border rounded-2xl ${t.ativo ? 'bg-neutral-50 border-neutral-200' : 'bg-neutral-100 border-neutral-100 opacity-60'}`}>
                                     <div className="flex items-start justify-between gap-2 mb-2">
                                         <div>
-                                            <span className={`text-[9px] uppercase font-black px-1.5 py-0.5 rounded ${t.canal === 'whatsapp' ? 'bg-green-100 text-green-700' : t.canal === 'email' ? 'bg-blue-100 text-blue-700' : 'bg-slate-200 text-slate-700'}`}>{t.canal}</span>
-                                            <h4 className="font-bold text-slate-800 mt-1">{t.nome}</h4>
+                                            <span className={`text-[9px] uppercase font-black px-1.5 py-0.5 rounded ${t.canal === 'whatsapp' ? 'bg-green-100 text-green-700' : t.canal === 'email' ? 'bg-neutral-100 text-neutral-800' : 'bg-neutral-200 text-neutral-700'}`}>{t.canal}</span>
+                                            <h4 className="font-bold text-neutral-800 mt-1">{t.nome}</h4>
                                         </div>
-                                        {!t.ativo && <span className="text-[10px] font-bold text-slate-400">Inativo</span>}
+                                        {!t.ativo && <span className="text-[10px] font-bold text-neutral-400">Inativo</span>}
                                     </div>
-                                    <p className="text-[11px] text-slate-500 line-clamp-3 whitespace-pre-line mb-3">{t.corpo}</p>
+                                    <p className="text-[11px] text-neutral-500 line-clamp-3 whitespace-pre-line mb-3">{t.corpo}</p>
                                     <div className="flex gap-2">
-                                        <button onClick={() => abrirEditarTemplateCom(t)} className="flex-1 py-2 text-xs font-bold rounded-lg bg-white border border-slate-200 text-slate-600 hover:border-green-400 hover:text-green-600 flex items-center justify-center gap-1"><Edit size={12}/> Editar</button>
-                                        <button onClick={() => excluirTemplateCom(t.id)} className="py-2 px-3 text-xs font-bold rounded-lg bg-white border border-slate-200 text-rose-400 hover:border-rose-400"><Trash2 size={12}/></button>
+                                        <button onClick={() => abrirEditarTemplateCom(t)} className="flex-1 py-2 text-xs font-bold rounded-lg bg-white border border-neutral-200 text-neutral-600 hover:border-green-400 hover:text-green-600 flex items-center justify-center gap-1"><Edit size={12}/> Editar</button>
+                                        <button onClick={() => excluirTemplateCom(t.id)} className="py-2 px-3 text-xs font-bold rounded-lg bg-white border border-neutral-200 text-rose-400 hover:border-rose-400"><Trash2 size={12}/></button>
                                     </div>
                                 </div>
                             ))}
@@ -1141,43 +1140,43 @@ export default function Configuracoes() {
 
             {abaAtiva === 'taxas' && (
                 <div className="space-y-6 animate-in fade-in">
-                    <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
-                        <h3 className="font-bold text-slate-700 text-lg flex items-center gap-2 mb-2"><CreditCard size={20} className="text-indigo-500"/> Taxas de Maquininha</h3>
-                        <p className="text-xs text-slate-400 mb-6">Configure taxas por bandeira e parcela (1–12x) para calcular o valor líquido recebido.</p>
+                    <div className={`${bentoSection}`}>
+                        <h3 className="font-bold text-neutral-700 text-lg flex items-center gap-2 mb-2"><CreditCard size={20} className="text-indigo-500"/> Taxas de Maquininha</h3>
+                        <p className="text-xs text-neutral-400 mb-6">Configure taxas por bandeira e parcela (1–12x) para calcular o valor líquido recebido.</p>
                         <div className="space-y-6">
                             {taxasPorBandeira.map(([bandeira, taxas]) => (
-                                <div key={bandeira} className="border border-slate-100 rounded-2xl overflow-hidden">
-                                    <div className="px-4 py-3 bg-slate-50 border-b border-slate-100">
-                                        <h4 className="font-black text-sm text-slate-700">{bandeira}</h4>
+                                <div key={bandeira} className="border border-neutral-100 rounded-2xl overflow-hidden">
+                                    <div className="px-4 py-3 bg-neutral-50 border-b border-neutral-100">
+                                        <h4 className="font-black text-sm text-neutral-700">{bandeira}</h4>
                                     </div>
-                                    <div className="divide-y divide-slate-50">
+                                    <div className="divide-y divide-neutral-100">
                                         {taxas.map(t => (
                                             <div key={t.id} className={`flex flex-wrap items-center gap-3 px-4 py-3 ${t.ativo ? '' : 'opacity-50'}`}>
                                                 <div className="flex-1 min-w-[120px]">
-                                                    <p className="text-sm font-bold text-slate-700">
+                                                    <p className="text-sm font-bold text-neutral-700">
                                                         {t.tipo === 'credito_parcelado' && t.parcela
                                                             ? (t.parcela === 1 ? 'Crédito à vista' : `${t.parcela}x`)
                                                             : t.nome}
                                                     </p>
-                                                    <p className="text-[10px] uppercase font-bold text-slate-400">{t.tipo.replace(/_/g, ' ')}</p>
+                                                    <p className="text-[10px] uppercase font-bold text-neutral-400">{t.tipo.replace(/_/g, ' ')}</p>
                                                 </div>
                                                 <div className="flex items-center gap-2">
-                                                    <label className="text-[10px] font-black uppercase text-slate-400">Taxa %</label>
-                                                    <input type="number" step="0.01" min="0" max="100" value={t.taxa_percentual} onChange={e => atualizarTaxa(t.id, 'taxa_percentual', parseFloat(e.target.value) || 0)} className="w-20 p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold"/>
+                                                    <label className="text-[10px] font-black uppercase text-neutral-400">Taxa %</label>
+                                                    <input type="number" step="0.01" min="0" max="100" value={t.taxa_percentual} onChange={e => atualizarTaxa(t.id, 'taxa_percentual', parseFloat(e.target.value) || 0)} className="w-20 p-2 bg-neutral-50 border border-neutral-200 rounded-lg text-sm font-bold"/>
                                                 </div>
                                                 <div className="flex items-center gap-2">
-                                                    <label className="text-[10px] font-black uppercase text-slate-400">Prazo</label>
-                                                    <input type="number" min="0" value={t.prazo_recebimento_dias} onChange={e => atualizarTaxa(t.id, 'prazo_recebimento_dias', parseInt(e.target.value) || 0)} className="w-16 p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold"/>
-                                                    <span className="text-[10px] text-slate-400">dias</span>
+                                                    <label className="text-[10px] font-black uppercase text-neutral-400">Prazo</label>
+                                                    <input type="number" min="0" value={t.prazo_recebimento_dias} onChange={e => atualizarTaxa(t.id, 'prazo_recebimento_dias', parseInt(e.target.value) || 0)} className="w-16 p-2 bg-neutral-50 border border-neutral-200 rounded-lg text-sm font-bold"/>
+                                                    <span className="text-[10px] text-neutral-400">dias</span>
                                                 </div>
-                                                <button onClick={() => atualizarTaxa(t.id, 'ativo', !t.ativo)} className={`p-1.5 rounded-lg ${t.ativo ? 'text-emerald-600 bg-emerald-50' : 'text-slate-400 bg-slate-100'}`}><Check size={16}/></button>
+                                                <button onClick={() => atualizarTaxa(t.id, 'ativo', !t.ativo)} className={`p-1.5 rounded-lg ${t.ativo ? 'text-emerald-600 bg-emerald-50' : 'text-neutral-400 bg-neutral-100'}`}><Check size={16}/></button>
                                             </div>
                                         ))}
                                     </div>
                                 </div>
                             ))}
                         </div>
-                        <p className="text-[11px] text-slate-400 mt-4">Exemplo: R$ 1.000 com taxa de 2,5% = líquido de R$ 975,00</p>
+                        <p className="text-[11px] text-neutral-400 mt-4">Exemplo: R$ 1.000 com taxa de 2,5% = líquido de R$ 975,00</p>
                     </div>
                 </div>
             )}
@@ -1186,13 +1185,13 @@ export default function Configuracoes() {
             {abaAtiva === 'backup' && (
                 <div className="space-y-6 animate-in fade-in">
                     {/* BACKUPS AUTOMÁTICOS NO SERVIDOR */}
-                    <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+                    <div className={`${bentoSection}`}>
                         <div className="flex flex-wrap justify-between items-start gap-3 mb-4">
                             <div>
-                                <h3 className="font-bold text-slate-700 text-lg flex items-center gap-2"><Database size={20} className="text-blue-500"/> Backups Automáticos do Banco</h3>
-                                <p className="text-xs text-slate-400 mt-1">O sistema cria um backup automático <strong>2x ao dia</strong> (manhã e tarde) com todos os dados (pacientes, agendamentos, despesas, clínicas, profissionais, serviços). Mantemos os <strong>30 mais recentes</strong>.</p>
+                                <h3 className="font-bold text-neutral-700 text-lg flex items-center gap-2"><Database size={20} className="text-neutral-600"/> Backups Automáticos do Banco</h3>
+                                <p className="text-xs text-neutral-400 mt-1">O sistema cria um backup automático <strong>2x ao dia</strong> (manhã e tarde) com todos os dados (pacientes, agendamentos, despesas, clínicas, profissionais, serviços). Mantemos os <strong>30 mais recentes</strong>.</p>
                             </div>
-                            <button onClick={backupAgoraManual} disabled={criandoBackup} className="btn-ortus-primary px-4 py-2.5 text-sm flex items-center gap-2 shadow-ortus-accent disabled:opacity-50">
+                            <button onClick={backupAgoraManual} disabled={criandoBackup} className={`${bentoPrimaryBtn} px-4 py-2.5 text-sm disabled:opacity-50`}>
                                 {criandoBackup ? <><Loader2 className="animate-spin" size={14}/> Gerando...</> : <><Plus size={14}/> Backup Manual</>}
                             </button>
                         </div>
@@ -1208,22 +1207,22 @@ export default function Configuracoes() {
                                 {backups.map((b: any) => {
                                     const isAuto = (b.tipo || '').startsWith('automatico');
                                     return (
-                                        <div key={b.id} className="flex items-center gap-3 p-3 bg-slate-50 hover:bg-white border border-slate-200 rounded-xl transition-colors">
-                                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isAuto ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'}`}>
+                                        <div key={b.id} className="flex items-center gap-3 p-3 bg-neutral-50 hover:bg-white border border-neutral-200 rounded-xl transition-colors">
+                                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isAuto ? 'bg-neutral-100 text-neutral-800' : 'bg-purple-100 text-purple-700'}`}>
                                                 <Database size={18}/>
                                             </div>
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center gap-2 flex-wrap">
-                                                    <span className="font-bold text-sm text-slate-800">#{b.id}</span>
-                                                    <span className={`text-[10px] uppercase font-black px-1.5 py-0.5 rounded ${isAuto ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'}`}>{(b.tipo || 'auto').replace('automatico_', '')}</span>
-                                                    {b.tamanho_kb && <span className="text-[10px] font-bold text-slate-500 bg-slate-200 px-1.5 py-0.5 rounded">{b.tamanho_kb} KB</span>}
+                                                    <span className="font-bold text-sm text-neutral-800">#{b.id}</span>
+                                                    <span className={`text-[10px] uppercase font-black px-1.5 py-0.5 rounded ${isAuto ? 'bg-neutral-100 text-neutral-800' : 'bg-purple-100 text-purple-700'}`}>{(b.tipo || 'auto').replace('automatico_', '')}</span>
+                                                    {b.tamanho_kb && <span className="text-[10px] font-bold text-neutral-500 bg-neutral-200 px-1.5 py-0.5 rounded">{b.tamanho_kb} KB</span>}
                                                 </div>
-                                                <div className="text-xs text-slate-500 font-semibold mt-0.5">
+                                                <div className="text-xs text-neutral-500 font-semibold mt-0.5">
                                                     {new Date(b.criado_em).toLocaleDateString('pt-BR')} às {new Date(b.criado_em).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'})}
-                                                    {b.observacao && <span className="ml-2 italic text-slate-400">· {b.observacao}</span>}
+                                                    {b.observacao && <span className="ml-2 italic text-neutral-400">· {b.observacao}</span>}
                                                 </div>
                                             </div>
-                                            <button onClick={() => baixarBackupComoJson(b.id)} className="p-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100" title="Baixar JSON"><Download size={14}/></button>
+                                            <button onClick={() => baixarBackupComoJson(b.id)} className="p-2 bg-neutral-50 text-neutral-800 rounded-lg hover:bg-neutral-100" title="Baixar JSON"><Download size={14}/></button>
                                             <button onClick={() => abrirModalRestaurar(b)} className="p-2 bg-amber-50 text-amber-700 rounded-lg hover:bg-amber-100" title="Restaurar este backup (substitui dados atuais)"><RotateCcw size={14}/></button>
                                             <button onClick={() => excluirBackupItem(b.id)} className="p-2 bg-rose-50 text-rose-700 rounded-lg hover:bg-rose-100" title="Excluir"><Trash2 size={14}/></button>
                                         </div>
@@ -1234,16 +1233,16 @@ export default function Configuracoes() {
                     </div>
 
                     {/* CONFIG LOCAIS */}
-                    <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
-                        <h3 className="font-bold text-slate-700 text-lg flex items-center gap-2 mb-2"><Database size={18} className="text-purple-500"/> Configurações Locais</h3>
-                        <p className="text-xs text-slate-400 mb-4">Apenas as preferências/modelos salvos no navegador (não inclui dados do banco — esses estão nos backups acima).</p>
+                    <div className={`${bentoSection}`}>
+                        <h3 className="font-bold text-neutral-700 text-lg flex items-center gap-2 mb-2"><Database size={18} className="text-purple-500"/> Configurações Locais</h3>
+                        <p className="text-xs text-neutral-400 mb-4">Apenas as preferências/modelos salvos no navegador (não inclui dados do banco — esses estão nos backups acima).</p>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <button onClick={exportarTudo} className="p-5 bg-gradient-to-br from-slate-50 to-white border-2 border-ortus-accent rounded-2xl hover:bg-ortus-accent-soft transition-all flex flex-col items-center gap-3 group">
-                                <div className="w-12 h-12 btn-ortus-primary rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform"><Download size={22}/></div>
+                            <button onClick={exportarTudo} className="p-5 bg-gradient-to-br from-neutral-50 to-white border-2 border-neutral-900 rounded-2xl hover:bg-neutral-50 transition-all flex flex-col items-center gap-3 group">
+                                <div className={`${bentoPrimaryBtn} h-12 w-12 rounded-2xl p-0 group-hover:scale-110 transition-transform`}><Download size={22}/></div>
                                 <div className="text-center">
-                                    <div className="font-black text-ortus-accent text-sm">Exportar Configurações</div>
-                                    <div className="text-[11px] text-slate-500">Baixar .json com modelos e preferências.</div>
+                                    <div className="font-black text-neutral-900 text-sm">Exportar Configurações</div>
+                                    <div className="text-[11px] text-neutral-500">Baixar .json com modelos e preferências.</div>
                                 </div>
                             </button>
                             <label className="p-5 bg-gradient-to-br from-emerald-50 to-emerald-100 border-2 border-emerald-200 rounded-2xl hover:from-emerald-100 hover:to-emerald-200 transition-all flex flex-col items-center gap-3 group cursor-pointer">
@@ -1264,7 +1263,7 @@ export default function Configuracoes() {
       {/* MODAL RESTAURAR BACKUP - Confirmação Dupla */}
       <Modal open={!!modalRestaurar} onClose={() => setModalRestaurar(null)} maxWidth="lg" zIndex={70} hideCloseButton>
           {modalRestaurar && (
-          <div className="bg-white w-full rounded-3xl shadow-2xl overflow-hidden border-4 border-rose-300 animate-in zoom-in-95">
+          <div className="bg-white w-full rounded-[1.35rem] shadow-2xl overflow-hidden border-4 border-rose-300 animate-in zoom-in-95">
                   <div className="p-5 bg-gradient-to-br from-rose-500 to-rose-600 text-white flex items-start gap-3">
                       <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center shrink-0 backdrop-blur-sm">
                           <AlertTriangle size={28}/>
@@ -1287,10 +1286,10 @@ export default function Configuracoes() {
                           </ul>
                       </div>
 
-                      <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
-                          <div className="text-[10px] uppercase font-bold text-slate-400 mb-1">Backup selecionado</div>
-                          <div className="font-bold text-slate-800">#{modalRestaurar.id} · {modalRestaurar.tipo}</div>
-                          <div className="text-xs text-slate-500">{new Date(modalRestaurar.criado_em).toLocaleString('pt-BR')} {modalRestaurar.tamanho_kb ? `· ${modalRestaurar.tamanho_kb} KB` : ''}</div>
+                      <div className="bg-neutral-50 border border-neutral-200 rounded-xl p-3">
+                          <div className="text-[10px] uppercase font-bold text-neutral-400 mb-1">Backup selecionado</div>
+                          <div className="font-bold text-neutral-800">#{modalRestaurar.id} · {modalRestaurar.tipo}</div>
+                          <div className="text-xs text-neutral-500">{new Date(modalRestaurar.criado_em).toLocaleString('pt-BR')} {modalRestaurar.tamanho_kb ? `· ${modalRestaurar.tamanho_kb} KB` : ''}</div>
                       </div>
 
                       <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-800">
@@ -1298,8 +1297,8 @@ export default function Configuracoes() {
                       </div>
 
                       <div>
-                          <label className="text-xs font-bold text-slate-600 uppercase mb-2 block">
-                              Para confirmar, digite <code className="bg-slate-200 px-2 py-0.5 rounded text-rose-600 font-mono">RESTAURAR</code> abaixo:
+                          <label className="text-xs font-bold text-neutral-600 uppercase mb-2 block">
+                              Para confirmar, digite <code className="bg-neutral-200 px-2 py-0.5 rounded text-rose-600 font-mono">RESTAURAR</code> abaixo:
                           </label>
                           <input
                               autoFocus
@@ -1309,18 +1308,18 @@ export default function Configuracoes() {
                               className={`w-full p-3 border-2 rounded-xl outline-none font-mono font-black text-center text-lg tracking-wider transition-all ${
                                   confirmacaoTexto === 'RESTAURAR'
                                       ? 'bg-emerald-50 border-emerald-400 text-emerald-700 ring-2 ring-emerald-200'
-                                      : 'bg-slate-50 border-slate-200 text-slate-600 focus:ring-2 focus:ring-rose-500'
+                                      : 'bg-neutral-50 border-neutral-200 text-neutral-600 focus:ring-2 focus:ring-rose-500'
                               }`}
                           />
                       </div>
                   </div>
 
-                  <div className="p-5 bg-slate-50 border-t border-slate-100 flex gap-3">
-                      <button onClick={() => setModalRestaurar(null)} disabled={restaurando} className="flex-1 py-3 text-slate-600 font-bold hover:bg-slate-200 rounded-xl transition-colors disabled:opacity-50">Cancelar</button>
+                  <div className="p-5 bg-neutral-50 border-t border-neutral-100 flex gap-3">
+                      <button onClick={() => setModalRestaurar(null)} disabled={restaurando} className="flex-1 py-3 text-neutral-600 font-bold hover:bg-neutral-200 rounded-xl transition-colors disabled:opacity-50">Cancelar</button>
                       <button
                           onClick={confirmarRestauracao}
                           disabled={confirmacaoTexto !== 'RESTAURAR' || restaurando}
-                          className="flex-1 py-3 bg-rose-600 text-white font-black rounded-xl hover:bg-rose-700 disabled:bg-slate-300 disabled:cursor-not-allowed shadow-lg flex items-center justify-center gap-2 transition-all"
+                          className="flex-1 py-3 bg-rose-600 text-white font-black rounded-xl hover:bg-rose-700 disabled:bg-neutral-300 disabled:cursor-not-allowed shadow-lg flex items-center justify-center gap-2 transition-all"
                       >
                           {restaurando ? <><Loader2 className="animate-spin" size={18}/> Restaurando...</> : <><RotateCcw size={18}/> Confirmar Restauração</>}
                       </button>
@@ -1332,24 +1331,24 @@ export default function Configuracoes() {
       {/* MODAL EDITAR DOCUMENTO */}
       <Modal open={modalDoc && !!docEdit} onClose={() => setModalDoc(false)} maxWidth="2xl" hideCloseButton>
           {docEdit && (
-          <div className="bg-white w-full rounded-3xl shadow-2xl flex flex-col max-h-[90vh] animate-in zoom-in-95 border border-slate-100">
-                  <div className="p-5 border-b bg-slate-50 flex justify-between items-center rounded-t-3xl">
-                      <h3 className="font-black text-lg text-slate-800 flex items-center gap-2"><FileSignature size={18} className="text-purple-500"/> {docs.find(d => d.id === docEdit.id) ? 'Editar' : 'Novo'} Modelo</h3>
-                      <button onClick={() => setModalDoc(false)} className="p-2 hover:bg-slate-100 rounded-full text-slate-400"><X size={18}/></button>
+          <div className="bg-white w-full rounded-[1.35rem] shadow-2xl flex flex-col max-h-[90vh] animate-in zoom-in-95 border border-neutral-100">
+                  <div className="p-5 border-b bg-neutral-50 flex justify-between items-center rounded-t-[1.35rem]">
+                      <h3 className="font-black text-lg text-neutral-800 flex items-center gap-2"><FileSignature size={18} className="text-purple-500"/> {docs.find(d => d.id === docEdit.id) ? 'Editar' : 'Novo'} Modelo</h3>
+                      <button onClick={() => setModalDoc(false)} className="p-2 hover:bg-neutral-100 rounded-full text-neutral-400"><X size={18}/></button>
                   </div>
                   <div className="p-6 space-y-4 overflow-y-auto flex-1">
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                           <div className="md:col-span-2">
-                              <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Nome</label>
-                              <input value={docEdit.nome} onChange={e => setDocEdit({...docEdit, nome: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-purple-500 font-bold"/>
+                              <label className="text-xs font-bold text-neutral-400 uppercase mb-1 block">Nome</label>
+                              <input value={docEdit.nome} onChange={e => setDocEdit({...docEdit, nome: e.target.value})} className="w-full p-3 bg-neutral-50 border border-neutral-200 rounded-xl outline-none focus:ring-2 focus:ring-purple-500 font-bold"/>
                           </div>
                           <div>
-                              <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Tipo</label>
+                              <label className="text-xs font-bold text-neutral-400 uppercase mb-1 block">Tipo</label>
                               <CustomSelect value={docEdit.tipo} onChange={v => setDocEdit({...docEdit, tipo: v as any})} options={[{value:'contrato',label:'Contrato'},{value:'receita',label:'Receita'},{value:'atestado',label:'Atestado'},{value:'outro',label:'Outro'}]} size="lg"/>
                           </div>
                       </div>
                       <div>
-                          <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Conteúdo</label>
+                          <label className="text-xs font-bold text-neutral-400 uppercase mb-1 block">Conteúdo</label>
                           <div className="flex flex-wrap gap-1.5 mb-2">
                               {DOCUMENTO_VARIAVEIS.map(v => (
                                   <button key={v.chave} type="button" onClick={() => inserirVariavelDoc(String(v.chave))} title={tokenVariavelLabel(v.label)} className="text-[10px] font-bold px-2 py-1 bg-purple-50 text-purple-700 border border-purple-100 rounded-lg hover:bg-purple-100">{v.label}</button>
@@ -1361,14 +1360,14 @@ export default function Configuracoes() {
                               onChange={(conteudo) => setDocEdit({ ...docEdit, conteudo })}
                               placeholder="Digite o texto do modelo e insira variáveis pelos botões acima..."
                           />
-                          <div className="mt-3 p-4 bg-slate-100 border border-slate-200 rounded-xl">
-                              <div className="flex items-center gap-2 text-[10px] font-black uppercase text-slate-400 mb-2"><Eye size={12}/> Pré-visualização</div>
-                              <p className="text-sm text-slate-700 whitespace-pre-line">{docPreview || '—'}</p>
+                          <div className="mt-3 p-4 bg-neutral-100 border border-neutral-200 rounded-xl">
+                              <div className="flex items-center gap-2 text-[10px] font-black uppercase text-neutral-400 mb-2"><Eye size={12}/> Pré-visualização</div>
+                              <p className="text-sm text-neutral-700 whitespace-pre-line">{docPreview || '—'}</p>
                           </div>
                       </div>
                   </div>
-                  <div className="p-5 border-t bg-slate-50 flex gap-3 rounded-b-3xl">
-                      <button onClick={() => setModalDoc(false)} className="flex-1 py-3 text-slate-500 font-bold hover:bg-slate-200 rounded-xl">Cancelar</button>
+                  <div className="p-5 border-t bg-neutral-50 flex gap-3 rounded-b-3xl">
+                      <button onClick={() => setModalDoc(false)} className="flex-1 py-3 text-neutral-500 font-bold hover:bg-neutral-200 rounded-xl">Cancelar</button>
                       <button onClick={salvarDocEdit} className="flex-1 py-3 bg-purple-600 text-white font-bold rounded-xl hover:bg-purple-700 shadow-lg shadow-purple-200 flex items-center justify-center gap-2"><Save size={16}/> Salvar</button>
                   </div>
               </div>
@@ -1378,35 +1377,35 @@ export default function Configuracoes() {
       {/* MODAL TEMPLATE COMUNICAÇÃO */}
       <Modal open={modalTemplateCom && !!templateComEdit} onClose={() => setModalTemplateCom(false)} maxWidth="2xl" hideCloseButton>
           {templateComEdit && (
-          <div className="bg-white w-full rounded-3xl shadow-2xl flex flex-col max-h-[90vh] animate-in zoom-in-95 border border-slate-100">
-                  <div className="p-5 border-b bg-slate-50 flex justify-between items-center rounded-t-3xl">
-                      <h3 className="font-black text-lg text-slate-800 flex items-center gap-2"><MessageCircle size={18} className="text-green-500"/> {templatesComunicacao.find(t => t.id === templateComEdit.id) ? 'Editar' : 'Novo'} Template</h3>
-                      <button onClick={() => setModalTemplateCom(false)} className="p-2 hover:bg-slate-100 rounded-full text-slate-400"><X size={18}/></button>
+          <div className="bg-white w-full rounded-[1.35rem] shadow-2xl flex flex-col max-h-[90vh] animate-in zoom-in-95 border border-neutral-100">
+                  <div className="p-5 border-b bg-neutral-50 flex justify-between items-center rounded-t-[1.35rem]">
+                      <h3 className="font-black text-lg text-neutral-800 flex items-center gap-2"><MessageCircle size={18} className="text-green-500"/> {templatesComunicacao.find(t => t.id === templateComEdit.id) ? 'Editar' : 'Novo'} Template</h3>
+                      <button onClick={() => setModalTemplateCom(false)} className="p-2 hover:bg-neutral-100 rounded-full text-neutral-400"><X size={18}/></button>
                   </div>
                   <div className="p-6 space-y-4 overflow-y-auto flex-1">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                           <div>
-                              <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Nome</label>
-                              <input value={templateComEdit.nome} onChange={e => setTemplateComEdit({ ...templateComEdit, nome: e.target.value })} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-green-500 font-bold"/>
+                              <label className="text-xs font-bold text-neutral-400 uppercase mb-1 block">Nome</label>
+                              <input value={templateComEdit.nome} onChange={e => setTemplateComEdit({ ...templateComEdit, nome: e.target.value })} className="w-full p-3 bg-neutral-50 border border-neutral-200 rounded-xl outline-none focus:ring-2 focus:ring-green-500 font-bold"/>
                           </div>
                           <div>
-                              <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Canal</label>
+                              <label className="text-xs font-bold text-neutral-400 uppercase mb-1 block">Canal</label>
                               <CustomSelect value={templateComEdit.canal} onChange={v => setTemplateComEdit({ ...templateComEdit, canal: v as TemplateComunicacao['canal'] })} options={[{ value: 'whatsapp', label: 'WhatsApp' }, { value: 'email', label: 'E-mail' }, { value: 'sms', label: 'SMS' }]} size="lg"/>
                           </div>
                       </div>
                       {templateComEdit.canal === 'email' && (
                           <div>
-                              <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Assunto</label>
-                              <input value={templateComEdit.assunto || ''} onChange={e => setTemplateComEdit({ ...templateComEdit, assunto: e.target.value })} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-green-500"/>
+                              <label className="text-xs font-bold text-neutral-400 uppercase mb-1 block">Assunto</label>
+                              <input value={templateComEdit.assunto || ''} onChange={e => setTemplateComEdit({ ...templateComEdit, assunto: e.target.value })} className="w-full p-3 bg-neutral-50 border border-neutral-200 rounded-xl outline-none focus:ring-2 focus:ring-green-500"/>
                           </div>
                       )}
                       <div>
-                          <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Mensagem</label>
-                          <textarea value={templateComEdit.corpo} onChange={e => setTemplateComEdit({ ...templateComEdit, corpo: e.target.value })} rows={8} className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-green-500 text-sm resize-none"/>
+                          <label className="text-xs font-bold text-neutral-400 uppercase mb-1 block">Mensagem</label>
+                          <textarea value={templateComEdit.corpo} onChange={e => setTemplateComEdit({ ...templateComEdit, corpo: e.target.value })} rows={8} className="w-full p-4 bg-neutral-50 border border-neutral-200 rounded-xl outline-none focus:ring-2 focus:ring-green-500 text-sm resize-none"/>
                       </div>
                   </div>
-                  <div className="p-5 border-t bg-slate-50 flex gap-3 rounded-b-3xl">
-                      <button onClick={() => setModalTemplateCom(false)} className="flex-1 py-3 text-slate-500 font-bold hover:bg-slate-200 rounded-xl">Cancelar</button>
+                  <div className="p-5 border-t bg-neutral-50 flex gap-3 rounded-b-3xl">
+                      <button onClick={() => setModalTemplateCom(false)} className="flex-1 py-3 text-neutral-500 font-bold hover:bg-neutral-200 rounded-xl">Cancelar</button>
                       <button onClick={salvarTemplateComEdit} className="flex-1 py-3 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 shadow-lg flex items-center justify-center gap-2"><Save size={16}/> Salvar</button>
                   </div>
               </div>
@@ -1416,29 +1415,29 @@ export default function Configuracoes() {
       {/* MODAL CATEGORIA FINANCEIRA */}
       <Modal open={modalCatFin && !!catFinEdit} onClose={() => { setModalCatFin(false); setCatFinEdit(null); }} maxWidth="md" hideCloseButton>
           {catFinEdit && (
-          <div className="bg-white w-full rounded-3xl shadow-2xl border border-slate-100 overflow-hidden">
-              <div className="p-5 border-b bg-slate-50 flex justify-between items-center">
-                  <h3 className="font-black text-lg text-slate-800 flex items-center gap-2"><Tag size={18} className="text-emerald-500"/> {catsFin.find(c => c.id === catFinEdit.id) ? 'Editar' : 'Nova'} Categoria</h3>
-                  <button onClick={() => { setModalCatFin(false); setCatFinEdit(null); }} className="p-2 hover:bg-slate-100 rounded-full text-slate-400"><X size={18}/></button>
+          <div className="bg-white w-full rounded-[1.35rem] shadow-2xl border border-neutral-100 overflow-hidden">
+              <div className="p-5 border-b bg-neutral-50 flex justify-between items-center">
+                  <h3 className="font-black text-lg text-neutral-800 flex items-center gap-2"><Tag size={18} className="text-emerald-500"/> {catsFin.find(c => c.id === catFinEdit.id) ? 'Editar' : 'Nova'} Categoria</h3>
+                  <button onClick={() => { setModalCatFin(false); setCatFinEdit(null); }} className="p-2 hover:bg-neutral-100 rounded-full text-neutral-400"><X size={18}/></button>
               </div>
               <div className="p-6 space-y-4">
                   <div>
-                      <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Nome</label>
-                      <input value={catFinEdit.nome} onChange={e => setCatFinEdit({ ...catFinEdit, nome: e.target.value })} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 font-bold"/>
+                      <label className="text-xs font-bold text-neutral-400 uppercase mb-1 block">Nome</label>
+                      <input value={catFinEdit.nome} onChange={e => setCatFinEdit({ ...catFinEdit, nome: e.target.value })} className="w-full p-3 bg-neutral-50 border border-neutral-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 font-bold"/>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                       <div>
-                          <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Tipo</label>
+                          <label className="text-xs font-bold text-neutral-400 uppercase mb-1 block">Tipo</label>
                           <CustomSelect value={catFinEdit.tipo} onChange={v => setCatFinEdit({ ...catFinEdit, tipo: v as 'receita' | 'despesa', cor: v === 'receita' ? '#10b981' : catFinEdit.cor })} options={[{ value: 'receita', label: 'Receita' }, { value: 'despesa', label: 'Despesa' }]} size="lg"/>
                       </div>
                       <div>
-                          <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Cor</label>
-                          <input type="color" value={catFinEdit.cor} onChange={e => setCatFinEdit({ ...catFinEdit, cor: e.target.value })} className="w-full h-12 rounded-xl cursor-pointer border border-slate-200"/>
+                          <label className="text-xs font-bold text-neutral-400 uppercase mb-1 block">Cor</label>
+                          <input type="color" value={catFinEdit.cor} onChange={e => setCatFinEdit({ ...catFinEdit, cor: e.target.value })} className="w-full h-12 rounded-xl cursor-pointer border border-neutral-200"/>
                       </div>
                   </div>
               </div>
-              <div className="p-5 border-t bg-slate-50 flex gap-3">
-                  <button onClick={() => { setModalCatFin(false); setCatFinEdit(null); }} className="flex-1 py-3 text-slate-500 font-bold hover:bg-slate-200 rounded-xl">Cancelar</button>
+              <div className="p-5 border-t bg-neutral-50 flex gap-3">
+                  <button onClick={() => { setModalCatFin(false); setCatFinEdit(null); }} className="flex-1 py-3 text-neutral-500 font-bold hover:bg-neutral-200 rounded-xl">Cancelar</button>
                   <button onClick={salvarCatFinModal} className="flex-1 py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 shadow-lg flex items-center justify-center gap-2"><Save size={16}/> Salvar</button>
               </div>
           </div>
@@ -1448,94 +1447,94 @@ export default function Configuracoes() {
       {/* MODAL CRIAR/EDITAR MODELO ANAMNESE */}
       <Modal open={modalModelo && !!modeloEdit} onClose={() => setModalModelo(false)} maxWidth="2xl" hideCloseButton>
           {modeloEdit && (
-          <div className="bg-white w-full rounded-3xl shadow-2xl flex flex-col max-h-[90vh] animate-in zoom-in-95 border border-slate-100">
-                  <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 rounded-t-3xl flex-none">
+          <div className="bg-white w-full rounded-[1.35rem] shadow-2xl flex flex-col max-h-[90vh] animate-in zoom-in-95 border border-neutral-100">
+                  <div className="p-6 border-b border-neutral-100 flex justify-between items-center bg-neutral-50/50 rounded-t-[1.35rem] flex-none">
                       <div>
-                          <h3 className="font-black text-xl text-slate-800 flex items-center gap-2"><ClipboardList size={20} className="text-blue-500"/> {modelos.find(m => m.id === modeloEdit.id) ? 'Editar' : 'Novo'} Modelo de Anamnese</h3>
-                          <p className="text-slate-500 font-medium text-xs mt-1">Configure as perguntas do questionário.</p>
+                          <h3 className="font-black text-xl text-neutral-800 flex items-center gap-2"><ClipboardList size={20} className="text-neutral-600"/> {modelos.find(m => m.id === modeloEdit.id) ? 'Editar' : 'Novo'} Modelo de Anamnese</h3>
+                          <p className="text-neutral-500 font-medium text-xs mt-1">Configure as perguntas do questionário.</p>
                       </div>
-                      <button onClick={() => setModalModelo(false)} className="p-2 hover:bg-slate-100 rounded-full text-slate-400"><X size={20}/></button>
+                      <button onClick={() => setModalModelo(false)} className="p-2 hover:bg-neutral-100 rounded-full text-neutral-400"><X size={20}/></button>
                   </div>
                   <div className="p-6 overflow-y-auto space-y-5 flex-1">
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                           <div className="md:col-span-1">
-                              <label className="text-xs font-bold text-slate-400 uppercase ml-1">Nome do Modelo</label>
-                              <input value={modeloEdit.nome} onChange={e => setModeloEdit({...modeloEdit, nome: e.target.value})} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-ortus-accent font-bold text-slate-700" placeholder="Ex: Anamnese Endodôntica"/>
+                              <label className="text-xs font-bold text-neutral-400 uppercase ml-1">Nome do Modelo</label>
+                              <input value={modeloEdit.nome} onChange={e => setModeloEdit({...modeloEdit, nome: e.target.value})} className="w-full px-4 py-2.5 bg-neutral-50 border border-neutral-200 rounded-xl outline-none outline-none focus:border-neutral-400 font-bold text-neutral-700" placeholder="Ex: Anamnese Endodôntica"/>
                           </div>
                           <div className="md:col-span-2">
-                              <label className="text-xs font-bold text-slate-400 uppercase ml-1">Descrição (opcional)</label>
-                              <input value={modeloEdit.descricao || ''} onChange={e => setModeloEdit({...modeloEdit, descricao: e.target.value})} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-ortus-accent font-medium text-slate-700" placeholder="Para que serve este modelo..."/>
+                              <label className="text-xs font-bold text-neutral-400 uppercase ml-1">Descrição (opcional)</label>
+                              <input value={modeloEdit.descricao || ''} onChange={e => setModeloEdit({...modeloEdit, descricao: e.target.value})} className="w-full px-4 py-2.5 bg-neutral-50 border border-neutral-200 rounded-xl outline-none outline-none focus:border-neutral-400 font-medium text-neutral-700" placeholder="Para que serve este modelo..."/>
                           </div>
                       </div>
 
-                      <div className="border-t border-slate-100 pt-4">
+                      <div className="border-t border-neutral-100 pt-4">
                           <div className="flex justify-between items-center mb-3">
-                              <h4 className="font-bold text-slate-700 text-sm flex items-center gap-2"><HelpCircle size={16} className="text-purple-500"/> Perguntas ({modeloEdit.perguntas.length})</h4>
-                              <button onClick={adicionarPergunta} className="text-xs font-bold text-ortus-accent-muted hover:underline flex items-center gap-1"><Plus size={14}/> Adicionar Pergunta</button>
+                              <h4 className="font-bold text-neutral-700 text-sm flex items-center gap-2"><HelpCircle size={16} className="text-purple-500"/> Perguntas ({modeloEdit.perguntas.length})</h4>
+                              <button onClick={adicionarPergunta} className="text-xs font-bold text-neutral-700 hover:underline flex items-center gap-1"><Plus size={14}/> Adicionar Pergunta</button>
                           </div>
 
                           <div className="space-y-3" ref={perguntasListRef}>
                               {modeloEdit.perguntas.map((p, idx) => (
-                                  <div key={p.id} className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                                  <div key={p.id} className="p-4 bg-neutral-50 border border-neutral-200 rounded-xl space-y-2">
                                       <div className="flex items-start gap-3">
-                                          <div className="w-7 h-7 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-black flex-none">{idx + 1}</div>
+                                          <div className="w-7 h-7 rounded-full bg-neutral-100 text-neutral-800 flex items-center justify-center text-xs font-black flex-none">{idx + 1}</div>
                                           <div className="flex-1 space-y-2">
-                                              <input value={p.label} onChange={e => atualizarPergunta(idx, { label: e.target.value })} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-ortus-accent font-medium text-slate-700 text-sm" placeholder="Texto da pergunta..."/>
+                                              <input value={p.label} onChange={e => atualizarPergunta(idx, { label: e.target.value })} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg outline-none outline-none focus:border-neutral-400 font-medium text-neutral-700 text-sm" placeholder="Texto da pergunta..."/>
                                               <div className="flex gap-2 items-center">
                                                   <CustomSelect value={p.tipo} onChange={v => atualizarPergunta(idx, { tipo: v as TipoPergunta, opcoes: v === 'multipla' ? (p.opcoes || ['Opção 1']) : undefined })} options={[{value:'texto',label:'Texto livre'},{value:'sim_nao',label:'Sim / Não'},{value:'sim_nao_texto',label:'Sim / Não + Texto'},{value:'multipla',label:'Múltipla escolha'}]} size="sm"/>
                                                   {p.tipo === 'multipla' && (
-                                                      <input value={(p.opcoes || []).join(', ')} onChange={e => atualizarPergunta(idx, { opcoes: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })} className="flex-1 px-3 py-1.5 bg-white border border-slate-200 rounded-lg outline-none text-xs font-medium text-slate-600" placeholder="Opções separadas por vírgula"/>
+                                                      <input value={(p.opcoes || []).join(', ')} onChange={e => atualizarPergunta(idx, { opcoes: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })} className="flex-1 px-3 py-1.5 bg-white border border-neutral-200 rounded-lg outline-none text-xs font-medium text-neutral-600" placeholder="Opções separadas por vírgula"/>
                                                   )}
                                               </div>
                                           </div>
-                                          <button onClick={() => removerPergunta(idx)} className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg flex-none"><Trash2 size={14}/></button>
+                                          <button onClick={() => removerPergunta(idx)} className="p-2 text-neutral-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg flex-none"><Trash2 size={14}/></button>
                                       </div>
                                   </div>
                               ))}
                           </div>
-                          <button onClick={adicionarPergunta} className="mt-3 w-full py-2.5 text-xs font-bold text-ortus-accent-muted border-2 border-dashed border-ortus-accent rounded-xl hover:bg-ortus-accent-soft flex items-center justify-center gap-1"><Plus size={14}/> Adicionar Pergunta</button>
+                          <button onClick={adicionarPergunta} className="mt-3 w-full py-2.5 text-xs font-bold text-neutral-700 border-2 border-dashed border-neutral-900 rounded-xl hover:bg-neutral-50 flex items-center justify-center gap-1"><Plus size={14}/> Adicionar Pergunta</button>
                       </div>
                   </div>
-                  <div className="p-5 border-t border-slate-100 bg-slate-50 flex gap-3 rounded-b-3xl flex-none">
-                      <button onClick={() => setModalModelo(false)} className="flex-1 py-3 text-slate-500 font-bold hover:bg-slate-200 rounded-xl transition-colors">Cancelar</button>
-                      <button onClick={salvarModelo} className="flex-1 py-3 btn-ortus-primary shadow-ortus-accent flex items-center justify-center gap-2"><Save size={16}/> Salvar Modelo</button>
+                  <div className="p-5 border-t border-neutral-100 bg-neutral-50 flex gap-3 rounded-b-3xl flex-none">
+                      <button onClick={() => setModalModelo(false)} className="flex-1 py-3 text-neutral-500 font-bold hover:bg-neutral-200 rounded-xl transition-colors">Cancelar</button>
+                      <button onClick={salvarModelo} className={`${bentoPrimaryBtn} flex-1 py-3`}><Save size={16}/> Salvar Modelo</button>
                   </div>
               </div>
           )}
       </Modal>
 
       <Modal open={modalProf} onClose={() => setModalProf(false)} maxWidth="2xl" hideCloseButton>
-          <div className="bg-white w-full rounded-3xl shadow-2xl flex flex-col max-h-[90vh] animate-in zoom-in-95 border border-slate-100">
-                  <div className="p-6 border-b border-slate-100 flex justify-between items-start bg-slate-50/50 rounded-t-3xl flex-none">
-                      <div><h3 className="font-black text-2xl text-slate-800">{editandoProf ? 'Editar Perfil' : 'Novo Acesso'}</h3><p className="text-slate-500 font-medium text-sm">Dados profissionais e de acesso.</p></div>
+          <div className="bg-white w-full rounded-[1.35rem] shadow-2xl flex flex-col max-h-[90vh] animate-in zoom-in-95 border border-neutral-100">
+                  <div className="p-6 border-b border-neutral-100 flex justify-between items-start bg-neutral-50/50 rounded-t-[1.35rem] flex-none">
+                      <div><h3 className="font-black text-2xl text-neutral-800">{editandoProf ? 'Editar Perfil' : 'Novo Acesso'}</h3><p className="text-neutral-500 font-medium text-sm">Dados profissionais e de acesso.</p></div>
                       {editandoProf && (<button onClick={excluirProfissional} className="p-2 text-red-400 hover:bg-red-50 rounded-lg hover:text-red-600 transition-colors"><Trash2 size={20}/></button>)}
                   </div>
                   <div className="p-8 overflow-y-auto custom-scrollbar space-y-6 flex-1">
-                      <div className="bg-blue-50 p-5 rounded-2xl border border-blue-100 space-y-4">
-                          <div className="flex items-center gap-2 text-blue-700 font-bold text-sm mb-2"><Shield size={16}/> Dados de Login</div>
+                      <div className="bg-neutral-50 p-5 rounded-2xl border border-black/10 space-y-4">
+                          <div className="flex items-center gap-2 text-neutral-800 font-bold text-sm mb-2"><Shield size={16}/> Dados de Login</div>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              <div><label className="text-xs font-bold text-slate-400 uppercase ml-1">E-mail de Acesso</label><div className="relative"><Mail className="absolute left-3 top-3.5 text-slate-400" size={18}/><input value={profForm.email} onChange={e => setProfForm({...profForm, email: e.target.value})} className="w-full pl-10 pr-4 py-3 bg-white border border-blue-200 rounded-xl outline-none focus:ring-2 focus:ring-ortus-accent font-medium text-slate-700 placeholder:text-slate-300" placeholder="email@clinica.com"/></div></div>
-                              <div><label className="text-xs font-bold text-slate-400 uppercase ml-1">Senha {editandoProf && '(Opcional)'}</label><div className="relative"><Lock className="absolute left-3 top-3.5 text-slate-400" size={18}/><input type="password" value={profForm.senha} onChange={e => setProfForm({...profForm, senha: e.target.value})} className="w-full pl-10 pr-4 py-3 bg-white border border-blue-200 rounded-xl outline-none focus:ring-2 focus:ring-ortus-accent font-medium text-slate-700 placeholder:text-slate-300" placeholder={editandoProf ? "Manter atual" : "Criar senha"}/></div></div>
+                              <div><label className="text-xs font-bold text-neutral-400 uppercase ml-1">E-mail de Acesso</label><div className="relative"><Mail className="absolute left-3 top-3.5 text-neutral-400" size={18}/><input value={profForm.email} onChange={e => setProfForm({...profForm, email: e.target.value})} className="w-full pl-10 pr-4 py-3 bg-white border border-black/10 rounded-xl outline-none outline-none focus:border-neutral-400 font-medium text-neutral-700 placeholder:text-neutral-300" placeholder="email@clinica.com"/></div></div>
+                              <div><label className="text-xs font-bold text-neutral-400 uppercase ml-1">Senha {editandoProf && '(Opcional)'}</label><div className="relative"><Lock className="absolute left-3 top-3.5 text-neutral-400" size={18}/><input type="password" value={profForm.senha} onChange={e => setProfForm({...profForm, senha: e.target.value})} className="w-full pl-10 pr-4 py-3 bg-white border border-black/10 rounded-xl outline-none outline-none focus:border-neutral-400 font-medium text-neutral-700 placeholder:text-neutral-300" placeholder={editandoProf ? "Manter atual" : "Criar senha"}/></div></div>
                           </div>
                       </div>
                       <div className="space-y-4">
-                          <h4 className="text-sm font-bold text-slate-800 border-b border-slate-100 pb-2">Dados do Profissional</h4>
+                          <h4 className="text-sm font-bold text-neutral-800 border-b border-neutral-100 pb-2">Dados do Profissional</h4>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              <div className="md:col-span-2"><label className="text-xs font-bold text-slate-400 uppercase ml-1">Nome Completo</label><div className="relative"><User className="absolute left-3 top-3.5 text-slate-300" size={18}/><input value={profForm.nome} onChange={e => setProfForm({...profForm, nome: e.target.value})} className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-ortus-accent font-bold text-slate-700" placeholder="Dr. Nome Sobrenome"/></div></div>
-                              <div><label className="text-xs font-bold text-slate-400 uppercase ml-1">CPF</label><input value={profForm.cpf} onChange={e => setProfForm({...profForm, cpf: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-ortus-accent font-medium text-slate-700" placeholder="000.000.000-00"/></div>
-                              <div><label className="text-xs font-bold text-slate-400 uppercase ml-1">Sexo</label><CustomSelect value={profForm.sexo} onChange={v => setProfForm({...profForm, sexo: v})} options={[{value:'Masculino',label:'Masculino'},{value:'Feminino',label:'Feminino'},{value:'Outro',label:'Outro'}]} placeholder="Selecione..." size="lg"/></div>
-                              <div><label className="text-xs font-bold text-slate-400 uppercase ml-1">Contato / Telefone</label><div className="relative"><Phone className="absolute left-3 top-3.5 text-slate-300" size={18}/><input value={profForm.telefone} onChange={e => setProfForm({...profForm, telefone: e.target.value})} className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-ortus-accent font-medium text-slate-700" placeholder="(00) 00000-0000"/></div></div>
-                              <div><label className="text-xs font-bold text-slate-400 uppercase ml-1">Cargo</label><input value={profForm.cargo} onChange={e => setProfForm({...profForm, cargo: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-ortus-accent font-bold text-slate-700" placeholder="Ex: Ortodontista"/></div>
+                              <div className="md:col-span-2"><label className="text-xs font-bold text-neutral-400 uppercase ml-1">Nome Completo</label><div className="relative"><User className="absolute left-3 top-3.5 text-neutral-300" size={18}/><input value={profForm.nome} onChange={e => setProfForm({...profForm, nome: e.target.value})} className="w-full pl-10 pr-4 py-3 bg-neutral-50 border border-neutral-200 rounded-xl outline-none outline-none focus:border-neutral-400 font-bold text-neutral-700" placeholder="Dr. Nome Sobrenome"/></div></div>
+                              <div><label className="text-xs font-bold text-neutral-400 uppercase ml-1">CPF</label><input value={profForm.cpf} onChange={e => setProfForm({...profForm, cpf: e.target.value})} className="w-full px-4 py-3 bg-neutral-50 border border-neutral-200 rounded-xl outline-none outline-none focus:border-neutral-400 font-medium text-neutral-700" placeholder="000.000.000-00"/></div>
+                              <div><label className="text-xs font-bold text-neutral-400 uppercase ml-1">Sexo</label><CustomSelect value={profForm.sexo} onChange={v => setProfForm({...profForm, sexo: v})} options={[{value:'Masculino',label:'Masculino'},{value:'Feminino',label:'Feminino'},{value:'Outro',label:'Outro'}]} placeholder="Selecione..." size="lg"/></div>
+                              <div><label className="text-xs font-bold text-neutral-400 uppercase ml-1">Contato / Telefone</label><div className="relative"><Phone className="absolute left-3 top-3.5 text-neutral-300" size={18}/><input value={profForm.telefone} onChange={e => setProfForm({...profForm, telefone: e.target.value})} className="w-full pl-10 pr-4 py-3 bg-neutral-50 border border-neutral-200 rounded-xl outline-none outline-none focus:border-neutral-400 font-medium text-neutral-700" placeholder="(00) 00000-0000"/></div></div>
+                              <div><label className="text-xs font-bold text-neutral-400 uppercase ml-1">Cargo</label><input value={profForm.cargo} onChange={e => setProfForm({...profForm, cargo: e.target.value})} className="w-full px-4 py-3 bg-neutral-50 border border-neutral-200 rounded-xl outline-none outline-none focus:border-neutral-400 font-bold text-neutral-700" placeholder="Ex: Ortodontista"/></div>
                           </div>
-                          <div className="md:col-span-2"><label className="text-xs font-bold text-slate-400 uppercase ml-1">Endereço</label><input value={profForm.endereco} onChange={e => setProfForm({...profForm, endereco: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-ortus-accent font-medium text-slate-700" placeholder="Rua, Número, Bairro..."/></div>
-                          <div className="grid grid-cols-3 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-100"><div className="col-span-1"><label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Conselho</label><CustomSelect value={profForm.conselho} onChange={v => setProfForm({...profForm, conselho: v})} options={[{value:'CRO',label:'CRO'},{value:'CRM',label:'CRM'},{value:'Outro',label:'Outro'}]} size="sm"/></div><div className="col-span-1"><label className="text-[10px] font-bold text-slate-400 uppercase ml-1">UF</label><input value={profForm.uf} onChange={e => setProfForm({...profForm, uf: e.target.value})} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none text-sm font-medium" placeholder="UF"/></div><div className="col-span-1"><label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Nº Conselho</label><input value={profForm.cro} onChange={e => setProfForm({...profForm, cro: e.target.value})} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none text-sm font-medium" placeholder="12345"/></div></div>
+                          <div className="md:col-span-2"><label className="text-xs font-bold text-neutral-400 uppercase ml-1">Endereço</label><input value={profForm.endereco} onChange={e => setProfForm({...profForm, endereco: e.target.value})} className="w-full px-4 py-3 bg-neutral-50 border border-neutral-200 rounded-xl outline-none outline-none focus:border-neutral-400 font-medium text-neutral-700" placeholder="Rua, Número, Bairro..."/></div>
+                          <div className="grid grid-cols-3 gap-3 bg-neutral-50 p-3 rounded-xl border border-neutral-100"><div className="col-span-1"><label className="text-[10px] font-bold text-neutral-400 uppercase ml-1">Conselho</label><CustomSelect value={profForm.conselho} onChange={v => setProfForm({...profForm, conselho: v})} options={[{value:'CRO',label:'CRO'},{value:'CRM',label:'CRM'},{value:'Outro',label:'Outro'}]} size="sm"/></div><div className="col-span-1"><label className="text-[10px] font-bold text-neutral-400 uppercase ml-1">UF</label><input value={profForm.uf} onChange={e => setProfForm({...profForm, uf: e.target.value})} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg outline-none text-sm font-medium" placeholder="UF"/></div><div className="col-span-1"><label className="text-[10px] font-bold text-neutral-400 uppercase ml-1">Nº Conselho</label><input value={profForm.cro} onChange={e => setProfForm({...profForm, cro: e.target.value})} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg outline-none text-sm font-medium" placeholder="12345"/></div></div>
                       </div>
-                      <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4">
-                          <div className="flex items-center gap-3"><div className={`p-3 rounded-xl ${profForm.nivel_acesso === 'admin' ? 'bg-purple-100 text-purple-600' : 'bg-white border border-slate-200 text-slate-400'}`}><Shield size={24}/></div><div><h4 className="font-bold text-slate-800 text-sm">Nível de Permissão</h4><p className="text-xs text-slate-500">Admins podem editar financeiro e ajustes.</p></div></div>
-                          <div className="flex bg-white p-1 rounded-xl border border-slate-200 shadow-sm"><button onClick={() => setProfForm({...profForm, nivel_acesso: 'comum'})} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${profForm.nivel_acesso === 'comum' ? 'bg-slate-800 text-white shadow' : 'text-slate-500 hover:bg-slate-50'}`}>Comum</button><button onClick={() => setProfForm({...profForm, nivel_acesso: 'admin'})} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${profForm.nivel_acesso === 'admin' ? 'bg-purple-600 text-white shadow' : 'text-slate-500 hover:bg-slate-50'}`}>Admin</button></div>
+                      <div className="bg-neutral-50 p-4 rounded-2xl border border-neutral-100 flex flex-col md:flex-row justify-between items-center gap-4">
+                          <div className="flex items-center gap-3"><div className={`p-3 rounded-xl ${profForm.nivel_acesso === 'admin' ? 'bg-purple-100 text-purple-600' : 'bg-white border border-neutral-200 text-neutral-400'}`}><Shield size={24}/></div><div><h4 className="font-bold text-neutral-800 text-sm">Nível de Permissão</h4><p className="text-xs text-neutral-500">Admins podem editar financeiro e ajustes.</p></div></div>
+                          <div className="flex bg-white p-1 rounded-xl border border-neutral-200 shadow-sm"><button onClick={() => setProfForm({...profForm, nivel_acesso: 'comum'})} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${profForm.nivel_acesso === 'comum' ? 'bg-neutral-800 text-white shadow' : 'text-neutral-500 hover:bg-neutral-50'}`}>Comum</button><button onClick={() => setProfForm({...profForm, nivel_acesso: 'admin'})} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${profForm.nivel_acesso === 'admin' ? 'bg-purple-600 text-white shadow' : 'text-neutral-500 hover:bg-neutral-50'}`}>Admin</button></div>
                       </div>
                   </div>
-                  <div className="p-6 border-t border-slate-100 bg-slate-50 flex gap-3 rounded-b-3xl flex-none"><button onClick={() => setModalProf(false)} className="flex-1 py-4 text-slate-500 font-bold hover:bg-slate-200 rounded-xl transition-colors">Cancelar</button><button onClick={salvarProfissional} disabled={salvandoProf} className="flex-1 py-4 btn-ortus-primary shadow-ortus-accent transition-all active:scale-95 flex items-center justify-center gap-2">{salvandoProf ? <Loader2 className="animate-spin"/> : <><Save size={18}/> Salvar Acesso</>}</button></div>
+                  <div className="p-6 border-t border-neutral-100 bg-neutral-50 flex gap-3 rounded-b-3xl flex-none"><button onClick={() => setModalProf(false)} className="flex-1 py-4 text-neutral-500 font-bold hover:bg-neutral-200 rounded-xl transition-colors">Cancelar</button><button onClick={salvarProfissional} disabled={salvandoProf} className={`${bentoPrimaryBtn} flex-1 py-4 active:scale-95`}>{salvandoProf ? <Loader2 className="animate-spin"/> : <><Save size={18}/> Salvar Acesso</>}</button></div>
               </div>
       </Modal>
 
@@ -1543,116 +1542,116 @@ export default function Configuracoes() {
       <Modal open={modalVinculo && !!profSelecionado} onClose={() => setModalVinculo(false)} maxWidth="md" hideCloseButton>
           {profSelecionado && (
               <div className="bg-white p-6 rounded-2xl w-full shadow-2xl animate-in zoom-in-95">
-                  <div className="flex justify-between items-center mb-6"><div><h3 className="font-bold text-lg">Onde {profSelecionado.nome.split(' ')[0]} atende?</h3><p className="text-xs text-slate-400">Marque as clínicas permitidas.</p></div><button onClick={() => setModalVinculo(false)} className="p-2 hover:bg-slate-100 rounded-full"><X size={20}/></button></div>
+                  <div className="flex justify-between items-center mb-6"><div><h3 className="font-bold text-lg">Onde {profSelecionado.nome.split(' ')[0]} atende?</h3><p className="text-xs text-neutral-400">Marque as clínicas permitidas.</p></div><button onClick={() => setModalVinculo(false)} className="p-2 hover:bg-neutral-100 rounded-full"><X size={20}/></button></div>
                   <div className="space-y-2 mb-6 max-h-60 overflow-y-auto">
                       {clinicas.map(c => {
                           const ativo = vinculosDoProf.includes(c.id);
                           return (
-                              <button key={c.id} onClick={() => toggleVinculo(c.id)} className={`w-full flex items-center justify-between p-4 rounded-xl border transition-all ${ativo ? 'chip-ortus-active' : 'bg-white border-slate-100 hover:bg-slate-50'}`}><span className={`font-bold ${ativo ? 'text-ortus-accent' : 'text-slate-600'}`}>{c.nome}</span><div className={`w-6 h-6 rounded-full border flex items-center justify-center ${ativo ? 'chip-ortus-selected' : 'bg-white border-slate-300'}`}>{ativo && <Check size={14}/>}</div></button>
+                              <button key={c.id} onClick={() => toggleVinculo(c.id)} className={`flex w-full items-center justify-between rounded-xl p-4 ${bentoChipOutline(ativo)}`}><span className={`font-bold ${ativo ? 'text-neutral-900' : 'text-neutral-600'}`}>{c.nome}</span><div className={`flex h-6 w-6 items-center justify-center rounded-full border ${ativo ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-300 bg-white'}`}>{ativo && <Check size={14}/>}</div></button>
                           );
                       })}
                   </div>
-                  <button onClick={() => setModalVinculo(false)} className="w-full py-3 bg-slate-900 text-white font-bold rounded-xl">Concluir</button>
+                  <button onClick={() => setModalVinculo(false)} className="w-full py-3 bg-neutral-900 text-white font-bold rounded-xl">Concluir</button>
               </div>
           )}
       </Modal>
 
       {/* MODAL EDIÇÃO COMPLETA CLÍNICA */}
       <Modal open={modalClinicaCompleto} onClose={() => { setModalClinicaCompleto(false); setClinicaEditando(null); }} maxWidth="2xl" hideCloseButton>
-          <div className="bg-white w-full rounded-3xl shadow-2xl flex flex-col max-h-[90vh] animate-in zoom-in-95 border border-slate-100">
-                  <div className="p-6 border-b border-slate-100 flex justify-between items-start bg-gradient-to-r from-blue-50 to-white rounded-t-3xl flex-none">
+          <div className="bg-white w-full rounded-[1.35rem] shadow-2xl flex flex-col max-h-[90vh] animate-in zoom-in-95 border border-neutral-100">
+                  <div className="p-6 border-b border-neutral-100 flex justify-between items-start bg-gradient-to-r from-neutral-50 to-white rounded-t-[1.35rem] flex-none">
                       <div>
-                          <h3 className="font-black text-2xl text-slate-800">{clinicaEditando ? 'Editar Clínica' : 'Nova Clínica'}</h3>
-                          <p className="text-slate-500 font-medium text-sm">{clinicaEditando ? 'Atualize os dados da unidade.' : 'Preencha todos os dados para cadastrar a unidade.'}</p>
+                          <h3 className="font-black text-2xl text-neutral-800">{clinicaEditando ? 'Editar Clínica' : 'Nova Clínica'}</h3>
+                          <p className="text-neutral-500 font-medium text-sm">{clinicaEditando ? 'Atualize os dados da unidade.' : 'Preencha todos os dados para cadastrar a unidade.'}</p>
                       </div>
-                      <button onClick={() => { setModalClinicaCompleto(false); setClinicaEditando(null); }} className="p-2 text-slate-400 hover:bg-slate-100 rounded-xl transition-colors"><X size={24}/></button>
+                      <button onClick={() => { setModalClinicaCompleto(false); setClinicaEditando(null); }} className="p-2 text-neutral-400 hover:bg-neutral-100 rounded-xl transition-colors"><X size={24}/></button>
                   </div>
                   
                   <div className="p-8 overflow-y-auto custom-scrollbar space-y-8 flex-1">
                       {clinicaEditando ? (
                       <div className="flex items-center gap-6">
-                          <div className="w-24 h-24 bg-slate-50 border-2 border-dashed border-slate-300 rounded-2xl flex items-center justify-center overflow-hidden">
+                          <div className="w-24 h-24 bg-neutral-50 border-2 border-dashed border-neutral-300 rounded-2xl flex items-center justify-center overflow-hidden">
                               {clinicaForm.logo_url ? (
                                   <img src={clinicaForm.logo_url} alt="Logo" className="w-full h-full object-cover"/>
                               ) : (
-                                  <Building2 size={40} className="text-slate-300"/>
+                                  <Building2 size={40} className="text-neutral-300"/>
                               )}
                           </div>
                           <div className="flex-1">
-                              <label className="block text-sm font-bold text-slate-700 mb-2">Logomarca</label>
+                              <label className="block text-sm font-bold text-neutral-700 mb-2">Logomarca</label>
                               <input type="file" accept="image/*" onChange={uploadLogo} className="hidden" id="logo-upload"/>
-                              <label htmlFor="logo-upload" className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-sm cursor-pointer transition-colors">
+                              <label htmlFor="logo-upload" className="inline-flex items-center gap-2 px-4 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 rounded-xl font-bold text-sm cursor-pointer transition-colors">
                                   {uploadingLogo ? <Loader2 size={16} className="animate-spin"/> : <Upload size={16}/>}
                                   {uploadingLogo ? 'Enviando...' : 'Selecionar Imagem'}
                               </label>
-                              <p className="text-xs text-slate-400 mt-1">Max. 2MB • PNG, JPG</p>
+                              <p className="text-xs text-neutral-400 mt-1">Max. 2MB • PNG, JPG</p>
                           </div>
                       </div>
                       ) : (
-                          <div className="p-4 bg-blue-50 border border-blue-100 rounded-2xl text-sm text-blue-700">
+                          <div className="p-4 bg-neutral-50 border border-black/10 rounded-2xl text-sm text-neutral-800">
                               Após salvar, você poderá enviar a logomarca editando a clínica.
                           </div>
                       )}
 
                       {/* Dados Básicos */}
                       <div className="space-y-4">
-                          <h4 className="text-sm font-black text-slate-800 uppercase tracking-wider flex items-center gap-2"><Building2 size={16} className="text-blue-500"/> Dados da Clínica</h4>
+                          <h4 className="text-sm font-black text-neutral-800 uppercase tracking-wider flex items-center gap-2"><Building2 size={16} className="text-neutral-600"/> Dados da Clínica</h4>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                               <div className="md:col-span-2">
-                                  <label className="text-xs font-bold text-slate-400 uppercase ml-1">Nome da Clínica *</label>
-                                  <input value={clinicaForm.nome} onChange={e => setClinicaForm({...clinicaForm, nome: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-ortus-accent font-bold text-slate-700" placeholder="Ex: Clínica Ortus Centro"/>
+                                  <label className="text-xs font-bold text-neutral-400 uppercase ml-1">Nome da Clínica *</label>
+                                  <input value={clinicaForm.nome} onChange={e => setClinicaForm({...clinicaForm, nome: e.target.value})} className="w-full px-4 py-3 bg-neutral-50 border border-neutral-200 rounded-xl outline-none outline-none focus:border-neutral-400 font-bold text-neutral-700" placeholder="Ex: Clínica Ortus Centro"/>
                               </div>
                               <div>
-                                  <label className="text-xs font-bold text-slate-400 uppercase ml-1">CNPJ</label>
-                                  <input value={clinicaForm.cnpj} onChange={e => setClinicaForm({...clinicaForm, cnpj: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-ortus-accent font-medium text-slate-700" placeholder="00.000.000/0000-00"/>
+                                  <label className="text-xs font-bold text-neutral-400 uppercase ml-1">CNPJ</label>
+                                  <input value={clinicaForm.cnpj} onChange={e => setClinicaForm({...clinicaForm, cnpj: e.target.value})} className="w-full px-4 py-3 bg-neutral-50 border border-neutral-200 rounded-xl outline-none outline-none focus:border-neutral-400 font-medium text-neutral-700" placeholder="00.000.000/0000-00"/>
                               </div>
                               <div>
-                                  <label className="text-xs font-bold text-slate-400 uppercase ml-1">Responsável</label>
-                                  <input value={clinicaForm.responsavel_nome} onChange={e => setClinicaForm({...clinicaForm, responsavel_nome: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-ortus-accent font-medium text-slate-700" placeholder="Nome do responsável técnico"/>
+                                  <label className="text-xs font-bold text-neutral-400 uppercase ml-1">Responsável</label>
+                                  <input value={clinicaForm.responsavel_nome} onChange={e => setClinicaForm({...clinicaForm, responsavel_nome: e.target.value})} className="w-full px-4 py-3 bg-neutral-50 border border-neutral-200 rounded-xl outline-none outline-none focus:border-neutral-400 font-medium text-neutral-700" placeholder="Nome do responsável técnico"/>
                               </div>
                               <div>
-                                  <label className="text-xs font-bold text-slate-400 uppercase ml-1">E-mail</label>
-                                  <input value={clinicaForm.email} onChange={e => setClinicaForm({...clinicaForm, email: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-ortus-accent font-medium text-slate-700" placeholder="clinica@email.com"/>
+                                  <label className="text-xs font-bold text-neutral-400 uppercase ml-1">E-mail</label>
+                                  <input value={clinicaForm.email} onChange={e => setClinicaForm({...clinicaForm, email: e.target.value})} className="w-full px-4 py-3 bg-neutral-50 border border-neutral-200 rounded-xl outline-none outline-none focus:border-neutral-400 font-medium text-neutral-700" placeholder="clinica@email.com"/>
                               </div>
                               <div>
-                                  <label className="text-xs font-bold text-slate-400 uppercase ml-1">Telefone</label>
-                                  <input value={clinicaForm.telefone} onChange={e => setClinicaForm({...clinicaForm, telefone: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-ortus-accent font-medium text-slate-700" placeholder="(00) 0000-0000"/>
+                                  <label className="text-xs font-bold text-neutral-400 uppercase ml-1">Telefone</label>
+                                  <input value={clinicaForm.telefone} onChange={e => setClinicaForm({...clinicaForm, telefone: e.target.value})} className="w-full px-4 py-3 bg-neutral-50 border border-neutral-200 rounded-xl outline-none outline-none focus:border-neutral-400 font-medium text-neutral-700" placeholder="(00) 0000-0000"/>
                               </div>
                           </div>
                       </div>
 
                       {/* Horários */}
                       <div className="space-y-4">
-                          <h4 className="text-sm font-black text-slate-800 uppercase tracking-wider flex items-center gap-2"><Clock size={16} className="text-blue-500"/> Horário de Funcionamento</h4>
+                          <h4 className="text-sm font-black text-neutral-800 uppercase tracking-wider flex items-center gap-2"><Clock size={16} className="text-neutral-600"/> Horário de Funcionamento</h4>
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                               <div>
-                                  <label className="text-xs font-bold text-slate-400 uppercase ml-1">Início</label>
-                                  <input type="time" value={clinicaForm.horario_inicio} onChange={e => setClinicaForm({...clinicaForm, horario_inicio: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-ortus-accent font-medium text-slate-700"/>
+                                  <label className="text-xs font-bold text-neutral-400 uppercase ml-1">Início</label>
+                                  <input type="time" value={clinicaForm.horario_inicio} onChange={e => setClinicaForm({...clinicaForm, horario_inicio: e.target.value})} className="w-full px-4 py-3 bg-neutral-50 border border-neutral-200 rounded-xl outline-none outline-none focus:border-neutral-400 font-medium text-neutral-700"/>
                               </div>
                               <div>
-                                  <label className="text-xs font-bold text-slate-400 uppercase ml-1">Término</label>
-                                  <input type="time" value={clinicaForm.horario_fim} onChange={e => setClinicaForm({...clinicaForm, horario_fim: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-ortus-accent font-medium text-slate-700"/>
+                                  <label className="text-xs font-bold text-neutral-400 uppercase ml-1">Término</label>
+                                  <input type="time" value={clinicaForm.horario_fim} onChange={e => setClinicaForm({...clinicaForm, horario_fim: e.target.value})} className="w-full px-4 py-3 bg-neutral-50 border border-neutral-200 rounded-xl outline-none outline-none focus:border-neutral-400 font-medium text-neutral-700"/>
                               </div>
                               <div>
-                                  <label className="text-xs font-bold text-slate-400 uppercase ml-1">Fuso Horário</label>
+                                  <label className="text-xs font-bold text-neutral-400 uppercase ml-1">Fuso Horário</label>
                                   <CustomSelect value={clinicaForm.fuso_horario} onChange={v => setClinicaForm({...clinicaForm, fuso_horario: v})} options={FUSO_HORARIO_OPTIONS} size="lg"/>
                               </div>
                           </div>
                       </div>
 
                       {/* Fiscal */}
-                      <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100">
-                          <h4 className="text-sm font-black text-slate-800 uppercase tracking-wider flex items-center gap-2 mb-4"><FileText size={16} className="text-blue-500"/> Configuração Fiscal</h4>
+                      <div className="bg-neutral-50 p-5 rounded-2xl border border-neutral-100">
+                          <h4 className="text-sm font-black text-neutral-800 uppercase tracking-wider flex items-center gap-2 mb-4"><FileText size={16} className="text-neutral-600"/> Configuração Fiscal</h4>
                           <div>
-                              <label className="text-xs font-bold text-slate-400 uppercase ml-1">Emitir notas fiscais em nome de:</label>
+                              <label className="text-xs font-bold text-neutral-400 uppercase ml-1">Emitir notas fiscais em nome de:</label>
                               <div className="flex gap-4 mt-2">
                                   <label className="flex items-center gap-2 cursor-pointer">
-                                      <input type="radio" name="emitir_notas" checked={clinicaForm.emitir_notas_em_nome === 'clinica'} onChange={() => setClinicaForm({...clinicaForm, emitir_notas_em_nome: 'clinica'})} className="w-4 h-4 text-ortus-accent-muted"/>
-                                      <span className="text-sm font-medium text-slate-700">Clínica (CNPJ da clínica)</span>
+                                      <input type="radio" name="emitir_notas" checked={clinicaForm.emitir_notas_em_nome === 'clinica'} onChange={() => setClinicaForm({...clinicaForm, emitir_notas_em_nome: 'clinica'})} className="w-4 h-4 text-neutral-700"/>
+                                      <span className="text-sm font-medium text-neutral-700">Clínica (CNPJ da clínica)</span>
                                   </label>
                                   <label className="flex items-center gap-2 cursor-pointer">
-                                      <input type="radio" name="emitir_notas" checked={clinicaForm.emitir_notas_em_nome === 'profissional'} onChange={() => setClinicaForm({...clinicaForm, emitir_notas_em_nome: 'profissional'})} className="w-4 h-4 text-ortus-accent-muted"/>
-                                      <span className="text-sm font-medium text-slate-700">Profissional (CPF do dentista)</span>
+                                      <input type="radio" name="emitir_notas" checked={clinicaForm.emitir_notas_em_nome === 'profissional'} onChange={() => setClinicaForm({...clinicaForm, emitir_notas_em_nome: 'profissional'})} className="w-4 h-4 text-neutral-700"/>
+                                      <span className="text-sm font-medium text-neutral-700">Profissional (CPF do dentista)</span>
                                   </label>
                               </div>
                           </div>
@@ -1660,10 +1659,10 @@ export default function Configuracoes() {
 
                       {/* Endereço com ViaCEP */}
                       <div className="space-y-4">
-                          <h4 className="text-sm font-black text-slate-800 uppercase tracking-wider flex items-center gap-2"><MapPin size={16} className="text-blue-500"/> Endereço <span className="text-red-500 text-xs normal-case">*</span> (ViaCEP)</h4>
+                          <h4 className="text-sm font-black text-neutral-800 uppercase tracking-wider flex items-center gap-2"><MapPin size={16} className="text-neutral-600"/> Endereço <span className="text-red-500 text-xs normal-case">*</span> (ViaCEP)</h4>
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                               <div className="relative">
-                                  <label className="text-xs font-bold text-slate-400 uppercase ml-1">CEP</label>
+                                  <label className="text-xs font-bold text-neutral-400 uppercase ml-1">CEP</label>
                                   <div className="flex gap-2">
                                       <input 
                                           value={clinicaForm.cep} 
@@ -1674,55 +1673,55 @@ export default function Configuracoes() {
                                               }
                                           }}
                                           onBlur={() => buscarCepClinica(clinicaForm.cep)}
-                                          className="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-ortus-accent font-medium text-slate-700" 
+                                          className="flex-1 px-4 py-3 bg-neutral-50 border border-neutral-200 rounded-xl outline-none outline-none focus:border-neutral-400 font-medium text-neutral-700" 
                                           placeholder="00000-000"
                                       />
-                                      {buscandoCepClinica && <Loader2 size={20} className="animate-spin text-blue-500 absolute right-3 top-10"/>}
+                                      {buscandoCepClinica && <Loader2 size={20} className="animate-spin text-neutral-600 absolute right-3 top-10"/>}
                                   </div>
                               </div>
                               <div className="md:col-span-2">
-                                  <label className="text-xs font-bold text-slate-400 uppercase ml-1">Rua / Avenida</label>
-                                  <input value={clinicaForm.rua} onChange={e => setClinicaForm({...clinicaForm, rua: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-ortus-accent font-medium text-slate-700" placeholder="Logradouro"/>
+                                  <label className="text-xs font-bold text-neutral-400 uppercase ml-1">Rua / Avenida</label>
+                                  <input value={clinicaForm.rua} onChange={e => setClinicaForm({...clinicaForm, rua: e.target.value})} className="w-full px-4 py-3 bg-neutral-50 border border-neutral-200 rounded-xl outline-none outline-none focus:border-neutral-400 font-medium text-neutral-700" placeholder="Logradouro"/>
                               </div>
                           </div>
                           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                               <div>
-                                  <label className="text-xs font-bold text-slate-400 uppercase ml-1">Número</label>
-                                  <input value={clinicaForm.numero} onChange={e => setClinicaForm({...clinicaForm, numero: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-ortus-accent font-medium text-slate-700" placeholder="123"/>
+                                  <label className="text-xs font-bold text-neutral-400 uppercase ml-1">Número</label>
+                                  <input value={clinicaForm.numero} onChange={e => setClinicaForm({...clinicaForm, numero: e.target.value})} className="w-full px-4 py-3 bg-neutral-50 border border-neutral-200 rounded-xl outline-none outline-none focus:border-neutral-400 font-medium text-neutral-700" placeholder="123"/>
                               </div>
                               <div className="md:col-span-3">
-                                  <label className="text-xs font-bold text-slate-400 uppercase ml-1">Complemento</label>
-                                  <input value={clinicaForm.complemento} onChange={e => setClinicaForm({...clinicaForm, complemento: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-ortus-accent font-medium text-slate-700" placeholder="Sala, Bloco, Andar..."/>
+                                  <label className="text-xs font-bold text-neutral-400 uppercase ml-1">Complemento</label>
+                                  <input value={clinicaForm.complemento} onChange={e => setClinicaForm({...clinicaForm, complemento: e.target.value})} className="w-full px-4 py-3 bg-neutral-50 border border-neutral-200 rounded-xl outline-none outline-none focus:border-neutral-400 font-medium text-neutral-700" placeholder="Sala, Bloco, Andar..."/>
                               </div>
                           </div>
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                               <div>
-                                  <label className="text-xs font-bold text-slate-400 uppercase ml-1">Bairro</label>
-                                  <input value={clinicaForm.bairro} onChange={e => setClinicaForm({...clinicaForm, bairro: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-ortus-accent font-medium text-slate-700" placeholder="Bairro"/>
+                                  <label className="text-xs font-bold text-neutral-400 uppercase ml-1">Bairro</label>
+                                  <input value={clinicaForm.bairro} onChange={e => setClinicaForm({...clinicaForm, bairro: e.target.value})} className="w-full px-4 py-3 bg-neutral-50 border border-neutral-200 rounded-xl outline-none outline-none focus:border-neutral-400 font-medium text-neutral-700" placeholder="Bairro"/>
                               </div>
                               <div>
-                                  <label className="text-xs font-bold text-slate-400 uppercase ml-1">Cidade</label>
-                                  <input value={clinicaForm.cidade} onChange={e => setClinicaForm({...clinicaForm, cidade: e.target.value})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-ortus-accent font-medium text-slate-700" placeholder="Cidade"/>
+                                  <label className="text-xs font-bold text-neutral-400 uppercase ml-1">Cidade</label>
+                                  <input value={clinicaForm.cidade} onChange={e => setClinicaForm({...clinicaForm, cidade: e.target.value})} className="w-full px-4 py-3 bg-neutral-50 border border-neutral-200 rounded-xl outline-none outline-none focus:border-neutral-400 font-medium text-neutral-700" placeholder="Cidade"/>
                               </div>
                               <div>
-                                  <label className="text-xs font-bold text-slate-400 uppercase ml-1">UF</label>
+                                  <label className="text-xs font-bold text-neutral-400 uppercase ml-1">UF</label>
                                   <CustomSelect value={clinicaForm.uf || ''} onChange={v => setClinicaForm({...clinicaForm, uf: v})} options={UF_OPTIONS} size="lg"/>
                               </div>
                           </div>
                       </div>
                   </div>
                   
-                  <div className="p-6 border-t border-slate-100 bg-slate-50 flex gap-3 rounded-b-3xl flex-none">
-                      <button onClick={() => { setModalClinicaCompleto(false); setClinicaEditando(null); }} className="flex-1 py-4 text-slate-500 font-bold hover:bg-slate-200 rounded-xl transition-colors">
+                  <div className="p-6 border-t border-neutral-100 bg-neutral-50 flex gap-3 rounded-b-3xl flex-none">
+                      <button onClick={() => { setModalClinicaCompleto(false); setClinicaEditando(null); }} className="flex-1 py-4 text-neutral-500 font-bold hover:bg-neutral-200 rounded-xl transition-colors">
                           Cancelar
                       </button>
-                      <button onClick={salvarClinicaCompleta} className="flex-1 py-4 btn-ortus-primary shadow-ortus-accent transition-all active:scale-95 flex items-center justify-center gap-2">
+                      <button onClick={salvarClinicaCompleta} className={`${bentoPrimaryBtn} flex-1 py-4 active:scale-95`}>
                           <Save size={18}/> {clinicaEditando ? 'Salvar Alterações' : 'Cadastrar Clínica'}
                       </button>
                   </div>
               </div>
       </Modal>
 
-    </div>
+    </BentoPageShell>
   );
 }

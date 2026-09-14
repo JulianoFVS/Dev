@@ -14,6 +14,8 @@ import CustomSelect from '@/components/ui/CustomSelect';
 import { TAREFA_PRIORIDADE_OPTIONS, TAREFA_STATUS_OPTIONS } from '@/lib/formOptions';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import BentoPageShell from '@/components/bento/BentoPageShell';
+import { bentoCard, bentoPill, bentoPrimaryBtn, bentoInput } from '@/lib/bentoUi';
 
 interface Tarefa {
     id: string;
@@ -244,8 +246,8 @@ export default function Tarefas() {
         switch (p) {
             case 'alta': return 'bg-red-100 text-red-700 border-red-200';
             case 'media': return 'bg-amber-100 text-amber-700 border-amber-200';
-            case 'baixa': return 'bg-blue-100 text-blue-700 border-blue-200';
-            default: return 'bg-slate-100 text-slate-600';
+            case 'baixa': return 'bg-neutral-100 text-neutral-800 border-black/10';
+            default: return 'bg-neutral-100 text-neutral-600';
         }
     }
 
@@ -261,13 +263,13 @@ export default function Tarefas() {
     function getStatusCor(status: string) {
         switch (status) {
             case 'a_fazer':
-                return 'bg-slate-100 text-slate-700 border-slate-200';
+                return 'bg-neutral-100 text-neutral-700 border-neutral-200';
             case 'em_andamento':
-                return 'bg-blue-50 text-blue-700 border-blue-200';
+                return 'bg-neutral-50 text-neutral-800 border-black/10';
             case 'concluido':
                 return 'bg-emerald-50 text-emerald-700 border-emerald-200';
             default:
-                return 'bg-slate-100 text-slate-600 border-slate-200';
+                return 'bg-neutral-100 text-neutral-600 border-neutral-200';
         }
     }
 
@@ -280,23 +282,23 @@ export default function Tarefas() {
                         ? 'border-red-300 bg-red-50/30'
                         : t.alerta_data === 'proxima' && t.status !== 'concluido'
                             ? 'border-amber-300 bg-amber-50/30'
-                            : 'border-slate-200'
+                            : 'border-neutral-200'
                 }`}
             >
                 <div className="flex items-start justify-between gap-2 mb-2">
-                    <h3 className={`font-bold text-slate-800 text-sm ${t.status === 'concluido' ? 'line-through text-slate-400' : ''}`}>
+                    <h3 className={`font-bold text-neutral-800 text-sm ${t.status === 'concluido' ? 'line-through text-neutral-400' : ''}`}>
                         {t.titulo}
                     </h3>
-                    <button onClick={() => abrirEditarTarefa(t)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg">
+                    <button onClick={() => abrirEditarTarefa(t)} className="p-1.5 text-neutral-400 hover:text-neutral-900 hover:bg-neutral-50 rounded-lg">
                         <MoreVertical size={14}/>
                     </button>
                 </div>
-                {!compact && t.descricao && <p className="text-xs text-slate-500 mb-2 line-clamp-2">{t.descricao}</p>}
+                {!compact && t.descricao && <p className="text-xs text-neutral-500 mb-2 line-clamp-2">{t.descricao}</p>}
                 <div className="flex flex-wrap items-center gap-2 text-[11px]">
                     <span className={`font-black uppercase px-2 py-0.5 rounded-full border ${getPrioridadeCor(t.prioridade)}`}>{t.prioridade}</span>
-                    {t.responsavel_nome && <span className="flex items-center gap-1 text-slate-600"><User size={11}/>{t.responsavel_nome}</span>}
+                    {t.responsavel_nome && <span className="flex items-center gap-1 text-neutral-600"><User size={11}/>{t.responsavel_nome}</span>}
                     {t.data_limite && (
-                        <span className={`flex items-center gap-1 ${t.alerta_data === 'atrasada' && t.status !== 'concluido' ? 'text-red-600 font-bold' : 'text-slate-500'}`}>
+                        <span className={`flex items-center gap-1 ${t.alerta_data === 'atrasada' && t.status !== 'concluido' ? 'text-red-600 font-bold' : 'text-neutral-500'}`}>
                             <Calendar size={11}/>{new Date(t.data_limite).toLocaleDateString('pt-BR')}
                         </span>
                     )}
@@ -304,9 +306,9 @@ export default function Tarefas() {
                 {t.status !== 'concluido' && (
                     <div className="flex gap-1 mt-3">
                         {t.status !== 'a_fazer' && (
-                            <button onClick={() => moverStatus(t.id, t.status === 'concluido' ? 'em_andamento' : 'a_fazer')} className="text-[10px] font-bold px-2 py-1 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200">← Voltar</button>
+                            <button onClick={() => moverStatus(t.id, t.status === 'concluido' ? 'em_andamento' : 'a_fazer')} className="text-[10px] font-bold px-2 py-1 rounded-lg bg-neutral-100 text-neutral-600 hover:bg-neutral-200">← Voltar</button>
                         )}
-                        <button onClick={() => moverStatus(t.id, t.status === 'a_fazer' ? 'em_andamento' : 'concluido')} className="text-[10px] font-bold px-2 py-1 rounded-lg bg-blue-100 text-blue-700 hover:bg-blue-200 ml-auto">
+                        <button onClick={() => moverStatus(t.id, t.status === 'a_fazer' ? 'em_andamento' : 'concluido')} className="text-[10px] font-bold px-2 py-1 rounded-lg bg-neutral-100 text-neutral-800 hover:bg-blue-200 ml-auto">
                             {t.status === 'a_fazer' ? 'Iniciar →' : 'Concluir ✓'}
                         </button>
                     </div>
@@ -316,59 +318,54 @@ export default function Tarefas() {
     }
 
     const colunasKanban: { id: Tarefa['status']; label: string; cor: string }[] = [
-        { id: 'a_fazer', label: 'A Fazer', cor: 'border-slate-200 bg-slate-50' },
-        { id: 'em_andamento', label: 'Em Andamento', cor: 'border-blue-200 bg-blue-50/50' },
+        { id: 'a_fazer', label: 'A Fazer', cor: 'border-neutral-200 bg-neutral-50' },
+        { id: 'em_andamento', label: 'Em Andamento', cor: 'border-black/10 bg-neutral-50/50' },
         { id: 'concluido', label: 'Concluído', cor: 'border-emerald-200 bg-emerald-50/50' },
     ];
 
     return (
-        <div className="max-w-7xl mx-auto space-y-6 pb-20 animate-fade-in">
-            {/* Header */}
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-3">
-                <div>
-                    <h1 className="text-2xl sm:text-3xl font-black text-slate-800">Tarefas</h1>
-                    <p className="text-sm text-slate-500">Organize as atividades da clínica.</p>
-                </div>
-                <div className="flex gap-2">
-                    <div className="flex bg-slate-100 p-1 rounded-xl">
-                        <button onClick={() => setViewMode('kanban')} className={`px-3 py-2 rounded-lg text-xs font-bold ${viewMode === 'kanban' ? 'bg-white shadow text-blue-600' : 'text-slate-500'}`}>Kanban</button>
-                        <button onClick={() => setViewMode('lista')} className={`px-3 py-2 rounded-lg text-xs font-bold ${viewMode === 'lista' ? 'bg-white shadow text-blue-600' : 'text-slate-500'}`}>Lista</button>
-                    </div>
-                    <button onClick={abrirNovaTarefa} className="touch-target flex-1 sm:flex-none bg-blue-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-blue-700 shadow-lg flex items-center justify-center gap-2 text-sm">
-                        <Plus size={18}/> Nova Tarefa
+        <BentoPageShell
+            title="Tarefas"
+            subtitle="Atividades internas da equipe"
+            maxWidthClass="max-w-6xl"
+            actions={
+                <>
+                    <button type="button" onClick={() => setViewMode('kanban')} className={bentoPill(viewMode === 'kanban')}>Kanban</button>
+                    <button type="button" onClick={() => setViewMode('lista')} className={bentoPill(viewMode === 'lista')}>Lista</button>
+                    <button type="button" onClick={abrirNovaTarefa} className={bentoPrimaryBtn}>
+                        <Plus size={18} /> Nova tarefa
                     </button>
-                </div>
-            </div>
-
-            {/* Busca e filtros — acima do conteúdo principal */}
-            <div className="bg-white p-2 rounded-2xl border border-slate-200 shadow-sm flex flex-col gap-2">
+                </>
+            }
+        >
+            <div className={`${bentoCard} mb-4 flex flex-col gap-2 border border-black/5 p-2 sm:p-3`}>
                 <div className="flex flex-col md:flex-row gap-2">
                     <div className="flex-1 relative">
-                        <Search className="absolute left-3 top-3 text-slate-400" size={20}/>
+                        <Search className="absolute left-3 top-3 text-neutral-400" size={20}/>
                         <input
                             type="text"
                             placeholder="Buscar tarefas..."
-                            className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-50 border-transparent focus:bg-white focus:ring-2 focus:ring-blue-100 outline-none font-medium"
+                            className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-neutral-50 border-transparent focus:bg-white focus:ring-2 focus:ring-neutral-100 outline-none font-medium"
                             value={filtroBusca}
                             onChange={e => setFiltroBusca(e.target.value)}
                         />
                     </div>
                     <button
                         onClick={() => setShowFiltros(!showFiltros)}
-                        className={`touch-target px-3 py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all shrink-0 ${showFiltros || filtroStatus !== 'todos' || filtroPrioridade !== 'todos' ? 'bg-blue-50 text-blue-600 border border-blue-200' : 'bg-slate-50 text-slate-500 border border-slate-200'}`}
+                        className={`touch-target px-3 py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all shrink-0 ${showFiltros || filtroStatus !== 'todos' || filtroPrioridade !== 'todos' ? 'bg-neutral-50 text-neutral-900 border border-black/10' : 'bg-neutral-50 text-neutral-500 border border-neutral-200'}`}
                     >
                         <Filter size={16}/> Filtros avançados
-                        {(filtroStatus !== 'todos' || filtroPrioridade !== 'todos') && <span className="w-2 h-2 bg-blue-500 rounded-full" />}
+                        {(filtroStatus !== 'todos' || filtroPrioridade !== 'todos') && <span className="w-2 h-2 bg-neutral-500 rounded-full" />}
                     </button>
                 </div>
                 {showFiltros && (
-                    <div className="px-3 pb-3 pt-1 border-t border-slate-100 flex flex-wrap gap-3 animate-in fade-in slide-in-from-top-2 duration-200">
+                    <div className="px-3 pb-3 pt-1 border-t border-neutral-100 flex flex-wrap gap-3 animate-in fade-in slide-in-from-top-2 duration-200">
                         <CustomSelect value={filtroStatus} onChange={setFiltroStatus} options={[{ value: 'todos', label: 'Todos os status' }, ...TAREFA_STATUS_OPTIONS]} size="sm" className="flex-1 min-w-[140px]" />
                         <CustomSelect value={filtroPrioridade} onChange={setFiltroPrioridade} options={[{ value: 'todos', label: 'Todas as prioridades' }, ...TAREFA_PRIORIDADE_OPTIONS]} size="sm" className="flex-1 min-w-[140px]" />
                         {(filtroStatus !== 'todos' || filtroPrioridade !== 'todos') && (
                             <button
                                 onClick={() => { setFiltroStatus('todos'); setFiltroPrioridade('todos'); }}
-                                className="text-xs font-bold text-slate-400 hover:text-rose-600 flex items-center gap-1"
+                                className="text-xs font-bold text-neutral-400 hover:text-rose-600 flex items-center gap-1"
                             >
                                 <X size={13}/> Limpar filtros
                             </button>
@@ -396,16 +393,16 @@ export default function Tarefas() {
                     )}
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                        <div className="bg-neutral-50 p-4 rounded-2xl border border-neutral-200">
                             <div className="flex items-center justify-between mb-2">
-                                <span className="text-sm font-bold text-slate-600">A Fazer</span>
-                                <span className="bg-slate-200 text-slate-700 text-xs font-black px-2 py-1 rounded-full">{contagemTarefas.a_fazer}</span>
+                                <span className="text-sm font-bold text-neutral-600">A Fazer</span>
+                                <span className="bg-neutral-200 text-neutral-700 text-xs font-black px-2 py-1 rounded-full">{contagemTarefas.a_fazer}</span>
                             </div>
                         </div>
-                        <div className="bg-blue-50 p-4 rounded-2xl border border-blue-200">
+                        <div className="bg-neutral-50 p-4 rounded-2xl border border-black/10">
                             <div className="flex items-center justify-between mb-2">
-                                <span className="text-sm font-bold text-blue-700">Em Andamento</span>
-                                <span className="bg-blue-200 text-blue-700 text-xs font-black px-2 py-1 rounded-full">{contagemTarefas.em_andamento}</span>
+                                <span className="text-sm font-bold text-neutral-800">Em Andamento</span>
+                                <span className="bg-blue-200 text-neutral-800 text-xs font-black px-2 py-1 rounded-full">{contagemTarefas.em_andamento}</span>
                             </div>
                         </div>
                         <div className="bg-green-50 p-4 rounded-2xl border border-green-200">
@@ -417,11 +414,11 @@ export default function Tarefas() {
                     </div>
 
                     {loading ? (
-                        <div className="py-20 text-center text-slate-400">
+                        <div className="py-20 text-center text-neutral-400">
                             <Loader2 className="animate-spin mx-auto mb-2"/> Carregando...
                         </div>
                     ) : tarefasFiltradas.length === 0 ? (
-                        <div className="text-center py-16 text-slate-400">
+                        <div className="text-center py-16 text-neutral-400">
                             <CheckCircle size={48} className="mx-auto mb-4 opacity-50"/>
                             <p className="font-bold">Nenhuma tarefa encontrada</p>
                             <p className="text-sm">Crie uma nova tarefa para começar</p>
@@ -433,13 +430,13 @@ export default function Tarefas() {
                                 return (
                                     <div key={col.id} className={`rounded-2xl border p-4 min-h-[320px] ${col.cor}`}>
                                         <div className="flex items-center justify-between mb-4">
-                                            <h3 className="text-sm font-black text-slate-700">{col.label}</h3>
-                                            <span className="text-xs font-black bg-white/80 px-2 py-1 rounded-full text-slate-500">{items.length}</span>
+                                            <h3 className="text-sm font-black text-neutral-700">{col.label}</h3>
+                                            <span className="text-xs font-black bg-white/80 px-2 py-1 rounded-full text-neutral-500">{items.length}</span>
                                         </div>
                                         <div className="space-y-3">
                                             {items.map((t) => renderTarefaCard(t, true))}
                                             {items.length === 0 && (
-                                                <p className="text-xs text-slate-400 text-center py-8">Nenhuma tarefa</p>
+                                                <p className="text-xs text-neutral-400 text-center py-8">Nenhuma tarefa</p>
                                             )}
                                         </div>
                                     </div>
@@ -456,7 +453,7 @@ export default function Tarefas() {
                                             ? 'border-red-300 bg-red-50/30' 
                                             : t.alerta_data === 'proxima' && t.status !== 'concluido'
                                                 ? 'border-amber-300 bg-amber-50/30'
-                                                : 'border-slate-200'
+                                                : 'border-neutral-200'
                                     }`}
                                 >
                                     <div className="flex items-start gap-4">
@@ -464,7 +461,7 @@ export default function Tarefas() {
                                             {t.status !== 'concluido' && (
                                                 <button 
                                                     onClick={() => moverStatus(t.id, t.status === 'a_fazer' ? 'em_andamento' : 'concluido')}
-                                                    className="touch-target p-2 bg-slate-100 hover:bg-blue-100 text-slate-400 hover:text-blue-600 rounded-lg transition-colors"
+                                                    className="touch-target p-2 bg-neutral-100 hover:bg-neutral-100 text-neutral-400 hover:text-neutral-900 rounded-lg transition-colors"
                                                     title="Avançar status"
                                                 >
                                                     <ChevronUp size={16}/>
@@ -473,7 +470,7 @@ export default function Tarefas() {
                                             {t.status !== 'a_fazer' && (
                                                 <button 
                                                     onClick={() => moverStatus(t.id, t.status === 'concluido' ? 'em_andamento' : 'a_fazer')}
-                                                    className="touch-target p-2 bg-slate-100 hover:bg-slate-200 text-slate-400 hover:text-slate-600 rounded-lg transition-colors"
+                                                    className="touch-target p-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-400 hover:text-neutral-600 rounded-lg transition-colors"
                                                     title="Voltar status"
                                                 >
                                                     <ChevronDown size={16}/>
@@ -482,7 +479,7 @@ export default function Tarefas() {
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <div className="flex items-start justify-between gap-3 mb-2">
-                                                <h3 className={`font-bold text-slate-800 ${t.status === 'concluido' ? 'line-through text-slate-400' : ''}`}>
+                                                <h3 className={`font-bold text-neutral-800 ${t.status === 'concluido' ? 'line-through text-neutral-400' : ''}`}>
                                                     {t.titulo}
                                                 </h3>
                                                 <div className="flex items-center gap-2">
@@ -495,11 +492,11 @@ export default function Tarefas() {
                                                 </div>
                                             </div>
                                             {t.descricao && (
-                                                <p className="text-sm text-slate-500 mb-3">{t.descricao}</p>
+                                                <p className="text-sm text-neutral-500 mb-3">{t.descricao}</p>
                                             )}
                                             <div className="flex flex-wrap items-center gap-3 text-xs">
                                                 {t.responsavel_nome && (
-                                                    <span className="flex items-center gap-1 text-slate-600">
+                                                    <span className="flex items-center gap-1 text-neutral-600">
                                                         <User size={12}/> {t.responsavel_nome}
                                                     </span>
                                                 )}
@@ -509,7 +506,7 @@ export default function Tarefas() {
                                                             ? 'text-red-600 font-bold' 
                                                             : t.alerta_data === 'proxima' && t.status !== 'concluido'
                                                                 ? 'text-amber-600 font-bold'
-                                                                : 'text-slate-500'
+                                                                : 'text-neutral-500'
                                                     }`}>
                                                         <Calendar size={12}/> 
                                                         {new Date(t.data_limite).toLocaleDateString('pt-BR')}
@@ -519,7 +516,7 @@ export default function Tarefas() {
                                                 {t.paciente_nome && (
                                                     <Link 
                                                         href={`/pacientes/${t.paciente_id}`}
-                                                        className="flex items-center gap-1 text-blue-600 hover:underline"
+                                                        className="flex items-center gap-1 text-neutral-900 hover:underline"
                                                     >
                                                         <Building2 size={12}/> {t.paciente_nome}
                                                     </Link>
@@ -529,7 +526,7 @@ export default function Tarefas() {
                                         <div className="flex items-center gap-1">
                                             <button 
                                                 onClick={() => abrirEditarTarefa(t)}
-                                                className="touch-target p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                                className="touch-target p-2 text-neutral-400 hover:text-neutral-900 hover:bg-neutral-50 rounded-lg transition-colors"
                                                 title="Editar"
                                             >
                                                 <MoreVertical size={16}/>
@@ -543,72 +540,72 @@ export default function Tarefas() {
             </div>
 
             {/* Modal Criar/Editar */}
-            <Modal open={modalOpen} onClose={() => setModalOpen(false)} maxWidth="lg" hideCloseButton panelClassName="bg-white rounded-3xl shadow-2xl flex flex-col max-h-[90vh] border border-slate-100">
-                        <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-gradient-to-r from-blue-50 to-white rounded-t-3xl shrink-0">
-                            <h3 className="font-black text-xl text-slate-800">
+            <Modal open={modalOpen} onClose={() => setModalOpen(false)} maxWidth="lg" hideCloseButton panelClassName="bg-white rounded-[1.35rem] shadow-2xl flex flex-col max-h-[90vh] border border-black/10">
+                        <div className="p-6 border-b border-black/10 flex justify-between items-center bg-neutral-50 rounded-t-[1.35rem] shrink-0">
+                            <h3 className="font-black text-xl text-neutral-800">
                                 {tarefaEditando ? 'Editar Tarefa' : 'Nova Tarefa'}
                             </h3>
-                            <button onClick={() => setModalOpen(false)} className="touch-target p-2 text-slate-400 hover:bg-slate-100 rounded-xl transition-colors">
+                            <button onClick={() => setModalOpen(false)} className="touch-target p-2 text-neutral-400 hover:bg-neutral-100 rounded-xl transition-colors">
                                 <X size={20}/>
                             </button>
                         </div>
                         
                         <div className="p-6 overflow-y-auto space-y-4">
                             <div>
-                                <label className="text-xs font-bold text-slate-400 uppercase ml-1">Título *</label>
+                                <label className="text-xs font-bold text-neutral-400 uppercase ml-1">Título *</label>
                                 <input 
                                     value={form.titulo}
                                     onChange={e => setForm({...form, titulo: e.target.value})}
-                                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-700"
+                                    className="w-full px-4 py-3 bg-neutral-50 border border-neutral-200 rounded-xl outline-none focus:ring-2 focus:ring-neutral-500 font-bold text-neutral-700"
                                     placeholder="Nome da tarefa"
                                 />
                             </div>
                             
                             <div>
-                                <label className="text-xs font-bold text-slate-400 uppercase ml-1">Descrição</label>
+                                <label className="text-xs font-bold text-neutral-400 uppercase ml-1">Descrição</label>
                                 <textarea 
                                     value={form.descricao}
                                     onChange={e => setForm({...form, descricao: e.target.value})}
                                     rows={3}
-                                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700 resize-none"
+                                    className="w-full px-4 py-3 bg-neutral-50 border border-neutral-200 rounded-xl outline-none focus:ring-2 focus:ring-neutral-500 font-medium text-neutral-700 resize-none"
                                     placeholder="Detalhes da tarefa..."
                                 />
                             </div>
 
                             <div className="grid grid-cols-2 gap-3">
                                 <div>
-                                    <label className="text-xs font-bold text-slate-400 uppercase ml-1">Responsável</label>
+                                    <label className="text-xs font-bold text-neutral-400 uppercase ml-1">Responsável</label>
                                     <CustomSelect value={form.responsavel_id} onChange={v => setForm({...form, responsavel_id: v})} options={[{ value: '', label: 'Sem responsável' }, ...profissionais.map(p => ({ value: String(p.id), label: p.nome }))]} size="lg" />
                                 </div>
                                 <div>
-                                    <label className="text-xs font-bold text-slate-400 uppercase ml-1">Data Limite</label>
+                                    <label className="text-xs font-bold text-neutral-400 uppercase ml-1">Data Limite</label>
                                     <input 
                                         type="date"
                                         value={form.data_limite}
                                         onChange={e => setForm({...form, data_limite: e.target.value})}
-                                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-700"
+                                        className="w-full px-4 py-3 bg-neutral-50 border border-neutral-200 rounded-xl outline-none focus:ring-2 focus:ring-neutral-500 font-medium text-neutral-700"
                                     />
                                 </div>
                             </div>
 
                             <div className="grid grid-cols-2 gap-3">
                                 <div>
-                                    <label className="text-xs font-bold text-slate-400 uppercase ml-1">Prioridade</label>
+                                    <label className="text-xs font-bold text-neutral-400 uppercase ml-1">Prioridade</label>
                                     <CustomSelect value={form.prioridade} onChange={v => setForm({...form, prioridade: v as 'baixa' | 'media' | 'alta'})} options={TAREFA_PRIORIDADE_OPTIONS} size="lg" />
                                 </div>
                                 <div>
-                                    <label className="text-xs font-bold text-slate-400 uppercase ml-1">Status</label>
+                                    <label className="text-xs font-bold text-neutral-400 uppercase ml-1">Status</label>
                                     <CustomSelect value={form.status} onChange={v => setForm({...form, status: v as 'a_fazer' | 'em_andamento' | 'concluido'})} options={TAREFA_STATUS_OPTIONS} size="lg" />
                                 </div>
                             </div>
 
                             <div>
-                                <label className="text-xs font-bold text-slate-400 uppercase ml-1">Vincular Paciente (opcional)</label>
+                                <label className="text-xs font-bold text-neutral-400 uppercase ml-1">Vincular Paciente (opcional)</label>
                                 <CustomSelect value={form.paciente_id} onChange={v => setForm({...form, paciente_id: v})} options={[{ value: '', label: 'Nenhum paciente' }, ...pacientes.map(p => ({ value: p.id, label: p.nome }))]} size="lg" searchable />
                             </div>
                         </div>
                         
-                        <div className="p-6 border-t border-slate-100 bg-slate-50 flex flex-col sm:flex-row gap-3 rounded-b-3xl">
+                        <div className="p-6 border-t border-neutral-100 bg-neutral-50 flex flex-col sm:flex-row gap-3 rounded-b-3xl">
                             {tarefaEditando && (
                                 <button 
                                     onClick={() => excluirTarefa(tarefaEditando.id)}
@@ -617,18 +614,18 @@ export default function Tarefas() {
                                     <Trash2 size={18}/> Excluir
                                 </button>
                             )}
-                            <button onClick={() => setModalOpen(false)} className="touch-target flex-1 py-3 text-slate-500 font-bold hover:bg-slate-200 rounded-xl transition-colors">
+                            <button onClick={() => setModalOpen(false)} className="touch-target flex-1 py-3 text-neutral-500 font-bold hover:bg-neutral-200 rounded-xl transition-colors">
                                 Cancelar
                             </button>
                             <button 
                                 onClick={salvarTarefa}
                                 disabled={salvando}
-                                className="touch-target flex-1 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all flex items-center justify-center gap-2"
+                                className="touch-target flex-1 py-3 bg-neutral-900 text-white font-bold rounded-xl hover:bg-neutral-800 shadow-lg shadow-black/10 transition-all flex items-center justify-center gap-2"
                             >
                                 {salvando ? <Loader2 className="animate-spin"/> : <><Save size={18}/> Salvar</>}
                             </button>
                         </div>
             </Modal>
-        </div>
+        </BentoPageShell>
     );
 }

@@ -4,8 +4,10 @@ import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import {
     Loader2, Plus, Network, Building2, Users as UsersIcon, ShieldAlert,
-    X, Mail, User, Building, Copy, Check, AlertTriangle, LogOut,
+    X, Mail, User, Building, Copy, Check, AlertTriangle,
 } from 'lucide-react';
+import BentoPageShell from '@/components/bento/BentoPageShell';
+import { bentoCard, bentoPrimaryBtn, bentoGhostBtn } from '@/lib/bentoUi';
 
 type Rede = { id: string | number; nome: string; created_at?: string | null };
 
@@ -124,115 +126,83 @@ export default function SuperAdminPage() {
         } catch {}
     }
 
-    async function sairBackoffice() {
-        router.push('/dashboard');
-    }
-
     const fmtData = useMemo(() => (d?: string | null) => {
         if (!d) return '—';
         try { return new Date(d).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }); }
         catch { return '—'; }
     }, []);
 
-    if (autorizado === null || (carregando && autorizado === true && redes.length === 0)) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-slate-900 text-blue-300">
-                <Loader2 className="animate-spin" size={32} />
-            </div>
-        );
-    }
-
     if (autorizado === false) return null;
 
     return (
-        <div className="min-h-screen bg-slate-50">
-            {/* Topbar dark — diferencia visualmente do sistema */}
-            <header className="bg-slate-900 text-white border-b border-slate-800 sticky top-0 z-30">
-                <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
-                            <ShieldAlert size={18} />
-                        </div>
-                        <div>
-                            <p className="text-[10px] font-black uppercase tracking-[0.25em] text-blue-300">Ortus</p>
-                            <h1 className="text-base font-bold leading-tight">Painel Super Admin</h1>
-                        </div>
-                    </div>
-                    <button
-                        onClick={sairBackoffice}
-                        className="flex items-center gap-2 px-3 py-2 text-xs font-bold text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg transition-all"
-                    >
-                        <LogOut size={14} /> Sair do backoffice
-                    </button>
+        <BentoPageShell
+            title="Painel SaaS"
+            subtitle="Onboarding de redes e visão global da plataforma"
+            eyebrow="Super admin"
+            maxWidthClass="max-w-5xl"
+            actions={
+                <button type="button" onClick={abrirModal} className={bentoPrimaryBtn}>
+                    <Plus size={16} /> Novo cliente
+                </button>
+            }
+        >
+            {(autorizado === null || (carregando && redes.length === 0)) ? (
+                <div className="space-y-3 py-8">
+                    <div className="h-24 animate-pulse rounded-[1.35rem] bg-neutral-200" />
+                    <div className="h-64 animate-pulse rounded-[1.35rem] bg-neutral-100" />
                 </div>
-            </header>
-
-            <div className="max-w-7xl mx-auto px-6 py-10">
-                {/* Métricas */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-10">
-                    <Card label="Total de Redes" value={metricas.redes} icon={<Network size={20} />} accent="from-blue-500 to-blue-600" />
-                    <Card label="Total de Clínicas" value={metricas.clinicas} icon={<Building2 size={20} />} accent="from-purple-500 to-purple-600" />
-                    <Card label="Usuários Ativos" value={metricas.usuarios} icon={<UsersIcon size={20} />} accent="from-emerald-500 to-emerald-600" />
+            ) : (
+              <>
+                <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                    <Card label="Total de Redes" value={metricas.redes} icon={<Network size={20} />} accent="from-neutral-800 to-neutral-950" />
+                    <Card label="Total de Clínicas" value={metricas.clinicas} icon={<Building2 size={20} />} accent="from-neutral-700 to-neutral-900" />
+                    <Card label="Usuários Ativos" value={metricas.usuarios} icon={<UsersIcon size={20} />} accent="from-neutral-600 to-neutral-800" />
                 </div>
 
-                {/* Cabeçalho + ação */}
-                <div className="flex items-center justify-between mb-4">
-                    <div>
-                        <h2 className="text-xl font-extrabold text-slate-800">Redes cadastradas</h2>
-                        <p className="text-xs text-slate-500 mt-0.5">Cada rede é um tenant isolado.</p>
-                    </div>
-                    <button
-                        onClick={abrirModal}
-                        className="flex items-center gap-2 px-5 py-3 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl shadow-lg shadow-slate-900/10 active:scale-95 transition-all"
-                    >
-                        <Plus size={16} /> Novo cliente (Onboarding)
-                    </button>
-                </div>
-
-                {/* Tabela */}
-                <div className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
+                <div className={`${bentoCard} overflow-hidden border border-black/5`}>
                     <table className="w-full">
-                        <thead className="bg-slate-50">
-                            <tr className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                        <thead className="bg-neutral-50">
+                            <tr className="text-[10px] font-black uppercase tracking-wider text-neutral-400">
                                 <th className="text-left px-5 py-3">Rede</th>
                                 <th className="text-left px-5 py-3">Criada em</th>
                             </tr>
                         </thead>
                         <tbody>
                             {redes.length === 0 && (
-                                <tr><td colSpan={2} className="px-5 py-10 text-center text-sm text-slate-400 italic">Nenhuma rede cadastrada ainda.</td></tr>
+                                <tr><td colSpan={2} className="px-5 py-10 text-center text-sm text-neutral-400 italic">Nenhuma rede cadastrada ainda.</td></tr>
                             )}
                             {redes.map((r, idx) => (
-                                <tr key={`${r.id}-${idx}`} className="border-t border-slate-50 hover:bg-blue-50/30 transition-colors">
+                                <tr key={`${r.id}-${idx}`} className="border-t border-neutral-50 hover:bg-neutral-50 transition-colors">
                                     <td className="px-5 py-4">
                                         <div className="flex items-center gap-3">
-                                            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-slate-700 to-slate-900 text-white flex items-center justify-center font-bold text-xs shadow-sm">
+                                            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-neutral-700 to-neutral-900 text-white flex items-center justify-center font-bold text-xs shadow-sm">
                                                 {r.nome.split(' ').map((n) => n[0]).slice(0, 2).join('').toUpperCase()}
                                             </div>
                                             <div>
-                                                <p className="font-bold text-slate-700 text-sm">{r.nome}</p>
-                                                <p className="text-[10px] text-slate-400 font-mono">#{r.id}</p>
+                                                <p className="font-bold text-neutral-700 text-sm">{r.nome}</p>
+                                                <p className="text-[10px] text-neutral-400 font-mono">#{r.id}</p>
                                             </div>
                                         </div>
                                     </td>
-                                    <td className="px-5 py-4 text-sm font-bold text-slate-600">{fmtData(r.created_at)}</td>
+                                    <td className="px-5 py-4 text-sm font-bold text-neutral-600">{fmtData(r.created_at)}</td>
                                 </tr>
                             ))}
                         </tbody>
                     </table>
                 </div>
-            </div>
+              </>
+            )}
 
             {/* Modal de onboarding */}
             {modalOpen && (
-                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                    <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-200">
-                        <div className="bg-slate-900 text-white px-6 py-4 flex items-center justify-between">
+                <div className="fixed inset-0 bg-neutral-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl border border-neutral-100 overflow-hidden animate-in zoom-in-95 duration-200">
+                        <div className="bg-neutral-900 text-white px-6 py-4 flex items-center justify-between">
                             <div className="flex items-center gap-2">
-                                <ShieldAlert size={16} className="text-blue-300"/>
+                                <ShieldAlert size={16} className="text-neutral-300"/>
                                 <h2 className="font-bold">Onboarding de cliente</h2>
                             </div>
-                            <button onClick={() => setModalOpen(false)} className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white"><X size={18} /></button>
+                            <button onClick={() => setModalOpen(false)} className="p-1 rounded-lg hover:bg-neutral-800 text-neutral-400 hover:text-white"><X size={18} /></button>
                         </div>
                         <form onSubmit={salvar} className="p-6 space-y-4">
                             {erro && (
@@ -244,7 +214,7 @@ export default function SuperAdminPage() {
                                 <input
                                     value={form.nomeRede}
                                     onChange={(e) => setForm({ ...form, nomeRede: e.target.value })}
-                                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-medium text-slate-700 focus:bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none"
+                                    className="w-full px-3 py-2.5 bg-neutral-50 border border-neutral-200 rounded-lg text-sm font-medium text-neutral-700 focus:bg-white focus:border-neutral-400 focus:ring-2 focus:ring-neutral-200 outline-none"
                                     placeholder="Ex.: Clínica Sorrir"
                                     required
                                 />
@@ -253,7 +223,7 @@ export default function SuperAdminPage() {
                                 <input
                                     value={form.nomeMatriz}
                                     onChange={(e) => setForm({ ...form, nomeMatriz: e.target.value })}
-                                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-medium text-slate-700 focus:bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none"
+                                    className="w-full px-3 py-2.5 bg-neutral-50 border border-neutral-200 rounded-lg text-sm font-medium text-neutral-700 focus:bg-white focus:border-neutral-400 focus:ring-2 focus:ring-neutral-200 outline-none"
                                     placeholder="Ex.: Sorrir Centro"
                                     required
                                 />
@@ -262,7 +232,7 @@ export default function SuperAdminPage() {
                                 <input
                                     value={form.nomeDono}
                                     onChange={(e) => setForm({ ...form, nomeDono: e.target.value })}
-                                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-medium text-slate-700 focus:bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none"
+                                    className="w-full px-3 py-2.5 bg-neutral-50 border border-neutral-200 rounded-lg text-sm font-medium text-neutral-700 focus:bg-white focus:border-neutral-400 focus:ring-2 focus:ring-neutral-200 outline-none"
                                     placeholder="Ex.: Dr. João Silva"
                                     required
                                 />
@@ -272,15 +242,15 @@ export default function SuperAdminPage() {
                                     type="email"
                                     value={form.emailDono}
                                     onChange={(e) => setForm({ ...form, emailDono: e.target.value })}
-                                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-medium text-slate-700 focus:bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none"
+                                    className="w-full px-3 py-2.5 bg-neutral-50 border border-neutral-200 rounded-lg text-sm font-medium text-neutral-700 focus:bg-white focus:border-neutral-400 focus:ring-2 focus:ring-neutral-200 outline-none"
                                     placeholder="dono@clinica.com"
                                     required
                                 />
                             </Field>
 
-                            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-50">
-                                <button type="button" onClick={() => setModalOpen(false)} className="px-4 py-2 text-sm font-bold text-slate-500 hover:bg-slate-50 rounded-lg">Cancelar</button>
-                                <button type="submit" disabled={salvando} className="px-5 py-2 bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white text-sm font-bold rounded-lg flex items-center gap-2 shadow-md">
+                            <div className="flex items-center justify-end gap-2 pt-3 border-t border-neutral-50">
+                                <button type="button" onClick={() => setModalOpen(false)} className="px-4 py-2 text-sm font-bold text-neutral-500 hover:bg-neutral-50 rounded-lg">Cancelar</button>
+                                <button type="submit" disabled={salvando} className="px-5 py-2 bg-neutral-900 hover:bg-neutral-800 disabled:opacity-50 text-white text-sm font-bold rounded-lg flex items-center gap-2 shadow-md">
                                     {salvando ? <Loader2 size={14} className="animate-spin"/> : <Plus size={14}/>}
                                     Criar tenant
                                 </button>
@@ -292,27 +262,27 @@ export default function SuperAdminPage() {
 
             {/* Modal de credenciais */}
             {credenciais && (
-                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                    <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-200">
-                        <div className="bg-gradient-to-br from-emerald-500 to-emerald-600 text-white px-6 py-5">
-                            <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center mb-2">
+                <div className="fixed inset-0 bg-neutral-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-neutral-100 overflow-hidden animate-in zoom-in-95 duration-200">
+                        <div className="bg-neutral-900 px-6 py-5 text-white">
+                            <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-white/15">
                                 <Check size={24} />
                             </div>
-                            <h2 className="font-bold text-lg">Tenant criado com sucesso!</h2>
-                            <p className="text-emerald-50 text-xs mt-0.5">Envie estes dados ao dono via WhatsApp.</p>
+                            <h2 className="text-lg font-semibold">Tenant criado com sucesso!</h2>
+                            <p className="mt-0.5 text-xs text-neutral-300">Envie estes dados ao dono via WhatsApp.</p>
                         </div>
                         <div className="p-6 space-y-3">
-                            <div className="bg-slate-900 text-white border border-slate-800 rounded-xl p-3">
-                                <p className="text-[9px] font-black uppercase tracking-wider text-blue-300 mb-0.5">Rede</p>
+                            <div className="bg-neutral-900 text-white border border-neutral-800 rounded-xl p-3">
+                                <p className="text-[9px] font-black uppercase tracking-wider text-neutral-300 mb-0.5">Rede</p>
                                 <p className="text-sm font-bold">{credenciais.rede}</p>
                             </div>
-                            <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
+                            <div className="bg-neutral-50 border border-neutral-100 rounded-xl p-3">
                                 <div className="flex items-center justify-between">
                                     <div className="min-w-0">
-                                        <p className="text-[9px] font-black uppercase tracking-wider text-slate-400 mb-0.5">E-mail</p>
-                                        <p className="text-sm font-bold text-slate-700 font-mono break-all">{credenciais.email}</p>
+                                        <p className="text-[9px] font-black uppercase tracking-wider text-neutral-400 mb-0.5">E-mail</p>
+                                        <p className="text-sm font-bold text-neutral-700 font-mono break-all">{credenciais.email}</p>
                                     </div>
-                                    <button onClick={() => copiar('email')} className="ml-2 p-2 rounded-lg hover:bg-white text-slate-400 hover:text-blue-600">
+                                    <button onClick={() => copiar('email')} className="ml-2 p-2 rounded-lg hover:bg-white text-neutral-400 hover:text-neutral-900">
                                         {copiado === 'email' ? <Check size={16} className="text-emerald-600"/> : <Copy size={16}/>}
                                     </button>
                                 </div>
@@ -333,13 +303,13 @@ export default function SuperAdminPage() {
                             </div>
                             <button
                                 onClick={() => copiar('tudo')}
-                                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-bold rounded-lg"
+                                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 text-sm font-bold rounded-lg"
                             >
                                 {copiado === 'tudo' ? <><Check size={14} className="text-emerald-600"/> Copiado!</> : <><Copy size={14}/> Copiar mensagem para WhatsApp</>}
                             </button>
                             <button
                                 onClick={() => setCredenciais(null)}
-                                className="w-full px-4 py-3 bg-slate-900 hover:bg-slate-800 text-white text-sm font-bold rounded-lg shadow-md"
+                                className="w-full px-4 py-3 bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-bold rounded-lg shadow-md"
                             >
                                 Concluir
                             </button>
@@ -347,16 +317,16 @@ export default function SuperAdminPage() {
                     </div>
                 </div>
             )}
-        </div>
+        </BentoPageShell>
     );
 }
 
 function Card({ label, value, icon, accent }: { label: string; value: number; icon: React.ReactNode; accent: string }) {
     return (
-        <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm flex items-center justify-between">
+        <div className={`${bentoCard} flex items-center justify-between border border-black/5 p-5`}>
             <div>
-                <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">{label}</p>
-                <p className="text-3xl font-extrabold text-slate-800">{value.toLocaleString('pt-BR')}</p>
+                <p className="text-[10px] font-black uppercase tracking-wider text-neutral-400 mb-1">{label}</p>
+                <p className="text-3xl font-extrabold text-neutral-800">{value.toLocaleString('pt-BR')}</p>
             </div>
             <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${accent} text-white flex items-center justify-center shadow-md`}>
                 {icon}
@@ -368,7 +338,7 @@ function Card({ label, value, icon, accent }: { label: string; value: number; ic
 function Field({ label, icon, children }: { label: string; icon?: React.ReactNode; children: React.ReactNode }) {
     return (
         <div>
-            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1 flex items-center gap-1 mb-1">
+            <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider ml-1 flex items-center gap-1 mb-1">
                 {icon} {label}
             </label>
             {children}

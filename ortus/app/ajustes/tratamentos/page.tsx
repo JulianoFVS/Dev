@@ -16,6 +16,8 @@ import {
     DollarSign,
 } from 'lucide-react';
 import Modal from '@/components/ui/Modal';
+import BentoPageShell from '@/components/bento/BentoPageShell';
+import { bentoCard, bentoPrimaryBtn, bentoSection, bentoModalPanel, bentoChipOutline, bentoInput } from '@/lib/bentoUi';
 
 interface Especialidade {
     id: string;
@@ -380,31 +382,24 @@ export default function TratamentosBasePage() {
     }
 
     return (
-        <div className="p-4 sm:p-6 md:p-10 max-w-6xl mx-auto space-y-6">
-            <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                    <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-blue-500">
-                        <Layers3 size={14} /> Catálogo Base · Ortus
-                    </div>
-                    <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-800">Especialidades e Tratamentos</h1>
-                    <p className="text-sm text-slate-500">Defina o catálogo padrão de procedimentos que abastece os planos e fichas clínicas.</p>
-                </div>
-                <button
-                    onClick={() => abrirModalEspecialidade()}
-                    className="flex items-center justify-center gap-2 px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-lg shadow-blue-200 text-sm"
-                >
+        <BentoPageShell
+            title="Tratamentos base"
+            subtitle="Catálogo de especialidades e procedimentos da clínica"
+            eyebrow="Ajustes"
+            actions={
+                <button type="button" onClick={() => abrirModalEspecialidade()} className={bentoPrimaryBtn}>
                     <Plus size={16} /> Nova especialidade
                 </button>
-            </header>
-
-            <div className="grid grid-cols-1 lg:grid-cols-[260px,1fr] gap-6">
-                <aside className="bg-white rounded-3xl border border-slate-100 shadow-sm p-4 space-y-4">
+            }
+        >
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-[260px,1fr]">
+                <aside className={`${bentoCard} space-y-4 border border-black/5 p-4`}>
                     <div className="flex items-center justify-between">
-                        <p className="text-[11px] font-black uppercase tracking-wider text-slate-400">Especialidades</p>
-                        {especialidadesLoading && <Loader2 size={16} className="text-blue-500 animate-spin" />}
+                        <p className="text-[11px] font-black uppercase tracking-wider text-neutral-400">Especialidades</p>
+                        {especialidadesLoading && <Loader2 size={16} className="text-neutral-600 animate-spin" />}
                     </div>
                     {especialidades.length === 0 && !especialidadesLoading ? (
-                        <div className="text-sm text-slate-500 bg-slate-50 border border-dashed border-slate-200 rounded-2xl p-4 text-center">
+                        <div className="text-sm text-neutral-500 bg-neutral-50 border border-dashed border-neutral-200 rounded-2xl p-4 text-center">
                             Nenhuma especialidade cadastrada.
                         </div>
                     ) : (
@@ -424,14 +419,14 @@ export default function TratamentosBasePage() {
                                                 setSelectedEspecialidadeId(esp.id);
                                             }
                                         }}
-                                        className={`p-3 rounded-2xl border flex items-center justify-between gap-3 group ${ativo ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-slate-200 bg-white text-slate-600 hover:border-blue-200'}`}
+                                        className={`p-3 rounded-2xl border flex items-center justify-between gap-3 group ${ativo ? 'border-neutral-900 bg-neutral-50 text-neutral-800' : 'border-neutral-200 bg-white text-neutral-600 hover:border-neutral-300'}`}
                                     >
                                         <span className="font-bold text-sm truncate">{esp.nome}</span>
                                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                             <button
                                                 type="button"
                                                 onClick={(e) => { e.stopPropagation(); abrirModalEspecialidade(esp); }}
-                                                className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50"
+                                                className="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-900 hover:bg-neutral-50"
                                                 title="Editar"
                                             >
                                                 <Pencil size={16} />
@@ -439,7 +434,7 @@ export default function TratamentosBasePage() {
                                             <button
                                                 type="button"
                                                 onClick={(e) => { e.stopPropagation(); handleExcluirEspecialidade(esp); }}
-                                                className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50"
+                                                className="p-1.5 rounded-lg text-neutral-400 hover:text-red-600 hover:bg-red-50"
                                                 title="Excluir"
                                                 disabled={removendo}
                                             >
@@ -453,33 +448,33 @@ export default function TratamentosBasePage() {
                     )}
                 </aside>
 
-                <section className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 space-y-4">
+                <section className="bg-white rounded-[1.35rem] border border-neutral-100 shadow-sm p-6 space-y-4">
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
                         <div>
-                            <p className="text-[11px] font-black uppercase tracking-wider text-slate-400">Tratamentos base</p>
-                            <h2 className="text-xl font-bold text-slate-800">
+                            <p className="text-[11px] font-black uppercase tracking-wider text-neutral-400">Tratamentos base</p>
+                            <h2 className="text-xl font-bold text-neutral-800">
                                 {especialidadeSelecionada ? especialidadeSelecionada.nome : 'Selecione uma especialidade'}
                             </h2>
                         </div>
                         <button
                             onClick={() => abrirModalTratamento()}
                             disabled={!especialidadeSelecionada}
-                            className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-200 disabled:text-slate-500"
+                            className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:bg-neutral-200 disabled:text-neutral-500"
                         >
                             <Plus size={16} /> Novo tratamento
                         </button>
                     </div>
 
                     {!especialidadeSelecionada ? (
-                        <div className="text-sm text-slate-500 bg-slate-50 border border-dashed border-slate-200 rounded-3xl p-10 text-center">
+                        <div className="text-sm text-neutral-500 bg-neutral-50 border border-dashed border-neutral-200 rounded-[1.35rem] p-10 text-center">
                             Escolha uma especialidade para visualizar seus tratamentos.
                         </div>
                     ) : tratamentosLoading ? (
-                        <div className="flex items-center gap-2 text-slate-500 text-sm">
+                        <div className="flex items-center gap-2 text-neutral-500 text-sm">
                             <Loader2 size={18} className="animate-spin" /> Carregando tratamentos...
                         </div>
                     ) : tratamentos.length === 0 ? (
-                        <div className="text-sm text-slate-500 bg-slate-50 border border-dashed border-slate-200 rounded-3xl p-10 text-center">
+                        <div className="text-sm text-neutral-500 bg-neutral-50 border border-dashed border-neutral-200 rounded-[1.35rem] p-10 text-center">
                             Nenhum tratamento cadastrado para esta especialidade.
                         </div>
                     ) : (
@@ -487,25 +482,25 @@ export default function TratamentosBasePage() {
                             {tratamentos.map((trat) => {
                                 const removendo = excluindoTratamentoId === trat.id;
                                 return (
-                                    <div key={trat.id} className="border border-slate-100 rounded-3xl p-5 shadow-sm space-y-4">
+                                    <div key={trat.id} className="border border-neutral-100 rounded-[1.35rem] p-5 shadow-sm space-y-4">
                                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                                             <div>
-                                                <p className="text-base font-bold text-slate-800">{trat.nome}</p>
-                                                <p className="text-xs text-slate-500">Atualizado em {formatDateLabel(trat.updated_at || trat.created_at)}</p>
+                                                <p className="text-base font-bold text-neutral-800">{trat.nome}</p>
+                                                <p className="text-xs text-neutral-500">Atualizado em {formatDateLabel(trat.updated_at || trat.created_at)}</p>
                                             </div>
                                             <div className="flex items-center gap-2">
-                                                <span className={`text-xs font-black px-3 py-1.5 rounded-full border ${trat.aceita_faces ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-500 border-slate-200'}`}>
+                                                <span className={`text-xs font-black px-3 py-1.5 rounded-full border ${trat.aceita_faces ? 'bg-neutral-900 text-white border-neutral-900' : 'bg-white text-neutral-500 border-neutral-200'}`}>
                                                     {trat.aceita_faces ? 'Aceita faces' : 'Faces indisponíveis'}
                                                 </span>
                                                 <button
                                                     onClick={() => abrirModalTratamento(trat)}
-                                                    className="p-2 rounded-xl border border-slate-200 text-slate-500 hover:border-blue-200 hover:text-blue-600"
+                                                    className="p-2 rounded-xl border border-neutral-200 text-neutral-500 hover:border-neutral-300 hover:text-neutral-900"
                                                 >
                                                     <Pencil size={16} />
                                                 </button>
                                                 <button
                                                     onClick={() => handleExcluirTratamento(trat)}
-                                                    className="p-2 rounded-xl border border-slate-200 text-slate-500 hover:border-red-200 hover:text-red-600"
+                                                    className="p-2 rounded-xl border border-neutral-200 text-neutral-500 hover:border-red-200 hover:text-red-600"
                                                     disabled={removendo}
                                                 >
                                                     {removendo ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
@@ -514,22 +509,22 @@ export default function TratamentosBasePage() {
                                         </div>
                                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                             <div>
-                                                <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Valor padrão</p>
-                                                <div className="mt-1 inline-flex items-center gap-2 text-sm font-bold text-slate-800">
-                                                    <DollarSign size={16} className="text-slate-400" />
+                                                <p className="text-[10px] font-black uppercase tracking-wider text-neutral-400">Valor padrão</p>
+                                                <div className="mt-1 inline-flex items-center gap-2 text-sm font-bold text-neutral-800">
+                                                    <DollarSign size={16} className="text-neutral-400" />
                                                     {trat.valor_sugerido !== null ? trat.valor_sugerido.toFixed(2) : '--'}
                                                 </div>
                                             </div>
                                             <div>
-                                                <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Custo padrão</p>
-                                                <div className="mt-1 inline-flex items-center gap-2 text-sm font-bold text-slate-800">
-                                                    <DollarSign size={16} className="text-slate-400" />
+                                                <p className="text-[10px] font-black uppercase tracking-wider text-neutral-400">Custo padrão</p>
+                                                <div className="mt-1 inline-flex items-center gap-2 text-sm font-bold text-neutral-800">
+                                                    <DollarSign size={16} className="text-neutral-400" />
                                                     {trat.custo_padrao !== null ? trat.custo_padrao.toFixed(2) : '--'}
                                                 </div>
                                             </div>
                                             <div>
-                                                <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Código TUSS</p>
-                                                <p className="mt-1 text-sm font-bold text-slate-800">{trat.codigo_tuss_padrao || '—'}</p>
+                                                <p className="text-[10px] font-black uppercase tracking-wider text-neutral-400">Código TUSS</p>
+                                                <p className="mt-1 text-sm font-bold text-neutral-800">{trat.codigo_tuss_padrao || '—'}</p>
                                             </div>
                                         </div>
                                     </div>
@@ -540,27 +535,27 @@ export default function TratamentosBasePage() {
                 </section>
             </div>
 
-            <Modal open={especialidadeModalAberto} onClose={fecharModalEspecialidade} maxWidth="md" hideCloseButton panelClassName="bg-white rounded-3xl border border-slate-100 shadow-2xl overflow-hidden">
-                    <div className="px-6 py-4 border-b border-slate-100">
-                        <h2 className="text-lg font-bold text-slate-800">{especialidadeEditando ? 'Editar especialidade' : 'Nova especialidade'}</h2>
-                        <p className="text-xs text-slate-500">Defina as áreas clínicas utilizadas para organizar o catálogo.</p>
+            <Modal open={especialidadeModalAberto} onClose={fecharModalEspecialidade} maxWidth="md" hideCloseButton panelClassName={`${bentoModalPanel} overflow-hidden`}>
+                    <div className="px-6 py-4 border-b border-neutral-100">
+                        <h2 className="text-lg font-bold text-neutral-800">{especialidadeEditando ? 'Editar especialidade' : 'Nova especialidade'}</h2>
+                        <p className="text-xs text-neutral-500">Defina as áreas clínicas utilizadas para organizar o catálogo.</p>
                     </div>
                     <form onSubmit={handleSubmitEspecialidade} className="p-6 space-y-4">
                         <div>
-                            <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Nome</label>
+                            <label className="text-[10px] font-black uppercase tracking-wider text-neutral-400">Nome</label>
                             <input
                                 value={especialidadeFormNome}
                                 onChange={(e) => setEspecialidadeFormNome(e.target.value)}
-                                className="w-full mt-1 px-3 py-2.5 rounded-2xl border border-slate-200 bg-slate-50 text-sm font-bold text-slate-700 focus:bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                                className="w-full mt-1 px-3 py-2.5 rounded-2xl border border-neutral-200 bg-neutral-50 text-sm font-bold text-neutral-700 focus:bg-white focus:border-neutral-400 focus:ring-2 focus:ring-neutral-200"
                                 placeholder="Ex.: Cirurgia, Endodontia, Periodontia"
                             />
                         </div>
                         <div className="flex items-center justify-end gap-2 pt-2">
-                            <button type="button" onClick={fecharModalEspecialidade} className="px-4 py-2 rounded-xl text-sm font-bold text-slate-500 hover:bg-slate-50">Cancelar</button>
+                            <button type="button" onClick={fecharModalEspecialidade} className="px-4 py-2 rounded-xl text-sm font-bold text-neutral-500 hover:bg-neutral-50">Cancelar</button>
                             <button
                                 type="submit"
                                 disabled={especialidadeSalvando}
-                                className="px-5 py-2 rounded-xl text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+                                className="px-5 py-2 rounded-xl text-sm font-bold text-white bg-neutral-900 hover:bg-neutral-800 disabled:opacity-50 flex items-center gap-2"
                             >
                                 {especialidadeSalvando ? <Loader2 size={16} className="animate-spin" /> : null}
                                 {especialidadeEditando ? 'Salvar alterações' : 'Criar especialidade'}
@@ -569,66 +564,66 @@ export default function TratamentosBasePage() {
                     </form>
             </Modal>
 
-            <Modal open={tratamentoModalAberto} onClose={fecharModalTratamento} maxWidth="2xl" hideCloseButton panelClassName="bg-white rounded-3xl border border-slate-100 shadow-2xl overflow-hidden">
-                    <div className="px-6 py-4 border-b border-slate-100">
-                        <h2 className="text-lg font-bold text-slate-800">{tratamentoEditando ? 'Editar tratamento' : 'Novo tratamento base'}</h2>
-                        <p className="text-xs text-slate-500">Defina o procedimento padrão para {especialidadeSelecionada?.nome || 'a especialidade selecionada'}.</p>
+            <Modal open={tratamentoModalAberto} onClose={fecharModalTratamento} maxWidth="2xl" hideCloseButton panelClassName={`${bentoModalPanel} overflow-hidden`}>
+                    <div className="px-6 py-4 border-b border-neutral-100">
+                        <h2 className="text-lg font-bold text-neutral-800">{tratamentoEditando ? 'Editar tratamento' : 'Novo tratamento base'}</h2>
+                        <p className="text-xs text-neutral-500">Defina o procedimento padrão para {especialidadeSelecionada?.nome || 'a especialidade selecionada'}.</p>
                     </div>
                     <form onSubmit={handleSubmitTratamento} className="p-6 space-y-4">
                             <div>
-                                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Nome do tratamento</label>
+                                <label className="text-[10px] font-black uppercase tracking-wider text-neutral-400">Nome do tratamento</label>
                                 <input
                                     value={tratamentoForm.nome}
                                     onChange={(e) => setTratamentoForm((prev) => ({ ...prev, nome: e.target.value }))}
-                                    className="w-full mt-1 px-3 py-2.5 rounded-2xl border border-slate-200 bg-slate-50 text-sm font-bold text-slate-700 focus:bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                                    className="w-full mt-1 px-3 py-2.5 rounded-2xl border border-neutral-200 bg-neutral-50 text-sm font-bold text-neutral-700 focus:bg-white focus:border-neutral-400 focus:ring-2 focus:ring-neutral-200"
                                     placeholder="Ex.: Exodontia simples, Clareamento, Reabilitação"
                                 />
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
-                                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Valor padrão (R$)</label>
+                                    <label className="text-[10px] font-black uppercase tracking-wider text-neutral-400">Valor padrão (R$)</label>
                                     <input
                                         type="number"
                                         min="0"
                                         step="0.01"
                                         value={tratamentoForm.valor_padrao}
                                         onChange={(e) => setTratamentoForm((prev) => ({ ...prev, valor_padrao: e.target.value }))}
-                                        className="w-full mt-1 px-3 py-2.5 rounded-2xl border border-slate-200 bg-slate-50 text-sm font-bold text-slate-700 focus:bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                                        className="w-full mt-1 px-3 py-2.5 rounded-2xl border border-neutral-200 bg-neutral-50 text-sm font-bold text-neutral-700 focus:bg-white focus:border-neutral-400 focus:ring-2 focus:ring-neutral-200"
                                         placeholder="0,00"
                                     />
                                 </div>
                                 <div>
-                                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Custo padrão (R$)</label>
+                                    <label className="text-[10px] font-black uppercase tracking-wider text-neutral-400">Custo padrão (R$)</label>
                                     <input
                                         type="number"
                                         min="0"
                                         step="0.01"
                                         value={tratamentoForm.custo_padrao}
                                         onChange={(e) => setTratamentoForm((prev) => ({ ...prev, custo_padrao: e.target.value }))}
-                                        className="w-full mt-1 px-3 py-2.5 rounded-2xl border border-slate-200 bg-slate-50 text-sm font-bold text-slate-700 focus:bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                                        className="w-full mt-1 px-3 py-2.5 rounded-2xl border border-neutral-200 bg-neutral-50 text-sm font-bold text-neutral-700 focus:bg-white focus:border-neutral-400 focus:ring-2 focus:ring-neutral-200"
                                         placeholder="0,00"
                                     />
                                 </div>
                             </div>
                             <div>
-                                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Código TUSS (opcional)</label>
+                                <label className="text-[10px] font-black uppercase tracking-wider text-neutral-400">Código TUSS (opcional)</label>
                                 <input
                                     value={tratamentoForm.codigo_tuss}
                                     onChange={(e) => setTratamentoForm((prev) => ({ ...prev, codigo_tuss: e.target.value }))}
-                                    className="w-full mt-1 px-3 py-2.5 rounded-2xl border border-slate-200 bg-slate-50 text-sm font-bold text-slate-700 focus:bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                                    className="w-full mt-1 px-3 py-2.5 rounded-2xl border border-neutral-200 bg-neutral-50 text-sm font-bold text-neutral-700 focus:bg-white focus:border-neutral-400 focus:ring-2 focus:ring-neutral-200"
                                     placeholder="Ex.: 30101012"
                                 />
                             </div>
                             <button
                                 type="button"
                                 onClick={() => setTratamentoForm((prev) => ({ ...prev, aceita_faces: !prev.aceita_faces }))}
-                                className={`flex items-center gap-2 px-4 py-2 rounded-2xl border text-xs font-black uppercase tracking-wider ${tratamentoForm.aceita_faces ? 'bg-slate-900 border-slate-900 text-white' : 'bg-white border-slate-200 text-slate-500'}`}
+                                className={`flex items-center gap-2 px-4 py-2 rounded-2xl border text-xs font-black uppercase tracking-wider ${tratamentoForm.aceita_faces ? 'bg-neutral-900 border-neutral-900 text-white' : 'bg-white border-neutral-200 text-neutral-500'}`}
                             >
                                 {tratamentoForm.aceita_faces ? <ToggleRight size={20} /> : <ToggleLeft size={20} />}
                                 Aceita faces
                             </button>
                             <div className="flex items-center justify-end gap-2 pt-4">
-                                <button type="button" onClick={fecharModalTratamento} className="px-4 py-2 rounded-xl text-sm font-bold text-slate-500 hover:bg-slate-50">Cancelar</button>
+                                <button type="button" onClick={fecharModalTratamento} className="px-4 py-2 rounded-xl text-sm font-bold text-neutral-500 hover:bg-neutral-50">Cancelar</button>
                                 <button
                                     type="submit"
                                     disabled={tratamentoSalvando}
@@ -640,6 +635,6 @@ export default function TratamentosBasePage() {
                             </div>
                         </form>
             </Modal>
-        </div>
+        </BentoPageShell>
     );
 }

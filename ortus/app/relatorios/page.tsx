@@ -10,6 +10,8 @@ import {
     Loader2, Activity, CheckCircle, XCircle, Clock, ArrowUpRight, ArrowDownRight, Printer, Filter, Tag
 } from 'lucide-react';
 import { printDocument, printTable, escapePrintHtml } from '@/lib/printDocument';
+import BentoPageShell from '@/components/bento/BentoPageShell';
+import { bentoCard, bentoPill, bentoGhostBtn, bentoChartBar, bentoChartFill } from '@/lib/bentoUi';
 
 type Agendamento = {
     id: string; data_hora: string; procedimento: string; status: string;
@@ -303,22 +305,16 @@ export default function Relatorios() {
         });
     }
 
-    if (loading) return <div className="h-[50vh] flex items-center justify-center text-slate-400"><Loader2 className="animate-spin" size={28}/></div>;
-
     return (
-        <div className="max-w-6xl mx-auto space-y-6 pb-20 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            {/* Header */}
-            <div className="flex flex-col md:flex-row justify-between items-end gap-4">
-                <div>
-                    <h1 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-2"><BarChart3 size={24} className="text-cyan-500"/> Relatórios</h1>
-                    <p className="text-slate-500 text-sm font-medium">Acompanhe o desempenho da sua clínica.</p>
-                </div>
-                <div className="flex items-center gap-2 flex-wrap">
-                    {(['mes', '3meses', '6meses', 'ano'] as const).map(p => (
-                        <button key={p} onClick={() => setPeriodo(p)}
-                            className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${periodo === p ? 'bg-cyan-600 text-white shadow-sm' : 'bg-white text-slate-500 border border-slate-200 hover:border-cyan-300'}`}
-                        >
-                            {p === 'mes' ? 'Este mês' : p === '3meses' ? '3 meses' : p === '6meses' ? '6 meses' : 'Este ano'}
+        <BentoPageShell
+            title="Relatórios"
+            subtitle="Desempenho financeiro e operacional da clínica"
+            maxWidthClass="max-w-6xl"
+            actions={
+                <>
+                    {(['mes', '3meses', '6meses', 'ano'] as const).map((p) => (
+                        <button key={p} type="button" onClick={() => setPeriodo(p)} className={bentoPill(periodo === p)}>
+                            {p === 'mes' ? 'Este mês' : p === '3meses' ? '3 meses' : p === '6meses' ? '6 meses' : 'Ano'}
                         </button>
                     ))}
                     <CustomSelect
@@ -328,18 +324,19 @@ export default function Relatorios() {
                         size="sm"
                         className="min-w-[160px]"
                     />
-                    <button onClick={imprimirRelatorio} className="px-3 py-1.5 text-xs font-bold rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center gap-1"><Printer size={13}/> Imprimir</button>
-                </div>
-            </div>
-
-            {/* Filtros avançados */}
-            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-end gap-3">
-                <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase shrink-0">
+                    <button type="button" onClick={imprimirRelatorio} className={bentoGhostBtn}>
+                        <Printer size={14} /> Imprimir
+                    </button>
+                </>
+            }
+        >
+            <div className={`${bentoCard} mb-4 flex flex-col gap-3 border border-black/5 p-4 md:flex-row md:items-end`}>
+                <div className="flex items-center gap-2 text-[10px] font-bold text-neutral-400 uppercase shrink-0">
                     <Filter size={14}/> Filtros
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 flex-1">
                     <div>
-                        <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Profissional</label>
+                        <label className="text-[10px] font-bold text-neutral-400 uppercase mb-1 block">Profissional</label>
                         <CustomSelect
                             value={filtroProfissional}
                             onChange={setFiltroProfissional}
@@ -348,7 +345,7 @@ export default function Relatorios() {
                         />
                     </div>
                     <div>
-                        <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Status</label>
+                        <label className="text-[10px] font-bold text-neutral-400 uppercase mb-1 block">Status</label>
                         <CustomSelect
                             value={filtroStatus}
                             onChange={setFiltroStatus}
@@ -364,7 +361,7 @@ export default function Relatorios() {
                         />
                     </div>
                     <div>
-                        <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Categoria</label>
+                        <label className="text-[10px] font-bold text-neutral-400 uppercase mb-1 block">Categoria</label>
                         <CustomSelect
                             value={filtroCategoria}
                             onChange={setFiltroCategoria}
@@ -375,18 +372,25 @@ export default function Relatorios() {
                 </div>
             </div>
 
-            {/* KPIs */}
+            {loading ? (
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="h-28 animate-pulse rounded-[1.35rem] bg-neutral-200" />
+                ))}
+              </div>
+            ) : (
+            <>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <KPI icon={<DollarSign size={20}/>} iconBg="bg-emerald-50 text-emerald-600" label="Receita Total" value={fmt(metricas.receitaTotal)} sub={`${metricas.concluidos} consultas concluídas`} trend="up"/>
                 <KPI icon={<TrendingDown size={20}/>} iconBg="bg-rose-50 text-rose-600" label="Despesas" value={fmt(metricas.despesaTotal)} sub={`${despesasAtivas.filter(d => d.tipo === 'saida').length} lançamentos (exc. cancelados)`} trend="down"/>
-                <KPI icon={<Activity size={20}/>} iconBg="bg-cyan-50 text-cyan-600" label="Lucro Líquido" value={fmt(metricas.lucro)} sub={metricas.receitaTotal > 0 ? `Margem ${Math.round((metricas.lucro / metricas.receitaTotal) * 100)}%` : ''} trend={metricas.lucro >= 0 ? 'up' : 'down'}/>
+                <KPI icon={<Activity size={20}/>} iconBg="bg-neutral-100 text-neutral-800" label="Lucro Líquido" value={fmt(metricas.lucro)} sub={metricas.receitaTotal > 0 ? `Margem ${Math.round((metricas.lucro / metricas.receitaTotal) * 100)}%` : ''} trend={metricas.lucro >= 0 ? 'up' : 'down'}/>
                 <KPI icon={<Users size={20}/>} iconBg="bg-indigo-50 text-indigo-600" label="Pacientes Atendidos" value={String(metricas.pacientesUnicos)} sub={`De ${pacientesTotal} cadastrados`}/>
             </div>
 
             {/* Row 2: Comparecimento + Fiados */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-                    <div className="text-[10px] font-bold text-slate-400 uppercase mb-3">Taxa de Comparecimento</div>
+                <div className="bg-white p-5 rounded-2xl border border-neutral-200 shadow-sm">
+                    <div className="text-[10px] font-bold text-neutral-400 uppercase mb-3">Taxa de Comparecimento</div>
                     <div className="flex items-end gap-4">
                         <div className="relative w-20 h-20">
                             <svg viewBox="0 0 36 36" className="w-20 h-20 -rotate-90">
@@ -394,31 +398,31 @@ export default function Relatorios() {
                                 <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#10b981" strokeWidth="3" strokeDasharray={`${metricas.taxaComparecimento}, 100`} strokeLinecap="round"/>
                             </svg>
                             <div className="absolute inset-0 flex items-center justify-center">
-                                <span className="text-lg font-black text-slate-800">{metricas.taxaComparecimento}%</span>
+                                <span className="text-lg font-black text-neutral-800">{metricas.taxaComparecimento}%</span>
                             </div>
                         </div>
-                        <div className="text-xs text-slate-500 space-y-1">
+                        <div className="text-xs text-neutral-500 space-y-1">
                             <div className="flex items-center gap-1.5"><CheckCircle size={12} className="text-emerald-500"/> {metricas.concluidos + metricas.fiados} compareceram</div>
                             <div className="flex items-center gap-1.5"><XCircle size={12} className="text-rose-500"/> {metricas.cancelados} cancelaram/faltaram</div>
-                            <div className="flex items-center gap-1.5"><Clock size={12} className="text-slate-400"/> {metricas.total} total</div>
+                            <div className="flex items-center gap-1.5"><Clock size={12} className="text-neutral-400"/> {metricas.total} total</div>
                         </div>
                     </div>
                 </div>
 
-                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-                    <div className="text-[10px] font-bold text-slate-400 uppercase mb-3">Valores em Aberto (Fiados)</div>
+                <div className="bg-white p-5 rounded-2xl border border-neutral-200 shadow-sm">
+                    <div className="text-[10px] font-bold text-neutral-400 uppercase mb-3">Valores em Aberto (Fiados)</div>
                     <div className="text-3xl font-black text-amber-600 mb-2">{fmt(metricas.fiado)}</div>
-                    <div className="text-xs text-slate-500">{metricas.fiados} atendimento{metricas.fiados !== 1 ? 's' : ''} pendente{metricas.fiados !== 1 ? 's' : ''} de pagamento</div>
+                    <div className="text-xs text-neutral-500">{metricas.fiados} atendimento{metricas.fiados !== 1 ? 's' : ''} pendente{metricas.fiados !== 1 ? 's' : ''} de pagamento</div>
                     {metricas.fiado > 0 && <div className="mt-3 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-[11px] text-amber-700 font-semibold">Valor a receber acumulado no período</div>}
                 </div>
 
-                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-                    <div className="text-[10px] font-bold text-slate-400 uppercase mb-3">Ticket Médio</div>
-                    <div className="text-3xl font-black text-slate-800 mb-2">
+                <div className="bg-white p-5 rounded-2xl border border-neutral-200 shadow-sm">
+                    <div className="text-[10px] font-bold text-neutral-400 uppercase mb-3">Ticket Médio</div>
+                    <div className="text-3xl font-black text-neutral-800 mb-2">
                         {metricas.concluidos > 0 ? fmt(metricas.faturamento / metricas.concluidos) : 'R$ 0,00'}
                     </div>
-                    <div className="text-xs text-slate-500">Valor médio por consulta concluída</div>
-                    {metricas.receitaManual > 0 && <div className="mt-3 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg text-[11px] text-blue-700 font-semibold">+ {fmt(metricas.receitaManual)} em receitas manuais</div>}
+                    <div className="text-xs text-neutral-500">Valor médio por consulta concluída</div>
+                    {metricas.receitaManual > 0 && <div className="mt-3 px-3 py-2 bg-neutral-50 border border-black/10 rounded-lg text-[11px] text-neutral-800 font-semibold">+ {fmt(metricas.receitaManual)} em receitas manuais</div>}
                 </div>
             </div>
 
@@ -428,13 +432,13 @@ export default function Relatorios() {
                     <div className="text-[10px] font-bold text-amber-600 uppercase mb-4 flex items-center gap-2">
                         <Clock size={14}/> Fiados em Aberto ({metricas.fiadosEmAberto.length})
                     </div>
-                    <div className="divide-y divide-slate-100">
+                    <div className="divide-y divide-neutral-100">
                         {metricas.fiadosEmAberto.map(f => (
                             <div key={f.id} className="py-3 flex items-center justify-between gap-4">
                                 <div className="min-w-0">
-                                    <p className="font-bold text-slate-800 text-sm truncate">{f.paciente}</p>
-                                    <p className="text-xs text-slate-500 truncate">{f.procedimento}{f.profissional ? ` · ${f.profissional}` : ''}</p>
-                                    <p className="text-[10px] text-slate-400 mt-0.5">{new Date(f.data).toLocaleDateString('pt-BR')}</p>
+                                    <p className="font-bold text-neutral-800 text-sm truncate">{f.paciente}</p>
+                                    <p className="text-xs text-neutral-500 truncate">{f.procedimento}{f.profissional ? ` · ${f.profissional}` : ''}</p>
+                                    <p className="text-[10px] text-neutral-400 mt-0.5">{new Date(f.data).toLocaleDateString('pt-BR')}</p>
                                 </div>
                                 <span className="font-black text-amber-600 whitespace-nowrap">{fmt(f.valor)}</span>
                             </div>
@@ -444,17 +448,17 @@ export default function Relatorios() {
             )}
 
             {/* Breakdown por categoria */}
-            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                <div className="text-[10px] font-bold text-slate-400 uppercase mb-4 flex items-center gap-2">
+            <div className="bg-white p-6 rounded-2xl border border-neutral-200 shadow-sm">
+                <div className="text-[10px] font-bold text-neutral-400 uppercase mb-4 flex items-center gap-2">
                     <Tag size={14}/> Resumo por Categoria
                 </div>
                 {metricas.categoriasBreakdown.length === 0 ? (
-                    <p className="text-sm text-slate-400 italic">Nenhum lançamento no período.</p>
+                    <p className="text-sm text-neutral-400 italic">Nenhum lançamento no período.</p>
                 ) : (
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm">
                             <thead>
-                                <tr className="text-[10px] font-bold text-slate-400 uppercase border-b border-slate-100">
+                                <tr className="text-[10px] font-bold text-neutral-400 uppercase border-b border-neutral-100">
                                     <th className="text-left py-2 pr-4">Categoria</th>
                                     <th className="text-right py-2 px-2">Entradas</th>
                                     <th className="text-right py-2 px-2">Saídas</th>
@@ -463,11 +467,11 @@ export default function Relatorios() {
                             </thead>
                             <tbody>
                                 {metricas.categoriasBreakdown.map(([nome, v]) => (
-                                    <tr key={nome} className="border-b border-slate-50 hover:bg-slate-50/50">
-                                        <td className="py-2.5 pr-4 font-bold text-slate-700">{nome}</td>
+                                    <tr key={nome} className="border-b border-neutral-50 hover:bg-neutral-50/50">
+                                        <td className="py-2.5 pr-4 font-bold text-neutral-700">{nome}</td>
                                         <td className="py-2.5 px-2 text-right text-emerald-600 font-bold">{fmt(v.entrada)}</td>
                                         <td className="py-2.5 px-2 text-right text-rose-600 font-bold">{fmt(v.saida)}</td>
-                                        <td className={`py-2.5 pl-2 text-right font-black ${v.entrada - v.saida >= 0 ? 'text-slate-800' : 'text-rose-600'}`}>{fmt(v.entrada - v.saida)}</td>
+                                        <td className={`py-2.5 pl-2 text-right font-black ${v.entrada - v.saida >= 0 ? 'text-neutral-800' : 'text-rose-600'}`}>{fmt(v.entrada - v.saida)}</td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -478,17 +482,17 @@ export default function Relatorios() {
 
             {/* Faturamento mensal (bar chart via CSS) */}
             {metricas.meses.length > 1 && (
-                <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                    <div className="text-[10px] font-bold text-slate-400 uppercase mb-4">Faturamento Mensal (Consultas Concluídas)</div>
+                <div className="bg-white p-6 rounded-2xl border border-neutral-200 shadow-sm">
+                    <div className="text-[10px] font-bold text-neutral-400 uppercase mb-4">Faturamento Mensal (Consultas Concluídas)</div>
                     <div className="flex items-end gap-2 h-40">
                         {metricas.meses.map(m => {
                             const val = metricas.fatMensal[m];
                             const pct = Math.max((val / metricas.maxFat) * 100, 4);
                             return (
                                 <div key={m} className="flex-1 flex flex-col items-center gap-1 group">
-                                    <div className="text-[9px] font-bold text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity">{fmt(val)}</div>
-                                    <div className="w-full bg-gradient-to-t from-cyan-500 to-cyan-400 rounded-t-lg transition-all hover:from-cyan-600 hover:to-cyan-500 shadow-sm" style={{ height: `${pct}%` }}/>
-                                    <div className="text-[9px] font-bold text-slate-400 mt-1">{fmtMes(m)}</div>
+                                    <div className="text-[9px] font-bold text-neutral-500 opacity-0 group-hover:opacity-100 transition-opacity">{fmt(val)}</div>
+                                    <div className={`w-full ${bentoChartBar}`} style={{ height: `${pct}%` }}/>
+                                    <div className="text-[9px] font-bold text-neutral-400 mt-1">{fmtMes(m)}</div>
                                 </div>
                             );
                         })}
@@ -497,10 +501,10 @@ export default function Relatorios() {
             )}
 
             {/* Top Procedimentos */}
-            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                <div className="text-[10px] font-bold text-slate-400 uppercase mb-4">Procedimentos Mais Realizados</div>
+            <div className="bg-white p-6 rounded-2xl border border-neutral-200 shadow-sm">
+                <div className="text-[10px] font-bold text-neutral-400 uppercase mb-4">Procedimentos Mais Realizados</div>
                 {metricas.topProcedimentos.length === 0 ? (
-                    <p className="text-sm text-slate-400 italic">Nenhum procedimento concluído no período.</p>
+                    <p className="text-sm text-neutral-400 italic">Nenhum procedimento concluído no período.</p>
                 ) : (
                     <div className="space-y-2">
                         {metricas.topProcedimentos.map(([nome, data], i) => {
@@ -508,14 +512,14 @@ export default function Relatorios() {
                             const pct = Math.round((data.count / maxCount) * 100);
                             return (
                                 <div key={nome} className="flex items-center gap-3">
-                                    <span className="w-6 text-xs font-black text-slate-400 text-right">{i + 1}.</span>
+                                    <span className="w-6 text-xs font-black text-neutral-400 text-right">{i + 1}.</span>
                                     <div className="flex-1">
                                         <div className="flex justify-between mb-1">
-                                            <span className="text-sm font-bold text-slate-700 truncate">{nome}</span>
-                                            <span className="text-xs font-bold text-slate-500">{data.count}x · {fmt(data.valor)}</span>
+                                            <span className="text-sm font-bold text-neutral-700 truncate">{nome}</span>
+                                            <span className="text-xs font-bold text-neutral-500">{data.count}x · {fmt(data.valor)}</span>
                                         </div>
-                                        <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                                            <div className="h-full bg-gradient-to-r from-cyan-400 to-cyan-600 rounded-full transition-all" style={{ width: `${pct}%` }}/>
+                                        <div className="h-2 bg-neutral-100 rounded-full overflow-hidden">
+                                            <div className={bentoChartFill} style={{ width: `${pct}%` }}/>
                                         </div>
                                     </div>
                                 </div>
@@ -524,21 +528,23 @@ export default function Relatorios() {
                     </div>
                 )}
             </div>
-        </div>
+            </>
+            )}
+        </BentoPageShell>
     );
 }
 
 function KPI({ icon, iconBg, label, value, sub, trend }: { icon: React.ReactNode; iconBg: string; label: string; value: string; sub?: string; trend?: 'up' | 'down' }) {
     return (
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+        <div className={`${bentoCard} border border-black/5 p-5`}>
             <div className="flex items-center justify-between mb-3">
                 <div className={`p-2.5 rounded-xl ${iconBg}`}>{icon}</div>
                 {trend === 'up' && <ArrowUpRight size={18} className="text-emerald-500"/>}
                 {trend === 'down' && <ArrowDownRight size={18} className="text-rose-500"/>}
             </div>
-            <div className="text-[10px] font-bold text-slate-400 uppercase">{label}</div>
-            <div className="text-xl font-black text-slate-800 mt-0.5">{value}</div>
-            {sub && <div className="text-[11px] text-slate-500 mt-1">{sub}</div>}
+            <div className="text-[10px] font-semibold uppercase text-neutral-500">{label}</div>
+            <div className="mt-0.5 text-xl font-semibold text-neutral-900">{value}</div>
+            {sub && <div className="mt-1 text-[11px] text-neutral-500">{sub}</div>}
         </div>
     );
 }

@@ -18,6 +18,8 @@ import { MODULES, buildModuleAccessMap } from '@/lib/modules';
 import { PERMISSION_PRESETS, buildPresetAccessMap, type PermissionPresetId } from '@/lib/permissionPresets';
 import { carregarConfig, salvarConfig } from '@/lib/configClinica';
 import { carregarHorarioProfissional, salvarHorarioProfissional, type HorarioAtendimento, type HorarioDia } from '@/lib/horarioProfissional';
+import BentoPageShell from '@/components/bento/BentoPageShell';
+import { bentoCard, bentoPrimaryBtn } from '@/lib/bentoUi';
 
 type Profissional = {
     id: number | string;
@@ -603,17 +605,17 @@ export default function EquipePage() {
         if (!clinicaIdNumerica) return renderClinicaObrigatoria();
         return (
             <div className="space-y-4">
-                <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="p-4 bg-neutral-50 border border-neutral-100 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
-                        <p className="text-xs font-bold text-slate-600">Nível de acesso</p>
-                        <p className="text-[11px] text-slate-400">Admin tem acesso total; comum usa os módulos abaixo.</p>
+                        <p className="text-xs font-bold text-neutral-600">Nível de acesso</p>
+                        <p className="text-[11px] text-neutral-400">Admin tem acesso total; comum usa os módulos abaixo.</p>
                     </div>
                     <div className="flex items-center gap-2">
-                        <div className="flex bg-white p-1 rounded-xl border border-slate-200">
-                            <button type="button" onClick={() => setNivelAcessoEdit('comum')} className={`px-3 py-1.5 rounded-lg text-xs font-bold ${nivelAcessoEdit === 'comum' ? 'bg-slate-800 text-white' : 'text-slate-500'}`}>Comum</button>
-                            <button type="button" onClick={() => setNivelAcessoEdit('admin')} className={`px-3 py-1.5 rounded-lg text-xs font-bold ${nivelAcessoEdit === 'admin' ? 'bg-purple-600 text-white' : 'text-slate-500'}`}>Admin</button>
+                        <div className="flex bg-white p-1 rounded-xl border border-neutral-200">
+                            <button type="button" onClick={() => setNivelAcessoEdit('comum')} className={`px-3 py-1.5 rounded-lg text-xs font-bold ${nivelAcessoEdit === 'comum' ? 'bg-neutral-800 text-white' : 'text-neutral-500'}`}>Comum</button>
+                            <button type="button" onClick={() => setNivelAcessoEdit('admin')} className={`px-3 py-1.5 rounded-lg text-xs font-bold ${nivelAcessoEdit === 'admin' ? 'bg-purple-600 text-white' : 'text-neutral-500'}`}>Admin</button>
                         </div>
-                        <button type="button" onClick={salvarNivelAcesso} disabled={nivelSaving || nivelAcessoEdit === (profissionalSelecionado.nivel_acesso === 'admin' ? 'admin' : 'comum')} className="px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-bold disabled:opacity-50">
+                        <button type="button" onClick={salvarNivelAcesso} disabled={nivelSaving || nivelAcessoEdit === (profissionalSelecionado.nivel_acesso === 'admin' ? 'admin' : 'comum')} className="px-3 py-1.5 rounded-lg bg-neutral-900 text-white text-xs font-bold disabled:opacity-50">
                             {nivelSaving ? 'Salvando...' : 'Salvar nível'}
                         </button>
                     </div>
@@ -625,14 +627,14 @@ export default function EquipePage() {
                 ) : (
                 <>
                 <div>
-                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2">Perfis rápidos</p>
+                    <p className="text-[10px] font-black uppercase tracking-wider text-neutral-400 mb-2">Perfis rápidos</p>
                     <div className="flex flex-wrap gap-2">
                         {PERMISSION_PRESETS.map((preset) => (
                             <button
                                 key={preset.id}
                                 type="button"
                                 onClick={() => aplicarPresetPermissoes(preset.id)}
-                                className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-600 hover:border-blue-300 hover:text-blue-600 transition-colors"
+                                className="px-3 py-2 rounded-xl border border-neutral-200 bg-white text-xs font-bold text-neutral-600 hover:border-neutral-400 hover:text-neutral-900 transition-colors"
                                 title={preset.description}
                             >
                                 {preset.label}
@@ -640,21 +642,21 @@ export default function EquipePage() {
                         ))}
                     </div>
                 </div>
-                <p className="text-xs text-slate-500 font-medium">
-                    Ajuste o acesso por módulo para <span className="font-bold text-slate-700">{profissionalSelecionado.nome}</span>.
+                <p className="text-xs text-neutral-500 font-medium">
+                    Ajuste o acesso por módulo para <span className="font-bold text-neutral-700">{profissionalSelecionado.nome}</span>.
                 </p>
                 <div className="space-y-3">
                     {MODULES.map((modulo) => (
-                        <div key={modulo.id} className="flex items-center gap-4 p-4 rounded-2xl border border-slate-100 bg-slate-50">
+                        <div key={modulo.id} className="flex items-center gap-4 p-4 rounded-2xl border border-neutral-100 bg-neutral-50">
                             <div className="flex-1 min-w-0">
-                                <p className="text-sm font-bold text-slate-800">{modulo.label}</p>
-                                <p className="text-xs text-slate-500">{modulo.description}</p>
+                                <p className="text-sm font-bold text-neutral-800">{modulo.label}</p>
+                                <p className="text-xs text-neutral-500">{modulo.description}</p>
                             </div>
                             <button
                                 type="button"
                                 onClick={() => toggleModulo(modulo.id)}
                                 disabled={permissoesLoading}
-                                className={`p-1 rounded-full transition-colors ${permissoesMapa[modulo.id] ? 'text-blue-600' : 'text-slate-400'}`}
+                                className={`p-1 rounded-full transition-colors ${permissoesMapa[modulo.id] ? 'text-neutral-900' : 'text-neutral-400'}`}
                             >
                                 {permissoesMapa[modulo.id] ? <ToggleRight size={32}/> : <ToggleLeft size={32}/>}
                             </button>
@@ -666,7 +668,7 @@ export default function EquipePage() {
                         type="button"
                         onClick={salvarPermissoesAtual}
                         disabled={!permissoesDirty || permissoesSaving}
-                        className="px-5 py-2 rounded-xl text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+                        className="px-5 py-2 rounded-xl text-sm font-bold text-white bg-neutral-900 hover:bg-neutral-800 disabled:opacity-50 flex items-center gap-2"
                     >
                         {permissoesSaving ? <Loader2 size={14} className="animate-spin"/> : <Check size={14}/>}Salvar permissões
                     </button>
@@ -682,32 +684,32 @@ export default function EquipePage() {
         if (!clinicaIdNumerica) return renderClinicaObrigatoria();
         return (
             <div className="space-y-5">
-                <p className="text-xs text-slate-500">
-                    Horário de atendimento de <span className="font-bold text-slate-700">{profissionalSelecionado.nome}</span> na clínica <span className="font-bold">{clinicaNomeAtiva}</span>.
+                <p className="text-xs text-neutral-500">
+                    Horário de atendimento de <span className="font-bold text-neutral-700">{profissionalSelecionado.nome}</span> na clínica <span className="font-bold">{clinicaNomeAtiva}</span>.
                 </p>
                 {horarioLoading && (
-                    <div className="flex items-center gap-2 text-slate-500 text-sm"><Loader2 size={16} className="animate-spin"/>Carregando horário...</div>
+                    <div className="flex items-center gap-2 text-neutral-500 text-sm"><Loader2 size={16} className="animate-spin"/>Carregando horário...</div>
                 )}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Início</label>
-                        <input type="time" value={horarioState.inicio} onChange={(e) => atualizarHorario('inicio', e.target.value)} className="mt-1 w-full px-4 py-3 rounded-2xl border border-slate-200 bg-slate-50 text-sm font-bold text-slate-700 focus:border-blue-400 focus:bg-white outline-none" />
+                        <label className="text-[10px] font-black uppercase tracking-wider text-neutral-400">Início</label>
+                        <input type="time" value={horarioState.inicio} onChange={(e) => atualizarHorario('inicio', e.target.value)} className="mt-1 w-full px-4 py-3 rounded-2xl border border-neutral-200 bg-neutral-50 text-sm font-bold text-neutral-700 focus:border-neutral-400 focus:bg-white outline-none" />
                     </div>
                     <div>
-                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Término</label>
-                        <input type="time" value={horarioState.fim} onChange={(e) => atualizarHorario('fim', e.target.value)} className="mt-1 w-full px-4 py-3 rounded-2xl border border-slate-200 bg-slate-50 text-sm font-bold text-slate-700 focus:border-blue-400 focus:bg-white outline-none" />
+                        <label className="text-[10px] font-black uppercase tracking-wider text-neutral-400">Término</label>
+                        <input type="time" value={horarioState.fim} onChange={(e) => atualizarHorario('fim', e.target.value)} className="mt-1 w-full px-4 py-3 rounded-2xl border border-neutral-200 bg-neutral-50 text-sm font-bold text-neutral-700 focus:border-neutral-400 focus:bg-white outline-none" />
                     </div>
                     <div>
-                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Intervalo (min)</label>
-                        <input type="number" min={5} value={horarioState.intervalo} onChange={(e) => atualizarHorario('intervalo', Number(e.target.value))} className="mt-1 w-full px-4 py-3 rounded-2xl border border-slate-200 bg-slate-50 text-sm font-bold text-slate-700 focus:border-blue-400 focus:bg-white outline-none" />
+                        <label className="text-[10px] font-black uppercase tracking-wider text-neutral-400">Intervalo (min)</label>
+                        <input type="number" min={5} value={horarioState.intervalo} onChange={(e) => atualizarHorario('intervalo', Number(e.target.value))} className="mt-1 w-full px-4 py-3 rounded-2xl border border-neutral-200 bg-neutral-50 text-sm font-bold text-neutral-700 focus:border-neutral-400 focus:bg-white outline-none" />
                     </div>
                     <div>
-                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Limite Simultâneo</label>
-                        <input type="number" min={1} value={horarioState.limiteSimultaneo} onChange={(e) => atualizarHorario('limiteSimultaneo', Number(e.target.value) || 1)} className="mt-1 w-full px-4 py-3 rounded-2xl border border-slate-200 bg-slate-50 text-sm font-bold text-slate-700 focus:border-blue-400 focus:bg-white outline-none" />
+                        <label className="text-[10px] font-black uppercase tracking-wider text-neutral-400">Limite Simultâneo</label>
+                        <input type="number" min={1} value={horarioState.limiteSimultaneo} onChange={(e) => atualizarHorario('limiteSimultaneo', Number(e.target.value) || 1)} className="mt-1 w-full px-4 py-3 rounded-2xl border border-neutral-200 bg-neutral-50 text-sm font-bold text-neutral-700 focus:border-neutral-400 focus:bg-white outline-none" />
                     </div>
                 </div>
                 <div>
-                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2">Dias de atendimento</p>
+                    <p className="text-[10px] font-black uppercase tracking-wider text-neutral-400 mb-2">Dias de atendimento</p>
                     <div className="flex flex-wrap gap-2">
                         {DIAS_SEMANA.map((dia) => {
                             const ativo = horarioState.dias[dia.id];
@@ -716,7 +718,7 @@ export default function EquipePage() {
                                     key={dia.id}
                                     type="button"
                                     onClick={() => toggleDiaHorario(dia.id)}
-                                    className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wide border transition-all ${ativo ? 'bg-blue-600 text-white border-blue-600 shadow' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-400'}`}
+                                    className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wide border transition-all ${ativo ? 'bg-neutral-900 text-white border-neutral-900 shadow' : 'bg-white text-neutral-500 border-neutral-200 hover:border-neutral-400'}`}
                                 >
                                     {dia.label}
                                 </button>
@@ -725,12 +727,12 @@ export default function EquipePage() {
                     </div>
                 </div>
                 <div>
-                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Observações / Regras</label>
+                    <label className="text-[10px] font-black uppercase tracking-wider text-neutral-400">Observações / Regras</label>
                     <textarea
                         rows={3}
                         value={horarioState.observacoes}
                         onChange={(e) => atualizarHorario('observacoes', e.target.value)}
-                        className="mt-1 w-full px-4 py-3 rounded-2xl border border-slate-200 bg-slate-50 text-sm text-slate-700 focus:border-blue-400 focus:bg-white outline-none"
+                        className="mt-1 w-full px-4 py-3 rounded-2xl border border-neutral-200 bg-neutral-50 text-sm text-neutral-700 focus:border-neutral-400 focus:bg-white outline-none"
                         placeholder="Ex.: Pausa para almoço das 12h às 13h"
                     />
                 </div>
@@ -739,7 +741,7 @@ export default function EquipePage() {
                         type="button"
                         onClick={salvarHorario}
                         disabled={!horarioDirty || horarioSaving}
-                        className="px-5 py-2 rounded-xl text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+                        className="px-5 py-2 rounded-xl text-sm font-bold text-white bg-neutral-900 hover:bg-neutral-800 disabled:opacity-50 flex items-center gap-2"
                     >
                         {horarioSaving ? <Loader2 size={14} className="animate-spin"/> : <Check size={14}/>}Salvar horário
                     </button>
@@ -753,27 +755,27 @@ export default function EquipePage() {
         if (!clinicaIdNumerica) return renderClinicaObrigatoria();
         return (
             <div className="space-y-6">
-                <form onSubmit={salvarComissaoRapida} className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-slate-50 border border-slate-100 p-4 rounded-2xl">
+                <form onSubmit={salvarComissaoRapida} className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-neutral-50 border border-neutral-100 p-4 rounded-2xl">
                     <div className="md:col-span-2">
-                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Gatilho</label>
+                        <label className="text-[10px] font-black uppercase tracking-wider text-neutral-400">Gatilho</label>
                         <CustomSelect value={comissaoForm.gatilho} onChange={v => setComissaoForm(prev => ({ ...prev, gatilho: v }))} options={GATILHOS_COMISSAO.map(g => ({ value: g.value, label: g.label }))} size="lg" className="mt-1" />
                     </div>
                     <div>
-                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Tipo</label>
+                        <label className="text-[10px] font-black uppercase tracking-wider text-neutral-400">Tipo</label>
                         <CustomSelect value={comissaoForm.tipo} onChange={v => setComissaoForm(prev => ({ ...prev, tipo: v }))} options={TIPOS_COMISSAO.map(t => ({ value: t.value, label: t.label }))} size="lg" className="mt-1" />
                     </div>
                     <div>
-                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Valor</label>
-                        <input type="number" step="0.01" min={0} value={comissaoForm.valor} onChange={(e) => setComissaoForm((prev) => ({ ...prev, valor: e.target.value }))} className="mt-1 w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-white text-sm font-bold text-slate-700" placeholder={comissaoForm.tipo === 'percentual' ? '0 a 100%' : 'Valor em R$'} />
+                        <label className="text-[10px] font-black uppercase tracking-wider text-neutral-400">Valor</label>
+                        <input type="number" step="0.01" min={0} value={comissaoForm.valor} onChange={(e) => setComissaoForm((prev) => ({ ...prev, valor: e.target.value }))} className="mt-1 w-full px-3 py-2.5 rounded-xl border border-neutral-200 bg-white text-sm font-bold text-neutral-700" placeholder={comissaoForm.tipo === 'percentual' ? '0 a 100%' : 'Valor em R$'} />
                     </div>
                     <div className="md:col-span-4 flex items-center justify-between gap-3">
-                        <label className="flex items-center gap-2 text-sm font-bold text-slate-600">
-                            <input type="checkbox" checked={comissaoForm.ativo} onChange={(e) => setComissaoForm((prev) => ({ ...prev, ativo: e.target.checked }))} className="w-4 h-4 rounded border-slate-300 text-green-600" />
+                        <label className="flex items-center gap-2 text-sm font-bold text-neutral-600">
+                            <input type="checkbox" checked={comissaoForm.ativo} onChange={(e) => setComissaoForm((prev) => ({ ...prev, ativo: e.target.checked }))} className="w-4 h-4 rounded border-neutral-300 text-green-600" />
                             Regra ativa
                         </label>
                         <div className="flex gap-2">
                             {comissaoEditandoId && (
-                                <button type="button" onClick={cancelarEdicaoComissao} className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 text-sm font-bold hover:bg-white">
+                                <button type="button" onClick={cancelarEdicaoComissao} className="px-4 py-2 rounded-xl border border-neutral-200 text-neutral-600 text-sm font-bold hover:bg-white">
                                     Cancelar
                                 </button>
                             )}
@@ -786,24 +788,24 @@ export default function EquipePage() {
                 </form>
                 <div className="space-y-3">
                     {comissoesLoading ? (
-                        <div className="flex items-center gap-2 text-slate-500 text-sm"><Loader2 size={16} className="animate-spin"/>Carregando regras...</div>
+                        <div className="flex items-center gap-2 text-neutral-500 text-sm"><Loader2 size={16} className="animate-spin"/>Carregando regras...</div>
                     ) : comissoes.length === 0 ? (
-                        <div className="p-6 text-center text-sm text-slate-500 border border-dashed border-slate-200 rounded-2xl">
+                        <div className="p-6 text-center text-sm text-neutral-500 border border-dashed border-neutral-200 rounded-2xl">
                             Nenhuma regra cadastrada para esta clínica.
                         </div>
                     ) : (
                         comissoes.map((regra) => (
-                            <div key={regra.id} className={`p-4 border rounded-2xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 ${regra.ativo !== false ? 'border-slate-100 bg-white' : 'border-slate-100 bg-slate-50 opacity-70'}`}>
+                            <div key={regra.id} className={`p-4 border rounded-2xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 ${regra.ativo !== false ? 'border-neutral-100 bg-white' : 'border-neutral-100 bg-neutral-50 opacity-70'}`}>
                                 <div>
-                                    <p className="text-sm font-bold text-slate-700">{getGatilhoLabel(regra.gatilho)}</p>
-                                    <p className="text-xs text-slate-500">{regra.tipo === 'percentual' ? 'Percentual' : 'Valor fixo'} • <span className="font-bold text-slate-700">{formatValorComissao(regra.tipo, regra.valor)}</span>{regra.ativo === false && <span className="ml-2 text-amber-600 font-bold">• Inativa</span>}</p>
+                                    <p className="text-sm font-bold text-neutral-700">{getGatilhoLabel(regra.gatilho)}</p>
+                                    <p className="text-xs text-neutral-500">{regra.tipo === 'percentual' ? 'Percentual' : 'Valor fixo'} • <span className="font-bold text-neutral-700">{formatValorComissao(regra.tipo, regra.valor)}</span>{regra.ativo === false && <span className="ml-2 text-amber-600 font-bold">• Inativa</span>}</p>
                                 </div>
                                 <div className="flex gap-2 self-start sm:self-auto">
-                                    <button type="button" onClick={() => toggleComissaoAtiva(regra)} className={`px-3 py-2 rounded-lg border text-xs font-bold flex items-center gap-1 ${regra.ativo !== false ? 'border-slate-200 text-slate-600 hover:bg-slate-50' : 'border-green-200 text-green-700 hover:bg-green-50'}`}>
+                                    <button type="button" onClick={() => toggleComissaoAtiva(regra)} className={`px-3 py-2 rounded-lg border text-xs font-bold flex items-center gap-1 ${regra.ativo !== false ? 'border-neutral-200 text-neutral-600 hover:bg-neutral-50' : 'border-green-200 text-green-700 hover:bg-green-50'}`}>
                                         {regra.ativo !== false ? <ToggleRight size={14}/> : <ToggleLeft size={14}/>}
                                         {regra.ativo !== false ? 'Desativar' : 'Ativar'}
                                     </button>
-                                    <button type="button" onClick={() => editarComissaoRegra(regra)} className="px-3 py-2 rounded-lg border border-blue-200 text-blue-600 text-xs font-bold hover:bg-blue-50 flex items-center gap-1">
+                                    <button type="button" onClick={() => editarComissaoRegra(regra)} className="px-3 py-2 rounded-lg border border-black/10 text-neutral-900 text-xs font-bold hover:bg-neutral-50 flex items-center gap-1">
                                         <Edit size={14}/> Editar
                                     </button>
                                     <button
@@ -835,18 +837,10 @@ export default function EquipePage() {
         return set.size;
     }, [profissionais]);
 
-    if (loading || clinicLoading) {
+    if (!isAdmin && !loading && !clinicLoading) {
         return (
-            <div className="p-10 flex items-center justify-center text-blue-600">
-                <Loader2 className="animate-spin" size={32} />
-            </div>
-        );
-    }
-
-    if (!isAdmin) {
-        return (
-            <div className="p-10">
-                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-8 max-w-2xl mx-auto text-center">
+            <div className="px-4 py-10">
+                <div className="mx-auto max-w-2xl rounded-[1.35rem] border border-amber-200 bg-amber-50 p-8 text-center">
                     <ShieldCheck size={40} className="text-amber-600 mx-auto mb-3" />
                     <h2 className="text-lg font-bold text-amber-900">Acesso restrito</h2>
                     <p className="text-sm text-amber-700 mt-1">Apenas administradores podem gerenciar a equipe.</p>
@@ -856,53 +850,51 @@ export default function EquipePage() {
     }
 
     return (
-        <div className="p-4 sm:p-6 md:p-10 max-w-6xl mx-auto space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
-                <div>
-                    <div className="flex items-center gap-2 text-[10px] font-black text-blue-500 uppercase tracking-wider mb-1">
-                        <Users size={14} /> Ajustes
-                    </div>
-                    <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-800">Equipe</h1>
-                    <p className="text-sm text-slate-500 mt-1">
-                        {totalAtivos} {totalAtivos === 1 ? 'profissional' : 'profissionais'} com acesso ao sistema
-                    </p>
-                </div>
-                <button
-                    onClick={abrirModal}
-                    className="touch-target flex items-center justify-center gap-2 px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-lg shadow-blue-200 active:scale-95 transition-all text-sm sm:text-base w-full sm:w-auto"
-                >
-                    <UserPlus size={18} /> Adicionar funcionário
+        <BentoPageShell
+            title="Equipe"
+            subtitle={`${totalAtivos} ${totalAtivos === 1 ? 'profissional' : 'profissionais'} com acesso`}
+            eyebrow="Ajustes"
+            actions={
+                <button type="button" onClick={abrirModal} className={bentoPrimaryBtn}>
+                    <UserPlus size={18} /> Adicionar
                 </button>
-            </div>
-
+            }
+        >
+            {(loading || clinicLoading) ? (
+                <div className="space-y-3">
+                    <div className="h-32 animate-pulse rounded-[1.35rem] bg-neutral-200" />
+                    <div className="h-64 animate-pulse rounded-[1.35rem] bg-neutral-100" />
+                </div>
+            ) : (
+            <>
             {clinicaIdNumerica && (
-                <div className="bg-white border border-slate-100 rounded-2xl shadow-sm p-5">
+                <div className={`${bentoCard} mb-4 border border-black/5 p-5`}>
                     <div className="flex items-center justify-between gap-3 mb-4">
                         <div>
-                            <h2 className="font-bold text-slate-800 flex items-center gap-2"><DollarSign size={18} className="text-emerald-600"/> Comissões consolidadas</h2>
-                            <p className="text-xs text-slate-500 mt-0.5">Visão de todas as regras ativas em {clinicaNomeAtiva}</p>
+                            <h2 className="font-bold text-neutral-800 flex items-center gap-2"><DollarSign size={18} className="text-emerald-600"/> Comissões consolidadas</h2>
+                            <p className="text-xs text-neutral-500 mt-0.5">Visão de todas as regras ativas em {clinicaNomeAtiva}</p>
                         </div>
-                        {comissoesConsolidadasLoading && <Loader2 size={18} className="animate-spin text-slate-400"/>}
+                        {comissoesConsolidadasLoading && <Loader2 size={18} className="animate-spin text-neutral-400"/>}
                     </div>
                     {comissoesConsolidadas.length === 0 ? (
-                        <p className="text-sm text-slate-400 text-center py-6 border-2 border-dashed border-slate-200 rounded-xl">Nenhuma regra de comissão ativa nesta clínica.</p>
+                        <p className="text-sm text-neutral-400 text-center py-6 border-2 border-dashed border-neutral-200 rounded-xl">Nenhuma regra de comissão ativa nesta clínica.</p>
                     ) : (
                         <div className="overflow-x-auto">
                             <table className="w-full text-sm min-w-[520px]">
                                 <thead>
-                                    <tr className="text-left text-[10px] uppercase font-black text-slate-400 border-b border-slate-100">
+                                    <tr className="text-left text-[10px] uppercase font-black text-neutral-400 border-b border-neutral-100">
                                         <th className="pb-2 pr-4">Profissional</th>
                                         <th className="pb-2 pr-4">Gatilho</th>
                                         <th className="pb-2 pr-4">Tipo</th>
                                         <th className="pb-2">Valor</th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-slate-50">
+                                <tbody className="divide-y divide-neutral-100">
                                     {comissoesConsolidadas.map((r) => (
                                         <tr key={r.id}>
-                                            <td className="py-2.5 pr-4 font-bold text-slate-700">{r.profissionais?.nome || `#${r.profissional_id}`}</td>
-                                            <td className="py-2.5 pr-4 text-slate-600">{getGatilhoLabel(r.gatilho)}</td>
-                                            <td className="py-2.5 pr-4 text-slate-500 capitalize">{r.tipo?.replace('_', ' ')}</td>
+                                            <td className="py-2.5 pr-4 font-bold text-neutral-700">{r.profissionais?.nome || `#${r.profissional_id}`}</td>
+                                            <td className="py-2.5 pr-4 text-neutral-600">{getGatilhoLabel(r.gatilho)}</td>
+                                            <td className="py-2.5 pr-4 text-neutral-500 capitalize">{r.tipo?.replace('_', ' ')}</td>
                                             <td className="py-2.5 font-black text-emerald-700">{formatValorComissao(r.tipo, Number(r.valor))}</td>
                                         </tr>
                                     ))}
@@ -914,12 +906,12 @@ export default function EquipePage() {
             )}
 
             {clinicaIdNumerica && comissaoLancamentos.length > 0 && (
-                <div className="bg-white border border-slate-100 rounded-2xl shadow-sm p-5">
-                    <h2 className="font-bold text-slate-800 flex items-center gap-2 mb-4"><DollarSign size={18} className="text-blue-600"/> Lançamentos de comissão (recentes)</h2>
+                <div className="bg-white border border-neutral-100 rounded-2xl shadow-sm p-5">
+                    <h2 className="font-bold text-neutral-800 flex items-center gap-2 mb-4"><DollarSign size={18} className="text-neutral-900"/> Lançamentos de comissão (recentes)</h2>
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm min-w-[520px]">
                             <thead>
-                                <tr className="text-left text-[10px] uppercase font-black text-slate-400 border-b border-slate-100">
+                                <tr className="text-left text-[10px] uppercase font-black text-neutral-400 border-b border-neutral-100">
                                     <th className="pb-2 pr-4">Profissional</th>
                                     <th className="pb-2 pr-4">Descrição</th>
                                     <th className="pb-2 pr-4">Base</th>
@@ -927,14 +919,14 @@ export default function EquipePage() {
                                     <th className="pb-2">Status</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-slate-50">
+                            <tbody className="divide-y divide-neutral-100">
                                 {comissaoLancamentos.map((l) => (
                                     <tr key={l.id}>
-                                        <td className="py-2.5 pr-4 font-bold text-slate-700">{l.profissionais?.nome || `#${l.profissional_id}`}</td>
-                                        <td className="py-2.5 pr-4 text-slate-600 text-xs">{l.descricao}</td>
-                                        <td className="py-2.5 pr-4 text-slate-500">R$ {Number(l.valor_base).toFixed(2)}</td>
-                                        <td className="py-2.5 pr-4 font-black text-blue-700">R$ {Number(l.valor_comissao).toFixed(2)}</td>
-                                        <td className="py-2.5"><span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-slate-100 text-slate-600">{l.status}</span></td>
+                                        <td className="py-2.5 pr-4 font-bold text-neutral-700">{l.profissionais?.nome || `#${l.profissional_id}`}</td>
+                                        <td className="py-2.5 pr-4 text-neutral-600 text-xs">{l.descricao}</td>
+                                        <td className="py-2.5 pr-4 text-neutral-500">R$ {Number(l.valor_base).toFixed(2)}</td>
+                                        <td className="py-2.5 pr-4 font-black text-neutral-800">R$ {Number(l.valor_comissao).toFixed(2)}</td>
+                                        <td className="py-2.5"><span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-neutral-100 text-neutral-600">{l.status}</span></td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -946,38 +938,38 @@ export default function EquipePage() {
             <div className="grid grid-cols-1 md:grid-cols-[280px,1fr] gap-6">
                 <aside className="space-y-4">
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-1 gap-4">
-                        <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm">
-                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Total de usuários</p>
-                            <p className="text-3xl font-extrabold text-slate-800 mt-1">{totalAtivos}</p>
-                            <p className="text-xs text-slate-500">Equipe ativa na plataforma</p>
+                        <div className="bg-white border border-neutral-100 rounded-2xl p-4 shadow-sm">
+                            <p className="text-[10px] font-black uppercase tracking-wider text-neutral-400">Total de usuários</p>
+                            <p className="text-3xl font-extrabold text-neutral-800 mt-1">{totalAtivos}</p>
+                            <p className="text-xs text-neutral-500">Equipe ativa na plataforma</p>
                         </div>
-                        <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm">
-                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Admins e gestores</p>
-                            <p className="text-3xl font-extrabold text-blue-600 mt-1">{totalAdmins}</p>
-                            <p className="text-xs text-slate-500">Com acesso administrativo</p>
+                        <div className="bg-white border border-neutral-100 rounded-2xl p-4 shadow-sm">
+                            <p className="text-[10px] font-black uppercase tracking-wider text-neutral-400">Admins e gestores</p>
+                            <p className="text-3xl font-extrabold text-neutral-900 mt-1">{totalAdmins}</p>
+                            <p className="text-xs text-neutral-500">Com acesso administrativo</p>
                         </div>
-                        <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm">
-                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Pendentes de senha</p>
+                        <div className="bg-white border border-neutral-100 rounded-2xl p-4 shadow-sm">
+                            <p className="text-[10px] font-black uppercase tracking-wider text-neutral-400">Pendentes de senha</p>
                             <p className="text-3xl font-extrabold text-amber-600 mt-1">{pendentesSenha}</p>
-                            <p className="text-xs text-slate-500">Devem trocar a senha provisória</p>
+                            <p className="text-xs text-neutral-500">Devem trocar a senha provisória</p>
                         </div>
-                        <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm">
-                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Clínicas cobertas</p>
+                        <div className="bg-white border border-neutral-100 rounded-2xl p-4 shadow-sm">
+                            <p className="text-[10px] font-black uppercase tracking-wider text-neutral-400">Clínicas cobertas</p>
                             <p className="text-3xl font-extrabold text-emerald-600 mt-1">{totalClinicasCobertas}</p>
-                            <p className="text-xs text-slate-500">Com pelo menos um colaborador</p>
+                            <p className="text-xs text-neutral-500">Com pelo menos um colaborador</p>
                         </div>
                     </div>
-                    <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm">
-                        <p className="text-[11px] font-black uppercase tracking-wider text-slate-400 mb-2">Dica rápida</p>
-                        <p className="text-sm text-slate-600">Use o botão "Adicionar funcionário" acima para convidar novos membros e definir permissões personalizadas.</p>
+                    <div className="bg-white border border-neutral-100 rounded-2xl p-4 shadow-sm">
+                        <p className="text-[11px] font-black uppercase tracking-wider text-neutral-400 mb-2">Dica rápida</p>
+                        <p className="text-sm text-neutral-600">Use o botão "Adicionar funcionário" acima para convidar novos membros e definir permissões personalizadas.</p>
                     </div>
                 </aside>
 
-                <section className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
+                <section className="bg-white border border-neutral-100 rounded-2xl shadow-sm overflow-hidden">
                   <div className="overflow-x-auto">
                     <table className="w-full min-w-[540px]">
-                    <thead className="bg-slate-50">
-                        <tr className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                    <thead className="bg-neutral-50">
+                        <tr className="text-[10px] font-black uppercase tracking-wider text-neutral-400">
                             <th className="text-left px-3 sm:px-5 py-3">Nome</th>
                             <th className="text-left px-3 sm:px-5 py-3">Cargo</th>
                             <th className="text-left px-3 sm:px-5 py-3">Unidades</th>
@@ -987,30 +979,30 @@ export default function EquipePage() {
                     </thead>
                     <tbody>
                         {profissionais.map((p) => (
-                            <tr key={p.id} className="border-t border-slate-50 hover:bg-blue-50/40 transition-colors">
+                            <tr key={p.id} className="border-t border-neutral-50 hover:bg-neutral-50/40 transition-colors">
                                 <td className="px-5 py-4">
                                     <div className="flex items-center gap-3">
-                                        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 text-white flex items-center justify-center font-bold text-xs shadow-sm">
+                                        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-neutral-500 to-neutral-900 text-white flex items-center justify-center font-bold text-xs shadow-sm">
                                             {p.nome.split(' ').map((n) => n[0]).slice(0, 2).join('').toUpperCase()}
                                         </div>
                                         <div>
-                                            <p className="font-bold text-slate-700 text-sm">{p.nome}</p>
+                                            <p className="font-bold text-neutral-700 text-sm">{p.nome}</p>
                                             {p.nivel_acesso === 'admin' && (
-                                                <p className="text-[10px] font-bold text-blue-500 uppercase">Administrador</p>
+                                                <p className="text-[10px] font-bold text-neutral-500 uppercase">Administrador</p>
                                             )}
                                         </div>
                                     </div>
                                 </td>
-                                <td className="px-5 py-4 text-sm font-bold text-slate-600">{p.cargo || '—'}</td>
+                                <td className="px-5 py-4 text-sm font-bold text-neutral-600">{p.cargo || '—'}</td>
                                 <td className="px-5 py-4">
                                     <div className="flex flex-wrap gap-1">
                                         {(p.clinicas || []).slice(0, 3).map((c, index) => (
-                                            <span key={`${c.id}-${index}`} className="text-[10px] font-bold bg-slate-100 text-slate-600 px-2 py-1 rounded-md uppercase tracking-wide">
+                                            <span key={`${c.id}-${index}`} className="text-[10px] font-bold bg-neutral-100 text-neutral-600 px-2 py-1 rounded-md uppercase tracking-wide">
                                                 {c.nome}
                                             </span>
                                         ))}
                                         {(p.clinicas || []).length > 3 && (
-                                            <span className="text-[10px] font-bold text-slate-400">+{(p.clinicas || []).length - 3}</span>
+                                            <span className="text-[10px] font-bold text-neutral-400">+{(p.clinicas || []).length - 3}</span>
                                         )}
                                     </div>
                                 </td>
@@ -1028,7 +1020,7 @@ export default function EquipePage() {
                                 <td className="px-5 py-4 text-right">
                                     <button
                                         onClick={() => abrirEditorAvancado(p)}
-                                        className="touch-target inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-wider px-3 py-2 rounded-lg border border-slate-200 text-slate-500 hover:text-blue-600 hover:border-blue-300 transition-colors"
+                                        className="touch-target inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-wider px-3 py-2 rounded-lg border border-neutral-200 text-neutral-500 hover:text-neutral-900 hover:border-neutral-400 transition-colors"
                                     >
                                         <Settings size={12}/> Editar
                                     </button>
@@ -1036,7 +1028,7 @@ export default function EquipePage() {
                             </tr>
                         ))}
                         {profissionais.length === 0 && (
-                            <tr><td colSpan={5} className="px-5 py-10 text-center text-sm text-slate-400 italic">Nenhum profissional cadastrado.</td></tr>
+                            <tr><td colSpan={5} className="px-5 py-10 text-center text-sm text-neutral-400 italic">Nenhum profissional cadastrado.</td></tr>
                         )}
                     </tbody>
                 </table>
@@ -1045,15 +1037,15 @@ export default function EquipePage() {
             </div>
 
             {/* Editor avançado */}
-            <Modal open={!!(editorAberto && profissionalSelecionado)} onClose={fecharEditorAvancado} maxWidth="2xl" hideCloseButton panelClassName="bg-white rounded-3xl shadow-2xl border border-slate-100 max-h-[92vh] flex flex-col overflow-hidden">
+            <Modal open={!!(editorAberto && profissionalSelecionado)} onClose={fecharEditorAvancado} maxWidth="2xl" hideCloseButton panelClassName="bg-white rounded-[1.35rem] shadow-2xl border border-black/10 max-h-[92vh] flex flex-col overflow-hidden">
                         {profissionalSelecionado && (<>
-                        <div className="px-6 py-4 border-b border-slate-100 flex items-start justify-between gap-4">
+                        <div className="px-6 py-4 border-b border-neutral-100 flex items-start justify-between gap-4">
                             <div>
-                                <p className="text-[10px] font-black uppercase tracking-wider text-blue-500">Edição avançada</p>
-                                <h3 className="text-xl font-bold text-slate-800">{profissionalSelecionado.nome}</h3>
-                                <p className="text-xs font-semibold text-slate-500">{clinicaNomeAtiva}</p>
+                                <p className="text-[10px] font-black uppercase tracking-wider text-neutral-500">Edição avançada</p>
+                                <h3 className="text-xl font-bold text-neutral-800">{profissionalSelecionado.nome}</h3>
+                                <p className="text-xs font-semibold text-neutral-500">{clinicaNomeAtiva}</p>
                             </div>
-                            <button onClick={fecharEditorAvancado} className="p-2 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-50">
+                            <button onClick={fecharEditorAvancado} className="p-2 rounded-full text-neutral-400 hover:text-neutral-700 hover:bg-neutral-50">
                                 <X size={18}/>
                             </button>
                         </div>
@@ -1064,25 +1056,25 @@ export default function EquipePage() {
                         )}
                         <Tabs value={abaEditor} onValueChange={(value) => setAbaEditor(value as 'permissoes' | 'horarios' | 'comissao')} className="flex-1 flex flex-col min-h-0 overflow-hidden">
                             <div className="px-6 pt-4 flex-none">
-                                <TabsList className="bg-slate-100 rounded-2xl p-1 w-full grid grid-cols-3">
+                                <TabsList className="bg-neutral-100 rounded-2xl p-1 w-full grid grid-cols-3">
                                     <TabsTrigger value="permissoes" className="touch-target text-xs font-bold">Permissões</TabsTrigger>
                                     <TabsTrigger value="horarios" className="touch-target text-xs font-bold">Horários</TabsTrigger>
                                     <TabsTrigger value="comissao" className="touch-target text-xs font-bold">Comissão</TabsTrigger>
                                 </TabsList>
                             </div>
                             <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-6 space-y-4">
-                                <TabsContent value="permissoes" className="m-0">{permissoesLoading && clinicaIdNumerica ? <div className="text-sm text-slate-500 flex items-center gap-2"><Loader2 size={16} className="animate-spin"/>Carregando permissões...</div> : renderPermissoesTab()}</TabsContent>
-                                <TabsContent value="horarios" className="m-0">{horarioLoading && clinicaIdNumerica ? <div className="text-sm text-slate-500 flex items-center gap-2"><Loader2 size={16} className="animate-spin"/>Carregando horários...</div> : renderHorariosTab()}</TabsContent>
+                                <TabsContent value="permissoes" className="m-0">{permissoesLoading && clinicaIdNumerica ? <div className="text-sm text-neutral-500 flex items-center gap-2"><Loader2 size={16} className="animate-spin"/>Carregando permissões...</div> : renderPermissoesTab()}</TabsContent>
+                                <TabsContent value="horarios" className="m-0">{horarioLoading && clinicaIdNumerica ? <div className="text-sm text-neutral-500 flex items-center gap-2"><Loader2 size={16} className="animate-spin"/>Carregando horários...</div> : renderHorariosTab()}</TabsContent>
                                 <TabsContent value="comissao" className="m-0">{renderComissoesTab()}</TabsContent>
                             </div>
                         </Tabs>
                         </>)}
             </Modal>
 
-            <Modal open={modalOpen} onClose={() => setModalOpen(false)} maxWidth="lg" hideCloseButton panelClassName="bg-white rounded-2xl shadow-2xl border border-slate-100 max-h-[90vh] overflow-y-auto">
-                        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-                            <h2 className="font-bold text-slate-800 flex items-center gap-2"><UserPlus size={18} className="text-blue-600" /> Novo funcionário</h2>
-                            <button onClick={() => setModalOpen(false)} className="touch-target text-slate-400 hover:text-slate-700 p-1 rounded-lg hover:bg-slate-50"><X size={18} /></button>
+            <Modal open={modalOpen} onClose={() => setModalOpen(false)} maxWidth="lg" hideCloseButton panelClassName="bg-white rounded-2xl shadow-2xl border border-neutral-100 max-h-[90vh] overflow-y-auto">
+                        <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-100">
+                            <h2 className="font-bold text-neutral-800 flex items-center gap-2"><UserPlus size={18} className="text-neutral-900" /> Novo funcionário</h2>
+                            <button onClick={() => setModalOpen(false)} className="touch-target text-neutral-400 hover:text-neutral-700 p-1 rounded-lg hover:bg-neutral-50"><X size={18} /></button>
                         </div>
                         <form onSubmit={salvar} className="p-6 space-y-4">
                             {erro && (
@@ -1092,38 +1084,38 @@ export default function EquipePage() {
                             )}
 
                             <div>
-                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1 flex items-center gap-1 mb-1"><User size={12}/> Nome completo</label>
+                                <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider ml-1 flex items-center gap-1 mb-1"><User size={12}/> Nome completo</label>
                                 <input
                                     value={form.nome}
                                     onChange={(e) => setForm({ ...form, nome: e.target.value })}
-                                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-medium text-slate-700 focus:bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none"
+                                    className="w-full px-3 py-2.5 bg-neutral-50 border border-neutral-200 rounded-lg text-sm font-medium text-neutral-700 focus:bg-white focus:border-neutral-400 focus:ring-2 focus:ring-neutral-200 outline-none"
                                     placeholder="Ex.: Dra. Ana Souza"
                                     required
                                 />
                             </div>
 
                             <div>
-                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1 flex items-center gap-1 mb-1"><Mail size={12}/> E-mail de acesso</label>
+                                <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider ml-1 flex items-center gap-1 mb-1"><Mail size={12}/> E-mail de acesso</label>
                                 <input
                                     type="email"
                                     value={form.email}
                                     onChange={(e) => setForm({ ...form, email: e.target.value })}
-                                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-medium text-slate-700 focus:bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none"
+                                    className="w-full px-3 py-2.5 bg-neutral-50 border border-neutral-200 rounded-lg text-sm font-medium text-neutral-700 focus:bg-white focus:border-neutral-400 focus:ring-2 focus:ring-neutral-200 outline-none"
                                     placeholder="funcionario@email.com"
                                     required
                                 />
                             </div>
 
                             <div>
-                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1 flex items-center gap-1 mb-1"><Briefcase size={12}/> Cargo</label>
+                                <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider ml-1 flex items-center gap-1 mb-1"><Briefcase size={12}/> Cargo</label>
                                 <CustomSelect value={form.cargo} onChange={v => setForm({ ...form, cargo: v })} options={CARGOS.map(c => ({ value: c, label: c }))} size="lg" className="mt-1" />
                             </div>
 
                             <div>
-                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1 flex items-center gap-1 mb-2"><Building2 size={12}/> Unidades de acesso</label>
-                                <div className="space-y-1.5 max-h-52 overflow-y-auto border border-slate-100 rounded-xl p-2 bg-slate-50/50">
+                                <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider ml-1 flex items-center gap-1 mb-2"><Building2 size={12}/> Unidades de acesso</label>
+                                <div className="space-y-1.5 max-h-52 overflow-y-auto border border-neutral-100 rounded-xl p-2 bg-neutral-50/50">
                                     {clinics.length === 0 && (
-                                        <p className="text-xs text-slate-400 italic px-2 py-3">Nenhuma unidade disponível na sua rede.</p>
+                                        <p className="text-xs text-neutral-400 italic px-2 py-3">Nenhuma unidade disponível na sua rede.</p>
                                     )}
                                     {clinics.map((c) => {
                                         const id = String(c.id);
@@ -1131,24 +1123,24 @@ export default function EquipePage() {
                                         return (
                                             <label
                                                 key={id}
-                                                className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-all ${checked ? 'bg-blue-50 border-blue-200' : 'bg-white border-slate-100 hover:border-slate-300'}`}
+                                                className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-all ${checked ? 'bg-neutral-50 border-black/10' : 'bg-white border-neutral-100 hover:border-neutral-300'}`}
                                             >
                                                 <input
                                                     type="checkbox"
                                                     checked={checked}
                                                     onChange={() => toggleClinica(id)}
-                                                    className="rounded text-blue-600 focus:ring-blue-500"
+                                                    className="rounded text-neutral-900 focus:ring-neutral-500"
                                                 />
-                                                <span className="text-sm font-bold text-slate-700">{getClinicLabel(c)}</span>
+                                                <span className="text-sm font-bold text-neutral-700">{getClinicLabel(c)}</span>
                                             </label>
                                         );
                                     })}
                                 </div>
                             </div>
 
-                            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-50">
-                                <button type="button" onClick={() => setModalOpen(false)} className="touch-target px-4 py-2 text-sm font-bold text-slate-500 hover:bg-slate-50 rounded-lg">Cancelar</button>
-                                <button type="submit" disabled={salvando} className="touch-target px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-bold rounded-lg flex items-center gap-2 shadow-md shadow-blue-200">
+                            <div className="flex items-center justify-end gap-2 pt-3 border-t border-neutral-50">
+                                <button type="button" onClick={() => setModalOpen(false)} className="touch-target px-4 py-2 text-sm font-bold text-neutral-500 hover:bg-neutral-50 rounded-lg">Cancelar</button>
+                                <button type="submit" disabled={salvando} className="touch-target px-5 py-2 bg-neutral-900 hover:bg-neutral-800 disabled:opacity-50 text-white text-sm font-bold rounded-lg flex items-center gap-2 shadow-md shadow-black/10">
                                     {salvando ? <Loader2 size={14} className="animate-spin"/> : <UserPlus size={14}/>}
                                     Criar funcionário
                                 </button>
@@ -1156,9 +1148,9 @@ export default function EquipePage() {
                         </form>
             </Modal>
 
-            <Modal open={!!credenciais} onClose={() => setCredenciais(null)} maxWidth="md" hideCloseButton panelClassName="bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden">
+            <Modal open={!!credenciais} onClose={() => setCredenciais(null)} maxWidth="md" hideCloseButton panelClassName="bg-white rounded-2xl shadow-2xl border border-neutral-100 overflow-hidden">
                         {credenciais && (<>
-                        <div className="bg-gradient-to-br from-emerald-500 to-emerald-600 text-white px-6 py-5">
+                        <div className="bg-neutral-900 px-6 py-5 text-white">
                             <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center mb-2">
                                 <Check size={24} />
                             </div>
@@ -1166,13 +1158,13 @@ export default function EquipePage() {
                             <p className="text-emerald-50 text-xs mt-0.5">Envie estes dados para <strong>{credenciais.nome}</strong> com segurança.</p>
                         </div>
                         <div className="p-6 space-y-3">
-                            <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
+                            <div className="bg-neutral-50 border border-neutral-100 rounded-xl p-3">
                                 <div className="flex items-center justify-between">
                                     <div>
-                                        <p className="text-[9px] font-black uppercase tracking-wider text-slate-400 mb-0.5">E-mail</p>
-                                        <p className="text-sm font-bold text-slate-700 font-mono break-all">{credenciais.email}</p>
+                                        <p className="text-[9px] font-black uppercase tracking-wider text-neutral-400 mb-0.5">E-mail</p>
+                                        <p className="text-sm font-bold text-neutral-700 font-mono break-all">{credenciais.email}</p>
                                     </div>
-                                    <button onClick={() => copiar('email')} className="ml-2 p-2 rounded-lg hover:bg-white text-slate-400 hover:text-blue-600 transition-all">
+                                    <button onClick={() => copiar('email')} className="ml-2 p-2 rounded-lg hover:bg-white text-neutral-400 hover:text-neutral-900 transition-all">
                                         {copiado === 'email' ? <Check size={16} className="text-emerald-600"/> : <Copy size={16}/>}
                                     </button>
                                 </div>
@@ -1193,19 +1185,21 @@ export default function EquipePage() {
                             </div>
                             <button
                                 onClick={() => copiar('tudo')}
-                                className="touch-target w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-bold rounded-lg"
+                                className="touch-target w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 text-sm font-bold rounded-lg"
                             >
                                 {copiado === 'tudo' ? <><Check size={14} className="text-emerald-600"/> Copiado!</> : <><Copy size={14}/> Copiar tudo</>}
                             </button>
                             <button
                                 onClick={() => setCredenciais(null)}
-                                className="touch-target w-full px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-lg shadow-md shadow-blue-200"
+                                className="touch-target w-full px-4 py-3 bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-bold rounded-lg shadow-md shadow-black/10"
                             >
                                 Concluir
                             </button>
                         </div>
                         </>)}
             </Modal>
-        </div>
+            </>
+            )}
+        </BentoPageShell>
     );
 }

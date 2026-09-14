@@ -1,7 +1,9 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { User, LogOut, Save, Loader2, Lock, Mail, Upload, Briefcase, Trash2, AlertTriangle, Download } from 'lucide-react';
+import { User, LogOut, Save, Loader2, Lock, Mail, Upload, Trash2, AlertTriangle, Download } from 'lucide-react';
+import BentoPageShell from '@/components/bento/BentoPageShell';
+import { bentoCard, bentoInput, bentoPrimaryBtn, bentoGhostBtn } from '@/lib/bentoUi';
 import { useRouter } from 'next/navigation';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
 
@@ -139,94 +141,105 @@ export default function Perfil() {
       }
   }
 
-  if (loading) return <div className="p-10 text-center text-slate-400 flex justify-center"><Loader2 className="animate-spin"/></div>;
-
   const isAdmin = perfil?.nivel_acesso === 'admin';
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6 animate-fade-in">
-      <div className="flex justify-between items-center">
-          <h1 className="text-3xl font-black text-slate-800">Meu Perfil</h1>
-          <button onClick={sair} className="text-red-500 hover:bg-red-50 px-4 py-2 rounded-xl font-bold flex items-center gap-2 text-sm transition-colors"><LogOut size={18}/> Sair</button>
-      </div>
-
-      <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm">
-        <div className="flex flex-col items-center mb-8 relative">
-            <div className="w-32 h-32 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 mb-4 border-4 border-white shadow-lg overflow-hidden relative group">
-                {fotoUrl ? <img src={fotoUrl} className="w-full h-full object-cover"/> : <User size={64} />}
-                
-                {/* Overlay de Upload */}
-                <label className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
-                    <Upload size={24}/>
-                    <span className="text-[10px] font-bold mt-1">ALTERAR</span>
-                    <input type="file" accept="image/*" className="hidden" onChange={handleFotoUpload} />
+    <BentoPageShell
+      title="Meu perfil"
+      subtitle="Dados da conta e preferências pessoais"
+      maxWidthClass="max-w-2xl"
+      actions={
+        <button type="button" onClick={sair} className={`${bentoGhostBtn} text-red-600 hover:bg-red-50`}>
+          <LogOut size={18} /> Sair
+        </button>
+      }
+    >
+      <div className={`${bentoCard} space-y-6 border border-black/5 p-5 sm:p-8`}>
+        {loading ? (
+          <div className="flex justify-center py-16">
+            <Loader2 className="animate-spin text-neutral-400" />
+          </div>
+        ) : (
+          <>
+            <div className="relative flex flex-col items-center">
+              <div className="group relative mb-3 h-28 w-28 overflow-hidden rounded-2xl bg-[#c8f053] ring-2 ring-neutral-900/10">
+                {fotoUrl ? (
+                  <img src={fotoUrl} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  <span className="flex h-full w-full items-center justify-center text-neutral-900">
+                    <User size={48} />
+                  </span>
+                )}
+                <label className="absolute inset-0 flex cursor-pointer flex-col items-center justify-center bg-black/50 text-white opacity-0 transition-opacity group-hover:opacity-100">
+                  <Upload size={22} />
+                  <span className="mt-1 text-[10px] font-semibold">Alterar foto</span>
+                  <input type="file" accept="image/*" className="hidden" onChange={handleFotoUpload} />
                 </label>
+              </div>
             </div>
-            <p className="text-slate-400 text-sm font-bold uppercase">Editando Informações</p>
-        </div>
 
-        <form onSubmit={salvar} className="space-y-5">
-            <div className="grid grid-cols-2 gap-5">
-                <div><label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Nome Completo</label><input required className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-700" value={form.nome} onChange={e => setForm({...form, nome: e.target.value})} /></div>
-                
-                {/* LÓGICA DE BLOQUEIO DO CARGO */}
+            <form onSubmit={salvar} className="space-y-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
-                    <label className="text-xs font-bold text-slate-400 uppercase mb-1 flex items-center gap-1">
-                        Cargo { !isAdmin && <Lock size={10} className="text-slate-400"/> }
-                    </label>
-                    <input 
-                        className={`w-full p-3 border border-slate-200 rounded-xl outline-none font-medium ${!isAdmin ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'bg-slate-50 focus:ring-2 focus:ring-blue-500 text-slate-600'}`} 
-                        value={form.cargo} 
-                        onChange={e => setForm({...form, cargo: e.target.value})} 
-                        disabled={!isAdmin}
-                        title={!isAdmin ? "Apenas administradores podem alterar o cargo." : ""}
-                    />
+                  <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-neutral-500">Nome</label>
+                  <input required className={bentoInput} value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} />
                 </div>
-            </div>
-
-            <div><label className="text-xs font-bold text-slate-400 uppercase mb-1 flex items-center gap-1"><Mail size={12}/> Email de Acesso</label><input type="email" disabled className="w-full p-3 bg-slate-100 border border-slate-200 rounded-xl outline-none text-slate-500 font-medium cursor-not-allowed" value={form.email} /></div>
-
-            <div><label className="text-xs font-bold text-slate-400 uppercase mb-1 flex items-center gap-1"><Lock size={12}/> Nova Senha (Opcional)</label><input type="password" placeholder="Deixe em branco para não alterar" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-600" value={form.novaSenha} onChange={e => setForm({...form, novaSenha: e.target.value})} /></div>
-
-            <button type="submit" disabled={salvando} className="w-full bg-blue-600 text-white font-bold py-4 rounded-xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 flex justify-center items-center gap-2 mt-4">
-                {salvando ? <Loader2 className="animate-spin"/> : <><Save size={20}/> Salvar Alterações</>}
-            </button>
-        </form>
+                <div>
+                  <label className="mb-1 flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                    Cargo {!isAdmin && <Lock size={10} />}
+                  </label>
+                  <input
+                    className={`${bentoInput} ${!isAdmin ? 'cursor-not-allowed bg-neutral-100 text-neutral-500' : ''}`}
+                    value={form.cargo}
+                    onChange={(e) => setForm({ ...form, cargo: e.target.value })}
+                    disabled={!isAdmin}
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="mb-1 flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                  <Mail size={12} /> E-mail
+                </label>
+                <input type="email" disabled className={`${bentoInput} cursor-not-allowed bg-neutral-100 text-neutral-500`} value={form.email} />
+              </div>
+              <div>
+                <label className="mb-1 flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                  <Lock size={12} /> Nova senha
+                </label>
+                <input
+                  type="password"
+                  placeholder="Opcional"
+                  className={bentoInput}
+                  value={form.novaSenha}
+                  onChange={(e) => setForm({ ...form, novaSenha: e.target.value })}
+                />
+              </div>
+              <button type="submit" disabled={salvando} className={`${bentoPrimaryBtn} w-full py-3`}>
+                {salvando ? <Loader2 className="animate-spin" /> : <><Save size={18} /> Salvar</>}
+              </button>
+            </form>
+          </>
+        )}
       </div>
 
-      {/* LGPD — Direitos do Titular */}
-      <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm">
-        <h2 className="text-lg font-black text-slate-800 flex items-center gap-2 mb-1"><AlertTriangle size={18} className="text-amber-500"/> Seus Dados (LGPD)</h2>
-        <p className="text-xs text-slate-400 mb-5">Conforme a Lei 13.709/2018, você possui direito de acessar, exportar e solicitar a exclusão dos seus dados pessoais.</p>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <button
-                onClick={handleExportarMeusDados}
-                className="p-4 bg-blue-50 border border-blue-200 rounded-xl hover:bg-blue-100 transition-colors flex items-center gap-3 group"
-            >
-                <div className="w-9 h-9 bg-blue-600 text-white rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform"><Download size={16}/></div>
-                <div className="text-left">
-                    <div className="text-sm font-bold text-blue-900">Exportar Meus Dados</div>
-                    <div className="text-[10px] text-blue-600">Download em JSON estruturado</div>
-                </div>
-            </button>
-
-            <button
-                onClick={handleSolicitarExclusao}
-                className="p-4 bg-red-50 border border-red-200 rounded-xl hover:bg-red-100 transition-colors flex items-center gap-3 group"
-            >
-                <div className="w-9 h-9 bg-red-600 text-white rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform"><Trash2 size={16}/></div>
-                <div className="text-left">
-                    <div className="text-sm font-bold text-red-900">Solicitar Exclusão</div>
-                    <div className="text-[10px] text-red-600">Remover conta e dados permanentemente</div>
-                </div>
-            </button>
+      <div className={`${bentoCard} mt-4 border border-black/5 p-5 sm:p-6`}>
+        <h2 className="flex items-center gap-2 text-base font-semibold text-neutral-900">
+          <AlertTriangle size={18} className="text-amber-600" /> Seus dados (LGPD)
+        </h2>
+        <p className="mt-1 text-xs text-neutral-500">Exportação e solicitação de exclusão conforme a Lei 13.709/2018.</p>
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <button type="button" onClick={handleExportarMeusDados} className={`${bentoGhostBtn} justify-start p-4`}>
+            <Download size={18} /> Exportar JSON
+          </button>
+          <button
+            type="button"
+            onClick={handleSolicitarExclusao}
+            className={`${bentoGhostBtn} justify-start border-red-200 p-4 text-red-700 hover:bg-red-50`}
+          >
+            <Trash2 size={18} /> Solicitar exclusão
+          </button>
         </div>
-
-        <p className="text-[10px] text-slate-400 mt-4 leading-relaxed">
-            A exclusão será processada em até 30 dias. Dados retidos por obrigação legal (logs de acesso — Marco Civil da Internet) serão anonimizados após o prazo legal de 6 meses.
-        </p>
       </div>
-    </div>
+    </BentoPageShell>
   );
 }

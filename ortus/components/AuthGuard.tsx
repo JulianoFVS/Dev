@@ -328,22 +328,29 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   // Se não tem session e não tem cookie (ex: sessão expirada), redireciona via validarSessao
   if (!session && !hasAuthCookie()) return null;
 
-  // LAYOUT LIMPO PARA SELEÇÃO, PRIMEIRO ACESSO E SUPER ADMIN
-  if (pathname === '/selecao' || pathname === '/primeiro-acesso' || pathname.startsWith('/super-admin')) {
+  // Layout limpo (sem sidebar) — onboarding e troca de clínica
+  if (pathname === '/selecao' || pathname === '/primeiro-acesso') {
       return <>{children}</>;
   }
 
   const isDashboard = pathname === '/dashboard' || pathname.startsWith('/dashboard');
-  const isBentoShell =
-    isDashboard ||
-    pathname === '/agenda' ||
-    pathname.startsWith('/agenda/') ||
-    pathname === '/pacientes' ||
-    pathname.startsWith('/pacientes/') ||
-    pathname === '/proteses' ||
-    pathname.startsWith('/proteses/') ||
-    pathname === '/financeiro' ||
-    pathname.startsWith('/financeiro/');
+  const bentoPrefixes = [
+    '/dashboard',
+    '/agenda',
+    '/pacientes',
+    '/proteses',
+    '/financeiro',
+    '/relatorios',
+    '/tarefas',
+    '/ajustes',
+    '/configuracoes',
+    '/perfil',
+    '/inbox',
+    '/mensagens',
+    '/super-admin',
+    '/planos',
+  ];
+  const isBentoShell = bentoPrefixes.some((p) => pathname === p || pathname.startsWith(`${p}/`));
   const isPerfilAdmin = perfil?.nivel_acesso === 'admin' || perfil?.is_super_admin;
 
   const canAccessModule = (module?: ModuleName) => {
