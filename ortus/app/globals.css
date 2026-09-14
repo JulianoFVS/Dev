@@ -366,15 +366,41 @@ input[type="time"] {
 .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 100px; }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 
-/* ===== KANBAN SCROLLBAR - Rosa/Pink minimalista ===== */
-.kanban-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
-.kanban-scrollbar::-webkit-scrollbar-track { background: #fdf2f8; border-radius: 100px; margin: 0 12px; }
-.kanban-scrollbar::-webkit-scrollbar-thumb { background: linear-gradient(135deg, #ec4899, #f472b6); border-radius: 100px; }
-.kanban-scrollbar::-webkit-scrollbar-thumb:hover { background: linear-gradient(135deg, #db2777, #ec4899); }
+/* ===== KANBAN SCROLLBAR — trilho evidente + “bolinha” grossa (horizontal) ===== */
+.kanban-scrollbar {
+  scrollbar-width: thick;
+  scrollbar-color: #171717 #d4d8d2;
+}
+.kanban-scrollbar::-webkit-scrollbar {
+  width: 14px;
+  height: 18px;
+}
+.kanban-scrollbar::-webkit-scrollbar-track {
+  background: #d4d8d2;
+  border-radius: 9999px;
+  margin: 4px 8px 2px;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+.kanban-scrollbar::-webkit-scrollbar-thumb {
+  background: #171717;
+  border-radius: 9999px;
+  border: 4px solid #d4d8d2;
+  min-width: 72px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+.kanban-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #404040;
+}
+.kanban-scrollbar::-webkit-scrollbar-thumb:active {
+  background: #0a0a0a;
+}
+.kanban-scrollbar::-webkit-scrollbar-corner {
+  background: transparent;
+}
 
 /* Firefox scrollbar support */
 .custom-scrollbar { scrollbar-width: thin; scrollbar-color: #cbd5e1 transparent; }
-.kanban-scrollbar { scrollbar-width: thin; scrollbar-color: #ec4899 #fdf2f8; }
 .touch-target {
     min-height: 44px;
     min-width: 44px;

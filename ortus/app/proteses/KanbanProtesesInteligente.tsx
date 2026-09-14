@@ -617,8 +617,8 @@ export default function KanbanProtesesInteligente() {
   }
 
   return (
-    <div className="w-full space-y-3 px-2.5 py-2.5 pb-16 font-poppins sm:px-3 sm:py-3 md:px-4 md:py-3.5">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+    <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden px-2.5 py-2.5 font-poppins sm:px-3 sm:py-3 md:px-4 md:py-3.5">
+      <div className="flex shrink-0 flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 md:text-[2rem]">Laboratório</h1>
           <p className="mt-1 text-sm text-neutral-500 sm:text-base">
@@ -650,7 +650,7 @@ export default function KanbanProtesesInteligente() {
         </div>
       )}
 
-      <div className={`${cardShell} flex flex-col gap-2 p-3 sm:flex-row sm:items-center sm:p-4`}>
+      <div className={`${cardShell} flex shrink-0 flex-col gap-2 p-3 sm:flex-row sm:items-center sm:p-4`}>
         <div className="relative min-w-0 flex-1 max-w-md">
           <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
           <input
@@ -733,7 +733,7 @@ export default function KanbanProtesesInteligente() {
       </div>
 
       {columns.length > 0 && (
-        <div className={`${cardShell} shrink-0 px-4 py-3`}>
+        <div className={`${cardShell} shrink-0 px-4 py-3 sm:py-2.5`}>
           <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-neutral-400">Fluxo do processo</p>
           <div ref={flowBarRef} className="flex items-center gap-1 flex-wrap">
             {columns.slice(0, maxVisibleFlow).map((col, idx) => {
@@ -798,22 +798,22 @@ export default function KanbanProtesesInteligente() {
         </div>
       )}
 
-      <div className={`${cardShell} min-h-[420px] min-w-0 w-full overflow-hidden`}>
+      <div className={`${cardShell} flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden`}>
         {loading && !jaCarregou.current ? (
-          <div className="flex gap-3 overflow-x-auto p-3 sm:p-4">
+          <div className="kanban-scrollbar flex min-h-0 flex-1 gap-3 overflow-x-auto px-3 pb-2 pt-3 sm:px-4 sm:pt-4">
             {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="h-[380px] w-72 shrink-0 animate-pulse rounded-[1.35rem] bg-neutral-100 sm:rounded-[1.5rem]" />
+              <div key={i} className="h-full min-h-[280px] w-72 shrink-0 animate-pulse rounded-[1.35rem] bg-neutral-100 sm:min-h-0 sm:rounded-[1.5rem]" />
             ))}
           </div>
         ) : (
-          <div className="kanban-scrollbar h-full w-full min-w-0 flex-1 overflow-x-auto overflow-y-hidden p-3 sm:p-4">
-            <div className="flex flex-col sm:flex-row gap-4 sm:h-full sm:min-w-max">
+          <div className="kanban-scrollbar min-h-0 flex-1 overflow-x-auto overflow-y-hidden px-3 pb-1 pt-3 sm:px-4 sm:pt-4">
+            <div className="flex h-full min-h-[280px] min-w-min flex-col gap-4 sm:min-h-0 sm:flex-row sm:items-stretch">
               {columns.map((column) => {
                 const columnCards = cardsByColumn(column.id);
                 const hasChecklist = isChecklistColumn(column);
 
                 return (
-                  <section key={column.id} id={`coluna-${column.id}`} className={`flex min-h-0 w-full flex-col sm:h-full sm:w-80 sm:flex-none ${COLUMN_SHELL}`}>
+                  <section key={column.id} id={`coluna-${column.id}`} className={`flex h-full min-h-[280px] w-full flex-col sm:min-h-0 sm:w-80 sm:flex-none ${COLUMN_SHELL}`}>
                     <div className="flex items-start justify-between gap-3 border-b border-black/5 p-4">
                       <div className="min-w-0">
                         <h2 className="truncate text-xs font-semibold uppercase tracking-wide text-neutral-800">{column.titulo}</h2>

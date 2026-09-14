@@ -10,7 +10,6 @@ import {
   ChevronRight,
   DollarSign,
   LayoutDashboard,
-  Plus,
   Settings,
   Smile,
   User,
@@ -110,20 +109,23 @@ export default function DashboardSidebar() {
     <aside
       className={`flex h-[calc(100vh-0.75rem)] shrink-0 flex-col overflow-hidden rounded-[1.75rem] bg-neutral-950 py-3 transition-[width] duration-200 ease-out sm:h-[calc(100vh-1rem)] sm:rounded-[2rem] md:rounded-[2.25rem] ${widthClass}`}
     >
-      <div className={`mb-4 flex flex-col gap-2 ${collapsed ? 'items-center px-2' : 'px-3'}`}>
+      <div className={`mb-4 ${collapsed ? 'flex justify-center px-2' : 'px-3'}`}>
         <Link
-          href="/agenda"
-          title="Novo agendamento"
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/10 text-white hover:bg-white/15"
+          href="/dashboard"
+          title="ortus — Visão geral"
+          className={`flex shrink-0 items-center transition-colors hover:opacity-90 ${
+            collapsed ? 'h-11 w-11 justify-center rounded-2xl' : 'gap-2 rounded-2xl px-1 py-1.5'
+          }`}
         >
-          <Plus size={22} strokeWidth={1.75} />
-        </Link>
-        {!collapsed && (
-          <Link href="/dashboard" className="flex items-center gap-2 px-1">
-            <img src="/landing/ortus-mark.svg" alt="" className="h-6 w-6 brightness-0 invert" />
+          <img
+            src="/landing/ortus-mark.svg"
+            alt=""
+            className={`shrink-0 brightness-0 invert ${collapsed ? 'h-7 w-7' : 'h-6 w-6'}`}
+          />
+          {!collapsed && (
             <img src="/landing/ortus-wordmark.svg" alt="ortus" className="h-4 w-auto brightness-0 invert" />
-          </Link>
-        )}
+          )}
+        </Link>
       </div>
 
       <nav
