@@ -8,6 +8,7 @@ import Link from 'next/link';
 import { carregarModelos, formatarRespostaAnamnese, respostaInicial, type ModeloAnamnese, type RespostaAnamnese, type RespostaSimNaoTexto } from '@/lib/anamnese';
 // teeth-data lib no longer needed — using PNG images from /assets/dentes/
 import { fetchUserClinicas } from '@/lib/clinicScoped';
+import { useClinica } from '@/app/context/ClinicaContext';
 import { registrarAudit } from '@/lib/auditLog';
 import TabEvolucao from './TabEvolucao';
 import CustomSelect from '@/components/ui/CustomSelect';
@@ -270,6 +271,17 @@ function Tooth({ num, state, ferramenta, onApply, isUpper, esquematico }: { num:
   );
 }
 
+/** Lê dados básicos do paciente do cache da lista (sessionStorage) para pintar a casca instantaneamente. */
+function readPacienteCache(id: string): any | null {
+  if (!id || typeof window === 'undefined') return null;
+  try {
+    const raw = sessionStorage.getItem('ortus:pacientes-lista');
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { items: any[] };
+    return (parsed.items || []).find((p) => String(p.id) === String(id)) || null;
+  } catch { return null; }
+}
+
 export default function PacienteDetalhe() {
   const params = useParams();
   const id = typeof params.id === 'string' ? params.id : Array.isArray(params.id) ? (params.id[0] ?? '') : '';
@@ -277,7 +289,10 @@ export default function PacienteDetalhe() {
   const searchParams = useSearchParams();
   const rawTab = searchParams?.get('tab') || 'dados';
   const initialTab = rawTab === 'evolucao' ? 'tratamentos' : rawTab;
-  const [loading, setLoading] = useState(true);
+  const { clinics: clinicasContexto } = useClinica();
+  // Bootstrap síncrono: se já temos o paciente em cache (veio da lista), pinta a casca já
+  const pacienteCache = useRef(readPacienteCache(id));
+  const [loading, setLoading] = useState(pacienteCache.current === null);
   const { showAlert, showConfirm } = useCustomAlert();
   
   const [abaAtiva, setAbaAtiva] = useState(initialTab);
@@ -315,7 +330,7 @@ export default function PacienteDetalhe() {
   const [taxasRecebimento, setTaxasRecebimento] = useState<TaxaMaquininha[]>([]);
   const [recebendo, setRecebendo] = useState(false);
   
-  const [form, setForm] = useState<any>({});
+  const [form, setForm] = useState<any>(() => pacienteCache.current || {});
   const [ficha, setFicha] = useState<any>({}); 
   const [historico, setHistorico] = useState<any[]>([]);
   const [evolucoes, setEvolucoes] = useState<any[]>([]);
@@ -428,7 +443,9 @@ export default function PacienteDetalhe() {
 
   useEffect(() => {
     if (!id) return;
-    carregar({ silent: prontuarioIdCarregado.current === id });
+    // Silencioso se já carregamos esse id OU se a casca já foi pintada via cache da lista
+    const jaTemDados = prontuarioIdCarregado.current === id || pacienteCache.current !== null;
+    carregar({ silent: jaTemDados });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
@@ -452,12 +469,20 @@ export default function PacienteDetalhe() {
       if (!opts?.silent) setLoading(true);
       odontogramaFromServer.current = true;
       fichaFromServer.current = true;
-      const listaClinicas = await fetchUserClinicas();
-      setClinicas(listaClinicas);
 
-      const { data } = await supabase.from('pacientes').select('*').eq('id', id).single();
+      // Todas as buscas independentes disparam em paralelo — sem cadeia sequencial
+      const [listaClinicas, pacienteRes, prontuario, histRes, debitosLista] = await Promise.all([
+          clinicasContexto.length > 0 ? Promise.resolve(clinicasContexto) : fetchUserClinicas(),
+          supabase.from('pacientes').select('*').eq('id', id).single(),
+          carregarProntuario(String(id)),
+          supabase.from('agendamentos').select('*, profissionais(nome)').eq('paciente_id', id).order('data_hora', { ascending: false }),
+          listarDebitosPaciente(id),
+      ]);
+
+      setClinicas(listaClinicas as any[]);
+      const data = pacienteRes.data;
+
       if (data) {
-          const prontuario = await carregarProntuario(String(id));
           const fm = normalizarFichaMedica({ ...(data.ficha_medica || {}), ...prontuario.fichaClinica });
           setFicha(fm);
           setForm({
@@ -474,22 +499,21 @@ export default function PacienteDetalhe() {
           setAnamnesesAnteriores(prontuario.anamneses);
           setDocumentos(prontuario.documentos);
           setEvolucoes(prontuario.evolucoes);
-          
-          // Carregar planos da clínica do paciente
+
+          // Planos + modelos de documentos da clínica — não bloqueiam o restante da tela
           if (data.clinica_id) {
-              const { data: planosData } = await supabase.from('planos').select('id, nome').eq('clinica_id', data.clinica_id).eq('ativo', true).order('nome');
-              if (planosData) setPlanos(planosData);
+              supabase.from('planos').select('id, nome').eq('clinica_id', data.clinica_id).eq('ativo', true).order('nome')
+                  .then(({ data: planosData }) => { if (planosData) setPlanos(planosData); });
               carregarConfig(data.clinica_id, 'modelos_documentos', 'ortus_modelos_documentos', []).then((d: any) => {
                   if (Array.isArray(d)) setModelosDocumentos(d);
               });
           }
-          
+
           registrarAudit({ acao: 'visualizou', entidade: 'paciente', entidade_id: String(id) });
       }
-      const { data: hist } = await supabase.from('agendamentos').select('*, profissionais(nome)').eq('paciente_id', id).order('data_hora', { ascending: false });
-      const historicoFiltrado = (hist || []).filter((h: any) => h.tipo_registro !== 'debito_manual' && h.observacoes !== 'Débito manual');
+
+      const historicoFiltrado = (histRes.data || []).filter((h: any) => h.tipo_registro !== 'debito_manual' && h.observacoes !== 'Débito manual');
       setHistorico(historicoFiltrado);
-      const debitosLista = await listarDebitosPaciente(id);
       setDebitos(debitosLista);
 
       setModelosAnamnese(carregarModelos());
@@ -1521,10 +1545,23 @@ export default function PacienteDetalhe() {
       });
   }
 
-  if (loading && prontuarioIdCarregado.current !== id) {
+  // Só bloqueia com skeleton se não há NADA em cache (acesso direto/link, sem passar pela lista)
+  if (loading && prontuarioIdCarregado.current !== id && !pacienteCache.current) {
     return (
-      <div className="flex h-full min-h-[40vh] items-center justify-center text-neutral-400">
-        <Loader2 className="mr-2 animate-spin" /> Carregando prontuário...
+      <div className="w-full space-y-3 px-2.5 py-2.5 pb-16 sm:px-3 sm:py-3 md:px-4 md:py-3.5">
+        <div className="flex items-center gap-4 rounded-[1.35rem] border border-black/5 bg-white p-4 sm:rounded-[1.5rem] sm:p-5">
+          <div className="h-11 w-11 shrink-0 animate-pulse rounded-2xl bg-neutral-100" />
+          <div className="flex-1 space-y-2">
+            <div className="h-6 w-48 animate-pulse rounded-lg bg-neutral-100" />
+            <div className="h-3 w-32 animate-pulse rounded-lg bg-neutral-50" />
+          </div>
+        </div>
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="h-9 w-28 shrink-0 animate-pulse rounded-full bg-neutral-100" />
+          ))}
+        </div>
+        <div className="h-[50vh] animate-pulse rounded-[1.35rem] bg-neutral-100 sm:rounded-[1.5rem]" />
       </div>
     );
   }
