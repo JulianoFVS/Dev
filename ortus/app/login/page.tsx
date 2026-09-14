@@ -6,6 +6,7 @@ import { Lock, Mail, Loader2, ShieldCheck, ArrowLeft, Eye, EyeOff } from 'lucide
 import Link from 'next/link';
 import { registrarAudit } from '@/lib/auditLog';
 import { setAuthMarkerCookie } from '@/lib/authCookies';
+import { bentoCard, bentoInput, bentoPrimaryBtn } from '@/lib/bentoUi';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -34,12 +35,11 @@ export default function Login() {
     e.preventDefault();
     setLoading(true);
     setError(null);
-    
-    try {
-      const { data: signIn, error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) throw error;
 
-      // Tenant flow: decide se vai direto para o dashboard ou se precisa selecionar unidade.
+    try {
+      const { data: signIn, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+      if (signInError) throw signInError;
+
       const userId = signIn.user?.id;
       let count = 0;
       let unicaClinicaId: string | null = null;
@@ -68,7 +68,6 @@ export default function Login() {
       registrarAudit({ acao: 'login', entidade: 'profissional', entidade_id: userId || undefined });
       setAuthMarkerCookie();
 
-      // Senha temporária: redireciona para troca obrigatória antes de qualquer coisa.
       if (precisaTrocarSenha) {
         router.push('/primeiro-acesso');
         router.refresh();
@@ -76,64 +75,123 @@ export default function Login() {
       }
 
       if (count === 1 && unicaClinicaId) {
-        // Usuário tem acesso a apenas uma unidade: salva e vai direto.
         localStorage.setItem('ortus_clinica_id', unicaClinicaId);
         router.push('/dashboard');
       } else {
-        // 0 ou múltiplas: deixa o usuário escolher (a tela trata o caso 0 também).
         router.push('/selecao');
       }
       router.refresh();
-
-    } catch (err: any) {
+    } catch {
       setError('Acesso negado. Verifique seus dados.');
       setLoading(false);
     }
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 relative overflow-hidden">
-      <Link href="/" className="absolute top-6 left-6 flex items-center gap-2 text-slate-500 font-bold hover:text-blue-600 transition-colors z-20"><ArrowLeft size={20}/> Voltar para o site</Link>
-      <div className="absolute inset-0 bg-gradient-to-br from-blue-100/40 to-slate-50 z-0"></div>
-      <div className="bg-white w-full max-w-md p-10 rounded-3xl shadow-2xl shadow-blue-900/10 border border-white relative z-10 animate-in zoom-in-95 duration-500">
-        <div className="flex flex-col items-center mb-10">
-            <Link href="/" className="h-24 w-full flex items-center justify-center mb-2 hover:scale-105 transition-transform cursor-pointer">
-                {/* LOGO DA ORTUS */}
-                <img src="/logo.png" alt="Ortus Logo" className="h-full w-auto object-contain"/>
-            </Link>
-            <p className="text-slate-400 font-medium text-xs uppercase tracking-widest">Acesso Restrito</p>
-        </div>
-        {error && <div className="bg-red-50 text-red-600 p-4 rounded-xl text-sm font-bold flex items-center gap-2 mb-6 border border-red-100"><ShieldCheck size={18}/> {error}</div>}
-        <form onSubmit={handleLogin} className="space-y-5">
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-bold text-slate-400 uppercase ml-1 tracking-wider">Email</label>
-              <div className="relative group">
-                <Mail className="absolute left-4 top-3.5 text-slate-300 group-focus-within:text-blue-500 transition-colors" size={20} />
-                <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all font-medium text-slate-700 placeholder:text-slate-300" placeholder="seu@email.com" required/>
-              </div>
-            </div>
-            
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-bold text-slate-400 uppercase ml-1 tracking-wider">Senha</label>
-              <div className="relative group">
-                <Lock className="absolute left-4 top-3.5 text-slate-300 group-focus-within:text-blue-500 transition-colors" size={20} />
-                <input 
-                  type={showPassword ? 'text' : 'password'} 
-                  value={password} 
-                  onChange={e => setPassword(e.target.value)} 
-                  className="w-full pl-12 pr-12 py-3.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all font-medium text-slate-700 placeholder:text-slate-300" 
-                  placeholder="••••••••" 
-                  required
-                />
-                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-3.5 text-slate-300 hover:text-blue-500 transition-colors focus:outline-none" tabIndex={-1}>
-                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                </button>
-              </div>
-            </div>
+    <div className="relative flex min-h-screen items-center justify-center bg-[#f3f4f1] px-4 py-10 font-poppins">
+      <Link
+        href="/"
+        className="absolute left-4 top-4 z-20 inline-flex items-center gap-2 text-sm font-medium text-neutral-600 transition-colors hover:text-neutral-900 sm:left-6 sm:top-6"
+      >
+        <ArrowLeft size={18} aria-hidden />
+        Voltar para o site
+      </Link>
 
-            <button type="submit" disabled={loading} className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white font-bold py-4 rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all shadow-lg shadow-blue-200 active:scale-[0.98] flex justify-center items-center gap-2 mt-6">{loading ? <Loader2 className="animate-spin" /> : 'Entrar no Sistema'}</button>
+      <div
+        className={`${bentoCard} relative z-10 w-full max-w-md border border-black/10 p-6 shadow-sm sm:p-8 md:p-10`}
+      >
+        <div className="mb-8 flex flex-col items-center text-center">
+          <Link href="/" className="mb-4 flex items-center justify-center transition-opacity hover:opacity-90">
+            <img
+              src="/landing/ortus-wordmark.svg"
+              alt="Ortus"
+              className="h-8 w-auto md:h-9"
+            />
+          </Link>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-neutral-400">Acesso restrito</p>
+        </div>
+
+        {error ? (
+          <div
+            className="mb-6 flex items-start gap-2 rounded-xl border border-red-200/80 bg-red-50 px-4 py-3 text-sm font-medium text-red-800"
+            role="alert"
+          >
+            <ShieldCheck size={18} className="mt-0.5 shrink-0" aria-hidden />
+            <span>{error}</span>
+          </div>
+        ) : null}
+
+        <form onSubmit={handleLogin} className="space-y-4">
+          <div className="space-y-1.5">
+            <label htmlFor="login-email" className="ml-0.5 text-[10px] font-semibold uppercase tracking-wider text-neutral-500">
+              E-mail
+            </label>
+            <div className="relative">
+              <Mail className="pointer-events-none absolute left-3 top-1/2 size-5 -translate-y-1/2 text-neutral-400" aria-hidden />
+              <input
+                id="login-email"
+                type="email"
+                autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className={`${bentoInput} pl-10`}
+                placeholder="seu@email.com"
+                required
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label htmlFor="login-password" className="ml-0.5 text-[10px] font-semibold uppercase tracking-wider text-neutral-500">
+              Senha
+            </label>
+            <div className="relative">
+              <Lock className="pointer-events-none absolute left-3 top-1/2 size-5 -translate-y-1/2 text-neutral-400" aria-hidden />
+              <input
+                id="login-password"
+                type={showPassword ? 'text' : 'password'}
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className={`${bentoInput} pl-10 pr-11`}
+                placeholder="••••••••"
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-0.5 text-neutral-400 transition-colors hover:text-neutral-800"
+                tabIndex={-1}
+                aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
+              >
+                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+              </button>
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className={`${bentoPrimaryBtn} mt-2 w-full py-3.5 text-base`}
+          >
+            {loading ? (
+              <>
+                <Loader2 className="size-5 animate-spin" aria-hidden />
+                Entrando…
+              </>
+            ) : (
+              'Entrar no sistema'
+            )}
+          </button>
         </form>
-        <p className="text-center mt-6 text-xs text-slate-400 font-medium">Ainda não tem conta? <Link href="/#precos" className="text-blue-600 hover:underline">Assinar agora</Link></p>
-    </div></div>
+
+        <p className="mt-6 text-center text-xs text-neutral-500">
+          Ainda não tem conta?{' '}
+          <Link href="/#precos" className="font-semibold text-neutral-900 underline-offset-2 hover:underline">
+            Assinar agora
+          </Link>
+        </p>
+      </div>
+    </div>
   );
 }
