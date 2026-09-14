@@ -199,6 +199,7 @@ function barrasHora(lista: AgendaItem[]) {
     if (mapa.has(h)) mapa.set(h, (mapa.get(h) || 0) + (a.valor_final || 0));
   });
   return Array.from(mapa.entries()).map(([h, valor]) => ({
+    id: `h-${h}`,
     rotulo: String(h).padStart(2, '0'),
     valor,
   }));
@@ -229,7 +230,8 @@ function barrasDia(lista: { data_hora: string; status?: string | null; valor_fin
       .filter((a) => a.status === 'concluido' && a.data_hora.slice(0, 10) === chave)
       .reduce((acc, a) => acc + (a.valor_final || 0), 0);
     return {
-      rotulo: d.toLocaleDateString('pt-BR', { weekday: 'narrow' }),
+      id: chave,
+      rotulo: d.toLocaleDateString('pt-BR', { weekday: 'narrow', day: 'numeric' }),
       valor,
     };
   });
@@ -243,7 +245,7 @@ export default function Dashboard() {
   const [ultimaVisita, setUltimaVisita] = useState<string | null>(null);
   const [saldoAberto, setSaldoAberto] = useState(0);
   const [financeiro, setFinanceiro] = useState<Financeiro>(FIN_VAZIO);
-  const [barras, setBarras] = useState<{ rotulo: string; valor: number }[]>([]);
+  const [barras, setBarras] = useState<{ id: string; rotulo: string; valor: number }[]>([]);
   const [concluindo, setConcluindo] = useState(false);
   const [periodo, setPeriodo] = useState<Periodo>('hoje');
   const [duracaoMin, setDuracaoMin] = useState(40);
@@ -254,6 +256,7 @@ export default function Dashboard() {
   const { openPatient } = usePatientSlideOver();
   const jaCarregou = useRef(false);
   const reqId = useRef(0);
+  const periodoReqId = useRef(0);
 
   const idsClinica = useMemo(() => {
     if (activeClinicId && activeClinicId !== 'all') return [Number(activeClinicId)];
@@ -269,11 +272,13 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (!jaCarregou.current) return;
+    // Invalida fetch de período anterior (evita barras “fantasma” ao alternar Hoje/Semana/Mês)
+    periodoReqId.current += 1;
     if (periodo === 'hoje') {
       aplicarFinanceiroHoje(agendaHoje, fiados);
       return;
     }
-    carregarPeriodo(periodo);
+    carregarPeriodo(periodo, periodoReqId.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [periodo]);
 
@@ -392,7 +397,7 @@ export default function Dashboard() {
     jaCarregou.current = true;
   }
 
-  async function carregarPeriodo(alvo: Periodo) {
+  async function carregarPeriodo(alvo: Periodo, req: number) {
     if (alvo === 'hoje' || idsClinica.length === 0) return;
     const inicio = inicioDoPeriodo(alvo);
     const fim = new Date();
@@ -404,6 +409,8 @@ export default function Dashboard() {
       .lte('data_hora', fim.toISOString())
       .in('clinica_id', idsClinica)
       .neq('status', 'cancelado');
+    if (req !== periodoReqId.current) return;
+
     const lista = data || [];
     const { fin } = somarFinanceiro(lista, fiados);
     setFinanceiro(fin);
@@ -428,7 +435,7 @@ export default function Dashboard() {
             return a.status === 'concluido' && t >= de.getTime() && t <= ate.getTime();
           })
           .reduce((acc, a) => acc + (a.valor_final || 0), 0);
-        return { rotulo: `${i + 1}ª`, valor };
+        return { id: `sem-${i}`, rotulo: `${i + 1}ª`, valor };
       });
       setBarras(barrasMes);
     }
@@ -699,7 +706,7 @@ export default function Dashboard() {
                 </span>
               </div>
 
-              <div className="relative mt-3 flex min-h-0 flex-1 items-end justify-between gap-1 sm:gap-2">
+              <div key={periodo} className="relative mt-3 flex min-h-0 flex-1 items-end justify-between gap-1 sm:gap-2">
                 <div className="pointer-events-none absolute inset-x-0 bottom-8 top-2 flex flex-col justify-between">
                   {[0, 1, 2, 3, 4].map((i) => (
                     <div key={i} className="h-px w-full bg-neutral-100" />
@@ -709,7 +716,7 @@ export default function Dashboard() {
                   const h = Math.max(8, (item.valor / maxBarra) * 100);
                   const hPrev = Math.max(4, h * 0.35);
                   return (
-                    <div key={item.rotulo} className="relative z-[1] flex flex-1 flex-col items-center gap-2">
+                    <div key={item.id} className="relative z-[1] flex flex-1 flex-col items-center gap-2">
                       <div className="relative flex h-[7.5rem] w-full max-w-[2.75rem] flex-col items-center justify-end sm:h-[8.5rem] sm:max-w-[3rem]">
                         <div
                           className="absolute bottom-0 w-[85%] rounded-full bg-neutral-100"

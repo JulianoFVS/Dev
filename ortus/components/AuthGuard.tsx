@@ -325,7 +325,9 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     pathname === '/pacientes' ||
     pathname.startsWith('/pacientes/') ||
     pathname === '/proteses' ||
-    pathname.startsWith('/proteses/');
+    pathname.startsWith('/proteses/') ||
+    pathname === '/financeiro' ||
+    pathname.startsWith('/financeiro/');
   const isPerfilAdmin = perfil?.nivel_acesso === 'admin' || perfil?.is_super_admin;
 
   const canAccessModule = (module?: ModuleName) => {
@@ -390,7 +392,18 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     return (
       <PatientSlideOverProvider>
         <PatientActionModalProvider>
-          <BentoShell>{children}</BentoShell>
+          <BentoShell
+            sidebarNav={{
+              showTarefas: canAccessModule('agenda'),
+              showEquipe: canAccessModule('configuracoes'),
+              showPainelSaas: !!perfil?.is_super_admin,
+              tarefasBadge: tarefasPendentes,
+              profilePhotoUrl: perfil?.foto_url ?? null,
+              profileName: perfil?.nome ?? null,
+            }}
+          >
+            {children}
+          </BentoShell>
           <Omnibar moduleAccess={moduleAccess} isAdmin={isPerfilAdmin} />
         </PatientActionModalProvider>
       </PatientSlideOverProvider>

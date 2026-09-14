@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import {
     TrendingUp, TrendingDown, Wallet, Activity, Plus,
@@ -24,6 +24,7 @@ import {
 import { printDocument, printTable, escapePrintHtml } from '@/lib/printDocument';
 
 const CATS_PADRAO = nomesCategoriasAtivas(CATEGORIAS_FINANCEIRAS_PADRAO);
+const cardShell = 'rounded-[1.35rem] bg-white sm:rounded-[1.5rem]';
 
 export default function Financeiro() {
   const { activeClinicId, activeClinic, loading: clinicLoading } = useClinica();
@@ -31,6 +32,7 @@ export default function Financeiro() {
   const [transacoes, setTransacoes] = useState<any[]>([]);
   const [resumo, setResumo] = useState({ entrada: 0, saida: 0, saldo: 0, andamento: 0 });
   const [loading, setLoading] = useState(true);
+  const jaCarregou = useRef(false);
 
   // Filtros
   const [modoData, setModoData] = useState<'mes' | 'periodo'>('mes');
@@ -101,7 +103,7 @@ export default function Financeiro() {
 
   async function carregarDados(metaOverride?: Record<string, any>) {
     const metaAtual = metaOverride ?? meta;
-    setLoading(true);
+    if (!jaCarregou.current) setLoading(true);
     const clinicaId = activeClinicId;
     const filtrarClinica = clinicaId && clinicaId !== 'all';
 
@@ -179,6 +181,7 @@ export default function Financeiro() {
         setTransacoes([]);
         setResumo({ entrada: 0, saida: 0, saldo: 0, andamento: 0 });
     }
+    jaCarregou.current = true;
     setLoading(false);
   }
 
@@ -414,137 +417,207 @@ export default function Financeiro() {
   const countAndamento = transacoes.filter(t => t.status === 'andamento').length;
   const countCancelados = transacoes.filter(t => t.status === 'cancelado').length;
 
+  const pillPeriodo = (ativo: boolean) =>
+    `rounded-full px-4 py-2 text-sm font-medium transition-colors ${ativo ? 'bg-neutral-900 text-white' : 'border border-black/10 bg-white text-neutral-600 hover:bg-neutral-50'}`;
+
   return (
-    <div className="max-w-6xl mx-auto space-y-6 animate-fade-in pb-20">
-      {/* HEADER */}
-      <div className="flex flex-col items-start gap-4 bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm">
-          <div className="w-full">
-            <h1 className="text-xl sm:text-2xl font-black text-slate-800">Gestão Financeira</h1>
-            <div className="flex gap-2 mt-2">
-                <button onClick={() => setModoData('mes')} className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${modoData === 'mes' ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>Por Mês</button>
-                <button onClick={() => setModoData('periodo')} className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${modoData === 'periodo' ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>Personalizado</button>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap gap-3 items-center w-full">
-              {modoData === 'mes' ? (
-                  <div className="flex items-center gap-2 bg-slate-50 p-2 rounded-xl border border-slate-200">
-                      <Calendar size={18} className="text-slate-400"/>
-                      <input type="month" value={mesSelecionado} onChange={e => setMesSelecionado(e.target.value)} className="bg-transparent text-slate-700 font-bold text-sm outline-none cursor-pointer"/>
-                  </div>
-              ) : (
-                  <div className="flex items-center gap-2 bg-slate-50 p-2 rounded-xl border border-slate-200">
-                      <input type="date" value={dataInicio} onChange={e => setDataInicio(e.target.value)} className="bg-transparent text-slate-600 font-bold text-xs outline-none"/>
-                      <span className="text-slate-300">até</span>
-                      <input type="date" value={dataFim} onChange={e => setDataFim(e.target.value)} className="bg-transparent text-slate-600 font-bold text-xs outline-none"/>
-                  </div>
-              )}
-              <button onClick={imprimirRelatorio} className="bg-white border border-slate-200 text-slate-600 p-2.5 rounded-xl hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-colors" title="Imprimir Relatório"><Printer size={20}/></button>
-              <button onClick={abrirNovoLancamento} className="bg-blue-600 text-white px-4 sm:px-5 py-2.5 rounded-xl font-bold hover:bg-blue-700 flex items-center gap-2 text-sm shadow-lg shadow-blue-200 transition-all active:scale-95"><Plus size={18}/> Novo Lançamento</button>
-          </div>
+    <div className="w-full space-y-3 px-2.5 py-2.5 pb-12 font-poppins sm:px-3 sm:py-3 md:px-4 md:py-3.5">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 md:text-[2rem]">Financeiro</h1>
+          <p className="mt-1 text-sm text-neutral-500 sm:text-base">
+            {activeClinic ? getClinicLabel(activeClinic) : 'Todas as clínicas'} · caixa e lançamentos
+          </p>
+        </div>
+        <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
+          <button
+            type="button"
+            onClick={imprimirRelatorio}
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-black/10 bg-white px-4 text-sm font-medium text-neutral-800 hover:bg-neutral-50"
+            title="Imprimir relatório"
+          >
+            <Printer size={16} />
+            <span className="hidden sm:inline">Exportar</span>
+          </button>
+          <button
+            type="button"
+            onClick={abrirNovoLancamento}
+            className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-full bg-neutral-900 px-4 text-sm font-medium text-white hover:bg-neutral-800 sm:flex-none"
+          >
+            <Plus size={16} /> Novo lançamento
+          </button>
+        </div>
       </div>
 
-      {/* CARDS */}
-      <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-          <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm">
-              <div className="flex justify-between items-start mb-3"><div className="p-2 bg-green-50 text-green-600 rounded-xl"><TrendingUp size={20}/></div><span className="text-[10px] font-bold text-green-700 bg-green-50 px-2 py-1 rounded-lg border border-green-100">+ Entradas</span></div>
-              <p className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">Faturamento</p>
-              <p className="text-2xl font-black text-slate-800 mt-1">R$ {resumo.entrada.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</p>
+      <div className={`${cardShell} flex flex-col gap-3 p-3 sm:flex-row sm:flex-wrap sm:items-center sm:p-4`}>
+        <div className="flex gap-2">
+          <button type="button" onClick={() => setModoData('mes')} className={pillPeriodo(modoData === 'mes')}>Por mês</button>
+          <button type="button" onClick={() => setModoData('periodo')} className={pillPeriodo(modoData === 'periodo')}>Período</button>
+        </div>
+        {modoData === 'mes' ? (
+          <div className="flex h-10 items-center gap-2 rounded-full border border-black/10 bg-[#f8f8f6] px-3">
+            <Calendar size={16} className="text-neutral-400" />
+            <input
+              type="month"
+              value={mesSelecionado}
+              onChange={(e) => setMesSelecionado(e.target.value)}
+              className="cursor-pointer bg-transparent text-sm font-medium text-neutral-800 outline-none"
+            />
           </div>
-          <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm">
-              <div className="flex justify-between items-start mb-3"><div className="p-2 bg-red-50 text-red-600 rounded-xl"><TrendingDown size={20}/></div><span className="text-[10px] font-bold text-red-700 bg-red-50 px-2 py-1 rounded-lg border border-red-100">- Saídas</span></div>
-              <p className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">Despesas</p>
-              <p className="text-2xl font-black text-slate-800 mt-1">R$ {resumo.saida.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</p>
+        ) : (
+          <div className="flex flex-wrap items-center gap-2 rounded-full border border-black/10 bg-[#f8f8f6] px-3 py-2">
+            <input type="date" value={dataInicio} onChange={(e) => setDataInicio(e.target.value)} className="bg-transparent text-xs font-medium text-neutral-700 outline-none sm:text-sm" />
+            <span className="text-neutral-400">até</span>
+            <input type="date" value={dataFim} onChange={(e) => setDataFim(e.target.value)} className="bg-transparent text-xs font-medium text-neutral-700 outline-none sm:text-sm" />
           </div>
-          <div className="bg-white p-5 rounded-3xl border border-amber-200 shadow-sm">
-              <div className="flex justify-between items-start mb-3"><div className="p-2 bg-amber-50 text-amber-600 rounded-xl"><ClockIcon size={20}/></div><span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-1 rounded-lg border border-amber-100">Pendente</span></div>
-              <p className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">Em Andamento</p>
-              <p className="text-2xl font-black text-amber-700 mt-1">R$ {resumo.andamento.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</p>
-          </div>
-          <div className="bg-slate-900 p-5 rounded-3xl shadow-xl text-white">
-              <div className="flex justify-between items-start mb-3"><div className="p-2 bg-white/10 rounded-xl"><Wallet size={20}/></div><span className="text-[10px] font-bold text-white/90 bg-white/10 px-2 py-1 rounded-lg">= Resultado</span></div>
-              <p className="text-white/60 text-[10px] font-bold uppercase tracking-wider">Saldo Líquido</p>
-              <p className={`text-2xl font-black mt-1 ${resumo.saldo >= 0 ? 'text-white' : 'text-red-400'}`}>R$ {resumo.saldo.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</p>
-          </div>
+        )}
       </div>
 
-      {/* TABS DE STATUS */}
-      <div className="flex bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm gap-1">
-          <button onClick={() => setAbaStatus('ativos')} className={`flex-1 py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all ${abaStatus === 'ativos' ? 'bg-slate-900 text-white shadow' : 'text-slate-500 hover:bg-slate-50'}`}>
-              <CheckCircle size={16}/> Ativos <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/20">{countAtivos}</span>
-          </button>
-          <button onClick={() => setAbaStatus('andamento')} className={`flex-1 py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all ${abaStatus === 'andamento' ? 'bg-amber-500 text-white shadow' : 'text-slate-500 hover:bg-slate-50'}`}>
-              <ClockIcon size={16}/> Em Andamento {countAndamento > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/20">{countAndamento}</span>}
-          </button>
-          <button onClick={() => setAbaStatus('cancelados')} className={`flex-1 py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all ${abaStatus === 'cancelados' ? 'bg-rose-600 text-white shadow' : 'text-slate-500 hover:bg-slate-50'}`}>
-              <Trash2 size={16}/> Lixeira / Cancelados {countCancelados > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/20">{countCancelados}</span>}
-          </button>
+      <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4 sm:gap-3">
+        <section className={`${cardShell} p-4 sm:p-5`}>
+          <div className="mb-2 flex items-center justify-between">
+            <span className="rounded-full bg-emerald-100 p-2 text-emerald-700"><TrendingUp size={18} /></span>
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-emerald-700">Entradas</span>
+          </div>
+          <p className="text-xs font-medium text-neutral-500">Faturamento</p>
+          {loading && !jaCarregou.current ? (
+            <div className="mt-2 h-8 w-28 animate-pulse rounded-xl bg-neutral-100" />
+          ) : (
+            <p className="mt-1 text-xl font-semibold text-neutral-900 sm:text-2xl">R$ {resumo.entrada.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+          )}
+        </section>
+        <section className={`${cardShell} p-4 sm:p-5`}>
+          <div className="mb-2 flex items-center justify-between">
+            <span className="rounded-full bg-red-100 p-2 text-red-600"><TrendingDown size={18} /></span>
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-red-600">Saídas</span>
+          </div>
+          <p className="text-xs font-medium text-neutral-500">Despesas</p>
+          {loading && !jaCarregou.current ? (
+            <div className="mt-2 h-8 w-28 animate-pulse rounded-xl bg-neutral-100" />
+          ) : (
+            <p className="mt-1 text-xl font-semibold text-neutral-900 sm:text-2xl">R$ {resumo.saida.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+          )}
+        </section>
+        <section className={`${cardShell} border border-amber-200/80 p-4 sm:p-5`}>
+          <div className="mb-2 flex items-center justify-between">
+            <span className="rounded-full bg-amber-100 p-2 text-amber-700"><ClockIcon size={18} /></span>
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-amber-700">Pendente</span>
+          </div>
+          <p className="text-xs font-medium text-neutral-500">Em andamento</p>
+          {loading && !jaCarregou.current ? (
+            <div className="mt-2 h-8 w-28 animate-pulse rounded-xl bg-neutral-100" />
+          ) : (
+            <p className="mt-1 text-xl font-semibold text-amber-800 sm:text-2xl">R$ {resumo.andamento.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+          )}
+        </section>
+        <section className={`${cardShell} border border-neutral-800 bg-neutral-950 p-4 text-white sm:p-5`}>
+          <div className="mb-2 flex items-center justify-between">
+            <span className="rounded-full bg-white/10 p-2 text-[#c8f053]"><Wallet size={18} /></span>
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-white/70">Resultado</span>
+          </div>
+          <p className="text-xs font-medium text-white/60">Saldo líquido</p>
+          {loading && !jaCarregou.current ? (
+            <div className="mt-2 h-8 w-28 animate-pulse rounded-xl bg-white/10" />
+          ) : (
+            <p className={`mt-1 text-xl font-semibold sm:text-2xl ${resumo.saldo >= 0 ? 'text-white' : 'text-red-400'}`}>
+              R$ {resumo.saldo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+            </p>
+          )}
+        </section>
       </div>
 
-      {/* EXTRATO */}
-      <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="p-5 border-b border-slate-100 bg-slate-50/50 flex flex-col md:flex-row justify-between items-center gap-4">
-              <div className="flex items-center gap-3">
-                  <div className="p-2 bg-blue-100 text-blue-600 rounded-lg"><Activity size={18}/></div>
-                  <h3 className="font-bold text-slate-700">{abaStatus === 'ativos' ? 'Extrato de Movimentações' : abaStatus === 'andamento' ? 'Lançamentos em Andamento' : 'Lançamentos Cancelados'}</h3>
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+        {([
+          ['ativos', 'Ativos', countAtivos, CheckCircle],
+          ['andamento', 'Em andamento', countAndamento, ClockIcon],
+          ['cancelados', 'Cancelados', countCancelados, Trash2],
+        ] as const).map(([id, label, count, Icon]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setAbaStatus(id)}
+            className={`inline-flex flex-1 items-center justify-center gap-2 rounded-full px-4 py-2.5 text-sm font-medium transition-colors sm:flex-none ${
+              abaStatus === id ? 'bg-neutral-900 text-white' : 'border border-black/10 bg-white text-neutral-600 hover:bg-neutral-50'
+            }`}
+          >
+            <Icon size={16} />
+            {label}
+            {count > 0 && (
+              <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${abaStatus === id ? 'bg-white/20' : 'bg-neutral-100 text-neutral-600'}`}>{count}</span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      <div className={`${cardShell} overflow-hidden`}>
+          <div className="flex flex-col gap-3 border-b border-black/5 p-4 sm:flex-row sm:items-center sm:justify-between md:p-5">
+              <div className="flex items-center gap-2">
+                  <span className="rounded-full bg-[#f3f4f1] p-2 text-neutral-700"><Activity size={18}/></span>
+                  <h3 className="text-base font-semibold text-neutral-900 sm:text-lg">
+                    {abaStatus === 'ativos' ? 'Extrato' : abaStatus === 'andamento' ? 'Em andamento' : 'Cancelados'}
+                  </h3>
               </div>
-              <div className="flex bg-slate-200 p-1 rounded-xl">
-                  <button onClick={() => setTipoFiltro('todos')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${tipoFiltro === 'todos' ? 'bg-white shadow text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}>Tudo</button>
-                  <button onClick={() => setTipoFiltro('entrada')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${tipoFiltro === 'entrada' ? 'bg-white shadow text-green-600' : 'text-slate-500 hover:text-slate-700'}`}>Entradas</button>
-                  <button onClick={() => setTipoFiltro('saida')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${tipoFiltro === 'saida' ? 'bg-white shadow text-red-600' : 'text-slate-500 hover:text-slate-700'}`}>Saídas</button>
+              <div className="flex rounded-full border border-black/10 bg-[#f3f4f1] p-0.5">
+                  <button type="button" onClick={() => setTipoFiltro('todos')} className={`rounded-full px-4 py-1.5 text-xs font-semibold transition-all ${tipoFiltro === 'todos' ? 'bg-neutral-900 text-white' : 'text-neutral-600'}`}>Tudo</button>
+                  <button type="button" onClick={() => setTipoFiltro('entrada')} className={`rounded-full px-4 py-1.5 text-xs font-semibold transition-all ${tipoFiltro === 'entrada' ? 'bg-neutral-900 text-white' : 'text-neutral-600'}`}>Entradas</button>
+                  <button type="button" onClick={() => setTipoFiltro('saida')} className={`rounded-full px-4 py-1.5 text-xs font-semibold transition-all ${tipoFiltro === 'saida' ? 'bg-neutral-900 text-white' : 'text-neutral-600'}`}>Saídas</button>
               </div>
           </div>
-          <div className="divide-y divide-slate-100">
-              {loading ? (
-                  <div className="p-10 text-center text-slate-400 flex flex-col items-center"><Loader2 className="animate-spin mb-2"/> Calculando...</div>
+          <div className="divide-y divide-black/5">
+              {loading && !jaCarregou.current ? (
+                  <div className="space-y-2 p-4">
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <div key={i} className="flex h-16 animate-pulse items-center gap-3 rounded-2xl bg-neutral-50 px-3" />
+                    ))}
+                  </div>
               ) : transacoesFiltradas.length === 0 ? (
-                  <div className="p-12 text-center text-slate-400 bg-slate-50/50">Nenhuma movimentação encontrada.</div>
+                  <div className="p-12 text-center text-sm text-neutral-400">Nenhuma movimentação encontrada.</div>
               ) : (
                   transacoesFiltradas.map((t: any) => {
                       const isCancel = t.status === 'cancelado';
                       const isAndam = t.status === 'andamento';
                       return (
-                          <div key={t.id} className={`p-5 flex items-center justify-between transition-colors group ${isCancel ? 'bg-slate-50/70 hover:bg-slate-100/60' : 'hover:bg-slate-50'}`}>
-                              <div className="flex items-center gap-4 flex-1 min-w-0">
-                                  <div className={`p-3 rounded-2xl flex items-center justify-center shadow-sm transition-colors ${
-                                      isCancel ? 'bg-slate-200 text-slate-400'
-                                      : isAndam ? 'bg-amber-50 text-amber-600'
-                                      : t.tipo === 'entrada' ? 'bg-green-50 text-green-600'
-                                      : 'bg-red-50 text-red-600'
+                          <div key={t.id} className={`group flex items-center justify-between p-4 transition-colors sm:p-5 ${isCancel ? 'bg-neutral-50/80 hover:bg-neutral-100/60' : 'hover:bg-[#f8f8f6]'}`}>
+                              <div className="flex min-w-0 flex-1 items-center gap-3 sm:gap-4">
+                                  <div className={`flex items-center justify-center rounded-2xl p-2.5 sm:p-3 ${
+                                      isCancel ? 'bg-neutral-200 text-neutral-400'
+                                      : isAndam ? 'bg-amber-100 text-amber-700'
+                                      : t.tipo === 'entrada' ? 'bg-emerald-100 text-emerald-700'
+                                      : 'bg-red-100 text-red-600'
                                   }`}>
                                       {isCancel ? <Ban size={22}/> : isAndam ? <ClockIcon size={22}/> : t.tipo === 'entrada' ? <ArrowUpCircle size={24}/> : <ArrowDownCircle size={24}/>}
                                   </div>
                                   <div className="flex-1 min-w-0">
-                                      <p className={`font-bold text-sm md:text-base ${isCancel ? 'line-through text-slate-400' : 'text-slate-700'}`}>{t.descricao}</p>
+                                      <p className={`text-sm font-semibold md:text-base ${isCancel ? 'text-neutral-400 line-through' : 'text-neutral-800'}`}>{t.descricao}</p>
                                       {t.taxaNome && t.valorBruto != null && t.valorBruto !== t.valor && (
-                                          <p className="text-[10px] text-slate-400">Bruto R$ {(t.valorBruto ?? 0).toFixed(2)} · {t.taxaNome} · Líquido</p>
+                                          <p className="text-[10px] text-neutral-400">Bruto R$ {(t.valorBruto ?? 0).toFixed(2)} · {t.taxaNome} · Líquido</p>
                                       )}
-                                      <div className="flex items-center gap-2 mt-1 flex-wrap">
-                                          <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded uppercase tracking-wide border border-slate-200">{t.categoria}</span>
-                                          <span className="text-xs text-slate-400 font-medium">{new Date(t.data).toLocaleDateString('pt-BR', {timeZone: 'UTC'})}</span>
-                                          {isAndam && <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded uppercase border border-amber-200">Em andamento</span>}
-                                          {isCancel && t.motivo_cancelamento && <span className="text-[10px] font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-200" title={String(t.motivo_cancelamento)}>Motivo: {String(t.motivo_cancelamento).length > 40 ? String(t.motivo_cancelamento).slice(0,40)+'…' : String(t.motivo_cancelamento)}</span>}
+                                      <div className="mt-1 flex flex-wrap items-center gap-2">
+                                          <span className="rounded-full border border-black/5 bg-[#f3f4f1] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-neutral-600">{t.categoria}</span>
+                                          <span className="text-xs font-medium text-neutral-400">{new Date(t.data).toLocaleDateString('pt-BR', {timeZone: 'UTC'})}</span>
+                                          {isAndam && <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800">Em andamento</span>}
+                                          {isCancel && t.motivo_cancelamento && <span className="rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-semibold text-red-700" title={String(t.motivo_cancelamento)}>Motivo: {String(t.motivo_cancelamento).length > 40 ? String(t.motivo_cancelamento).slice(0,40)+'…' : String(t.motivo_cancelamento)}</span>}
                                       </div>
                                   </div>
                               </div>
                               <div className="flex items-center gap-3">
-                                  <span className={`font-black text-sm md:text-lg whitespace-nowrap ${
-                                      isCancel ? 'text-slate-400 line-through'
-                                      : t.tipo === 'entrada' ? 'text-green-600' : 'text-red-600'
+                                  <span className={`whitespace-nowrap text-sm font-semibold md:text-lg ${
+                                      isCancel ? 'text-neutral-400 line-through'
+                                      : t.tipo === 'entrada' ? 'text-emerald-700' : 'text-red-600'
                                   }`}>
                                       {t.tipo === 'entrada' ? '+' : '-'} R$ {(Number(t.valor) || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}
                                   </span>
                                   <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                                       {abaStatus === 'andamento' && t.origem === 'manual' && (
-                                          <button onClick={() => concluirAndamento(t)} className="p-1.5 bg-emerald-50 text-emerald-700 rounded-lg hover:bg-emerald-100" title="Marcar como concluído"><CheckCircle size={14}/></button>
+                                          <button type="button" onClick={() => concluirAndamento(t)} className="rounded-full p-2 text-emerald-700 hover:bg-emerald-50" title="Marcar como concluído"><CheckCircle size={14}/></button>
                                       )}
                                       {abaStatus === 'cancelados' ? (
                                           <>
-                                              <button onClick={() => restaurarCancelado(t)} className="p-1.5 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100" title="Restaurar"><RotateCcw size={14}/></button>
-                                              <button onClick={() => excluirDefinitivo(t)} className="p-1.5 bg-rose-50 text-rose-700 rounded-lg hover:bg-rose-100" title="Excluir definitivamente"><Trash2 size={14}/></button>
+                                              <button type="button" onClick={() => restaurarCancelado(t)} className="rounded-full p-2 text-neutral-700 hover:bg-neutral-100" title="Restaurar"><RotateCcw size={14}/></button>
+                                              <button type="button" onClick={() => excluirDefinitivo(t)} className="rounded-full p-2 text-red-600 hover:bg-red-50" title="Excluir definitivamente"><Trash2 size={14}/></button>
                                           </>
                                       ) : t.origem === 'manual' && (
-                                          <button onClick={() => pedirCancelamento(t)} className="p-1.5 bg-rose-50 text-rose-700 rounded-lg hover:bg-rose-100" title="Cancelar lançamento"><Ban size={14}/></button>
+                                          <button type="button" onClick={() => pedirCancelamento(t)} className="rounded-full p-2 text-red-600 hover:bg-red-50" title="Cancelar lançamento"><Ban size={14}/></button>
                                       )}
                                   </div>
                               </div>
@@ -555,44 +628,42 @@ export default function Financeiro() {
           </div>
       </div>
 
-      {/* MODAL DE LANÇAMENTO */}
-      <Modal open={modalAberto} onClose={() => setModalAberto(false)} maxWidth="md" hideCloseButton>
-            <div className="bg-white w-full max-h-[90vh] rounded-3xl shadow-2xl overflow-hidden flex flex-col animate-zoom-in border border-slate-100">
-                <div className="p-5 border-b bg-slate-50 flex justify-between items-center shrink-0">
-                    <h3 className="font-black text-xl text-slate-800">Novo Lançamento</h3>
-                    <button onClick={() => setModalAberto(false)} className="text-slate-400 hover:text-red-500 p-1 bg-white rounded-full border border-slate-200 hover:border-red-200 transition-colors"><X size={20}/></button>
+      <Modal open={modalAberto} onClose={() => setModalAberto(false)} maxWidth="md" hideCloseButton panelClassName="flex max-h-[92vh] w-full flex-col overflow-hidden rounded-[1.75rem] border border-black/10 bg-[#eceee9] shadow-[0_24px_80px_rgba(0,0,0,0.28)]">
+                <div className="flex shrink-0 items-center justify-between border-b border-black/5 bg-white p-5">
+                    <h3 className="text-xl font-semibold text-neutral-900">Novo lançamento</h3>
+                    <button type="button" onClick={() => setModalAberto(false)} className="rounded-full p-2 text-neutral-400 transition-colors hover:bg-red-50 hover:text-red-600"><X size={20}/></button>
                 </div>
                 <form onSubmit={salvarLancamento} className="flex-1 flex flex-col min-h-0">
                   <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-5">
-                    <div className="p-3 bg-blue-50 text-blue-700 text-xs font-bold rounded-xl flex items-start gap-2 border border-blue-100">
-                        <AlertCircle size={16} className="mt-0.5 flex-none"/>
-                        <span>O lançamento será vinculado à clínica selecionada no menu lateral.</span>
+                    <div className="flex items-start gap-2 rounded-[1.15rem] border border-black/5 bg-[#f3f4f1] p-3 text-xs font-medium text-neutral-700">
+                        <AlertCircle size={16} className="mt-0.5 shrink-0 text-neutral-500"/>
+                        <span>O lançamento será vinculado à clínica selecionada no menu.</span>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3 p-1 bg-slate-100 rounded-xl">
-                        <button type="button" onClick={() => setNovoLancamento({...novoLancamento, tipo: 'entrada'})} className={`py-3 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${novoLancamento.tipo === 'entrada' ? 'bg-white text-green-600 shadow-sm ring-1 ring-black/5' : 'text-slate-400 hover:text-slate-600'}`}><ArrowUpCircle size={18}/> Receita</button>
-                        <button type="button" onClick={() => setNovoLancamento({...novoLancamento, tipo: 'saida'})} className={`py-3 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 ${novoLancamento.tipo === 'saida' ? 'bg-white text-red-600 shadow-sm ring-1 ring-black/5' : 'text-slate-400 hover:text-slate-600'}`}><ArrowDownCircle size={18}/> Despesa</button>
+                    <div className="grid grid-cols-2 gap-2 rounded-full border border-black/10 bg-[#f3f4f1] p-0.5">
+                        <button type="button" onClick={() => setNovoLancamento({...novoLancamento, tipo: 'entrada'})} className={`flex items-center justify-center gap-2 rounded-full py-2.5 text-sm font-semibold transition-all ${novoLancamento.tipo === 'entrada' ? 'bg-neutral-900 text-white' : 'text-neutral-600'}`}><ArrowUpCircle size={18}/> Receita</button>
+                        <button type="button" onClick={() => setNovoLancamento({...novoLancamento, tipo: 'saida'})} className={`flex items-center justify-center gap-2 rounded-full py-2.5 text-sm font-semibold transition-all ${novoLancamento.tipo === 'saida' ? 'bg-neutral-900 text-white' : 'text-neutral-600'}`}><ArrowDownCircle size={18}/> Despesa</button>
                     </div>
 
                     <div>
-                        <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Descrição</label>
-                        <input required className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-700" placeholder={novoLancamento.tipo === 'entrada' ? 'Ex: Venda de Kit' : 'Ex: Conta de Luz'} value={novoLancamento.descricao} onChange={e => setNovoLancamento({...novoLancamento, descricao: e.target.value})} />
+                        <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-neutral-400">Descrição</label>
+                        <input required className="w-full rounded-2xl border border-black/10 bg-[#f8f8f6] p-3 font-medium text-neutral-800 outline-none focus:border-neutral-400" placeholder={novoLancamento.tipo === 'entrada' ? 'Ex: Venda de Kit' : 'Ex: Conta de Luz'} value={novoLancamento.descricao} onChange={e => setNovoLancamento({...novoLancamento, descricao: e.target.value})} />
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                            <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Valor (R$)</label>
-                            <input required type="number" step="0.01" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-700" placeholder="0.00" value={novoLancamento.valor} onChange={e => setNovoLancamento({...novoLancamento, valor: e.target.value})} />
+                            <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-neutral-400">Valor (R$)</label>
+                            <input required type="number" step="0.01" className="w-full rounded-2xl border border-black/10 bg-[#f8f8f6] p-3 font-medium text-neutral-800 outline-none focus:border-neutral-400" placeholder="0.00" value={novoLancamento.valor} onChange={e => setNovoLancamento({...novoLancamento, valor: e.target.value})} />
                         </div>
                         <div>
-                            <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Data</label>
-                            <input required type="date" className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-600" value={novoLancamento.data} onChange={e => setNovoLancamento({...novoLancamento, data: e.target.value})} />
+                            <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-neutral-400">Data</label>
+                            <input required type="date" className="w-full rounded-2xl border border-black/10 bg-[#f8f8f6] p-3 font-medium text-neutral-700 outline-none focus:border-neutral-400" value={novoLancamento.data} onChange={e => setNovoLancamento({...novoLancamento, data: e.target.value})} />
                         </div>
                     </div>
 
                     {novoLancamento.tipo === 'entrada' && taxasMaquininha.length > 0 && (
                         <div>
-                            <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Forma de pagamento / Maquininha</label>
+                            <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-neutral-400">Forma de pagamento / Maquininha</label>
                             <CustomSelect
                                 value={novoLancamento.taxa_id}
                                 onChange={v => setNovoLancamento({ ...novoLancamento, taxa_id: v })}
@@ -618,31 +689,31 @@ export default function Financeiro() {
                     {/* CATEGORIA */}
                     <div>
                         <div className="flex justify-between items-center mb-1">
-                            <label className="text-xs font-bold text-slate-400 uppercase">Categoria</label>
-                            <div className="flex bg-slate-100 p-0.5 rounded-lg">
-                                <button type="button" onClick={() => setModoCategoria('lista')} className={`px-2 py-0.5 rounded text-[10px] font-bold ${modoCategoria === 'lista' ? 'bg-white text-blue-600 shadow' : 'text-slate-500'}`}>Lista</button>
-                                <button type="button" onClick={() => setModoCategoria('livre')} className={`px-2 py-0.5 rounded text-[10px] font-bold ${modoCategoria === 'livre' ? 'bg-white text-blue-600 shadow' : 'text-slate-500'}`}>Livre</button>
+                            <label className="text-xs font-semibold uppercase tracking-wide text-neutral-400">Categoria</label>
+                            <div className="flex rounded-full border border-black/10 bg-[#f3f4f1] p-0.5">
+                                <button type="button" onClick={() => setModoCategoria('lista')} className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${modoCategoria === 'lista' ? 'bg-neutral-900 text-white' : 'text-neutral-600'}`}>Lista</button>
+                                <button type="button" onClick={() => setModoCategoria('livre')} className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${modoCategoria === 'livre' ? 'bg-neutral-900 text-white' : 'text-neutral-600'}`}>Livre</button>
                             </div>
                         </div>
                         {modoCategoria === 'lista' ? (
                             <>
                                 <CustomSelect value={novoLancamento.categoria} onChange={v => setNovoLancamento({...novoLancamento, categoria: v})} options={categorias.map(c => ({ value: c, label: c }))} placeholder="Selecione a categoria" size="lg"/>
                                 <div className="flex gap-2 mt-2">
-                                    <input value={novaCatTemp} onChange={e => setNovaCatTemp(e.target.value)} placeholder="+ Criar nova categoria..." className="flex-1 p-2 bg-white border border-slate-200 rounded-lg outline-none text-xs font-medium focus:ring-2 focus:ring-blue-500"/>
-                                    <button type="button" onClick={adicionarNovaCategoria} disabled={!novaCatTemp.trim()} className="px-3 py-2 bg-blue-600 text-white rounded-lg text-xs font-bold hover:bg-blue-700 disabled:opacity-40 flex items-center gap-1"><Plus size={12}/> Salvar</button>
+                                    <input value={novaCatTemp} onChange={e => setNovaCatTemp(e.target.value)} placeholder="+ Criar nova categoria..." className="flex-1 rounded-2xl border border-black/10 bg-[#f8f8f6] p-2 text-xs font-medium outline-none focus:border-neutral-400"/>
+                                    <button type="button" onClick={adicionarNovaCategoria} disabled={!novaCatTemp.trim()} className="flex items-center gap-1 rounded-full bg-neutral-900 px-3 py-2 text-xs font-semibold text-white hover:bg-neutral-800 disabled:opacity-40"><Plus size={12}/> Salvar</button>
                                 </div>
                             </>
                         ) : (
                             <div>
-                                <input value={novoLancamento.categoria} onChange={e => setNovoLancamento({...novoLancamento, categoria: e.target.value})} placeholder="Digite uma categoria..." className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-700"/>
-                                <p className="text-[10px] text-slate-400 mt-1 flex items-center gap-1"><Tag size={10}/> Esta categoria será usada apenas neste lançamento (não será salva para reutilização).</p>
+                                <input value={novoLancamento.categoria} onChange={e => setNovoLancamento({...novoLancamento, categoria: e.target.value})} placeholder="Digite uma categoria..." className="w-full rounded-2xl border border-black/10 bg-[#f8f8f6] p-3 font-medium text-neutral-800 outline-none focus:border-neutral-400"/>
+                                <p className="mt-1 flex items-center gap-1 text-[10px] text-neutral-400"><Tag size={10}/> Usada só neste lançamento (não salva na lista).</p>
                             </div>
                         )}
                     </div>
 
                     {/* PACIENTE (vinculação opcional) */}
                     <div>
-                        <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Paciente <span className="text-slate-300 normal-case font-medium">(opcional)</span></label>
+                        <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-neutral-400">Paciente <span className="font-normal normal-case text-neutral-400">(opcional)</span></label>
                         <CustomSelect
                             value={novoLancamento.paciente_id}
                             onChange={v => setNovoLancamento({ ...novoLancamento, paciente_id: v })}
@@ -651,50 +722,46 @@ export default function Financeiro() {
                             searchable
                             size="lg"
                         />
-                        <p className="text-[10px] text-slate-400 mt-1">Se vinculado, este lançamento será excluído automaticamente caso o paciente seja removido.</p>
+                        <p className="mt-1 text-[10px] text-neutral-400">Se vinculado, o lançamento some se o paciente for removido.</p>
                     </div>
 
                     {/* STATUS */}
                     <div>
-                        <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Status do Lançamento</label>
+                        <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-neutral-400">Status</label>
                         <div className="grid grid-cols-2 gap-2">
-                            <button type="button" onClick={() => setNovoLancamento({...novoLancamento, status: 'concluido'})} className={`py-2.5 rounded-xl text-xs font-bold border flex items-center justify-center gap-1.5 transition-all ${novoLancamento.status === 'concluido' ? 'bg-emerald-50 border-emerald-300 text-emerald-700 ring-2 ring-emerald-200' : 'bg-white border-slate-200 text-slate-500'}`}><CheckCircle size={14}/> Concluído</button>
-                            <button type="button" onClick={() => setNovoLancamento({...novoLancamento, status: 'andamento'})} className={`py-2.5 rounded-xl text-xs font-bold border flex items-center justify-center gap-1.5 transition-all ${novoLancamento.status === 'andamento' ? 'bg-amber-50 border-amber-300 text-amber-700 ring-2 ring-amber-200' : 'bg-white border-slate-200 text-slate-500'}`}><ClockIcon size={14}/> Em Andamento</button>
+                            <button type="button" onClick={() => setNovoLancamento({...novoLancamento, status: 'concluido'})} className={`flex items-center justify-center gap-1.5 rounded-full border py-2.5 text-xs font-semibold transition-all ${novoLancamento.status === 'concluido' ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-black/10 bg-white text-neutral-600'}`}><CheckCircle size={14}/> Concluído</button>
+                            <button type="button" onClick={() => setNovoLancamento({...novoLancamento, status: 'andamento'})} className={`flex items-center justify-center gap-1.5 rounded-full border py-2.5 text-xs font-semibold transition-all ${novoLancamento.status === 'andamento' ? 'border-amber-600 bg-amber-600 text-white' : 'border-black/10 bg-white text-neutral-600'}`}><ClockIcon size={14}/> Em andamento</button>
                         </div>
                     </div>
 
                   </div>
-                  <div className="p-5 border-t border-slate-100 bg-white flex gap-3 shrink-0">
-                      <button type="button" onClick={() => setModalAberto(false)} className="flex-1 py-3 rounded-xl font-bold text-slate-500 hover:bg-slate-100 transition-colors">Cancelar</button>
-                      <button type="submit" disabled={salvando} className="flex-1 bg-slate-900 text-white rounded-xl font-bold py-3 hover:bg-black transition-all shadow-lg flex justify-center items-center gap-2">
+                  <div className="flex shrink-0 gap-3 border-t border-black/5 bg-white p-5">
+                      <button type="button" onClick={() => setModalAberto(false)} className="flex-1 rounded-full bg-[#f3f4f1] py-3 text-sm font-semibold text-neutral-600 hover:bg-neutral-200">Cancelar</button>
+                      <button type="submit" disabled={salvando} className="flex flex-1 items-center justify-center gap-2 rounded-full bg-neutral-900 py-3 text-sm font-semibold text-white hover:bg-neutral-800 disabled:opacity-60">
                           {salvando ? <Loader2 className="animate-spin"/> : <><Save size={18}/> Salvar</>}
                       </button>
                   </div>
                 </form>
-            </div>
       </Modal>
 
-      {/* MODAL CANCELAR */}
       {modalCancelar && (
-      <Modal open onClose={() => setModalCancelar(null)} maxWidth="md" hideCloseButton>
-            <div className="bg-white w-full rounded-3xl shadow-2xl overflow-hidden border border-slate-100">
-                <div className="p-5 border-b bg-rose-50 flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-rose-500 text-white flex items-center justify-center"><Ban size={20}/></div>
+      <Modal open onClose={() => setModalCancelar(null)} maxWidth="md" hideCloseButton panelClassName="overflow-hidden rounded-[1.75rem] border border-black/10 bg-[#eceee9] shadow-[0_24px_80px_rgba(0,0,0,0.28)]">
+                <div className="flex items-center gap-3 border-b border-black/5 bg-white p-5">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-red-600 text-white"><Ban size={20}/></div>
                     <div>
-                        <h3 className="font-black text-slate-800">Cancelar Lançamento</h3>
-                        <p className="text-xs text-slate-500">{modalCancelar.descricao}</p>
+                        <h3 className="font-semibold text-neutral-900">Cancelar lançamento</h3>
+                        <p className="text-xs text-neutral-500">{modalCancelar.descricao}</p>
                     </div>
                 </div>
-                <div className="p-5 space-y-3">
-                    <label className="text-xs font-bold text-slate-500 uppercase">Motivo do Cancelamento <span className="text-rose-500">*</span></label>
-                    <textarea autoFocus value={motivoCancelar} onChange={e => setMotivoCancelar(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-rose-500 text-sm h-24 resize-none" placeholder="Ex: Pagamento não realizado, lançamento duplicado..."/>
-                    <p className="text-[10px] text-slate-400">O lançamento ficará visível na aba "Lixeira / Cancelados" com o motivo registrado.</p>
+                <div className="space-y-3 bg-white p-5">
+                    <label className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Motivo <span className="text-red-500">*</span></label>
+                    <textarea autoFocus value={motivoCancelar} onChange={e => setMotivoCancelar(e.target.value)} className="h-24 w-full resize-none rounded-2xl border border-black/10 bg-[#f8f8f6] p-3 text-sm outline-none focus:border-neutral-400" placeholder="Ex: Pagamento não realizado, lançamento duplicado..."/>
+                    <p className="text-[10px] text-neutral-400">O lançamento ficará na aba Cancelados com o motivo registrado.</p>
                 </div>
-                <div className="p-5 bg-slate-50 border-t flex gap-2 justify-end">
-                    <button onClick={() => setModalCancelar(null)} className="px-4 py-2 text-slate-500 font-bold hover:bg-slate-200 rounded-lg">Voltar</button>
-                    <button onClick={confirmarCancelamento} disabled={!motivoCancelar.trim()} className="px-5 py-2 bg-rose-600 text-white font-bold rounded-lg hover:bg-rose-700 disabled:opacity-40 flex items-center gap-2"><Ban size={14}/> Confirmar Cancelamento</button>
+                <div className="flex justify-end gap-2 border-t border-black/5 bg-[#f3f4f1] p-5">
+                    <button type="button" onClick={() => setModalCancelar(null)} className="rounded-full px-4 py-2.5 text-sm font-semibold text-neutral-600 hover:bg-white">Voltar</button>
+                    <button type="button" onClick={confirmarCancelamento} disabled={!motivoCancelar.trim()} className="flex items-center gap-2 rounded-full bg-red-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-40"><Ban size={14}/> Confirmar</button>
                 </div>
-            </div>
       </Modal>
       )}
     </div>

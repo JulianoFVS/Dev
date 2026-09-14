@@ -806,7 +806,7 @@ export default function KanbanProtesesInteligente() {
             ))}
           </div>
         ) : (
-          <div className="kanban-scrollbar min-h-0 flex-1 overflow-x-auto overflow-y-hidden px-3 pb-1 pt-3 sm:px-4 sm:pt-4">
+          <div className="kanban-scrollbar min-h-0 flex-1 overflow-x-auto overflow-y-hidden px-3 pb-3 pt-3 sm:px-4 sm:pb-4 sm:pt-4">
             <div className="flex h-full min-h-[280px] min-w-min flex-col gap-4 sm:min-h-0 sm:flex-row sm:items-stretch">
               {columns.map((column) => {
                 const columnCards = cardsByColumn(column.id);

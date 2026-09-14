@@ -6,15 +6,61 @@ import { useEffect, useState } from 'react';
 import {
   BarChart3,
   Calendar,
+  CheckSquare,
   ChevronLeft,
   ChevronRight,
   DollarSign,
   LayoutDashboard,
   Settings,
+  ShieldAlert,
+  ShieldCheck,
   Smile,
   User,
   Users,
 } from 'lucide-react';
+
+export type DashboardSidebarNavOptions = {
+  showTarefas?: boolean;
+  showEquipe?: boolean;
+  showPainelSaas?: boolean;
+  tarefasBadge?: number;
+  profilePhotoUrl?: string | null;
+  profileName?: string | null;
+};
+
+function ProfileAvatar({
+  photoUrl,
+  profileName,
+  collapsed,
+}: {
+  photoUrl?: string | null;
+  profileName?: string | null;
+  collapsed: boolean;
+}) {
+  const [photoFailed, setPhotoFailed] = useState(false);
+  const showPhoto = Boolean(photoUrl) && !photoFailed;
+  const sizeClass = collapsed ? 'h-full w-full' : 'h-9 w-9 rounded-xl';
+  const alt = profileName ? `Foto de ${profileName}` : 'Meu perfil';
+
+  if (showPhoto) {
+    return (
+      <img
+        src={photoUrl!}
+        alt={alt}
+        className={`shrink-0 object-cover ${sizeClass}`}
+        onError={() => setPhotoFailed(true)}
+      />
+    );
+  }
+
+  return (
+    <span
+      className={`flex shrink-0 items-center justify-center bg-[#c8f053] text-neutral-900 ${sizeClass}`}
+    >
+      <User size={18} strokeWidth={1.75} />
+    </span>
+  );
+}
 
 const STORAGE_KEY = 'ortus-dashboard-sidebar';
 
@@ -27,40 +73,72 @@ const LINKS = [
   { href: '/relatorios', label: 'Relatórios', icon: BarChart3 },
 ] as const;
 
+function isNavActive(pathname: string, href: string) {
+  if (href === '/dashboard') return pathname === '/dashboard';
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
 function NavItem({
   href,
   label,
   Icon,
   collapsed,
+  badge,
 }: {
   href: string;
   label: string;
   Icon: typeof LayoutDashboard;
   collapsed: boolean;
+  badge?: number;
 }) {
   const pathname = usePathname();
-  const active = href === '/dashboard' ? pathname === '/dashboard' : pathname.startsWith(href);
+  const active = isNavActive(pathname, href);
+  const showBadge = typeof badge === 'number' && badge > 0;
 
   return (
     <Link
       href={href}
       title={label}
-      className={`flex shrink-0 items-center transition-colors ${
+      className={`relative flex shrink-0 items-center transition-colors ${
         collapsed ? 'h-11 w-11 justify-center rounded-2xl' : 'h-10 w-full gap-3 rounded-2xl px-3'
       } ${active ? 'bg-white/15 text-white' : 'text-white/80 hover:bg-white/10 hover:text-white'}`}
     >
       <Icon size={20} strokeWidth={1.65} className="shrink-0" />
-      {!collapsed && <span className={`truncate text-sm font-medium ${active ? 'text-white' : 'text-white/85'}`}>{label}</span>}
+      {!collapsed && (
+        <span className={`flex min-w-0 flex-1 items-center justify-between gap-2 truncate text-sm font-medium ${active ? 'text-white' : 'text-white/85'}`}>
+          <span className="truncate">{label}</span>
+          {showBadge && (
+            <span className="shrink-0 rounded-full bg-[#c8f053] px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-neutral-900">
+              {badge! > 99 ? '99+' : badge}
+            </span>
+          )}
+        </span>
+      )}
+      {collapsed && showBadge && (
+        <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-[#c8f053]" aria-hidden />
+      )}
     </Link>
   );
 }
 
-export function DashboardMobileNav() {
+export function DashboardMobileNav({
+  showTarefas = true,
+  showEquipe = true,
+  showPainelSaas = false,
+}: DashboardSidebarNavOptions = {}) {
   const pathname = usePathname();
+  const extra = [
+    showTarefas ? { href: '/tarefas', label: 'Tarefas', icon: CheckSquare } : null,
+    showEquipe ? { href: '/ajustes/equipe', label: 'Equipe', icon: ShieldCheck } : null,
+    showPainelSaas ? { href: '/super-admin', label: 'Painel SaaS', icon: ShieldAlert } : null,
+  ].filter(Boolean) as { href: string; label: string; icon: typeof LayoutDashboard }[];
+
+  const all = [...LINKS, ...extra];
+
   return (
     <>
-      {LINKS.map((item) => {
-        const active = item.href === '/dashboard' ? pathname === '/dashboard' : pathname.startsWith(item.href);
+      {all.map((item) => {
+        const active = isNavActive(pathname, item.href);
         const Icon = item.icon;
         return (
           <Link
@@ -79,7 +157,14 @@ export function DashboardMobileNav() {
   );
 }
 
-export default function DashboardSidebar() {
+export default function DashboardSidebar({
+  showTarefas = true,
+  showEquipe = true,
+  showPainelSaas = false,
+  tarefasBadge = 0,
+  profilePhotoUrl = null,
+  profileName = null,
+}: DashboardSidebarNavOptions = {}) {
   const [collapsed, setCollapsed] = useState(true);
 
   useEffect(() => {
@@ -134,9 +219,30 @@ export default function DashboardSidebar() {
         {LINKS.map((item) => (
           <NavItem key={item.href} href={item.href} label={item.label} Icon={item.icon} collapsed={collapsed} />
         ))}
+        {showPainelSaas && (
+          <>
+            <div className={`my-1.5 h-px bg-white/10 ${collapsed ? 'mx-2 w-7' : 'mx-1'}`} role="presentation" />
+            <NavItem href="/super-admin" label="Painel SaaS" Icon={ShieldAlert} collapsed={collapsed} />
+          </>
+        )}
       </nav>
 
       <div className={`mt-auto flex flex-col gap-1.5 ${collapsed ? 'items-center px-2' : 'px-2.5'}`}>
+        {showTarefas && (
+          <NavItem
+            href="/tarefas"
+            label="Tarefas"
+            Icon={CheckSquare}
+            collapsed={collapsed}
+            badge={tarefasBadge}
+          />
+        )}
+        {showEquipe && (
+          <NavItem href="/ajustes/equipe" label="Equipe" Icon={ShieldCheck} collapsed={collapsed} />
+        )}
+        {(showTarefas || showEquipe) && (
+          <div className={`h-px bg-white/10 ${collapsed ? 'my-0.5 w-7' : 'mx-1 my-0.5'}`} role="presentation" />
+        )}
         <button
           type="button"
           onClick={toggleCollapsed}
@@ -164,13 +270,7 @@ export default function DashboardSidebar() {
           title="Perfil"
           className={`flex items-center ${collapsed ? 'h-11 w-11 justify-center overflow-hidden rounded-2xl ring-2 ring-neutral-800' : 'gap-3 rounded-2xl px-3 py-2 hover:bg-white/10'}`}
         >
-          <span
-            className={`flex shrink-0 items-center justify-center bg-[#c8f053] text-neutral-900 ${
-              collapsed ? 'h-full w-full' : 'h-9 w-9 rounded-xl'
-            }`}
-          >
-            <User size={18} strokeWidth={1.75} />
-          </span>
+          <ProfileAvatar photoUrl={profilePhotoUrl} profileName={profileName} collapsed={collapsed} />
           {!collapsed && <span className="truncate text-sm font-medium text-white/90">Meu perfil</span>}
         </Link>
       </div>
