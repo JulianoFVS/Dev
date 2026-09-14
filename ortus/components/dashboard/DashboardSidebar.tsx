@@ -31,7 +31,7 @@ function NavIcon({ href, label, Icon }: { href: string; label: string; Icon: typ
       href={href}
       title={label}
       className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl transition-colors ${
-        active ? 'bg-zinc-700 text-white' : 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'
+        active ? 'bg-ortus-blue text-white' : 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'
       }`}
     >
       <Icon size={20} strokeWidth={1.75} />
@@ -51,8 +51,8 @@ export function DashboardMobileNav() {
             key={item.href}
             href={item.href}
             title={item.label}
-            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${
-              active ? 'bg-zinc-900 text-white' : 'bg-zinc-100 text-zinc-600'
+            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-gray-200 ${
+              active ? 'border-ortus-blue bg-ortus-blue text-white' : 'bg-white text-zinc-600'
             }`}
           >
             <Icon size={16} strokeWidth={1.75} />
@@ -65,7 +65,7 @@ export function DashboardMobileNav() {
 
 export default function DashboardSidebar() {
   return (
-    <aside className="flex h-full w-[4.5rem] shrink-0 flex-col items-center overflow-hidden rounded-[2rem] bg-zinc-900 py-4 sm:w-[5rem]">
+    <aside className="flex h-full w-[4.5rem] shrink-0 flex-col items-center overflow-hidden bg-zinc-900 py-4 sm:w-[5rem]">
       <Link
         href="/dashboard"
         title="Ortus"
@@ -91,7 +91,7 @@ export default function DashboardSidebar() {
         <Link
           href="/perfil"
           title="Perfil"
-          className="flex h-10 w-10 items-center justify-center rounded-full bg-zinc-700 text-[11px] font-semibold text-white"
+          className="flex h-10 w-10 items-center justify-center rounded-full bg-ortus-blue text-[11px] font-semibold text-white"
         >
           <User size={18} strokeWidth={1.75} />
         </Link>

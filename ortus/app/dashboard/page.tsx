@@ -443,7 +443,7 @@ export default function Dashboard() {
   const materiais = tratamentos.map((t) => t.observacoes).filter(Boolean).join(' · ') || emAtendimento?.observacoes;
   const graficoLabel = periodo === 'hoje' ? 'Recebimentos por hora · Hoje' : periodo === 'semana' ? 'Recebimentos por dia · Semana' : 'Recebimentos por semana · Mês';
 
-  const card = 'min-h-0 rounded-3xl border border-zinc-200 bg-zinc-50';
+  const card = 'min-h-0 rounded-2xl border border-gray-200 bg-white';
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
@@ -461,14 +461,14 @@ export default function Dashboard() {
             <button
               type="button"
               onClick={abrirBusca}
-              className="flex h-9 w-full items-center gap-2 rounded-full border border-zinc-200 bg-white px-3 text-xs text-zinc-400 sm:min-w-[200px] md:min-w-[240px] md:text-[13px]"
+              className="flex h-9 w-full items-center gap-2 rounded-full border border-gray-200 bg-white px-3 text-xs text-zinc-400 sm:min-w-[200px] md:min-w-[240px] md:text-[13px]"
             >
               <Search size={14} />
               <span className="truncate">Buscar paciente ou procedimento</span>
             </button>
             <Link
               href="/agenda"
-              className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-full bg-zinc-900 px-4 text-xs font-medium text-white md:text-[13px]"
+              className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-full bg-ortus-blue px-4 text-xs font-medium text-white hover:bg-ortus-blueDark md:text-[13px]"
             >
               <Plus size={15} />
               Novo agendamento
@@ -480,7 +480,7 @@ export default function Dashboard() {
             <span
               key={tab}
               className={`rounded-full px-3 py-1 text-[11px] font-medium sm:text-xs ${
-                i === 0 ? 'bg-zinc-900 text-white' : 'bg-zinc-100 text-zinc-600'
+                i === 0 ? 'bg-ortus-blue text-white' : 'border border-gray-200 bg-white text-zinc-600'
               }`}
             >
               {tab}
@@ -502,7 +502,7 @@ export default function Dashboard() {
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="text-[11px] text-zinc-500 sm:text-xs">
-                      <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-emerald-500 align-middle" />
+                      <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-ortus-blue align-middle" />
                       Em atendimento · Cadeira {cadeiraAtual} · {hora(emAtendimento.data_hora)}–{duracaoMin} min
                     </p>
                     <div className="mt-2 flex items-center gap-3 sm:mt-3">
@@ -526,7 +526,7 @@ export default function Dashboard() {
                       type="button"
                       onClick={concluirAtual}
                       disabled={concluindo}
-                      className="inline-flex h-8 items-center gap-1.5 rounded-full bg-zinc-900 px-3 text-xs font-medium text-white disabled:opacity-60 sm:h-9 sm:text-[13px]"
+                      className="inline-flex h-8 items-center gap-1.5 rounded-full bg-ortus-blue px-3 text-xs font-medium text-white hover:bg-ortus-blueDark disabled:opacity-60 sm:h-9 sm:text-[13px]"
                     >
                       {concluindo ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}
                       Concluir
@@ -534,14 +534,14 @@ export default function Dashboard() {
                     <button
                       type="button"
                       onClick={() => openPatient(paciente?.id)}
-                      className="flex h-8 w-8 items-center justify-center rounded-full border border-zinc-200 bg-white text-zinc-600 sm:h-9 sm:w-9"
+                      className="flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 bg-white text-zinc-600 sm:h-9 sm:w-9"
                       title="Abrir ficha"
                     >
                       <FileText size={15} />
                     </button>
                     <Link
                       href="/agenda"
-                      className="flex h-8 w-8 items-center justify-center rounded-full border border-zinc-200 bg-white text-zinc-600 sm:h-9 sm:w-9"
+                      className="flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 bg-white text-zinc-600 sm:h-9 sm:w-9"
                       title="Mais"
                     >
                       <MoreHorizontal size={15} />
@@ -549,7 +549,7 @@ export default function Dashboard() {
                   </div>
                 </div>
 
-                <div className="mt-3 grid grid-cols-3 gap-2 border-t border-zinc-200/80 pt-3">
+                <div className="mt-3 grid grid-cols-3 gap-2 border-t border-gray-200 pt-3">
                   <div>
                     <p className="text-[10px] font-medium uppercase tracking-wide text-zinc-400">Alergias</p>
                     <p className="mt-0.5 line-clamp-2 text-xs font-medium text-amber-700">{alergiaDe(paciente?.ficha_medica)}</p>
@@ -560,7 +560,7 @@ export default function Dashboard() {
                   </div>
                   <div>
                     <p className="text-[10px] font-medium uppercase tracking-wide text-zinc-400">Saldo em aberto</p>
-                    <p className={`mt-0.5 text-xs font-medium ${saldoAberto > 0 ? 'text-red-600' : 'text-emerald-700'}`}>{moeda(saldoAberto)}</p>
+                    <p className={`mt-0.5 text-xs font-medium ${saldoAberto > 0 ? 'text-red-500' : 'text-zinc-700'}`}>{moeda(saldoAberto)}</p>
                   </div>
                 </div>
 
@@ -573,8 +573,8 @@ export default function Dashboard() {
                       {tratamentos.map((t) => {
                         const feito = t.status === 'concluido';
                         return (
-                          <li key={t.id} className="flex items-center gap-2 border-t border-zinc-200/80 py-2 first:border-t-0">
-                            <span className={`flex h-3.5 w-3.5 items-center justify-center rounded border ${feito ? 'border-zinc-800 bg-zinc-800 text-white' : 'border-zinc-300 bg-white'}`}>
+                          <li key={t.id} className="flex items-center gap-2 border-t border-gray-200 py-2 first:border-t-0">
+                            <span className={`flex h-3.5 w-3.5 items-center justify-center rounded border ${feito ? 'border-ortus-blue bg-ortus-blue text-white' : 'border-gray-300 bg-white'}`}>
                               {feito && <Check size={10} strokeWidth={3} />}
                             </span>
                             <span className={`text-xs sm:text-sm ${feito ? 'text-zinc-500' : 'text-zinc-900'}`}>{t.procedimento}</span>
@@ -585,7 +585,7 @@ export default function Dashboard() {
                   )}
                 </div>
 
-                <p className="mt-2 shrink-0 border-t border-zinc-200/80 pt-2 text-[11px] text-zinc-500">
+                <p className="mt-2 shrink-0 border-t border-gray-200 pt-2 text-[11px] text-zinc-500">
                   Materiais reservados · {materiais || 'nenhum item lançado nesta sessão'}
                 </p>
               </>
@@ -593,7 +593,7 @@ export default function Dashboard() {
               <div className="flex flex-1 flex-col items-center justify-center py-6 text-center">
                 <p className="text-sm font-medium text-zinc-900">Nenhum atendimento em curso</p>
                 <p className="mt-1 text-xs text-zinc-500">A fila do dia está livre neste momento.</p>
-                <Link href="/agenda" className="mt-3 inline-flex h-8 items-center rounded-full bg-zinc-900 px-4 text-xs font-medium text-white">
+                <Link href="/agenda" className="mt-3 inline-flex h-8 items-center rounded-full bg-ortus-blue px-4 text-xs font-medium text-white hover:bg-ortus-blueDark">
                   Novo agendamento
                 </Link>
               </div>
@@ -604,7 +604,7 @@ export default function Dashboard() {
             <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
               <div className="flex min-w-0 flex-wrap items-center gap-2">
                 <h3 className="text-sm font-semibold text-zinc-900">Saúde financeira</h3>
-                <div className="flex rounded-full bg-white p-0.5 ring-1 ring-zinc-200">
+                <div className="flex rounded-full border border-gray-200 bg-white p-0.5">
                   {([
                     ['hoje', 'Hoje'],
                     ['semana', 'Semana'],
@@ -615,7 +615,7 @@ export default function Dashboard() {
                       type="button"
                       onClick={() => setPeriodo(id)}
                       className={`rounded-full px-2 py-0.5 text-[11px] font-medium transition-colors sm:text-xs ${
-                        periodo === id ? 'bg-zinc-900 text-white' : 'text-zinc-600 hover:text-zinc-900'
+                        periodo === id ? 'bg-ortus-blue text-white' : 'text-zinc-600 hover:text-ortus-blue'
                       }`}
                     >
                       {label}
@@ -623,25 +623,25 @@ export default function Dashboard() {
                   ))}
                 </div>
               </div>
-              <Link href="/financeiro" className="inline-flex items-center gap-1 text-xs font-medium text-zinc-700">
+              <Link href="/financeiro" className="inline-flex items-center gap-1 text-xs font-medium text-ortus-blue hover:text-ortus-blueDark">
                 Fechamento de caixa <ArrowUpRight size={12} />
               </Link>
             </div>
 
             <div className="mt-3 grid shrink-0 grid-cols-3 gap-2">
-              <div className="rounded-2xl border border-zinc-200 bg-white p-2.5 sm:p-3">
+              <div className="rounded-xl border border-gray-200 bg-white p-2.5 sm:p-3">
                 <p className="text-[10px] font-medium uppercase tracking-wide text-zinc-400">Recebido</p>
-                <p className="mt-0.5 text-base font-semibold text-emerald-700 sm:text-lg">{moeda(financeiro.recebido)}</p>
+                <p className="mt-0.5 text-base font-semibold text-ortus-blue sm:text-lg">{moeda(financeiro.recebido)}</p>
                 <p className="text-[10px] text-zinc-500 sm:text-xs">{financeiro.pagamentos} pag.</p>
               </div>
-              <div className="rounded-2xl border border-zinc-200 bg-lime-100/80 p-2.5 sm:p-3">
-                <p className="text-[10px] font-medium uppercase tracking-wide text-zinc-600">Previsto</p>
+              <div className="rounded-xl border border-gray-200 bg-white p-2.5 sm:p-3">
+                <p className="text-[10px] font-medium uppercase tracking-wide text-zinc-400">Previsto</p>
                 <p className="mt-0.5 text-base font-semibold text-zinc-900 sm:text-lg">{moeda(financeiro.previsto)}</p>
-                <p className="text-[10px] text-zinc-600 sm:text-xs">{financeiro.restantes} rest.</p>
+                <p className="text-[10px] text-zinc-500 sm:text-xs">{financeiro.restantes} rest.</p>
               </div>
-              <div className="rounded-2xl border border-zinc-200 bg-white p-2.5 sm:p-3">
+              <div className="rounded-xl border border-gray-200 bg-white p-2.5 sm:p-3">
                 <p className="text-[10px] font-medium uppercase tracking-wide text-zinc-400">Em atraso</p>
-                <p className="mt-0.5 text-base font-semibold text-amber-700 sm:text-lg">{moeda(financeiro.atraso)}</p>
+                <p className="mt-0.5 text-base font-semibold text-red-500 sm:text-lg">{moeda(financeiro.atraso)}</p>
                 <p className="text-[10px] text-zinc-500 sm:text-xs">{financeiro.atrasados} pac.</p>
               </div>
             </div>
@@ -652,7 +652,7 @@ export default function Dashboard() {
                 {barras.map((item) => (
                   <div key={item.rotulo} className="flex flex-1 flex-col items-center gap-1">
                     <div
-                      className="w-full max-w-[2rem] rounded-full bg-zinc-800 sm:max-w-none"
+                      className="w-full max-w-[2rem] rounded-full bg-ortus-blue sm:max-w-none"
                       style={{ height: `${Math.max(item.valor > 0 ? 10 : 4, (item.valor / maxBarra) * 56)}px` }}
                     />
                     <span className="text-[9px] text-zinc-400 sm:text-[10px]">{item.rotulo}</span>
@@ -664,8 +664,8 @@ export default function Dashboard() {
         </div>
 
         <aside className="flex min-h-0 flex-col gap-3 overflow-hidden lg:col-span-5 xl:col-span-4">
-          <section className={`${card} flex min-h-0 flex-1 flex-col overflow-hidden bg-white`}>
-            <div className="flex shrink-0 items-center justify-between border-b border-zinc-200/80 px-3 py-2.5 sm:px-4">
+          <section className={`${card} flex min-h-0 flex-1 flex-col overflow-hidden`}>
+            <div className="flex shrink-0 items-center justify-between border-b border-gray-200 px-3 py-2.5 sm:px-4">
               <h3 className="text-sm font-semibold text-zinc-900">Fila do dia</h3>
               <span className="text-xs text-zinc-400">{agendaHoje.length}</span>
             </div>
@@ -679,7 +679,7 @@ export default function Dashboard() {
                       <li key={linha.id}>
                         <Link
                           href="/agenda"
-                          className="grid grid-cols-[48px_1fr] gap-2 border-b border-zinc-100 px-3 py-2 text-zinc-400 last:border-0 sm:px-4"
+                          className="grid grid-cols-[48px_1fr] gap-2 border-b border-gray-100 px-3 py-2 text-zinc-400 last:border-0 sm:px-4"
                         >
                           <span className="text-xs tabular-nums">{linha.inicio}</span>
                           <p className="text-xs">Horário livre</p>
@@ -692,8 +692,8 @@ export default function Dashboard() {
                     <li key={linha.id}>
                       <Link
                         href={linha.ag.pacientes?.id ? `/pacientes/${linha.ag.pacientes.id}` : '/agenda'}
-                        className={`grid grid-cols-[48px_1fr] gap-2 border-b border-zinc-100 px-3 py-2 last:border-0 sm:px-4 ${
-                          atual ? 'bg-lime-50' : 'hover:bg-zinc-50'
+                        className={`grid grid-cols-[48px_1fr] gap-2 border-b border-gray-100 px-3 py-2 last:border-0 sm:px-4 ${
+                          atual ? 'border-l-2 border-l-ortus-blue bg-white' : 'hover:bg-zinc-50/80'
                         }`}
                       >
                         <span className="text-xs font-medium tabular-nums text-zinc-900">{hora(linha.ag.data_hora)}</span>
@@ -713,10 +713,10 @@ export default function Dashboard() {
             )}
           </section>
 
-          <section className={`${card} flex min-h-0 flex-[0.85] flex-col overflow-hidden bg-white`}>
-            <div className="flex shrink-0 items-center justify-between border-b border-zinc-200/80 px-3 py-2.5 sm:px-4">
+          <section className={`${card} flex min-h-0 flex-[0.85] flex-col overflow-hidden`}>
+            <div className="flex shrink-0 items-center justify-between border-b border-gray-200 px-3 py-2.5 sm:px-4">
               <h3 className="text-sm font-semibold text-zinc-900">Pendências que travam o dia</h3>
-              <Link href="/tarefas" className="text-[11px] font-medium text-zinc-600">Ver</Link>
+              <Link href="/tarefas" className="text-[11px] font-medium text-ortus-blue">Ver</Link>
             </div>
             {pendencias.length === 0 ? (
               <p className="p-4 text-xs text-zinc-400">Nada travando o dia.</p>
@@ -724,7 +724,7 @@ export default function Dashboard() {
               <ul className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
                 {pendencias.map((item) => (
                   <li key={item.id}>
-                    <Link href={item.href} className="block border-b border-zinc-100 px-3 py-2.5 last:border-0 hover:bg-zinc-50 sm:px-4">
+                    <Link href={item.href} className="block border-b border-gray-100 px-3 py-2.5 last:border-0 hover:bg-zinc-50/80 sm:px-4">
                       <p className="truncate text-xs font-medium text-zinc-900">{item.titulo}</p>
                       <p className="truncate text-[11px] text-zinc-500">{item.detalhe}</p>
                     </Link>
