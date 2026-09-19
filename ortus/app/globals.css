@@ -195,25 +195,6 @@ body {
   animation: ortusShine 6s linear infinite;
 }
 
-/*
- * lp-scaler — renderiza o LandingDashboardPreview (1280 px fixo) escalado.
- * O viewport/clip é feito via Tailwind no HeroOrtus (h-[220px] md:h-[500px] overflow-hidden).
- */
-.lp-scaler {
-  position: absolute;
-  top: 0;
-  left: 50%;
-  width: 1280px;
-  transform: translateX(-50%) scale(0.28);
-  transform-origin: top center;
-  -webkit-font-smoothing: antialiased;
-}
-@media (min-width: 768px) {
-  .lp-scaler {
-    transform: translateX(-50%) scale(0.72);
-  }
-}
-
 @keyframes ortusLogoIdle {
   0%, 100% { transform: translateY(0) scale(1); }
   50% { transform: translateY(-5px) scale(1.04); }
@@ -225,7 +206,6 @@ body {
 @media (prefers-reduced-motion: reduce) {
     .ortus-marquee-track { animation: none; }
     .ortus-shine { animation: none; color: #171717; background: none; filter: none; }
-    .lp-scaler { transition: none !important; }
     .ortus-logo-idle { animation: none; }
 }
 
