@@ -180,17 +180,23 @@ body {
 .ortus-shine {
   background-image: linear-gradient(
     90deg,
-    #0A3D78 0%,
-    #0D4F9A 18%,
-    #5BA3E0 50%,
-    #0D4F9A 82%,
-    #0A3D78 100%
+    #171717 0%,
+    #404040 16%,
+    #c8f053 48%,
+    #a3d936 52%,
+    #404040 84%,
+    #171717 100%
   );
   background-size: 200% 100%;
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
+  filter: drop-shadow(0 0 18px rgba(200, 240, 83, 0.35));
   animation: ortusShine 3.2s linear infinite;
+}
+
+.ortus-landing-preview {
+  transform: translateY(0) scale(1);
 }
 
 @keyframes ortusLogoIdle {
@@ -203,7 +209,8 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
     .ortus-marquee-track { animation: none; }
-    .ortus-shine { animation: none; color: #0D4F9A; background: none; }
+    .ortus-shine { animation: none; color: #171717; background: none; filter: none; }
+    .ortus-landing-preview { transform: none !important; }
     .ortus-logo-idle { animation: none; }
 }
 

@@ -21,7 +21,7 @@ export default function LandingNavbar() {
             <img
               src="/landing/ortus-wordmark.svg"
               alt="ortus"
-              className="h-7 w-auto md:h-8"
+              className="h-7 w-auto brightness-0 md:h-8"
             />
           </Link>
 
@@ -30,7 +30,7 @@ export default function LandingNavbar() {
               <li key={link.href}>
                 <a
                   href={link.href}
-                  className="font-poppins text-[15px] font-normal text-[#323338] transition-colors hover:text-ortus-blue"
+                  className="font-poppins text-[15px] font-normal text-neutral-800 transition-colors hover:text-neutral-950"
                 >
                   {link.rotulo}
                 </a>
@@ -42,13 +42,13 @@ export default function LandingNavbar() {
         <div className="flex items-center gap-4">
           <Link
             href="/login"
-            className="hidden font-poppins text-[15px] font-normal text-[#323338] transition-colors hover:text-ortus-blue sm:inline"
+            className="hidden font-poppins text-[15px] font-normal text-neutral-800 transition-colors hover:text-neutral-950 sm:inline"
           >
             Login
           </Link>
           <Link
             href="/cadastro"
-            className="hidden h-10 items-center gap-1.5 rounded-full bg-ortus-blue px-5 font-poppins text-[14px] font-semibold text-white transition-colors hover:bg-ortus-blueDark md:inline-flex"
+            className="hidden h-10 items-center gap-1.5 rounded-full bg-neutral-900 px-5 font-poppins text-[14px] font-semibold text-white transition-colors hover:bg-neutral-800 md:inline-flex"
           >
             Cadastre-se
             <ArrowRight className="h-4 w-4" strokeWidth={2.4} />
