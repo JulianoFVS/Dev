@@ -192,7 +192,7 @@ body {
   background-clip: text;
   color: transparent;
   filter: drop-shadow(0 0 18px rgba(200, 240, 83, 0.35));
-  animation: ortusShine 3.2s linear infinite;
+  animation: ortusShine 6s linear infinite;
 }
 
 .ortus-landing-preview {

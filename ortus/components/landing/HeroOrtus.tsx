@@ -37,13 +37,27 @@ function MiniPillMeter({ ratio, accent }: { ratio: number; accent: 'lime' | 'dar
 }
 
 const BARRAS = [
-  { id: 's', rotulo: 'S, 14', valor: 1200, prev: 420 },
-  { id: 't', rotulo: 'T, 15', valor: 800, prev: 280 },
-  { id: 'q', rotulo: 'Q, 16', valor: 2100, prev: 740 },
-  { id: 'q2', rotulo: 'Q, 17', valor: 4700, prev: 1650 },
-  { id: 's2', rotulo: 'S, 18', valor: 900, prev: 320 },
-  { id: 'd', rotulo: 'D, 19', valor: 600, prev: 210 },
-  { id: 's3', rotulo: 'S, 20', valor: 400, prev: 140 },
+  { id: 's', rotulo: 'S, 14', valor: 3200, prev: 980 },
+  { id: 't', rotulo: 'T, 15', valor: 4100, prev: 1200 },
+  { id: 'q', rotulo: 'Q, 16', valor: 5800, prev: 2100 },
+  { id: 'q2', rotulo: 'Q, 17', valor: 7200, prev: 2400 },
+  { id: 's2', rotulo: 'S, 18', valor: 8900, prev: 3100 },
+  { id: 'd', rotulo: 'D, 19', valor: 12400, prev: 2850 },
+  { id: 's3', rotulo: 'S, 20', valor: 2600, prev: 900 },
+];
+
+const FILA = [
+  { id: 'livre-1', tipo: 'livre' as const, hora: '08:00' },
+  { id: 'ag-1', tipo: 'consulta' as const, nome: 'Marina Alves', hora: '08:30', proc: 'Limpeza', atual: false },
+  { id: 'ag-2', tipo: 'consulta' as const, nome: 'Rafael Costa', hora: '09:15', proc: 'Retorno ortodontia', atual: true },
+  { id: 'ag-3', tipo: 'consulta' as const, nome: 'Helena Dias', hora: '10:00', proc: 'Canal · Cadeira 1', atual: false },
+  { id: 'ag-4', tipo: 'consulta' as const, nome: 'Diego Prado', hora: '10:45', proc: 'Clareamento', atual: false },
+];
+
+const PENDENCIAS = [
+  { id: 'p1', nome: 'Bruno Lima', detalhe: 'Débito em aberto · R$ 500,00' },
+  { id: 'p2', nome: 'Camila Nunes', detalhe: 'Prótese pendente · R$ 1.200,00' },
+  { id: 'p3', nome: 'Lia · confirmações', detalhe: '3 retornos sem resposta' },
 ];
 
 function PreviewDashboard() {
@@ -60,7 +74,7 @@ function PreviewDashboard() {
   ];
 
   return (
-    <div className="flex h-auto min-h-[280px] overflow-hidden rounded-2xl border border-black/10 bg-[#f3f4f1] text-left shadow-[0_18px_50px_-28px_rgba(0,0,0,0.22)] sm:min-h-[360px] md:h-[min(520px,72vh)]">
+    <div className="flex h-auto min-h-[320px] overflow-hidden rounded-2xl border border-black/10 bg-[#f3f4f1] text-left shadow-[0_18px_50px_-28px_rgba(0,0,0,0.22)] sm:min-h-[380px] md:min-h-[min(580px,78vh)]">
       <aside className="hidden w-[52px] shrink-0 flex-col items-center gap-1 bg-neutral-950 py-3 sm:flex md:w-[56px]">
         <img src="/landing/ortus-mark.svg" alt="" className="mb-3 h-6 w-6 brightness-0 invert opacity-90 md:h-7 md:w-7" />
         <nav className="flex flex-1 flex-col items-center gap-2">
@@ -92,8 +106,14 @@ function PreviewDashboard() {
           </div>
           <div className="hidden items-center gap-1 md:flex">
             {[Search, Mail, Bell, Settings].map((Icon, i) => (
-              <span key={i} className="flex h-8 w-8 items-center justify-center rounded-full border border-black/10 bg-white text-neutral-600">
+              <span key={i} className="relative flex h-8 w-8 items-center justify-center rounded-full border border-black/10 bg-white text-neutral-600">
                 <Icon size={14} />
+                {i === 1 && (
+                  <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-neutral-900 ring-2 ring-white" aria-hidden />
+                )}
+                {i === 2 && (
+                  <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-red-500 ring-2 ring-white" aria-hidden />
+                )}
               </span>
             ))}
             <span className="inline-flex h-8 items-center gap-1 rounded-full bg-neutral-900 px-3 font-poppins text-[11px] font-medium text-white">
@@ -120,39 +140,45 @@ function PreviewDashboard() {
           <section className={`${bento} p-2 sm:p-2.5`}>
             <div className="flex items-start justify-between gap-1">
               <p className="text-[10px] font-medium text-neutral-500 sm:text-[11px]">Consultas do dia</p>
-              <span className="rounded-full bg-neutral-100 px-1.5 py-0.5 text-[9px] font-medium text-neutral-600">0 concluídas</span>
+              <span className="rounded-full bg-neutral-100 px-1.5 py-0.5 text-[9px] font-medium text-neutral-600">8 concluídas</span>
             </div>
             <p className="mt-1 text-xl font-semibold tracking-tight text-neutral-900 sm:text-2xl">
-              0<span className="text-sm font-medium text-neutral-400"> / 1</span>
+              12<span className="text-sm font-medium text-neutral-400"> / 15</span>
             </p>
             <div className="mt-2">
-              <MiniPillMeter ratio={0} accent="lime" />
+              <MiniPillMeter ratio={8 / 12} accent="lime" />
             </div>
           </section>
 
           <section className={`${bento} bg-[#c8f053] p-2 sm:p-2.5`}>
             <p className="text-[10px] font-medium text-neutral-800 sm:text-[11px]">Recebimentos · Hoje</p>
-            <p className="mt-1 text-xl font-semibold tracking-tight text-neutral-900 sm:text-2xl">R$ 4.700,00</p>
-            <p className="text-[10px] text-neutral-700 sm:text-[11px]">Previsto R$ 0,00</p>
+            <p className="mt-1 text-xl font-semibold tracking-tight text-neutral-900 sm:text-2xl">R$ 12.400,00</p>
+            <p className="text-[10px] text-neutral-700 sm:text-[11px]">Previsto R$ 2.850,00</p>
             <div className="mt-2">
-              <MiniPillMeter ratio={1} accent="dark" />
+              <MiniPillMeter ratio={12400 / (12400 + 2850)} accent="dark" />
             </div>
           </section>
 
-          <section className={`${bentoDark} relative flex min-h-[88px] flex-col justify-between overflow-hidden p-2 sm:min-h-[96px] sm:p-2.5`}>
-            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_100%_0%,rgba(200,240,83,0.18),transparent_50%)]" />
-            <div className="relative z-[1]">
-              <p className="text-[10px] text-neutral-300 sm:text-[11px]">Sala livre agora</p>
-              <p className="mt-0.5 truncate text-sm font-semibold text-white sm:text-base">Nenhum paciente em curso</p>
+          <section className={`${bentoDark} relative flex min-h-[96px] flex-col justify-between overflow-hidden p-2 sm:min-h-[104px] sm:p-2.5`}>
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_100%_0%,rgba(200,240,83,0.22),transparent_55%)]" />
+            <div className="relative z-[1] min-w-0">
+              <p className="text-[10px] text-neutral-300 sm:text-[11px]">Em atendimento · Cadeira 2 · 09:15</p>
+              <p className="mt-0.5 truncate text-sm font-semibold text-white sm:text-base">Rafael Costa</p>
+              <p className="truncate text-[10px] text-neutral-200 sm:text-[11px]">Retorno ortodontia · 34 anos · 2 itens no plano</p>
             </div>
-            <span className="relative z-[1] mt-1.5 inline-flex w-fit rounded-full bg-white px-3 py-1 font-poppins text-[10px] font-medium text-neutral-900 sm:text-[11px]">
-              Abrir agenda
-            </span>
+            <div className="relative z-[1] mt-1.5 flex flex-wrap gap-1">
+              <span className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 font-poppins text-[10px] font-medium text-neutral-900 sm:text-[11px]">
+                Concluir
+              </span>
+              <span className="inline-flex rounded-full border border-white/25 px-2.5 py-1 font-poppins text-[10px] font-medium text-white sm:text-[11px]">
+                Ficha
+              </span>
+            </div>
           </section>
         </div>
 
-        <div className="mt-1.5 grid grid-cols-1 gap-1.5 lg:grid-cols-[1.4fr_0.85fr] sm:mt-2 sm:gap-2">
-          <section className={`${bento} flex min-h-[140px] flex-col p-2 sm:min-h-[160px] sm:p-2.5`}>
+        <div className="mt-1.5 grid grid-cols-1 gap-1.5 md:grid-cols-[minmax(0,1.45fr)_minmax(200px,0.9fr)] sm:mt-2 sm:gap-2">
+          <section className={`${bento} flex min-h-[148px] flex-col p-2 sm:min-h-[168px] sm:p-2.5`}>
             <div className="flex flex-wrap items-start justify-between gap-1">
               <div>
                 <p className="text-[11px] font-semibold text-neutral-900 sm:text-xs">Estatísticas</p>
@@ -182,6 +208,11 @@ function PreviewDashboard() {
               </span>
             </div>
             <div className="relative mt-2 flex flex-1 items-end justify-between gap-0.5 sm:gap-1">
+              <div className="pointer-events-none absolute inset-x-0 bottom-5 top-1 flex flex-col justify-between">
+                {[0, 1, 2, 3].map((i) => (
+                  <div key={i} className="h-px w-full bg-neutral-100" />
+                ))}
+              </div>
               {BARRAS.map((item) => {
                 const h = Math.max(8, (item.valor / maxBarra) * 100);
                 const hPrev = Math.max(4, (item.prev / maxBarra) * 100);
@@ -203,39 +234,89 @@ function PreviewDashboard() {
                 );
               })}
             </div>
+            <div className="mt-2 grid shrink-0 grid-cols-2 gap-1.5 border-t border-black/5 pt-2 sm:grid-cols-4">
+              <div>
+                <p className="text-[8px] font-medium uppercase tracking-wide text-neutral-400 sm:text-[9px]">Alergias</p>
+                <p className="line-clamp-1 text-[10px] font-medium text-amber-800 sm:text-[11px]">Penicilina</p>
+              </div>
+              <div>
+                <p className="text-[8px] font-medium uppercase tracking-wide text-neutral-400 sm:text-[9px]">Última visita</p>
+                <p className="text-[10px] text-neutral-800 sm:text-[11px]">12/08/2025</p>
+              </div>
+              <div>
+                <p className="text-[8px] font-medium uppercase tracking-wide text-neutral-400 sm:text-[9px]">Saldo</p>
+                <p className="text-[10px] font-medium text-red-600 sm:text-[11px]">R$ 320,00</p>
+              </div>
+              <div>
+                <p className="text-[8px] font-medium uppercase tracking-wide text-neutral-400 sm:text-[9px]">Pendências</p>
+                <p className="text-[10px] font-semibold text-neutral-900 sm:text-[11px]">3</p>
+              </div>
+            </div>
           </section>
 
-          <aside className="hidden min-h-0 flex-col gap-1.5 lg:flex">
+          <aside className="flex min-h-0 flex-col gap-1.5">
             <div className="grid grid-cols-2 gap-1.5">
-              <span className={`${bento} flex items-center gap-2 px-2 py-2`}>
+              <span className={`${bento} flex items-center gap-2 border border-black/5 px-2 py-2 ring-1 ring-neutral-900/5`}>
                 <CalendarDays size={14} className="text-neutral-800" />
                 <span className="text-[11px] font-semibold text-neutral-900">Agenda</span>
               </span>
-              <span className={`${bento} flex items-center gap-2 px-2 py-2`}>
-                <Users size={14} className="text-neutral-800" />
-                <span className="text-[11px] font-semibold text-neutral-900">Pacientes</span>
+              <span className={`${bento} flex items-center gap-2 px-2 py-2 text-neutral-600`}>
+                <Users size={14} className="text-neutral-500" />
+                <span className="text-[11px] font-medium">Pacientes</span>
               </span>
             </div>
             <section className={`${bento} flex min-h-0 flex-1 flex-col overflow-hidden`}>
-              <div className="border-b border-black/5 px-2.5 py-2">
+              <div className="flex items-center justify-between border-b border-black/5 px-2.5 py-1.5">
                 <p className="text-[11px] font-semibold text-neutral-900">Fila do dia</p>
+                <span className="text-[10px] tabular-nums text-neutral-400">5</span>
               </div>
-              <div className="p-1.5">
-                <div className="mb-1.5 flex items-start justify-between gap-2 rounded-xl border border-black/5 bg-[#f8f8f6] p-2">
-                  <div>
-                    <p className="text-[11px] font-medium text-neutral-900">Horário livre</p>
-                    <p className="text-[10px] font-medium text-neutral-600">08:00</p>
-                  </div>
-                  <ArrowUpRight size={12} className="shrink-0 text-neutral-400" />
-                </div>
-                <p className="mb-1 px-1 text-[10px] font-semibold text-neutral-900">Pendências</p>
-                <div className="rounded-xl border border-black/5 bg-[#f8f8f6] p-2">
-                  <p className="truncate text-[10px] font-medium text-neutral-900">fddfgdf</p>
-                  <p className="text-[9px] text-neutral-500">Débito em aberto · R$ 500,00</p>
-                </div>
-                <div className="mt-1.5 flex items-center justify-between rounded-xl border border-black/5 px-2 py-1.5">
-                  <span className="text-[9px] text-neutral-500">Fechamento de caixa</span>
-                  <span className="text-[10px] font-medium text-red-600">Atraso R$ 1.200,00 · 3 pac.</span>
+              <ul className="max-h-[7.5rem] space-y-1 overflow-hidden p-1.5 sm:max-h-none">
+                {FILA.map((linha) => {
+                  if (linha.tipo === 'livre') {
+                    return (
+                      <li key={linha.id}>
+                        <div className="flex items-start justify-between gap-2 rounded-xl border border-black/5 bg-[#f8f8f6] p-1.5">
+                          <div>
+                            <p className="text-[10px] font-medium text-neutral-900 sm:text-[11px]">Horário livre</p>
+                            <p className="text-[9px] font-medium text-neutral-600 sm:text-[10px]">{linha.hora}</p>
+                          </div>
+                          <ArrowUpRight size={11} className="shrink-0 text-neutral-400" />
+                        </div>
+                      </li>
+                    );
+                  }
+                  return (
+                    <li key={linha.id}>
+                      <div
+                        className={`flex items-start justify-between gap-2 rounded-xl border p-1.5 ${
+                          linha.atual ? 'border-[#c8f053] bg-white' : 'border-black/5 bg-[#f8f8f6]'
+                        }`}
+                      >
+                        <div className="min-w-0">
+                          <p className="truncate text-[10px] font-medium text-neutral-900 sm:text-[11px]">{linha.nome}</p>
+                          <p className="truncate text-[9px] font-medium text-neutral-600 sm:text-[10px]">
+                            {linha.hora} · {linha.proc}
+                          </p>
+                        </div>
+                        <ArrowUpRight size={11} className="shrink-0 text-neutral-400" />
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+              <div className="border-t border-black/5 px-2 py-1.5">
+                <p className="mb-1 text-[10px] font-semibold text-neutral-900">Pendências</p>
+                <ul className="space-y-1">
+                  {PENDENCIAS.map((p) => (
+                    <li key={p.id} className="rounded-lg border border-black/5 bg-[#f8f8f6] px-2 py-1">
+                      <p className="truncate text-[9px] font-medium text-neutral-900 sm:text-[10px]">{p.nome}</p>
+                      <p className="truncate text-[8px] text-neutral-500 sm:text-[9px]">{p.detalhe}</p>
+                    </li>
+                  ))}
+                </ul>
+                <div className="mt-1.5 flex items-center justify-between gap-1 rounded-lg border border-black/5 px-2 py-1">
+                  <span className="text-[8px] text-neutral-500 sm:text-[9px]">Fechamento de caixa</span>
+                  <span className="text-right text-[9px] font-medium text-red-600 sm:text-[10px]">Atraso R$ 1.200,00 · 3 pac.</span>
                 </div>
               </div>
             </section>
