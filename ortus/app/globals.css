@@ -196,7 +196,22 @@ body {
 }
 
 .ortus-landing-preview {
-  transform: translateY(0) scale(1);
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+.ortus-landing-preview-ui {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+@media (hover: hover) and (pointer: fine) {
+  .ortus-landing-preview {
+    transition: transform 0.45s ease, box-shadow 0.45s ease;
+  }
+  .group\/preview:hover .ortus-landing-preview {
+    transform: translateY(-6px) translateZ(0);
+    box-shadow: 0 28px 70px -24px rgba(0, 0, 0, 0.28);
+  }
 }
 
 @keyframes ortusLogoIdle {
@@ -210,7 +225,8 @@ body {
 @media (prefers-reduced-motion: reduce) {
     .ortus-marquee-track { animation: none; }
     .ortus-shine { animation: none; color: #171717; background: none; filter: none; }
-    .ortus-landing-preview { transform: none !important; }
+    .ortus-landing-preview { transform: none !important; box-shadow: none !important; }
+    .group\/preview:hover .ortus-landing-preview { transform: none !important; }
     .ortus-logo-idle { animation: none; }
 }
 
