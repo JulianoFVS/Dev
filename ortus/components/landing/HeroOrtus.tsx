@@ -20,18 +20,18 @@ import MarcasCarrossel from './MarcasCarrossel';
 
 function MiniPillMeter({ ratio, accent }: { ratio: number; accent: 'lime' | 'dark' }) {
   const pct = Math.min(1, Math.max(0, ratio));
-  const filled = Math.round(pct * 10);
+  const filled = Math.round(pct * 12);
   const fillClass = accent === 'lime' ? 'bg-neutral-900' : 'bg-[#c8f053]';
   const emptyClass = accent === 'lime' ? 'border border-black/10 bg-white/70' : 'border border-black/10 bg-white/50';
 
   return (
     <div className="flex items-end gap-1">
       <div className="flex items-end gap-[2px]">
-        {Array.from({ length: 10 }).map((_, i) => (
-          <span key={i} className={`h-3 w-[3px] rounded-full sm:h-3.5 sm:w-[3.5px] ${i < filled ? fillClass : emptyClass}`} />
+        {Array.from({ length: 12 }).map((_, i) => (
+          <span key={i} className={`h-3.5 w-[3.5px] rounded-full sm:h-4 sm:w-[4px] ${i < filled ? fillClass : emptyClass}`} />
         ))}
       </div>
-      <span className="pb-0.5 text-[9px] font-medium tabular-nums text-neutral-800 sm:text-[10px]">{Math.round(pct * 100)}%</span>
+      <span className="pb-0.5 text-[10px] font-medium tabular-nums text-neutral-800 sm:text-[11px]">{Math.round(pct * 100)}%</span>
     </div>
   );
 }
@@ -50,6 +50,7 @@ const FILA = [
   { id: 'livre-1', tipo: 'livre' as const, hora: '08:00' },
   { id: 'ag-1', tipo: 'consulta' as const, nome: 'Marina Alves', hora: '08:30', proc: 'Limpeza', atual: false },
   { id: 'ag-2', tipo: 'consulta' as const, nome: 'Rafael Costa', hora: '09:15', proc: 'Retorno ortodontia', atual: true },
+  { id: 'ag-3', tipo: 'consulta' as const, nome: 'Helena Dias', hora: '10:00', proc: 'Canal', atual: false },
 ];
 
 const PENDENCIAS = [
@@ -71,7 +72,7 @@ function PreviewDashboard() {
   ];
 
   return (
-    <div className="flex h-auto overflow-hidden rounded-2xl border border-black/10 bg-[#f3f4f1] text-left shadow-[0_18px_50px_-28px_rgba(0,0,0,0.22)] md:h-[min(440px,58vh)]">
+    <div className="flex h-auto overflow-hidden rounded-2xl border border-black/10 bg-[#f3f4f1] text-left shadow-[0_18px_50px_-28px_rgba(0,0,0,0.22)] sm:min-h-[360px] md:h-[min(500px,66vh)] lg:h-[min(520px,68vh)]">
       <aside className="hidden w-[52px] shrink-0 flex-col items-center gap-1 bg-neutral-950 py-3 sm:flex md:w-[56px]">
         <img src="/landing/ortus-mark.svg" alt="" className="mb-3 h-6 w-6 brightness-0 invert opacity-90 md:h-7 md:w-7" />
         <nav className="flex flex-1 flex-col items-center gap-2">
@@ -90,10 +91,10 @@ function PreviewDashboard() {
         </span>
       </aside>
 
-      <div className="min-w-0 flex-1 overflow-hidden p-2 sm:p-2.5 md:p-3">
-        <div className="mb-1.5 flex flex-wrap items-start justify-between gap-2">
+      <div className="min-w-0 flex-1 overflow-hidden p-2.5 sm:p-3 md:p-3.5">
+        <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
           <div className="min-w-0">
-            <h3 className="font-poppins text-[12px] font-semibold leading-tight tracking-tight text-neutral-900 sm:text-[14px] md:text-[15px]">
+            <h3 className="font-poppins text-[13px] font-semibold leading-tight tracking-tight text-neutral-900 sm:text-[15px] md:text-[16px]">
               Gerenciando sua clínica
               <span className="text-neutral-400"> e o fluxo do dia</span>
             </h3>
@@ -120,7 +121,7 @@ function PreviewDashboard() {
           </div>
         </div>
 
-        <div className="mb-1.5 flex gap-1 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="mb-2 flex gap-1.5 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {['Visão do dia', 'Agenda', 'Financeiro', 'Pendências', 'Relatórios'].map((tab, i) => (
             <span
               key={tab}
@@ -139,19 +140,19 @@ function PreviewDashboard() {
               <p className="text-[10px] font-medium text-neutral-500 sm:text-[11px]">Consultas do dia</p>
               <span className="rounded-full bg-neutral-100 px-1.5 py-0.5 text-[9px] font-medium text-neutral-600">8 concluídas</span>
             </div>
-            <p className="mt-0.5 text-lg font-semibold tracking-tight text-neutral-900 sm:text-xl">
-              12<span className="text-xs font-medium text-neutral-400 sm:text-sm"> / 15</span>
+            <p className="mt-1 text-xl font-semibold tracking-tight text-neutral-900 sm:text-2xl">
+              12<span className="text-sm font-medium text-neutral-400"> / 15</span>
             </p>
-            <div className="mt-1.5">
+            <div className="mt-2">
               <MiniPillMeter ratio={8 / 12} accent="lime" />
             </div>
           </section>
 
           <section className={`${bento} bg-[#c8f053] p-2 sm:p-2.5`}>
             <p className="text-[10px] font-medium text-neutral-800 sm:text-[11px]">Recebimentos · Hoje</p>
-            <p className="mt-0.5 text-lg font-semibold tracking-tight text-neutral-900 sm:text-xl">R$ 12.400,00</p>
-            <p className="text-[9px] text-neutral-700 sm:text-[10px]">Previsto R$ 2.850,00</p>
-            <div className="mt-1.5">
+            <p className="mt-1 text-xl font-semibold tracking-tight text-neutral-900 sm:text-2xl">R$ 12.400,00</p>
+            <p className="text-[10px] text-neutral-700 sm:text-[11px]">Previsto R$ 2.850,00</p>
+            <div className="mt-2">
               <MiniPillMeter ratio={12400 / (12400 + 2850)} accent="dark" />
             </div>
           </section>
@@ -159,11 +160,11 @@ function PreviewDashboard() {
           <section className={`${bentoDark} relative flex flex-col justify-between overflow-hidden p-2 sm:p-2.5`}>
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_100%_0%,rgba(200,240,83,0.22),transparent_55%)]" />
             <div className="relative z-[1] min-w-0">
-              <p className="text-[9px] text-neutral-300 sm:text-[10px]">Em atendimento · Cadeira 2 · 09:15</p>
-              <p className="mt-0.5 truncate text-[13px] font-semibold text-white sm:text-sm">Rafael Costa</p>
-              <p className="hidden truncate text-[9px] text-neutral-200 sm:block sm:text-[10px]">Retorno ortodontia · 34 anos</p>
+              <p className="text-[10px] text-neutral-300 sm:text-[11px]">Em atendimento · Cadeira 2 · 09:15</p>
+              <p className="mt-0.5 truncate text-sm font-semibold text-white sm:text-base">Rafael Costa</p>
+              <p className="truncate text-[10px] text-neutral-200 sm:text-[11px]">Retorno ortodontia · 34 anos</p>
             </div>
-            <div className="relative z-[1] mt-1 flex flex-wrap gap-1">
+            <div className="relative z-[1] mt-1.5 flex flex-wrap gap-1">
               <span className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 font-poppins text-[10px] font-medium text-neutral-900 sm:text-[11px]">
                 Concluir
               </span>
@@ -174,7 +175,7 @@ function PreviewDashboard() {
           </section>
         </div>
 
-        <div className="mt-1.5 grid grid-cols-1 gap-1.5 md:grid-cols-[minmax(0,1.5fr)_minmax(168px,0.82fr)] sm:gap-1.5">
+        <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-[minmax(0,1.48fr)_minmax(188px,0.88fr)]">
           <section className={`${bento} flex flex-col p-2 sm:p-2.5`}>
             <div className="flex flex-wrap items-start justify-between gap-1">
               <div>
@@ -194,7 +195,7 @@ function PreviewDashboard() {
                 ))}
               </div>
             </div>
-            <div className="mt-1 flex gap-2 text-[8px] text-neutral-600 sm:text-[9px]">
+            <div className="mt-1.5 flex gap-3 text-[9px] text-neutral-600 sm:text-[10px]">
               <span className="inline-flex items-center gap-1">
                 <span className="h-1.5 w-1.5 rounded-full bg-neutral-900" />
                 Recebido
@@ -204,9 +205,9 @@ function PreviewDashboard() {
                 Previsto / fila
               </span>
             </div>
-            <div className="relative mt-1.5 flex items-end justify-between gap-0.5 sm:gap-1">
-              <div className="pointer-events-none absolute inset-x-0 bottom-4 top-0 flex flex-col justify-between">
-                {[0, 1, 2].map((i) => (
+            <div className="relative mt-2 flex items-end justify-between gap-0.5 sm:gap-1">
+              <div className="pointer-events-none absolute inset-x-0 bottom-5 top-0 flex flex-col justify-between">
+                {[0, 1, 2, 3].map((i) => (
                   <div key={i} className="h-px w-full bg-neutral-100" />
                 ))}
               </div>
@@ -214,8 +215,8 @@ function PreviewDashboard() {
                 const h = Math.max(8, (item.valor / maxBarra) * 100);
                 const hPrev = Math.max(4, (item.prev / maxBarra) * 100);
                 return (
-                  <div key={item.id} className="relative z-[1] flex flex-1 flex-col items-center gap-0.5">
-                    <div className="relative flex h-[3rem] w-full max-w-[1.45rem] flex-col items-center justify-end sm:h-[3.35rem] sm:max-w-[1.55rem]">
+                  <div key={item.id} className="relative z-[1] flex flex-1 flex-col items-center gap-1">
+                    <div className="relative flex h-[3.65rem] w-full max-w-[1.6rem] flex-col items-center justify-end sm:h-[4.25rem] sm:max-w-[1.85rem]">
                       <div className="absolute bottom-0 w-[85%] rounded-full bg-neutral-100" style={{ height: `${Math.min(100, h + 12)}%` }} />
                       <div className="absolute bottom-0 z-[1] w-[72%] rounded-full bg-[#c8f053]" style={{ height: `${hPrev}%` }} />
                       <div className="absolute bottom-0 z-[2] w-[72%] rounded-full bg-neutral-900" style={{ height: `${h}%` }} />
@@ -233,24 +234,24 @@ function PreviewDashboard() {
             </div>
           </section>
 
-          <aside className="hidden min-h-0 flex-col gap-1 md:flex">
-            <div className="grid grid-cols-2 gap-1">
-              <span className={`${bento} flex items-center gap-1.5 border border-black/5 px-2 py-1.5 ring-1 ring-neutral-900/5`}>
-                <CalendarDays size={12} className="text-neutral-800" />
-                <span className="text-[10px] font-semibold text-neutral-900">Agenda</span>
+          <aside className="hidden min-h-0 flex-col gap-1.5 md:flex">
+            <div className="grid grid-cols-2 gap-1.5">
+              <span className={`${bento} flex items-center gap-2 border border-black/5 px-2 py-2 ring-1 ring-neutral-900/5`}>
+                <CalendarDays size={13} className="text-neutral-800" />
+                <span className="text-[11px] font-semibold text-neutral-900">Agenda</span>
               </span>
-              <span className={`${bento} flex items-center gap-1.5 px-2 py-1.5 text-neutral-600`}>
-                <Users size={12} className="text-neutral-500" />
-                <span className="text-[10px] font-medium">Pacientes</span>
+              <span className={`${bento} flex items-center gap-2 px-2 py-2 text-neutral-600`}>
+                <Users size={13} className="text-neutral-500" />
+                <span className="text-[11px] font-medium">Pacientes</span>
               </span>
             </div>
             <section className={`${bento} flex min-h-0 flex-1 flex-col overflow-hidden`}>
-              <div className="flex items-center justify-between border-b border-black/5 px-2 py-1">
-                <p className="text-[10px] font-semibold text-neutral-900">Fila do dia</p>
-                <span className="text-[9px] tabular-nums text-neutral-400">3</span>
+              <div className="flex items-center justify-between border-b border-black/5 px-2.5 py-1.5">
+                <p className="text-[11px] font-semibold text-neutral-900">Fila do dia</p>
+                <span className="text-[10px] tabular-nums text-neutral-400">4</span>
               </div>
-              <ul className="space-y-0.5 overflow-hidden p-1">
-                {FILA.slice(0, 3).map((linha) => {
+              <ul className="space-y-1 overflow-hidden p-1.5">
+                {FILA.slice(0, 4).map((linha) => {
                   if (linha.tipo === 'livre') {
                     return (
                       <li key={linha.id}>
@@ -283,19 +284,19 @@ function PreviewDashboard() {
                   );
                 })}
               </ul>
-              <div className="border-t border-black/5 px-1.5 py-1">
-                <p className="mb-0.5 text-[9px] font-semibold text-neutral-900">Pendências</p>
-                <ul className="space-y-0.5">
+              <div className="border-t border-black/5 px-2 py-1.5">
+                <p className="mb-1 text-[10px] font-semibold text-neutral-900">Pendências</p>
+                <ul className="space-y-1">
                   {PENDENCIAS.map((p) => (
-                    <li key={p.id} className="rounded-md border border-black/5 bg-[#f8f8f6] px-1.5 py-0.5">
-                      <p className="truncate text-[8px] font-medium text-neutral-900 sm:text-[9px]">{p.nome}</p>
-                      <p className="truncate text-[7px] text-neutral-500 sm:text-[8px]">{p.detalhe}</p>
+                    <li key={p.id} className="rounded-lg border border-black/5 bg-[#f8f8f6] px-2 py-1">
+                      <p className="truncate text-[9px] font-medium text-neutral-900 sm:text-[10px]">{p.nome}</p>
+                      <p className="truncate text-[8px] text-neutral-500 sm:text-[9px]">{p.detalhe}</p>
                     </li>
                   ))}
                 </ul>
-                <div className="mt-1 flex items-center justify-between gap-1 rounded-md border border-black/5 px-1.5 py-0.5">
-                  <span className="text-[7px] text-neutral-500 sm:text-[8px]">Caixa</span>
-                  <span className="text-right text-[8px] font-medium text-red-600 sm:text-[9px]">Atraso R$ 1.200 · 3 pac.</span>
+                <div className="mt-1.5 flex items-center justify-between gap-1 rounded-lg border border-black/5 px-2 py-1">
+                  <span className="text-[8px] text-neutral-500 sm:text-[9px]">Fechamento de caixa</span>
+                  <span className="text-right text-[9px] font-medium text-red-600 sm:text-[10px]">Atraso R$ 1.200 · 3 pac.</span>
                 </div>
               </div>
             </section>
