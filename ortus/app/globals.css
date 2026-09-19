@@ -207,7 +207,7 @@ body {
 }
 @media (min-width: 768px) {
   .landing-preview-viewport {
-    height: min(520px, 68vh);
+    height: min(540px, 70vh);
     border-radius: 1.35rem;
   }
 }
@@ -221,8 +221,8 @@ body {
 }
 @media (min-width: 768px) {
   .landing-preview-scaler {
-    width: calc(100% / 0.67);
-    transform: translateX(-50%) scale(0.67);
+    width: calc(100% / 0.65);
+    transform: translateX(-50%) scale(0.65);
   }
 }
 .ortus-landing-preview-ui {
