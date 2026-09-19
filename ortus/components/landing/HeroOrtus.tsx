@@ -37,11 +37,11 @@ export default function HeroOrtus() {
           <MarcasCarrossel denso />
         </div>
 
-        <div className="group/preview relative z-10 mx-auto w-full max-w-[1080px] px-4 md:px-6">
-          <div className="landing-preview-viewport">
-            <div className="landing-preview-scaler">
-              <LandingDashboardPreview />
-            </div>
+        {/* viewport: clippa e define a altura visível */}
+        <div className="lp-viewport group/preview relative z-10 mx-auto w-full max-w-[1080px] overflow-hidden px-4 md:px-6">
+          {/* inner: escala o preview de 1280 px para caber */}
+          <div className="lp-scaler">
+            <LandingDashboardPreview />
           </div>
         </div>
 

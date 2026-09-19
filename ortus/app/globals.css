@@ -195,9 +195,16 @@ body {
   animation: ortusShine 6s linear infinite;
 }
 
-.landing-preview-viewport {
+/*
+ * lp-viewport — clippa e define a altura visível do preview escalado.
+ *
+ * Preview é sempre 1280 px de largura (desktop fixo).
+ * Scale mobile : 0.29 → altura visível ≈ 800 * 0.29 ≈ 232 px
+ * Scale desktop: 0.68 → altura visível ≈ 800 * 0.68 ≈ 544 px
+ */
+.lp-viewport {
   position: relative;
-  height: min(460px, 62vh);
+  height: 232px;
   overflow: hidden;
   border-radius: 1rem;
   border: 1px solid rgb(0 0 0 / 0.08);
@@ -206,35 +213,35 @@ body {
   backface-visibility: hidden;
 }
 @media (min-width: 768px) {
-  .landing-preview-viewport {
-    height: min(540px, 70vh);
-    border-radius: 1.35rem;
+  .lp-viewport {
+    height: 544px;
+    border-radius: 1.5rem;
   }
 }
-.landing-preview-scaler {
+
+/*
+ * lp-scaler — sempre 1280 px de largura, centralizado e escalado.
+ * Não use padding no viewport (já está no HeroOrtus).
+ */
+.lp-scaler {
   position: absolute;
-  left: 50%;
   top: 0;
-  width: calc(100% / 0.58);
-  transform: translateX(-50%) scale(0.58);
+  left: 50%;
+  width: 1280px;
+  transform: translateX(-50%) scale(0.29);
   transform-origin: top center;
 }
 @media (min-width: 768px) {
-  .landing-preview-scaler {
-    width: calc(100% / 0.65);
-    transform: translateX(-50%) scale(0.65);
+  .lp-scaler {
+    transform: translateX(-50%) scale(0.68);
   }
 }
-.ortus-landing-preview-ui {
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  text-rendering: optimizeLegibility;
-}
+
 @media (hover: hover) and (pointer: fine) {
-  .landing-preview-viewport {
+  .lp-viewport {
     transition: transform 0.45s ease, box-shadow 0.45s ease;
   }
-  .group\/preview:hover .landing-preview-viewport {
+  .group\/preview:hover .lp-viewport {
     transform: translateY(-6px) translateZ(0);
     box-shadow: 0 28px 70px -24px rgb(0 0 0 / 0.28);
   }
@@ -251,8 +258,8 @@ body {
 @media (prefers-reduced-motion: reduce) {
     .ortus-marquee-track { animation: none; }
     .ortus-shine { animation: none; color: #171717; background: none; filter: none; }
-    .landing-preview-viewport { transform: none !important; box-shadow: none !important; }
-    .group\/preview:hover .landing-preview-viewport { transform: none !important; }
+    .lp-viewport { transform: none !important; box-shadow: none !important; }
+    .group\/preview:hover .lp-viewport { transform: none !important; }
     .ortus-logo-idle { animation: none; }
 }
 
