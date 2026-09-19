@@ -28,6 +28,12 @@ import {
   syncModuleAccessCookie,
   writeSuperAdminCache,
 } from '@/lib/authCookies';
+import {
+  clearProfileSession,
+  mergeProfilFromSession,
+  PROFILE_PATCH_EVENT,
+  type ProfileSessionSnapshot,
+} from '@/lib/profileSession';
 
 function CadeirasOcupadas({ recolhido }: { recolhido: boolean }) {
   const { clinics, activeClinicId, loading } = useClinica();
@@ -238,7 +244,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
 
     const { data: prof } = await supabase.from('profissionais').select('*').eq('user_id', sess.user.id).single();
     if (prof) {
-      setPerfil(prof);
+      setPerfil(mergeProfilFromSession(prof));
       writeSuperAdminCache(!!prof.is_super_admin);
       if (prof.precisa_trocar_senha && pathname !== '/primeiro-acesso') {
         router.replace('/primeiro-acesso');
@@ -313,11 +319,21 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
       setActiveClinicById(normalizedId);
   }
 
+  useEffect(() => {
+    const onPatch = (ev: Event) => {
+      const detail = (ev as CustomEvent<ProfileSessionSnapshot>).detail;
+      setPerfil((p: typeof perfil) => (p ? { ...p, ...detail } : p));
+    };
+    window.addEventListener(PROFILE_PATCH_EVENT, onPatch);
+    return () => window.removeEventListener(PROFILE_PATCH_EVENT, onPatch);
+  }, []);
+
   async function handleLogout() {
       await supabase.auth.signOut();
       localStorage.removeItem('ortus_clinica_id');
       clearAuthCookies();
       clearSuperAdminCache();
+      clearProfileSession();
       router.push('/login');
   }
 

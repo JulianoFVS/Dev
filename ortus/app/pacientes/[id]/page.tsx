@@ -1297,7 +1297,6 @@ export default function PacienteDetalhe() {
               { label: 'Preenchido por', value: a.preenchido_por === 'paciente' ? 'Paciente' : 'Profissional' },
           ],
           bodyHtml: linhas + printSignatureBlock([assinatura]),
-          autoPrint: true,
       });
   }
 
@@ -1550,7 +1549,6 @@ export default function PacienteDetalhe() {
               { label: 'Tipo', value: tituloDoc },
           ],
           bodyHtml: `<div class="ortus-prose ortus-prose-serif">${escapePrintHtml(textoDoc)}</div>${printSignatureBlock(['Assinatura e Carimbo do Profissional'])}`,
-          autoPrint: true,
       });
   }
 

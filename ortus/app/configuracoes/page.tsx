@@ -25,9 +25,11 @@ import { useCustomAlert } from '@/components/ui/CustomAlert';
 import { DOCUMENTO_VARIAVEIS, inserirTokenVariavel, tokenVariavelLabel, aplicarVariaveisDocumento, buildDocumentoContexto } from '@/lib/documentVariables';
 import { applyTheme, THEME_OPTIONS, type ThemeId } from '@/lib/themePresets';
 import { FUSO_HORARIO_OPTIONS, UF_OPTIONS } from '@/lib/formOptions';
-import BentoPageShell from '@/components/bento/BentoPageShell';
-import { useClinica } from '@/app/context/ClinicaContext';
-import { bentoTab, bentoSection, bentoPrimaryBtn, bentoGhostBtn, bentoInput, bentoChip, bentoChipOutline, bentoToggleTrackOn, bentoToggleTrackOff, bentoModalPanel } from '@/lib/bentoUi';
+import { useClinica, getClinicLabel } from '@/app/context/ClinicaContext';
+import { bentoPill, bentoPrimaryBtn, bentoGhostBtn, bentoInput, bentoChip, bentoChipOutline, bentoToggleTrackOn, bentoToggleTrackOff, bentoModalPanel } from '@/lib/bentoUi';
+
+const cardShell = 'rounded-[1.35rem] bg-white sm:rounded-[1.5rem]';
+const sectionPad = 'p-4 sm:p-5 md:p-6';
 
 interface ModeloDocumento { id: string; tipo: 'contrato' | 'receita' | 'atestado' | 'outro'; nome: string; conteudo: string; }
 
@@ -66,7 +68,8 @@ function bootClinicasFromStorage(): any[] {
 
 export default function Configuracoes() {
   const router = useRouter();
-  const { clinics: ctxClinics, loading: clinicLoading } = useClinica();
+  const { clinics: ctxClinics, loading: clinicLoading, activeClinic } = useClinica();
+  const jaCarregou = useRef(bootClinicasFromStorage().length > 0);
   const [abaAtiva, setAbaAtiva] = useState('geral');
   const [loading, setLoading] = useState(() => bootClinicasFromStorage().length === 0);
   const { showAlert, showConfirm } = useCustomAlert();
@@ -268,6 +271,14 @@ export default function Configuracoes() {
       if (!q) return catsFin;
       return catsFin.filter(c => c.nome.toLowerCase().includes(q) || c.tipo.includes(q));
   }, [catsFin, buscaCatFin]);
+
+  const totalModelosAnamnese = modelos.length;
+  const totalDocs = docs.length;
+  const totalCatsAtivas = useMemo(() => catsFin.filter(c => c.ativo).length, [catsFin]);
+  const totalBackups = backups.length;
+  const kpiLoading = loading && !jaCarregou.current;
+
+  const configTabPill = (id: string) => bentoPill(abaAtiva === id);
 
   const taxasPorBandeira = useMemo(() => {
       const map = new Map<string, TaxaMaquininha[]>();
@@ -552,6 +563,7 @@ export default function Configuracoes() {
           setClinicas(c || []);
       }
       setProfissionais([]);
+      jaCarregou.current = true;
       setLoading(false);
   }
 
@@ -851,33 +863,100 @@ export default function Configuracoes() {
   }
 
   return (
-    <BentoPageShell title="Configurações" subtitle="Clínicas, preferências e integrações">
-      <div className="-mx-1 mb-4 flex gap-1 overflow-x-auto border-b border-black/8 pb-0">
-              <button type="button" onClick={() => setAbaAtiva('geral')} className={`${bentoTab(abaAtiva === 'geral')} flex items-center gap-2`}><SlidersHorizontal size={16}/> Geral</button>
-              <button type="button" onClick={() => setAbaAtiva('clinicas')} className={`${bentoTab(abaAtiva === 'clinicas')} flex items-center gap-2`}><Building2 size={16}/> Clínicas</button>
-              <button type="button" onClick={() => setAbaAtiva('anamnese')} className={`${bentoTab(abaAtiva === 'anamnese')} flex items-center gap-2`}><ClipboardList size={16}/> Anamnese</button>
-              <button type="button" onClick={() => setAbaAtiva('documentos')} className={`${bentoTab(abaAtiva === 'documentos')} flex items-center gap-2`}><FileSignature size={16}/> Docs</button>
-              <button type="button" onClick={() => setAbaAtiva('planos')} className={`${bentoTab(abaAtiva === 'planos')} flex items-center gap-2`}><Layers3 size={16}/> Planos</button>
-              <button type="button" onClick={() => setAbaAtiva('categorias')} className={`${bentoTab(abaAtiva === 'categorias')} flex items-center gap-2`}><Tag size={16}/> Categorias</button>
-              <button type="button" onClick={() => setAbaAtiva('taxas')} className={`${bentoTab(abaAtiva === 'taxas')} flex items-center gap-2`}><CreditCard size={16}/> Taxas</button>
-              <button type="button" onClick={() => setAbaAtiva('comunicacao')} className={`${bentoTab(abaAtiva === 'comunicacao')} flex items-center gap-2`}><MessageCircle size={16}/> Comunicação</button>
-              <button type="button" onClick={() => setAbaAtiva('backup')} className={`${bentoTab(abaAtiva === 'backup')} flex items-center gap-2`}><Database size={16}/> Backup</button>
+    <>
+    <div className="w-full space-y-3 px-2.5 py-2.5 pb-12 font-poppins sm:px-3 sm:py-3 md:px-4 md:py-3.5">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400">Sistema</p>
+          <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 md:text-[2rem]">Configurações</h1>
+          <p className="mt-1 text-sm text-neutral-500 sm:text-base">
+            {activeClinic ? getClinicLabel(activeClinic) : 'Rede'} · Clínicas, preferências e integrações
+          </p>
+        </div>
       </div>
 
-      {loading && clinicas.length === 0 ? (
-        <div className="space-y-3 py-8">
-          <div className="h-40 animate-pulse rounded-[1.35rem] bg-neutral-200" />
-          <div className="h-56 animate-pulse rounded-[1.35rem] bg-neutral-100" />
+      <div className="grid grid-cols-2 gap-2.5 sm:gap-3 md:grid-cols-4">
+        <section className={`${cardShell} p-4 sm:p-5`}>
+          <div className="mb-2 flex items-center justify-between">
+            <span className="rounded-full bg-neutral-100 p-2 text-neutral-700"><Building2 size={18} /></span>
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Rede</span>
+          </div>
+          <p className="text-xs font-medium text-neutral-500">Unidades</p>
+          {kpiLoading ? (
+            <div className="mt-2 h-8 w-16 animate-pulse rounded-xl bg-neutral-100" />
+          ) : (
+            <p className="mt-1 text-xl font-semibold text-neutral-900 sm:text-2xl">{clinicas.length}</p>
+          )}
+        </section>
+        <section className={`${cardShell} p-4 sm:p-5`}>
+          <div className="mb-2 flex items-center justify-between">
+            <span className="rounded-full bg-emerald-100 p-2 text-emerald-700"><ClipboardList size={18} /></span>
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-emerald-700">Anamnese</span>
+          </div>
+          <p className="text-xs font-medium text-neutral-500">Modelos</p>
+          {kpiLoading ? (
+            <div className="mt-2 h-8 w-16 animate-pulse rounded-xl bg-neutral-100" />
+          ) : (
+            <p className="mt-1 text-xl font-semibold text-neutral-900 sm:text-2xl">{totalModelosAnamnese}</p>
+          )}
+        </section>
+        <section className={`${cardShell} p-4 sm:p-5`}>
+          <div className="mb-2 flex items-center justify-between">
+            <span className="rounded-full bg-neutral-100 p-2 text-neutral-700"><Tag size={18} /></span>
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Financeiro</span>
+          </div>
+          <p className="text-xs font-medium text-neutral-500">Categorias ativas</p>
+          {kpiLoading ? (
+            <div className="mt-2 h-8 w-16 animate-pulse rounded-xl bg-neutral-100" />
+          ) : (
+            <p className="mt-1 text-xl font-semibold text-neutral-900 sm:text-2xl">{totalCatsAtivas}</p>
+          )}
+        </section>
+        <section className="rounded-[1.35rem] border border-neutral-800 bg-neutral-950 p-4 text-white sm:rounded-[1.5rem] sm:p-5">
+          <div className="mb-2 flex items-center justify-between">
+            <span className="rounded-full bg-white/10 p-2 text-[#c8f053]"><Database size={18} /></span>
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-white/70">Backup</span>
+          </div>
+          <p className="text-xs font-medium text-white/60">Snapshots no servidor</p>
+          {kpiLoading ? (
+            <div className="mt-2 h-8 w-16 animate-pulse rounded-xl bg-white/10" />
+          ) : (
+            <p className="mt-1 text-xl font-semibold sm:text-2xl">{totalBackups}</p>
+          )}
+        </section>
+      </div>
+
+      <div className={`${cardShell} p-2 sm:p-3`}>
+        <div className="-mx-0.5 flex gap-1.5 overflow-x-auto pb-0.5">
+          <button type="button" onClick={() => setAbaAtiva('geral')} className={`${configTabPill('geral')} flex items-center gap-1.5`}><SlidersHorizontal size={15}/> Geral</button>
+          <button type="button" onClick={() => setAbaAtiva('clinicas')} className={`${configTabPill('clinicas')} flex items-center gap-1.5`}><Building2 size={15}/> Clínicas</button>
+          <button type="button" onClick={() => setAbaAtiva('anamnese')} className={`${configTabPill('anamnese')} flex items-center gap-1.5`}><ClipboardList size={15}/> Anamnese</button>
+          <button type="button" onClick={() => setAbaAtiva('documentos')} className={`${configTabPill('documentos')} flex items-center gap-1.5`}><FileSignature size={15}/> Docs</button>
+          <button type="button" onClick={() => setAbaAtiva('planos')} className={`${configTabPill('planos')} flex items-center gap-1.5`}><Layers3 size={15}/> Planos</button>
+          <button type="button" onClick={() => setAbaAtiva('categorias')} className={`${configTabPill('categorias')} flex items-center gap-1.5`}><Tag size={15}/> Categorias</button>
+          <button type="button" onClick={() => setAbaAtiva('taxas')} className={`${configTabPill('taxas')} flex items-center gap-1.5`}><CreditCard size={15}/> Taxas</button>
+          <button type="button" onClick={() => setAbaAtiva('comunicacao')} className={`${configTabPill('comunicacao')} flex items-center gap-1.5`}><MessageCircle size={15}/> Comunicação</button>
+          <button type="button" onClick={() => setAbaAtiva('backup')} className={`${configTabPill('backup')} flex items-center gap-1.5`}><Database size={15}/> Backup</button>
+        </div>
+      </div>
+
+      {kpiLoading && clinicas.length === 0 ? (
+        <div className={`${cardShell} space-y-2 p-4 sm:p-5`}>
+          <div className="h-10 w-48 animate-pulse rounded-xl bg-neutral-100" />
+          <div className="h-32 animate-pulse rounded-2xl bg-neutral-50" />
+          <div className="h-32 animate-pulse rounded-2xl bg-neutral-50" />
         </div>
       ) : (
-        <>
+        <div className={`${cardShell} overflow-hidden`}>
             {/* ABA CLÍNICAS */}
             {abaAtiva === 'clinicas' && (
-                <div className="space-y-6 animate-in slide-in-from-left-4">
-                    <div className={`${bentoSection}`}>
-                        <div className="flex justify-between items-center mb-6">
-                            <h3 className="font-bold text-neutral-700 text-lg">Unidades Cadastradas</h3>
-                            <button onClick={abrirNovaClinica} className={`${bentoPrimaryBtn} px-4 py-2 text-sm`}><Plus size={16}/> Nova Clínica</button>
+                <section className={sectionPad}>
+                        <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                              <h3 className="text-base font-semibold text-neutral-900 sm:text-lg">Unidades cadastradas</h3>
+                              <p className="mt-0.5 text-xs text-neutral-500">Endereço, horário e dados fiscais por unidade</p>
+                            </div>
+                            <button type="button" onClick={abrirNovaClinica} className={`${bentoPrimaryBtn} h-10 px-4 text-sm sm:shrink-0`}><Plus size={16}/> Nova clínica</button>
                         </div>
                         <div className="space-y-3">
                             {clinicas.map(c => (
@@ -898,30 +977,30 @@ export default function Configuracoes() {
                                 </div>
                             ))}
                         </div>
-                    </div>
-                </div>
+                </section>
             )}
 
             {/* ABA PLANOS */}
             {abaAtiva === 'planos' && (perfilCaller?.nivel_acesso === 'admin' || perfilCaller?.is_super_admin) && (
-                <div className="animate-in fade-in">
+                <section className={sectionPad}>
                     <PlanosContent embedded />
-                </div>
+                </section>
             )}
             {abaAtiva === 'planos' && !(perfilCaller?.nivel_acesso === 'admin' || perfilCaller?.is_super_admin) && (
-                <div className="p-6 bg-amber-50 border border-amber-200 rounded-2xl text-sm text-amber-800">Apenas administradores podem gerenciar planos.</div>
+                <section className={`${sectionPad} text-sm text-amber-800`}>
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 sm:p-5">Apenas administradores podem gerenciar planos.</div>
+                </section>
             )}
 
             {/* ABA ANAMNESE */}
             {abaAtiva === 'anamnese' && (
-                <div className="space-y-6 animate-in slide-in-from-right-4">
-                    <div className={`${bentoSection}`}>
-                        <div className="flex justify-between items-center mb-6">
+                <section className={sectionPad}>
+                        <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                             <div>
-                                <h3 className="font-bold text-neutral-700 text-lg flex items-center gap-2"><ClipboardList size={20} className="text-neutral-600"/> Modelos de Anamnese</h3>
-                                <p className="text-xs text-neutral-400 font-medium mt-1">Crie modelos com perguntas personalizadas para usar com pacientes.</p>
+                                <h3 className="flex items-center gap-2 text-base font-semibold text-neutral-900 sm:text-lg"><ClipboardList size={20} className="text-neutral-600"/> Modelos de anamnese</h3>
+                                <p className="mt-1 text-xs text-neutral-500">Perguntas personalizadas para usar na ficha do paciente.</p>
                             </div>
-                            <button onClick={abrirNovoModelo} className={`${bentoPrimaryBtn} px-4 py-2 text-sm`}><Plus size={16}/> Novo Modelo</button>
+                            <button type="button" onClick={abrirNovoModelo} className={`${bentoPrimaryBtn} h-10 px-4 text-sm sm:shrink-0`}><Plus size={16}/> Novo modelo</button>
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -956,15 +1035,14 @@ export default function Configuracoes() {
                                 </div>
                             ))}
                         </div>
-                    </div>
-                </div>
+                </section>
             )}
 
             {/* ABA GERAL / PREFERÊNCIAS */}
             {abaAtiva === 'geral' && (
-                <div className="space-y-6 animate-in fade-in">
-                    <div className={`${bentoSection} space-y-5`}>
-                        <h3 className="font-bold text-neutral-700 text-lg flex items-center gap-2"><SlidersHorizontal size={20} className="text-neutral-600"/> Preferências Gerais</h3>
+                <div className="divide-y divide-black/5">
+                    <section className={`${sectionPad} space-y-5`}>
+                        <h3 className="flex items-center gap-2 text-base font-semibold text-neutral-900 sm:text-lg"><SlidersHorizontal size={20} className="text-neutral-600"/> Preferências gerais</h3>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div><label className="text-xs font-bold text-neutral-400 uppercase mb-1 block">Nome para Documentos</label><input value={prefs.nome_clinica} onChange={e => atualizarPref('nome_clinica', e.target.value)} className="w-full p-3 bg-neutral-50 border border-neutral-200 rounded-xl outline-none outline-none focus:border-neutral-400 font-bold" placeholder="Ex: Clínica Sorriso"/></div>
@@ -973,10 +1051,10 @@ export default function Configuracoes() {
                             <div className="md:col-span-2"><label className="text-xs font-bold text-neutral-400 uppercase mb-1 block">Cabeçalho dos Documentos</label><textarea value={prefs.cabecalho_documentos} onChange={e => atualizarPref('cabecalho_documentos', e.target.value)} className="w-full p-3 bg-neutral-50 border border-neutral-200 rounded-xl outline-none outline-none focus:border-neutral-400 font-medium h-20 resize-none" placeholder="Endereço, telefone e responsável técnico..."/></div>
                             <div className="md:col-span-2"><label className="text-xs font-bold text-neutral-400 uppercase mb-1 block">Rodapé dos Documentos</label><input value={prefs.rodape_documentos} onChange={e => atualizarPref('rodape_documentos', e.target.value)} className="w-full p-3 bg-neutral-50 border border-neutral-200 rounded-xl outline-none outline-none focus:border-neutral-400 font-medium"/></div>
                         </div>
-                    </div>
+                    </section>
 
-                    <div className={`${bentoSection} space-y-4`}>
-                        <h3 className="font-bold text-neutral-700 text-lg">Horário de Atendimento</h3>
+                    <section className={`${sectionPad} space-y-4`}>
+                        <h3 className="text-base font-semibold text-neutral-900 sm:text-lg">Horário de atendimento</h3>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div><label className="text-xs font-bold text-neutral-400 uppercase mb-1 block">Abertura</label><input type="time" value={prefs.horario_abertura} onChange={e => atualizarPref('horario_abertura', e.target.value)} className="w-full p-3 bg-neutral-50 border border-neutral-200 rounded-xl outline-none outline-none focus:border-neutral-400 font-bold"/></div>
                             <div><label className="text-xs font-bold text-neutral-400 uppercase mb-1 block">Fechamento</label><input type="time" value={prefs.horario_fechamento} onChange={e => atualizarPref('horario_fechamento', e.target.value)} className="w-full p-3 bg-neutral-50 border border-neutral-200 rounded-xl outline-none outline-none focus:border-neutral-400 font-bold"/></div>
@@ -990,10 +1068,10 @@ export default function Configuracoes() {
                                 ))}
                             </div>
                         </div>
-                    </div>
+                    </section>
 
-                    <div className={`${bentoSection} space-y-4`}>
-                        <h3 className="font-bold text-neutral-700 text-lg flex items-center gap-2"><Palette size={18} className="text-indigo-500"/> Aparência do Sistema</h3>
+                    <section className={`${sectionPad} space-y-4`}>
+                        <h3 className="flex items-center gap-2 text-base font-semibold text-neutral-900 sm:text-lg"><Palette size={18} className="text-indigo-500"/> Aparência do sistema</h3>
                         <div className="max-w-xs">
                             <label className="text-xs font-bold text-neutral-400 uppercase mb-1 block">Cor do tema</label>
                             <CustomSelect
@@ -1003,10 +1081,10 @@ export default function Configuracoes() {
                                 size="lg"
                             />
                         </div>
-                    </div>
+                    </section>
 
-                    <div className={`${bentoSection} space-y-3`}>
-                        <h3 className="font-bold text-neutral-700 text-lg flex items-center gap-2"><Bell size={18} className="text-amber-500"/> Notificações</h3>
+                    <section className={`${sectionPad} space-y-3`}>
+                        <h3 className="flex items-center gap-2 text-base font-semibold text-neutral-900 sm:text-lg"><Bell size={18} className="text-amber-500"/> Notificações</h3>
                         {[
                             { k: 'notificar_aniversariantes', l: 'Avisar sobre aniversariantes do dia' },
                             { k: 'notificar_debitos', l: 'Avisar sobre pacientes com débitos pendentes' },
@@ -1019,20 +1097,19 @@ export default function Configuracoes() {
                                 </button>
                             </label>
                         ))}
-                    </div>
+                    </section>
                 </div>
             )}
 
             {/* ABA CONTRATOS & DOCUMENTOS */}
             {abaAtiva === 'documentos' && (
-                <div className="space-y-6 animate-in fade-in">
-                    <div className={`${bentoSection}`}>
-                        <div className="flex justify-between items-center mb-4">
-                            <div>
-                                <h3 className="font-bold text-neutral-700 text-lg flex items-center gap-2"><FileSignature size={20} className="text-purple-500"/> Modelos de Contratos & Documentos</h3>
-                                <p className="text-xs text-neutral-400 font-medium mt-1">Crie modelos reutilizáveis de contratos, termos e outros documentos. Use variáveis como <code className="bg-neutral-100 px-1 rounded">{`{{paciente_nome}}`}</code> — veja os rótulos abaixo ao editar.</p>
+                <section className={sectionPad}>
+                        <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                            <div className="min-w-0">
+                                <h3 className="flex items-center gap-2 text-base font-semibold text-neutral-900 sm:text-lg"><FileSignature size={20} className="text-neutral-600"/> Modelos de documentos</h3>
+                                <p className="mt-1 text-xs text-neutral-500">Contratos, receitas e termos. Use variáveis como <code className="rounded bg-neutral-100 px-1">{`{{paciente_nome}}`}</code> ao editar.</p>
                             </div>
-                            <button onClick={abrirNovoDoc} className="bg-purple-600 text-white px-4 py-2 rounded-xl font-bold text-sm hover:bg-purple-700 flex items-center gap-2 shadow-lg shadow-purple-200"><Plus size={16}/> Novo Modelo</button>
+                            <button type="button" onClick={abrirNovoDoc} className={`${bentoPrimaryBtn} h-10 px-4 text-sm sm:shrink-0`}><Plus size={16}/> Novo modelo</button>
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1062,20 +1139,18 @@ export default function Configuracoes() {
                                 </div>
                             )}
                         </div>
-                    </div>
-                </div>
+                </section>
             )}
 
             {/* ABA CATEGORIAS FINANCEIRAS */}
             {abaAtiva === 'categorias' && (
-                <div className="space-y-6 animate-in fade-in">
-                    <div className={`${bentoSection}`}>
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                <section className={sectionPad}>
+                        <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                             <div>
-                                <h3 className="font-bold text-neutral-700 text-lg flex items-center gap-2"><Tag size={20} className="text-emerald-500"/> Categorias Financeiras</h3>
-                                <p className="text-xs text-neutral-400">Organize receitas e despesas por tipo. Categorias inativas não aparecem no Financeiro.</p>
+                                <h3 className="flex items-center gap-2 text-base font-semibold text-neutral-900 sm:text-lg"><Tag size={20} className="text-emerald-600"/> Categorias financeiras</h3>
+                                <p className="mt-1 text-xs text-neutral-500">Inativas não aparecem no Financeiro.</p>
                             </div>
-                            <button onClick={abrirNovaCatFin} className="px-4 py-2 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 flex items-center gap-1.5 text-sm shrink-0"><Plus size={14}/> Adicionar</button>
+                            <button type="button" onClick={abrirNovaCatFin} className={`${bentoPrimaryBtn} h-10 px-4 text-sm sm:shrink-0`}><Plus size={14}/> Adicionar</button>
                         </div>
 
                         <div className="flex items-center gap-2 mb-4">
@@ -1112,27 +1187,26 @@ export default function Configuracoes() {
                                 </div>
                             ))}
                         </div>
-                    </div>
-                </div>
+                </section>
             )}
 
             {abaAtiva === 'comunicacao' && (
-                <div className="space-y-6 animate-in fade-in">
-                    <div className="rounded-[1.35rem] border border-black/10 bg-neutral-50 p-5">
-                        <h4 className="font-black text-neutral-900 text-sm mb-2">Automação de lembretes 24h</h4>
-                        <p className="text-xs text-neutral-800 leading-relaxed">
-                            Com <code className="bg-white/80 px-1 rounded">CRON_SECRET</code> + deploy na Vercel, o sistema envia lembretes automaticamente todo dia às 10h (Brasília).
-                            Configure <strong>Twilio</strong> (SMS) e/ou <strong>Resend</strong> (e-mail) no <code className="bg-white/80 px-1 rounded">.env.local</code> — veja <code className="bg-white/80 px-1 rounded">.env.example</code>.
-                            WhatsApp continua manual (confirmação e lembrete na agenda e ficha do paciente).
+                <div className="divide-y divide-black/5">
+                    <section className={`${sectionPad} bg-neutral-50/80`}>
+                        <h4 className="mb-2 text-sm font-semibold text-neutral-900">Automação de lembretes 24h</h4>
+                        <p className="text-xs leading-relaxed text-neutral-700">
+                            Com <code className="rounded bg-white px-1">CRON_SECRET</code> + deploy na Vercel, lembretes saem todo dia às 10h (Brasília).
+                            Configure <strong>Twilio</strong> (SMS) e/ou <strong>Resend</strong> (e-mail) no <code className="rounded bg-white px-1">.env.local</code> — veja <code className="rounded bg-white px-1">.env.example</code>.
+                            WhatsApp continua manual na agenda e na ficha do paciente.
                         </p>
-                    </div>
-                    <div className={`${bentoSection}`}>
-                        <div className="flex justify-between items-center mb-6">
+                    </section>
+                    <section className={sectionPad}>
+                        <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                             <div>
-                                <h3 className="font-bold text-neutral-700 text-lg flex items-center gap-2"><MessageCircle size={20} className="text-green-500"/> Templates de Comunicação</h3>
-                                <p className="text-xs text-neutral-400 mt-1">Mensagens para WhatsApp, e-mail e SMS. Use variáveis como <code className="bg-neutral-100 px-1 rounded">{`{{paciente_nome}}`}</code>.</p>
+                                <h3 className="flex items-center gap-2 text-base font-semibold text-neutral-900 sm:text-lg"><MessageCircle size={20} className="text-green-600"/> Templates de comunicação</h3>
+                                <p className="mt-1 text-xs text-neutral-500">WhatsApp, e-mail e SMS. Variáveis como <code className="rounded bg-neutral-100 px-1">{`{{paciente_nome}}`}</code>.</p>
                             </div>
-                            <button onClick={abrirNovoTemplateCom} className="bg-green-600 text-white px-4 py-2 rounded-xl font-bold text-sm hover:bg-green-700 flex items-center gap-2"><Plus size={16}/> Novo Template</button>
+                            <button type="button" onClick={abrirNovoTemplateCom} className={`${bentoPrimaryBtn} h-10 px-4 text-sm sm:shrink-0`}><Plus size={16}/> Novo template</button>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {templatesComunicacao.map(t => (
@@ -1152,15 +1226,14 @@ export default function Configuracoes() {
                                 </div>
                             ))}
                         </div>
-                    </div>
+                    </section>
                 </div>
             )}
 
             {abaAtiva === 'taxas' && (
-                <div className="space-y-6 animate-in fade-in">
-                    <div className={`${bentoSection}`}>
-                        <h3 className="font-bold text-neutral-700 text-lg flex items-center gap-2 mb-2"><CreditCard size={20} className="text-indigo-500"/> Taxas de Maquininha</h3>
-                        <p className="text-xs text-neutral-400 mb-6">Configure taxas por bandeira e parcela (1–12x) para calcular o valor líquido recebido.</p>
+                <section className={sectionPad}>
+                        <h3 className="mb-2 flex items-center gap-2 text-base font-semibold text-neutral-900 sm:text-lg"><CreditCard size={20} className="text-indigo-500"/> Taxas de maquininha</h3>
+                        <p className="mb-6 text-xs text-neutral-500">Por bandeira e parcela (1–12x) para calcular o valor líquido no Financeiro.</p>
                         <div className="space-y-6">
                             {taxasPorBandeira.map(([bandeira, taxas]) => (
                                 <div key={bandeira} className="border border-neutral-100 rounded-2xl overflow-hidden">
@@ -1194,23 +1267,21 @@ export default function Configuracoes() {
                                 </div>
                             ))}
                         </div>
-                        <p className="text-[11px] text-neutral-400 mt-4">Exemplo: R$ 1.000 com taxa de 2,5% = líquido de R$ 975,00</p>
-                    </div>
-                </div>
+                        <p className="mt-4 text-[11px] text-neutral-400">Exemplo: R$ 1.000 com taxa de 2,5% = líquido de R$ 975,00</p>
+                </section>
             )}
 
             {/* ABA BACKUP */}
             {abaAtiva === 'backup' && (
-                <div className="space-y-6 animate-in fade-in">
-                    {/* BACKUPS AUTOMÁTICOS NO SERVIDOR */}
-                    <div className={`${bentoSection}`}>
-                        <div className="flex flex-wrap justify-between items-start gap-3 mb-4">
+                <div className="divide-y divide-black/5">
+                    <section className={sectionPad}>
+                        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                             <div>
-                                <h3 className="font-bold text-neutral-700 text-lg flex items-center gap-2"><Database size={20} className="text-neutral-600"/> Backups Automáticos do Banco</h3>
-                                <p className="text-xs text-neutral-400 mt-1">O sistema cria um backup automático <strong>2x ao dia</strong> (manhã e tarde) com todos os dados (pacientes, agendamentos, despesas, clínicas, profissionais, serviços). Mantemos os <strong>30 mais recentes</strong>.</p>
+                                <h3 className="flex items-center gap-2 text-base font-semibold text-neutral-900 sm:text-lg"><Database size={20} className="text-neutral-600"/> Backups do banco</h3>
+                                <p className="mt-1 text-xs text-neutral-500">Automático <strong>2x ao dia</strong>; mantemos os <strong>30 mais recentes</strong>.</p>
                             </div>
-                            <button onClick={backupAgoraManual} disabled={criandoBackup} className={`${bentoPrimaryBtn} px-4 py-2.5 text-sm disabled:opacity-50`}>
-                                {criandoBackup ? <><Loader2 className="animate-spin" size={14}/> Gerando...</> : <><Plus size={14}/> Backup Manual</>}
+                            <button type="button" onClick={backupAgoraManual} disabled={criandoBackup} className={`${bentoPrimaryBtn} h-10 px-4 text-sm disabled:opacity-50 sm:shrink-0`}>
+                                {criandoBackup ? <><Loader2 className="animate-spin" size={14}/> Gerando...</> : <><Plus size={14}/> Backup manual</>}
                             </button>
                         </div>
 
@@ -1248,12 +1319,11 @@ export default function Configuracoes() {
                                 })}
                             </div>
                         )}
-                    </div>
+                    </section>
 
-                    {/* CONFIG LOCAIS */}
-                    <div className={`${bentoSection}`}>
-                        <h3 className="font-bold text-neutral-700 text-lg flex items-center gap-2 mb-2"><Database size={18} className="text-purple-500"/> Configurações Locais</h3>
-                        <p className="text-xs text-neutral-400 mb-4">Apenas as preferências/modelos salvos no navegador (não inclui dados do banco — esses estão nos backups acima).</p>
+                    <section className={sectionPad}>
+                        <h3 className="mb-2 flex items-center gap-2 text-base font-semibold text-neutral-900 sm:text-lg"><Download size={18} className="text-neutral-600"/> Configurações locais</h3>
+                        <p className="mb-4 text-xs text-neutral-500">Preferências e modelos do navegador (dados do banco ficam nos backups acima).</p>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <button onClick={exportarTudo} className="p-5 bg-gradient-to-br from-neutral-50 to-white border-2 border-neutral-900 rounded-2xl hover:bg-neutral-50 transition-all flex flex-col items-center gap-3 group">
@@ -1272,11 +1342,12 @@ export default function Configuracoes() {
                                 <input type="file" accept="application/json" onChange={importarTudo} className="hidden"/>
                             </label>
                         </div>
-                    </div>
+                    </section>
                 </div>
             )}
-        </>
+        </div>
       )}
+    </div>
 
       {/* MODAL RESTAURAR BACKUP - Confirmação Dupla */}
       <Modal open={!!modalRestaurar} onClose={() => setModalRestaurar(null)} maxWidth="lg" zIndex={70} hideCloseButton>
@@ -1740,6 +1811,6 @@ export default function Configuracoes() {
               </div>
       </Modal>
 
-    </BentoPageShell>
+    </>
   );
 }

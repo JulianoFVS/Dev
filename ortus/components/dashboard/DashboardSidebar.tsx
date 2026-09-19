@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { PROFILE_PATCH_EVENT, type ProfileSessionSnapshot } from '@/lib/profileSession';
 import {
   BarChart3,
   Calendar,
@@ -42,6 +43,11 @@ function ProfileAvatar({
   collapsed: boolean;
 }) {
   const [photoFailed, setPhotoFailed] = useState(false);
+
+  useEffect(() => {
+    setPhotoFailed(false);
+  }, [photoUrl]);
+
   const showPhoto = Boolean(photoUrl) && !photoFailed;
   const sizeClass = collapsed ? 'h-full w-full' : 'h-9 w-9 rounded-xl';
   const alt = profileName ? `Foto de ${profileName}` : 'Meu perfil';
@@ -177,9 +183,29 @@ export default function DashboardSidebar({
   showTratamentosBase = true,
   showPainelSaas = false,
   tarefasBadge = 0,
-  profilePhotoUrl = null,
-  profileName = null,
+  profilePhotoUrl: profilePhotoUrlProp = null,
+  profileName: profileNameProp = null,
 }: DashboardSidebarNavOptions = {}) {
+  const [profilePhotoUrl, setProfilePhotoUrl] = useState<string | null>(profilePhotoUrlProp);
+  const [profileName, setProfileName] = useState<string | null>(profileNameProp);
+
+  useEffect(() => {
+    setProfilePhotoUrl(profilePhotoUrlProp);
+  }, [profilePhotoUrlProp]);
+
+  useEffect(() => {
+    setProfileName(profileNameProp);
+  }, [profileNameProp]);
+
+  useEffect(() => {
+    const onPatch = (ev: Event) => {
+      const detail = (ev as CustomEvent<ProfileSessionSnapshot>).detail;
+      if (detail.foto_url !== undefined) setProfilePhotoUrl(detail.foto_url ?? null);
+      if (detail.nome) setProfileName(detail.nome);
+    };
+    window.addEventListener(PROFILE_PATCH_EVENT, onPatch);
+    return () => window.removeEventListener(PROFILE_PATCH_EVENT, onPatch);
+  }, []);
   const [collapsed, setCollapsed] = useState(true);
 
   useEffect(() => {

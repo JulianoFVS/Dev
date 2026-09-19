@@ -409,7 +409,7 @@ export default function Financeiro() {
               { label: 'Em Andamento', value: fmt(andamento.reduce((s,c) => s + c.valor, 0)), variant: 'andamento' },
           ],
           bodyHtml,
-          autoPrint: true,
+          brandKicker: 'Financeiro · Sistema ORTUS',
       });
   }
 

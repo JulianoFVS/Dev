@@ -5,8 +5,8 @@ import { clinicScope, readRouteCache, writeRouteCache } from '@/lib/routeListCac
 import { carregarConfig } from '@/lib/configClinica';
 import CustomSelect from '@/components/ui/CustomSelect';
 import {
-    TrendingUp, TrendingDown, Wallet, Users,
-    CheckCircle, XCircle, Clock, Printer, Tag, BarChart3,
+    Users, CheckCircle, XCircle, Clock, Printer, Tag,
+    PieChart, CalendarRange, Stethoscope, Receipt, AlertCircle, ChevronRight,
 } from 'lucide-react';
 import { printDocument, printTable, escapePrintHtml } from '@/lib/printDocument';
 import { useClinica, getClinicLabel } from '@/app/context/ClinicaContext';
@@ -47,12 +47,12 @@ function readRelBoot(): RelSnapshot | null {
     return readRouteCache<RelSnapshot>(REL_CACHE_KEY, relScope(clinicId, 'mes'));
 }
 
-const REPORT_OPTIONS: { value: ReportType; label: string }[] = [
-    { value: 'resumo', label: 'Resumo geral' },
-    { value: 'financeiro', label: 'Financeiro' },
-    { value: 'comparecimento', label: 'Comparecimento' },
-    { value: 'fiados', label: 'Fiados em aberto' },
-    { value: 'procedimentos', label: 'Procedimentos' },
+const REPORT_OPTIONS: { value: ReportType; label: string; hint: string; icon: typeof PieChart }[] = [
+    { value: 'resumo', label: 'Visão geral', hint: 'Indicadores-chave do período', icon: PieChart },
+    { value: 'financeiro', label: 'Receitas e despesas', hint: 'Por categoria e evolução mensal', icon: Receipt },
+    { value: 'comparecimento', label: 'Comparecimento', hint: 'Presença, faltas e agenda', icon: CalendarRange },
+    { value: 'fiados', label: 'Fiados em aberto', hint: 'Valores pendentes por paciente', icon: AlertCircle },
+    { value: 'procedimentos', label: 'Procedimentos', hint: 'Ranking do que mais faturou', icon: Stethoscope },
 ];
 
 function nomePaciente(p?: Agendamento['pacientes']) {
@@ -353,10 +353,11 @@ export default function Relatorios() {
         printDocument({
             title: reportTitle,
             documentTitle: `${reportTitle} — ORTUS`,
-            accentColor: '#0891b2',
+            clinicName: activeClinic ? getClinicLabel(activeClinic) : 'Rede ORTUS',
+            accentColor: '#0e7490',
+            brandKicker: 'Relatórios · Inteligência ORTUS',
             period: periodoLabel,
             bodyHtml,
-            autoPrint: true,
         });
     }
 
@@ -367,38 +368,104 @@ export default function Relatorios() {
     const showComparecimento = showResumo || tipoRelatorio === 'comparecimento';
     const showFiados = showResumo || tipoRelatorio === 'fiados';
     const showProcedimentos = showResumo || tipoRelatorio === 'procedimentos';
+    const activeReport = REPORT_OPTIONS.find((r) => r.value === tipoRelatorio)!;
+    const ActiveIcon = activeReport.icon;
+
+    const destaque = useMemo(() => {
+        switch (tipoRelatorio) {
+            case 'comparecimento':
+                return {
+                    titulo: 'Comparecimento no período',
+                    valor: `${metricas.taxaComparecimento}%`,
+                    detalhe: `${metricas.total} agendamentos · ticket ${metricas.concluidos > 0 ? fmt(ticketMedio) : '—'}`,
+                };
+            case 'financeiro':
+                return {
+                    titulo: 'Margem operacional',
+                    valor: fmt(metricas.lucro),
+                    detalhe: `Receita ${fmt(metricas.receitaTotal)} · despesas ${fmt(metricas.despesaTotal)}`,
+                };
+            case 'fiados':
+                return {
+                    titulo: 'Total em fiado',
+                    valor: fmt(metricas.fiado),
+                    detalhe: `${metricas.fiados} atendimento${metricas.fiados !== 1 ? 's' : ''} aguardando recebimento`,
+                };
+            case 'procedimentos':
+                return {
+                    titulo: 'Procedimento líder',
+                    valor: metricas.topProcedimentos[0]?.[0] ?? '—',
+                    detalhe: metricas.topProcedimentos[0]
+                        ? `${metricas.topProcedimentos[0][1].count}x · ${fmt(metricas.topProcedimentos[0][1].valor)}`
+                        : 'Nenhuma conclusão no filtro atual',
+                };
+            default:
+                return {
+                    titulo: 'Pacientes atendidos',
+                    valor: String(metricas.pacientesUnicos),
+                    detalhe: `${metricas.concluidos} consultas · ${pacientesTotal} cadastrados na clínica`,
+                };
+        }
+    }, [tipoRelatorio, metricas, ticketMedio, pacientesTotal]);
 
     return (
         <div className="w-full space-y-3 px-2.5 py-2.5 pb-12 font-poppins sm:px-3 sm:py-3 md:px-4 md:py-3.5">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
                 <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-cyan-800/80">Inteligência</p>
                     <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 md:text-[2rem]">Relatórios</h1>
                     <p className="mt-1 text-sm text-neutral-500 sm:text-base">
-                        {activeClinic ? getClinicLabel(activeClinic) : 'Todas as clínicas'} · desempenho financeiro e operacional
+                        {activeClinic ? getClinicLabel(activeClinic) : 'Todas as clínicas'} · {periodoLabel}
                     </p>
                 </div>
                 <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
                     <button
                         type="button"
                         onClick={imprimirRelatorio}
-                        className="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-black/10 bg-white px-4 text-sm font-medium text-neutral-800 hover:bg-neutral-50"
+                        className="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-cyan-900/15 bg-cyan-50 px-4 text-sm font-medium text-cyan-950 hover:bg-cyan-100/80"
                         title="Imprimir relatório"
                     >
                         <Printer size={16} />
-                        <span className="hidden sm:inline">Imprimir</span>
+                        <span className="hidden sm:inline">Exportar PDF</span>
                     </button>
                 </div>
             </div>
 
-            <div className={`${cardShell} flex flex-col gap-3 p-3 sm:p-4`}>
-                <div className="flex flex-wrap gap-2">
+            <section className="overflow-hidden rounded-[1.35rem] border border-cyan-950/10 bg-gradient-to-br from-cyan-950 via-neutral-900 to-neutral-950 p-4 text-white sm:rounded-[1.5rem] sm:p-5 md:p-6">
+                <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+                    <div className="min-w-0">
+                        <p className="text-[10px] font-semibold uppercase tracking-widest text-cyan-200/70">Destaque · {activeReport.label}</p>
+                        {kpiLoading ? (
+                            <div className="mt-3 h-10 w-48 animate-pulse rounded-xl bg-white/10" />
+                        ) : (
+                            <>
+                                <p className="mt-1 text-sm font-medium text-white/70">{destaque.titulo}</p>
+                                <p className="mt-1 truncate text-3xl font-semibold tracking-tight sm:text-4xl">{destaque.valor}</p>
+                                <p className="mt-2 max-w-xl text-xs text-white/55 sm:text-sm">{destaque.detalhe}</p>
+                            </>
+                        )}
+                    </div>
+                    {!kpiLoading && (
+                        <div className="flex flex-wrap gap-x-4 gap-y-2 border-t border-white/10 pt-3 text-xs md:border-t-0 md:pt-0 md:text-right">
+                            <span><span className="text-white/45">Receita </span><span className="font-semibold text-emerald-300">{fmt(metricas.receitaTotal)}</span></span>
+                            <span><span className="text-white/45">Despesas </span><span className="font-semibold text-red-300">{fmt(metricas.despesaTotal)}</span></span>
+                            <span><span className="text-white/45">Fiado </span><span className="font-semibold text-amber-200">{fmt(metricas.fiado)}</span></span>
+                            <span><span className="text-white/45">Comparecimento </span><span className="font-semibold">{metricas.taxaComparecimento}%</span></span>
+                        </div>
+                    )}
+                </div>
+            </section>
+
+            <div className="flex flex-col gap-2 rounded-[1.35rem] border border-black/5 bg-[#f3f4f1]/90 p-2.5 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3 sm:p-3">
+                <div className="flex flex-wrap gap-1.5">
                     {(['mes', '3meses', '6meses', 'ano'] as const).map((p) => (
                         <button key={p} type="button" onClick={() => setPeriodo(p)} className={pillPeriodo(periodo === p)}>
                             {p === 'mes' ? 'Este mês' : p === '3meses' ? '3 meses' : p === '6meses' ? '6 meses' : 'Ano'}
                         </button>
                     ))}
                 </div>
-                <div className="grid grid-cols-1 gap-2 border-t border-black/5 pt-3 sm:grid-cols-3 sm:gap-3">
+                <div className="hidden h-6 w-px bg-black/10 sm:block" aria-hidden />
+                <div className="grid flex-1 grid-cols-1 gap-2 sm:grid-cols-3">
                     <CustomSelect
                         value={filtroProfissional}
                         onChange={setFiltroProfissional}
@@ -427,99 +494,50 @@ export default function Relatorios() {
                 </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-2.5 sm:gap-3 md:grid-cols-4">
-                <section className={`${cardShell} p-4 sm:p-5`}>
-                    <div className="mb-2 flex items-center justify-between">
-                        <span className="rounded-full bg-emerald-100 p-2 text-emerald-700"><TrendingUp size={18} /></span>
-                        <span className="text-[10px] font-semibold uppercase tracking-wide text-emerald-700">Entradas</span>
-                    </div>
-                    <p className="text-xs font-medium text-neutral-500">Receita total</p>
-                    {kpiLoading ? (
-                        <div className="mt-2 h-8 w-28 animate-pulse rounded-xl bg-neutral-100" />
-                    ) : (
-                        <>
-                            <p className="mt-1 text-xl font-semibold text-neutral-900 sm:text-2xl">{fmt(metricas.receitaTotal)}</p>
-                            <p className="mt-1 text-[11px] text-neutral-500">{metricas.concluidos} consultas concluídas</p>
-                        </>
-                    )}
-                </section>
-                <section className={`${cardShell} p-4 sm:p-5`}>
-                    <div className="mb-2 flex items-center justify-between">
-                        <span className="rounded-full bg-red-100 p-2 text-red-600"><TrendingDown size={18} /></span>
-                        <span className="text-[10px] font-semibold uppercase tracking-wide text-red-600">Saídas</span>
-                    </div>
-                    <p className="text-xs font-medium text-neutral-500">Despesas</p>
-                    {kpiLoading ? (
-                        <div className="mt-2 h-8 w-28 animate-pulse rounded-xl bg-neutral-100" />
-                    ) : (
-                        <>
-                            <p className="mt-1 text-xl font-semibold text-neutral-900 sm:text-2xl">{fmt(metricas.despesaTotal)}</p>
-                            <p className="mt-1 text-[11px] text-neutral-500">{despesasAtivas.filter(d => d.tipo === 'saida').length} lançamentos</p>
-                        </>
-                    )}
-                </section>
-                <section className={`${cardShell} border border-amber-200/80 p-4 sm:p-5`}>
-                    <div className="mb-2 flex items-center justify-between">
-                        <span className="rounded-full bg-amber-100 p-2 text-amber-700"><Clock size={18} /></span>
-                        <span className="text-[10px] font-semibold uppercase tracking-wide text-amber-700">Pendente</span>
-                    </div>
-                    <p className="text-xs font-medium text-neutral-500">Fiado em aberto</p>
-                    {kpiLoading ? (
-                        <div className="mt-2 h-8 w-28 animate-pulse rounded-xl bg-neutral-100" />
-                    ) : (
-                        <>
-                            <p className="mt-1 text-xl font-semibold text-amber-800 sm:text-2xl">{fmt(metricas.fiado)}</p>
-                            <p className="mt-1 text-[11px] text-neutral-500">{metricas.fiados} pendente{metricas.fiados !== 1 ? 's' : ''}</p>
-                        </>
-                    )}
-                </section>
-                <section className="rounded-[1.35rem] border border-neutral-800 bg-neutral-950 p-4 text-white sm:rounded-[1.5rem] sm:p-5">
-                    <div className="mb-2 flex items-center justify-between">
-                        <span className="rounded-full bg-white/10 p-2 text-[#c8f053]"><Wallet size={18} /></span>
-                        <span className="text-[10px] font-semibold uppercase tracking-wide text-white/70">Resultado</span>
-                    </div>
-                    <p className="text-xs font-medium text-white/60">Lucro líquido</p>
-                    {kpiLoading ? (
-                        <div className="mt-2 h-8 w-28 animate-pulse rounded-xl bg-white/10" />
-                    ) : (
-                        <>
-                            <p className={`mt-1 text-xl font-semibold sm:text-2xl ${metricas.lucro >= 0 ? 'text-white' : 'text-red-400'}`}>{fmt(metricas.lucro)}</p>
-                            <p className="mt-1 text-[11px] text-white/50">
-                                {metricas.pacientesUnicos} pacientes · {pacientesTotal} cadastrados
-                            </p>
-                        </>
-                    )}
-                </section>
-            </div>
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-stretch">
+                <nav
+                    className={`${cardShell} flex shrink-0 flex-row gap-1 overflow-x-auto p-2 lg:w-[15.5rem] lg:flex-col lg:overflow-visible lg:p-2.5`}
+                    aria-label="Tipo de relatório"
+                >
+                    {REPORT_OPTIONS.map((opt) => {
+                        const Icon = opt.icon;
+                        const ativo = tipoRelatorio === opt.value;
+                        return (
+                            <button
+                                key={opt.value}
+                                type="button"
+                                onClick={() => setTipoRelatorio(opt.value)}
+                                className={`flex min-w-[9.5rem] shrink-0 items-start gap-3 rounded-2xl px-3 py-2.5 text-left transition-colors lg:min-w-0 lg:w-full ${
+                                    ativo ? 'bg-neutral-900 text-white shadow-sm' : 'text-neutral-700 hover:bg-neutral-50'
+                                }`}
+                            >
+                                <span className={`mt-0.5 rounded-xl p-2 ${ativo ? 'bg-white/15 text-white' : 'bg-[#f3f4f1] text-neutral-700'}`}>
+                                    <Icon size={16} />
+                                </span>
+                                <span className="min-w-0 flex-1">
+                                    <span className="block text-sm font-semibold leading-tight">{opt.label}</span>
+                                    <span className={`mt-0.5 block text-[11px] leading-snug ${ativo ? 'text-white/65' : 'text-neutral-500'}`}>{opt.hint}</span>
+                                </span>
+                                {ativo && <ChevronRight size={16} className="mt-2 hidden shrink-0 text-white/50 lg:block" />}
+                            </button>
+                        );
+                    })}
+                </nav>
 
-            <div className="flex gap-2 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                {REPORT_OPTIONS.map((opt) => (
-                    <button
-                        key={opt.value}
-                        type="button"
-                        onClick={() => setTipoRelatorio(opt.value)}
-                        className={`shrink-0 rounded-full px-4 py-2.5 text-sm font-medium transition-colors ${
-                            tipoRelatorio === opt.value
-                                ? 'bg-neutral-900 text-white'
-                                : 'border border-black/10 bg-white text-neutral-600 hover:bg-neutral-50'
-                        }`}
-                    >
-                        {opt.label}
-                    </button>
-                ))}
-            </div>
-
-            <div className={`${cardShell} overflow-hidden`}>
-                <div className="flex flex-col gap-3 border-b border-black/5 p-4 sm:flex-row sm:items-center sm:justify-between md:p-5">
+                <div className={`${cardShell} min-w-0 flex-1 overflow-hidden`}>
+                <div className="flex flex-col gap-2 border-b border-black/5 bg-[#fafaf8] px-4 py-3 sm:flex-row sm:items-center sm:justify-between md:px-5">
                     <div className="flex items-center gap-2">
-                        <span className="rounded-full bg-[#f3f4f1] p-2 text-neutral-700"><BarChart3 size={18} /></span>
-                        <h3 className="text-base font-semibold text-neutral-900 sm:text-lg">{reportTitle}</h3>
+                        <span className="rounded-xl bg-cyan-950 p-2 text-cyan-100"><ActiveIcon size={18} /></span>
+                        <div>
+                            <h3 className="text-base font-semibold text-neutral-900">{activeReport.label}</h3>
+                            <p className="text-[11px] text-neutral-500">{activeReport.hint}</p>
+                        </div>
                     </div>
-                    {showComparecimento && !kpiLoading && (
-                        <div className="flex items-center gap-2 text-xs text-neutral-500">
+                    {!kpiLoading && (showComparecimento || showResumo) && (
+                        <div className="flex items-center gap-2 rounded-full border border-black/5 bg-white px-3 py-1.5 text-xs text-neutral-600">
                             <Users size={14} className="text-neutral-400" />
                             Ticket médio{' '}
-                            <span className="font-semibold text-neutral-800">{metricas.concluidos > 0 ? fmt(ticketMedio) : 'R$ 0,00'}</span>
+                            <span className="font-semibold text-neutral-900">{metricas.concluidos > 0 ? fmt(ticketMedio) : 'R$ 0,00'}</span>
                         </div>
                     )}
                 </div>
@@ -535,6 +553,9 @@ export default function Relatorios() {
                         <>
                             {showComparecimento && (
                                 <div className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-3 sm:p-5 md:gap-6">
+                                    {showResumo && (
+                                        <p className="col-span-full text-[10px] font-semibold uppercase tracking-wider text-neutral-400">Operação</p>
+                                    )}
                                     <div className="flex items-center gap-4">
                                         <div className="relative h-16 w-16 shrink-0 sm:h-20 sm:w-20">
                                             <svg viewBox="0 0 36 36" className="h-full w-full -rotate-90" aria-hidden>
@@ -570,6 +591,11 @@ export default function Relatorios() {
 
                             {showFinanceiro && (
                                 <>
+                                    {showResumo && (
+                                        <p className="border-t border-black/5 px-4 pt-4 text-[10px] font-semibold uppercase tracking-wider text-neutral-400 sm:px-5">
+                                            Financeiro por categoria
+                                        </p>
+                                    )}
                                     {metricas.categoriasBreakdown.length === 0 ? (
                                         <div className="p-8 text-center text-sm text-neutral-400">Nenhum lançamento no período.</div>
                                     ) : (
@@ -616,6 +642,11 @@ export default function Relatorios() {
 
                             {showFiados && (
                                 <>
+                                    {showResumo && (
+                                        <p className="border-t border-black/5 px-4 pt-4 text-[10px] font-semibold uppercase tracking-wider text-neutral-400 sm:px-5">
+                                            Fiados
+                                        </p>
+                                    )}
                                     {metricas.fiadosEmAberto.length === 0 ? (
                                         <div className="p-8 text-center text-sm text-neutral-400">Nenhum fiado pendente no período.</div>
                                     ) : (
@@ -640,6 +671,11 @@ export default function Relatorios() {
 
                             {showProcedimentos && (
                                 <>
+                                    {showResumo && (
+                                        <p className="border-t border-black/5 px-4 pt-4 text-[10px] font-semibold uppercase tracking-wider text-neutral-400 sm:px-5">
+                                            Procedimentos
+                                        </p>
+                                    )}
                                     {metricas.topProcedimentos.length === 0 ? (
                                         <div className="p-8 text-center text-sm text-neutral-400">Nenhum procedimento concluído no período.</div>
                                     ) : (
@@ -666,6 +702,7 @@ export default function Relatorios() {
                             )}
                         </>
                     )}
+                </div>
                 </div>
             </div>
         </div>

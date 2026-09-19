@@ -2,21 +2,19 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { clinicScope, readRouteCache, writeRouteCache } from '@/lib/routeListCache';
-import { 
-    Plus, Search, Filter, Calendar, AlertCircle, CheckCircle, 
-    User, Loader2, X, Save, Trash2, CheckSquare, ArrowRight, ArrowLeft,
-    Clock, ChevronUp, ChevronDown, Building2, MoreVertical
+import {
+    Plus, Search, Calendar, AlertCircle, CheckCircle,
+    User, Loader2, X, Save, Trash2, CheckSquare,
+    Clock, ChevronUp, ChevronDown, Building2, MoreVertical, ListTodo,
 } from 'lucide-react';
-import { useClinica } from '@/app/context/ClinicaContext';
-import { fetchUserClinicas } from '@/lib/clinicScoped';
+import { useClinica, getClinicLabel } from '@/app/context/ClinicaContext';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
 import Modal from '@/components/ui/Modal';
 import CustomSelect from '@/components/ui/CustomSelect';
 import { TAREFA_PRIORIDADE_OPTIONS, TAREFA_STATUS_OPTIONS } from '@/lib/formOptions';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import BentoPageShell from '@/components/bento/BentoPageShell';
-import { bentoCard, bentoPill, bentoPrimaryBtn, bentoInput } from '@/lib/bentoUi';
+
+const cardShell = 'rounded-[1.35rem] bg-white sm:rounded-[1.5rem]';
 
 interface Tarefa {
     id: string;
@@ -61,12 +59,12 @@ function readTarefasBoot(): TarefasSnapshot | null {
 }
 
 export default function Tarefas() {
-    const { activeClinicId, clinics, loading: clinicLoading } = useClinica();
+    const { activeClinicId, activeClinic, clinics, loading: clinicLoading } = useClinica();
     const boot = readTarefasBoot();
+    const jaCarregou = useRef(!!boot?.tarefas?.length);
     const fetchGen = useRef(0);
     const { showAlert, showConfirm } = useCustomAlert();
-    const router = useRouter();
-    
+
     const [tarefas, setTarefas] = useState<Tarefa[]>(() => boot?.tarefas ?? []);
     const [profissionais, setProfissionais] = useState<Profissional[]>(() => boot?.profissionais ?? []);
     const [pacientes, setPacientes] = useState<Paciente[]>(() => boot?.pacientes ?? []);
@@ -77,7 +75,6 @@ export default function Tarefas() {
     const [filtroStatus, setFiltroStatus] = useState<string>('todos');
     const [filtroPrioridade, setFiltroPrioridade] = useState<string>('todos');
     const [filtroBusca, setFiltroBusca] = useState('');
-    const [showFiltros, setShowFiltros] = useState(false);
     const [viewMode, setViewMode] = useState<'lista' | 'kanban'>('kanban');
     
     // Modal
@@ -147,6 +144,7 @@ export default function Tarefas() {
         setTarefas(snapshot.tarefas);
         setProfissionais(snapshot.profissionais);
         setPacientes(snapshot.pacientes);
+        jaCarregou.current = true;
         setLoading(false);
     }
 
@@ -306,12 +304,12 @@ export default function Tarefas() {
         return (
             <div
                 key={t.id}
-                className={`bg-white p-4 rounded-2xl border shadow-sm hover:shadow-md transition-all ${
+                className={`rounded-[1rem] border border-black/10 bg-white p-3.5 transition-colors hover:border-black/15 sm:p-4 ${
                     t.alerta_data === 'atrasada' && t.status !== 'concluido'
-                        ? 'border-red-300 bg-red-50/30'
+                        ? 'border-red-200/80 bg-red-50/40'
                         : t.alerta_data === 'proxima' && t.status !== 'concluido'
-                            ? 'border-amber-300 bg-amber-50/30'
-                            : 'border-neutral-200'
+                            ? 'border-amber-200/80 bg-amber-50/30'
+                            : ''
                 }`}
             >
                 <div className="flex items-start justify-between gap-2 mb-2">
@@ -346,145 +344,187 @@ export default function Tarefas() {
         );
     }
 
-    const colunasKanban: { id: Tarefa['status']; label: string; cor: string }[] = [
-        { id: 'a_fazer', label: 'A Fazer', cor: 'border-neutral-200 bg-neutral-50' },
-        { id: 'em_andamento', label: 'Em Andamento', cor: 'border-black/10 bg-neutral-50/50' },
-        { id: 'concluido', label: 'Concluído', cor: 'border-emerald-200 bg-emerald-50/50' },
+    const colunasKanban: { id: Tarefa['status']; label: string }[] = [
+        { id: 'a_fazer', label: 'A fazer' },
+        { id: 'em_andamento', label: 'Em andamento' },
+        { id: 'concluido', label: 'Concluído' },
     ];
 
+    const kpiLoading = loading && !jaCarregou.current;
+    const totalAbertas = contagemTarefas.a_fazer + contagemTarefas.em_andamento;
+
     return (
-        <BentoPageShell
-            title="Tarefas"
-            subtitle="Atividades internas da equipe"
-            maxWidthClass="max-w-6xl"
-            actions={
-                <>
-                    <button type="button" onClick={() => setViewMode('kanban')} className={bentoPill(viewMode === 'kanban')}>Kanban</button>
-                    <button type="button" onClick={() => setViewMode('lista')} className={bentoPill(viewMode === 'lista')}>Lista</button>
-                    <button type="button" onClick={abrirNovaTarefa} className={bentoPrimaryBtn}>
-                        <Plus size={18} /> Nova tarefa
-                    </button>
-                </>
-            }
-        >
-            <div className={`${bentoCard} mb-4 flex flex-col gap-2 border border-black/5 p-2 sm:p-3`}>
-                <div className="flex flex-col md:flex-row gap-2">
-                    <div className="flex-1 relative">
-                        <Search className="absolute left-3 top-3 text-neutral-400" size={20}/>
-                        <input
-                            type="text"
-                            placeholder="Buscar tarefas..."
-                            className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-neutral-50 border-transparent focus:bg-white focus:ring-2 focus:ring-neutral-100 outline-none font-medium"
-                            value={filtroBusca}
-                            onChange={e => setFiltroBusca(e.target.value)}
-                        />
-                    </div>
+        <div className="w-full space-y-3 px-2.5 py-2.5 pb-12 font-poppins sm:px-3 sm:py-3 md:px-4 md:py-3.5">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+                <div>
+                    <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 md:text-[2rem]">Tarefas</h1>
+                    <p className="mt-1 text-sm text-neutral-500 sm:text-base">
+                        {activeClinic ? getClinicLabel(activeClinic) : 'Todas as clínicas'} · atividades internas da equipe
+                    </p>
+                </div>
+                <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
                     <button
-                        onClick={() => setShowFiltros(!showFiltros)}
-                        className={`touch-target px-3 py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all shrink-0 ${showFiltros || filtroStatus !== 'todos' || filtroPrioridade !== 'todos' ? 'bg-neutral-50 text-neutral-900 border border-black/10' : 'bg-neutral-50 text-neutral-500 border border-neutral-200'}`}
+                        type="button"
+                        onClick={abrirNovaTarefa}
+                        className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-full bg-neutral-900 px-4 text-sm font-medium text-white hover:bg-neutral-800 sm:flex-none"
                     >
-                        <Filter size={16}/> Filtros avançados
-                        {(filtroStatus !== 'todos' || filtroPrioridade !== 'todos') && <span className="w-2 h-2 bg-neutral-500 rounded-full" />}
+                        <Plus size={16} /> Nova tarefa
                     </button>
                 </div>
-                {showFiltros && (
-                    <div className="px-3 pb-3 pt-1 border-t border-neutral-100 flex flex-wrap gap-3 animate-in fade-in slide-in-from-top-2 duration-200">
-                        <CustomSelect value={filtroStatus} onChange={setFiltroStatus} options={[{ value: 'todos', label: 'Todos os status' }, ...TAREFA_STATUS_OPTIONS]} size="sm" className="flex-1 min-w-[140px]" />
-                        <CustomSelect value={filtroPrioridade} onChange={setFiltroPrioridade} options={[{ value: 'todos', label: 'Todas as prioridades' }, ...TAREFA_PRIORIDADE_OPTIONS]} size="sm" className="flex-1 min-w-[140px]" />
-                        {(filtroStatus !== 'todos' || filtroPrioridade !== 'todos') && (
-                            <button
-                                onClick={() => { setFiltroStatus('todos'); setFiltroPrioridade('todos'); }}
-                                className="text-xs font-bold text-neutral-400 hover:text-rose-600 flex items-center gap-1"
-                            >
-                                <X size={13}/> Limpar filtros
-                            </button>
-                        )}
-                    </div>
+            </div>
+
+            <div className={`${cardShell} flex flex-col gap-3 p-3 sm:p-4`}>
+                <div className="relative">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 size-[18px] -translate-y-1/2 text-neutral-400" aria-hidden />
+                    <input
+                        type="text"
+                        placeholder="Buscar tarefas..."
+                        className="h-10 w-full rounded-full border border-black/10 bg-[#f8f8f6] pl-10 pr-4 text-sm font-medium text-neutral-800 outline-none focus:border-neutral-400"
+                        value={filtroBusca}
+                        onChange={(e) => setFiltroBusca(e.target.value)}
+                    />
+                </div>
+                <div className="grid grid-cols-1 gap-2 border-t border-black/5 pt-3 sm:grid-cols-2 sm:gap-3">
+                    <CustomSelect
+                        value={filtroStatus}
+                        onChange={setFiltroStatus}
+                        options={[{ value: 'todos', label: 'Todos os status' }, ...TAREFA_STATUS_OPTIONS]}
+                        size="sm"
+                    />
+                    <CustomSelect
+                        value={filtroPrioridade}
+                        onChange={setFiltroPrioridade}
+                        options={[{ value: 'todos', label: 'Todas as prioridades' }, ...TAREFA_PRIORIDADE_OPTIONS]}
+                        size="sm"
+                    />
+                </div>
+                {(filtroStatus !== 'todos' || filtroPrioridade !== 'todos') && (
+                    <button
+                        type="button"
+                        onClick={() => { setFiltroStatus('todos'); setFiltroPrioridade('todos'); }}
+                        className="self-start text-xs font-medium text-neutral-500 hover:text-neutral-900"
+                    >
+                        Limpar filtros
+                    </button>
                 )}
             </div>
 
-            <div className="space-y-4">
-                    {(contagemTarefas.atrasadas > 0 || contagemTarefas.proximas > 0) && (
-                        <div className="flex flex-wrap gap-3">
-                            {contagemTarefas.atrasadas > 0 && (
-                                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl flex items-center gap-2">
-                                    <AlertCircle size={18}/>
-                                    <span className="font-bold">{contagemTarefas.atrasadas} tarefa(s) atrasada(s)</span>
-                                </div>
-                            )}
-                            {contagemTarefas.proximas > 0 && (
-                                <div className="bg-amber-50 border border-amber-200 text-amber-700 px-4 py-3 rounded-xl flex items-center gap-2">
-                                    <Clock size={18}/>
-                                    <span className="font-bold">{contagemTarefas.proximas} vencendo em breve</span>
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                        <div className="bg-neutral-50 p-4 rounded-2xl border border-neutral-200">
-                            <div className="flex items-center justify-between mb-2">
-                                <span className="text-sm font-bold text-neutral-600">A Fazer</span>
-                                <span className="bg-neutral-200 text-neutral-700 text-xs font-black px-2 py-1 rounded-full">{contagemTarefas.a_fazer}</span>
-                            </div>
-                        </div>
-                        <div className="bg-neutral-50 p-4 rounded-2xl border border-black/10">
-                            <div className="flex items-center justify-between mb-2">
-                                <span className="text-sm font-bold text-neutral-800">Em Andamento</span>
-                                <span className="bg-blue-200 text-neutral-800 text-xs font-black px-2 py-1 rounded-full">{contagemTarefas.em_andamento}</span>
-                            </div>
-                        </div>
-                        <div className="bg-green-50 p-4 rounded-2xl border border-green-200">
-                            <div className="flex items-center justify-between mb-2">
-                                <span className="text-sm font-bold text-green-700">Concluído</span>
-                                <span className="bg-green-200 text-green-700 text-xs font-black px-2 py-1 rounded-full">{contagemTarefas.concluido}</span>
-                            </div>
-                        </div>
+            <div className="grid grid-cols-2 gap-2.5 sm:gap-3 md:grid-cols-4">
+                <section className={`${cardShell} p-4 sm:p-5`}>
+                    <div className="mb-2 flex items-center justify-between">
+                        <span className="rounded-full bg-neutral-100 p-2 text-neutral-700"><ListTodo size={18} /></span>
+                        <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Backlog</span>
                     </div>
-
-                    {loading && tarefas.length === 0 ? (
-                        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-                            {[1, 2, 3].map((i) => (
-                                <div key={i} className="min-h-[320px] animate-pulse rounded-2xl bg-neutral-200" />
-                            ))}
-                        </div>
-                    ) : tarefasFiltradas.length === 0 ? (
-                        <div className="text-center py-16 text-neutral-400">
-                            <CheckCircle size={48} className="mx-auto mb-4 opacity-50"/>
-                            <p className="font-bold">Nenhuma tarefa encontrada</p>
-                            <p className="text-sm">Crie uma nova tarefa para começar</p>
-                        </div>
-                    ) : viewMode === 'kanban' ? (
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            {colunasKanban.map((col) => {
-                                const items = tarefasFiltradas.filter((t) => t.status === col.id);
-                                return (
-                                    <div key={col.id} className={`rounded-2xl border p-4 min-h-[320px] ${col.cor}`}>
-                                        <div className="flex items-center justify-between mb-4">
-                                            <h3 className="text-sm font-black text-neutral-700">{col.label}</h3>
-                                            <span className="text-xs font-black bg-white/80 px-2 py-1 rounded-full text-neutral-500">{items.length}</span>
-                                        </div>
-                                        <div className="space-y-3">
-                                            {items.map((t) => renderTarefaCard(t, true))}
-                                            {items.length === 0 && (
-                                                <p className="text-xs text-neutral-400 text-center py-8">Nenhuma tarefa</p>
-                                            )}
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
+                    <p className="text-xs font-medium text-neutral-500">A fazer</p>
+                    {kpiLoading ? (
+                        <div className="mt-2 h-8 w-16 animate-pulse rounded-xl bg-neutral-100" />
                     ) : (
-                        <div className="space-y-3">
+                        <p className="mt-1 text-xl font-semibold text-neutral-900 sm:text-2xl">{contagemTarefas.a_fazer}</p>
+                    )}
+                </section>
+                <section className={`${cardShell} border border-amber-200/80 p-4 sm:p-5`}>
+                    <div className="mb-2 flex items-center justify-between">
+                        <span className="rounded-full bg-amber-100 p-2 text-amber-700"><Clock size={18} /></span>
+                        <span className="text-[10px] font-semibold uppercase tracking-wide text-amber-700">Ativas</span>
+                    </div>
+                    <p className="text-xs font-medium text-neutral-500">Em andamento</p>
+                    {kpiLoading ? (
+                        <div className="mt-2 h-8 w-16 animate-pulse rounded-xl bg-neutral-100" />
+                    ) : (
+                        <p className="mt-1 text-xl font-semibold text-amber-900 sm:text-2xl">{contagemTarefas.em_andamento}</p>
+                    )}
+                </section>
+                <section className={`${cardShell} border border-red-200/70 p-4 sm:p-5`}>
+                    <div className="mb-2 flex items-center justify-between">
+                        <span className="rounded-full bg-red-100 p-2 text-red-600"><AlertCircle size={18} /></span>
+                        <span className="text-[10px] font-semibold uppercase tracking-wide text-red-600">Prazo</span>
+                    </div>
+                    <p className="text-xs font-medium text-neutral-500">Atrasadas</p>
+                    {kpiLoading ? (
+                        <div className="mt-2 h-8 w-16 animate-pulse rounded-xl bg-neutral-100" />
+                    ) : (
+                        <>
+                            <p className="mt-1 text-xl font-semibold text-red-700 sm:text-2xl">{contagemTarefas.atrasadas}</p>
+                            {contagemTarefas.proximas > 0 && (
+                                <p className="mt-1 text-[11px] text-neutral-500">{contagemTarefas.proximas} vencem em breve</p>
+                            )}
+                        </>
+                    )}
+                </section>
+                <section className="rounded-[1.35rem] border border-neutral-800 bg-neutral-950 p-4 text-white sm:rounded-[1.5rem] sm:p-5">
+                    <div className="mb-2 flex items-center justify-between">
+                        <span className="rounded-full bg-white/10 p-2 text-[#c8f053]"><CheckCircle size={18} /></span>
+                        <span className="text-[10px] font-semibold uppercase tracking-wide text-white/70">Resultado</span>
+                    </div>
+                    <p className="text-xs font-medium text-white/60">Concluídas</p>
+                    {kpiLoading ? (
+                        <div className="mt-2 h-8 w-16 animate-pulse rounded-xl bg-white/10" />
+                    ) : (
+                        <>
+                            <p className="mt-1 text-xl font-semibold sm:text-2xl">{contagemTarefas.concluido}</p>
+                            <p className="mt-1 text-[11px] text-white/50">{totalAbertas} em aberto</p>
+                        </>
+                    )}
+                </section>
+            </div>
+
+            <div className={`${cardShell} overflow-hidden`}>
+                <div className="flex flex-col gap-3 border-b border-black/5 p-4 sm:flex-row sm:items-center sm:justify-between md:p-5">
+                    <div className="flex items-center gap-2">
+                        <span className="rounded-full bg-[#f3f4f1] p-2 text-neutral-700"><CheckSquare size={18} /></span>
+                        <h3 className="text-base font-semibold text-neutral-900 sm:text-lg">
+                            {viewMode === 'kanban' ? 'Quadro' : 'Lista de tarefas'}
+                        </h3>
+                    </div>
+                    <div className="flex rounded-full border border-black/10 bg-[#f3f4f1] p-0.5">
+                        <button type="button" onClick={() => setViewMode('kanban')} className={`rounded-full px-4 py-1.5 text-xs font-semibold transition-all ${viewMode === 'kanban' ? 'bg-neutral-900 text-white' : 'text-neutral-600'}`}>Kanban</button>
+                        <button type="button" onClick={() => setViewMode('lista')} className={`rounded-full px-4 py-1.5 text-xs font-semibold transition-all ${viewMode === 'lista' ? 'bg-neutral-900 text-white' : 'text-neutral-600'}`}>Lista</button>
+                    </div>
+                </div>
+
+                {kpiLoading ? (
+                    <div className="space-y-2 p-4">
+                        {Array.from({ length: 6 }).map((_, i) => (
+                            <div key={i} className="flex h-16 animate-pulse items-center gap-3 rounded-2xl bg-neutral-50 px-3" />
+                        ))}
+                    </div>
+                ) : tarefasFiltradas.length === 0 ? (
+                    <div className="p-12 text-center text-sm text-neutral-400">
+                        <CheckCircle size={40} className="mx-auto mb-3 opacity-40" aria-hidden />
+                        <p className="font-medium text-neutral-600">Nenhuma tarefa encontrada</p>
+                        <p className="mt-1 text-xs">Crie uma nova tarefa para começar</p>
+                    </div>
+                ) : viewMode === 'kanban' ? (
+                    <div className="grid grid-cols-1 md:grid-cols-3 md:divide-x md:divide-black/5">
+                        {colunasKanban.map((col) => {
+                            const items = tarefasFiltradas.filter((t) => t.status === col.id);
+                            return (
+                                <div key={col.id} className="min-h-[280px] bg-[#fafaf8] p-4 md:min-h-[320px] md:p-5">
+                                    <div className="mb-4 flex items-center justify-between">
+                                        <h4 className="text-sm font-semibold text-neutral-800">{col.label}</h4>
+                                        <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold text-neutral-600 shadow-sm">{items.length}</span>
+                                    </div>
+                                    <div className="space-y-2.5">
+                                        {items.map((t) => renderTarefaCard(t, true))}
+                                        {items.length === 0 && (
+                                            <p className="py-8 text-center text-xs text-neutral-400">Nenhuma tarefa</p>
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                ) : (
+                    <div className="divide-y divide-black/5">
                             {tarefasFiltradas.map(t => (
                                 <div 
                                     key={t.id} 
-                                    className={`bg-white p-5 rounded-2xl border shadow-sm hover:shadow-md transition-all ${
+                                    className={`px-4 py-4 sm:px-5 ${
                                         t.alerta_data === 'atrasada' && t.status !== 'concluido' 
-                                            ? 'border-red-300 bg-red-50/30' 
+                                            ? 'bg-red-50/30' 
                                             : t.alerta_data === 'proxima' && t.status !== 'concluido'
-                                                ? 'border-amber-300 bg-amber-50/30'
-                                                : 'border-neutral-200'
+                                                ? 'bg-amber-50/20'
+                                                : ''
                                     }`}
                                 >
                                     <div className="flex items-start gap-4">
@@ -566,8 +606,8 @@ export default function Tarefas() {
                                     </div>
                                 </div>
                             ))}
-                        </div>
-                    )}
+                    </div>
+                )}
             </div>
 
             {/* Modal Criar/Editar */}
@@ -657,6 +697,6 @@ export default function Tarefas() {
                             </button>
                         </div>
             </Modal>
-        </BentoPageShell>
+        </div>
     );
 }

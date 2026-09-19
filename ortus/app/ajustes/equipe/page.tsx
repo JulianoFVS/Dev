@@ -19,8 +19,7 @@ import { MODULES, buildModuleAccessMap } from '@/lib/modules';
 import { PERMISSION_PRESETS, buildPresetAccessMap, type PermissionPresetId } from '@/lib/permissionPresets';
 import { carregarConfig, salvarConfig } from '@/lib/configClinica';
 import { carregarHorarioProfissional, salvarHorarioProfissional, type HorarioAtendimento, type HorarioDia } from '@/lib/horarioProfissional';
-import BentoPageShell from '@/components/bento/BentoPageShell';
-import { bentoCard, bentoPrimaryBtn } from '@/lib/bentoUi';
+const cardShell = 'rounded-[1.35rem] bg-white sm:rounded-[1.5rem]';
 
 type Profissional = {
     id: number | string;
@@ -94,10 +93,11 @@ function readEquipeBoot(): Profissional[] | null {
 
 export default function EquipePage() {
     const searchParams = useSearchParams();
-    const { clinics, loading: clinicLoading, activeClinicId } = useClinica();
+    const { clinics, loading: clinicLoading, activeClinicId, activeClinic } = useClinica();
     const { showAlert, showConfirm } = useCustomAlert();
 
     const bootEquipe = readEquipeBoot();
+    const jaCarregou = useRef(!!bootEquipe?.length);
     const fetchGen = useRef(0);
     const [profissionais, setProfissionais] = useState<Profissional[]>(() => bootEquipe ?? []);
     const [loading, setLoading] = useState(() => !(bootEquipe?.length));
@@ -184,7 +184,10 @@ export default function EquipePage() {
         } catch (e) {
             console.error(e);
         }
-        if (gen === fetchGen.current) setLoading(false);
+        if (gen === fetchGen.current) {
+            jaCarregou.current = true;
+            setLoading(false);
+        }
     }
 
     function abrirModal() {
@@ -857,150 +860,125 @@ export default function EquipePage() {
         return set.size;
     }, [profissionais]);
 
+    const kpiLoading = loading && !jaCarregou.current;
+
     if (!isAdmin && !loading && !clinicLoading) {
         return (
-            <div className="px-4 py-10">
-                <div className="mx-auto max-w-2xl rounded-[1.35rem] border border-amber-200 bg-amber-50 p-8 text-center">
-                    <ShieldCheck size={40} className="text-amber-600 mx-auto mb-3" />
-                    <h2 className="text-lg font-bold text-amber-900">Acesso restrito</h2>
-                    <p className="text-sm text-amber-700 mt-1">Apenas administradores podem gerenciar a equipe.</p>
+            <div className="w-full px-4 py-10 font-poppins sm:px-6">
+                <div className={`${cardShell} mx-auto max-w-lg border border-amber-200/80 p-8 text-center`}>
+                    <ShieldCheck size={40} className="mx-auto mb-3 text-amber-600" />
+                    <h2 className="text-lg font-semibold text-amber-900">Acesso restrito</h2>
+                    <p className="mt-1 text-sm text-amber-800/90">Apenas administradores podem gerenciar a equipe.</p>
                 </div>
             </div>
         );
     }
 
     return (
-        <BentoPageShell
-            title="Equipe"
-            subtitle={`${totalAtivos} ${totalAtivos === 1 ? 'profissional' : 'profissionais'} com acesso`}
-            eyebrow="Ajustes"
-            actions={
-                <button type="button" onClick={abrirModal} className={bentoPrimaryBtn}>
-                    <UserPlus size={18} /> Adicionar
-                </button>
-            }
-        >
-            {loading && profissionais.length === 0 ? (
-                <div className="space-y-3">
-                    <div className="h-32 animate-pulse rounded-[1.35rem] bg-neutral-200" />
-                    <div className="h-64 animate-pulse rounded-[1.35rem] bg-neutral-100" />
+        <div className="w-full space-y-3 px-2.5 py-2.5 pb-12 font-poppins sm:px-3 sm:py-3 md:px-4 md:py-3.5">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+                <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400">Ajustes</p>
+                    <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 md:text-[2rem]">Equipe</h1>
+                    <p className="mt-1 text-sm text-neutral-500 sm:text-base">
+                        {activeClinic ? getClinicLabel(activeClinic) : 'Todas as clínicas'} · {totalAtivos}{' '}
+                        {totalAtivos === 1 ? 'profissional' : 'profissionais'} com acesso
+                    </p>
                 </div>
-            ) : (
-            <>
-            {clinicaIdNumerica && (
-                <div className={`${bentoCard} mb-4 border border-black/5 p-5`}>
-                    <div className="flex items-center justify-between gap-3 mb-4">
-                        <div>
-                            <h2 className="font-bold text-neutral-800 flex items-center gap-2"><DollarSign size={18} className="text-emerald-600"/> Comissões consolidadas</h2>
-                            <p className="text-xs text-neutral-500 mt-0.5">Visão de todas as regras ativas em {clinicaNomeAtiva}</p>
-                        </div>
-                        {comissoesConsolidadasLoading && <Loader2 size={18} className="animate-spin text-neutral-400"/>}
+                <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
+                    <button
+                        type="button"
+                        onClick={abrirModal}
+                        className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-full bg-neutral-900 px-4 text-sm font-medium text-white hover:bg-neutral-800 sm:flex-none"
+                    >
+                        <UserPlus size={16} /> Adicionar
+                    </button>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2.5 sm:gap-3 md:grid-cols-4">
+                <section className={`${cardShell} p-4 sm:p-5`}>
+                    <div className="mb-2 flex items-center justify-between">
+                        <span className="rounded-full bg-neutral-100 p-2 text-neutral-700"><Users size={18} /></span>
+                        <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Equipe</span>
                     </div>
-                    {comissoesConsolidadas.length === 0 ? (
-                        <p className="text-sm text-neutral-400 text-center py-6 border-2 border-dashed border-neutral-200 rounded-xl">Nenhuma regra de comissão ativa nesta clínica.</p>
+                    <p className="text-xs font-medium text-neutral-500">Colaboradores</p>
+                    {kpiLoading ? (
+                        <div className="mt-2 h-8 w-16 animate-pulse rounded-xl bg-neutral-100" />
                     ) : (
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-sm min-w-[520px]">
-                                <thead>
-                                    <tr className="text-left text-[10px] uppercase font-black text-neutral-400 border-b border-neutral-100">
-                                        <th className="pb-2 pr-4">Profissional</th>
-                                        <th className="pb-2 pr-4">Gatilho</th>
-                                        <th className="pb-2 pr-4">Tipo</th>
-                                        <th className="pb-2">Valor</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-neutral-100">
-                                    {comissoesConsolidadas.map((r) => (
-                                        <tr key={r.id}>
-                                            <td className="py-2.5 pr-4 font-bold text-neutral-700">{r.profissionais?.nome || `#${r.profissional_id}`}</td>
-                                            <td className="py-2.5 pr-4 text-neutral-600">{getGatilhoLabel(r.gatilho)}</td>
-                                            <td className="py-2.5 pr-4 text-neutral-500 capitalize">{r.tipo?.replace('_', ' ')}</td>
-                                            <td className="py-2.5 font-black text-emerald-700">{formatValorComissao(r.tipo, Number(r.valor))}</td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
+                        <p className="mt-1 text-xl font-semibold text-neutral-900 sm:text-2xl">{totalAtivos}</p>
                     )}
+                </section>
+                <section className={`${cardShell} p-4 sm:p-5`}>
+                    <div className="mb-2 flex items-center justify-between">
+                        <span className="rounded-full bg-emerald-100 p-2 text-emerald-700"><ShieldCheck size={18} /></span>
+                        <span className="text-[10px] font-semibold uppercase tracking-wide text-emerald-700">Admin</span>
+                    </div>
+                    <p className="text-xs font-medium text-neutral-500">Gestores</p>
+                    {kpiLoading ? (
+                        <div className="mt-2 h-8 w-16 animate-pulse rounded-xl bg-neutral-100" />
+                    ) : (
+                        <p className="mt-1 text-xl font-semibold text-neutral-900 sm:text-2xl">{totalAdmins}</p>
+                    )}
+                </section>
+                <section className={`${cardShell} border border-amber-200/80 p-4 sm:p-5`}>
+                    <div className="mb-2 flex items-center justify-between">
+                        <span className="rounded-full bg-amber-100 p-2 text-amber-700"><KeyRound size={18} /></span>
+                        <span className="text-[10px] font-semibold uppercase tracking-wide text-amber-700">Acesso</span>
+                    </div>
+                    <p className="text-xs font-medium text-neutral-500">Senha provisória</p>
+                    {kpiLoading ? (
+                        <div className="mt-2 h-8 w-16 animate-pulse rounded-xl bg-neutral-100" />
+                    ) : (
+                        <p className="mt-1 text-xl font-semibold text-amber-900 sm:text-2xl">{pendentesSenha}</p>
+                    )}
+                </section>
+                <section className="rounded-[1.35rem] border border-neutral-800 bg-neutral-950 p-4 text-white sm:rounded-[1.5rem] sm:p-5">
+                    <div className="mb-2 flex items-center justify-between">
+                        <span className="rounded-full bg-white/10 p-2 text-[#c8f053]"><Building2 size={18} /></span>
+                        <span className="text-[10px] font-semibold uppercase tracking-wide text-white/70">Rede</span>
+                    </div>
+                    <p className="text-xs font-medium text-white/60">Unidades cobertas</p>
+                    {kpiLoading ? (
+                        <div className="mt-2 h-8 w-16 animate-pulse rounded-xl bg-white/10" />
+                    ) : (
+                        <p className="mt-1 text-xl font-semibold sm:text-2xl">{totalClinicasCobertas}</p>
+                    )}
+                </section>
+            </div>
+
+            <div className={`${cardShell} overflow-hidden`}>
+                <div className="flex flex-col gap-2 border-b border-black/5 p-4 sm:flex-row sm:items-center sm:justify-between md:p-5">
+                    <div className="flex items-center gap-2">
+                        <span className="rounded-full bg-[#f3f4f1] p-2 text-neutral-700"><Users size={18} /></span>
+                        <h3 className="text-base font-semibold text-neutral-900 sm:text-lg">Colaboradores</h3>
+                    </div>
+                    <p className="text-xs text-neutral-500">Permissões, horários e comissão em Editar</p>
                 </div>
-            )}
 
-            {clinicaIdNumerica && comissaoLancamentos.length > 0 && (
-                <div className="bg-white border border-neutral-100 rounded-2xl shadow-sm p-5">
-                    <h2 className="font-bold text-neutral-800 flex items-center gap-2 mb-4"><DollarSign size={18} className="text-neutral-900"/> Lançamentos de comissão (recentes)</h2>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-sm min-w-[520px]">
-                            <thead>
-                                <tr className="text-left text-[10px] uppercase font-black text-neutral-400 border-b border-neutral-100">
-                                    <th className="pb-2 pr-4">Profissional</th>
-                                    <th className="pb-2 pr-4">Descrição</th>
-                                    <th className="pb-2 pr-4">Base</th>
-                                    <th className="pb-2 pr-4">Comissão</th>
-                                    <th className="pb-2">Status</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-neutral-100">
-                                {comissaoLancamentos.map((l) => (
-                                    <tr key={l.id}>
-                                        <td className="py-2.5 pr-4 font-bold text-neutral-700">{l.profissionais?.nome || `#${l.profissional_id}`}</td>
-                                        <td className="py-2.5 pr-4 text-neutral-600 text-xs">{l.descricao}</td>
-                                        <td className="py-2.5 pr-4 text-neutral-500">R$ {Number(l.valor_base).toFixed(2)}</td>
-                                        <td className="py-2.5 pr-4 font-black text-neutral-800">R$ {Number(l.valor_comissao).toFixed(2)}</td>
-                                        <td className="py-2.5"><span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-neutral-100 text-neutral-600">{l.status}</span></td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                {kpiLoading ? (
+                    <div className="space-y-2 p-4">
+                        {Array.from({ length: 6 }).map((_, i) => (
+                            <div key={i} className="flex h-14 animate-pulse items-center gap-3 rounded-2xl bg-neutral-50 px-3" />
+                        ))}
                     </div>
-                </div>
-            )}
-
-            <div className="grid grid-cols-1 md:grid-cols-[280px,1fr] gap-6">
-                <aside className="space-y-4">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-1 gap-4">
-                        <div className="bg-white border border-neutral-100 rounded-2xl p-4 shadow-sm">
-                            <p className="text-[10px] font-black uppercase tracking-wider text-neutral-400">Total de usuários</p>
-                            <p className="text-3xl font-extrabold text-neutral-800 mt-1">{totalAtivos}</p>
-                            <p className="text-xs text-neutral-500">Equipe ativa na plataforma</p>
-                        </div>
-                        <div className="bg-white border border-neutral-100 rounded-2xl p-4 shadow-sm">
-                            <p className="text-[10px] font-black uppercase tracking-wider text-neutral-400">Admins e gestores</p>
-                            <p className="text-3xl font-extrabold text-neutral-900 mt-1">{totalAdmins}</p>
-                            <p className="text-xs text-neutral-500">Com acesso administrativo</p>
-                        </div>
-                        <div className="bg-white border border-neutral-100 rounded-2xl p-4 shadow-sm">
-                            <p className="text-[10px] font-black uppercase tracking-wider text-neutral-400">Pendentes de senha</p>
-                            <p className="text-3xl font-extrabold text-amber-600 mt-1">{pendentesSenha}</p>
-                            <p className="text-xs text-neutral-500">Devem trocar a senha provisória</p>
-                        </div>
-                        <div className="bg-white border border-neutral-100 rounded-2xl p-4 shadow-sm">
-                            <p className="text-[10px] font-black uppercase tracking-wider text-neutral-400">Clínicas cobertas</p>
-                            <p className="text-3xl font-extrabold text-emerald-600 mt-1">{totalClinicasCobertas}</p>
-                            <p className="text-xs text-neutral-500">Com pelo menos um colaborador</p>
-                        </div>
-                    </div>
-                    <div className="bg-white border border-neutral-100 rounded-2xl p-4 shadow-sm">
-                        <p className="text-[11px] font-black uppercase tracking-wider text-neutral-400 mb-2">Dica rápida</p>
-                        <p className="text-sm text-neutral-600">Use o botão "Adicionar funcionário" acima para convidar novos membros e definir permissões personalizadas.</p>
-                    </div>
-                </aside>
-
-                <section className="bg-white border border-neutral-100 rounded-2xl shadow-sm overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <table className="w-full min-w-[540px]">
-                    <thead className="bg-neutral-50">
-                        <tr className="text-[10px] font-black uppercase tracking-wider text-neutral-400">
-                            <th className="text-left px-3 sm:px-5 py-3">Nome</th>
-                            <th className="text-left px-3 sm:px-5 py-3">Cargo</th>
-                            <th className="text-left px-3 sm:px-5 py-3">Unidades</th>
-                            <th className="text-left px-3 sm:px-5 py-3 whitespace-nowrap">Status</th>
-                            <th className="text-right px-3 sm:px-5 py-3">Ações</th>
+                ) : (
+                <>
+                <div className="overflow-x-auto">
+                    <table className="w-full min-w-[540px] text-sm">
+                    <thead>
+                        <tr className="border-b border-black/5 text-[10px] font-semibold uppercase tracking-wider text-neutral-500">
+                            <th className="px-4 py-3 text-left sm:px-5">Nome</th>
+                            <th className="px-4 py-3 text-left sm:px-5">Cargo</th>
+                            <th className="hidden px-4 py-3 text-left sm:table-cell sm:px-5">Unidades</th>
+                            <th className="px-4 py-3 text-left sm:px-5">Status</th>
+                            <th className="px-4 py-3 text-right sm:px-5">Ações</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody className="divide-y divide-black/5">
                         {profissionais.map((p) => (
-                            <tr key={p.id} className="border-t border-neutral-50 hover:bg-neutral-50/40 transition-colors">
-                                <td className="px-5 py-4">
+                            <tr key={p.id} className="hover:bg-neutral-50/60">
+                                <td className="px-4 py-3.5 sm:px-5">
                                     <div className="flex items-center gap-3">
                                         <div className="w-9 h-9 rounded-full bg-gradient-to-br from-neutral-500 to-neutral-900 text-white flex items-center justify-center font-bold text-xs shadow-sm">
                                             {p.nome.split(' ').map((n) => n[0]).slice(0, 2).join('').toUpperCase()}
@@ -1013,8 +991,8 @@ export default function EquipePage() {
                                         </div>
                                     </div>
                                 </td>
-                                <td className="px-5 py-4 text-sm font-bold text-neutral-600">{p.cargo || '—'}</td>
-                                <td className="px-5 py-4">
+                                <td className="px-4 py-3.5 text-sm font-medium text-neutral-700 sm:px-5">{p.cargo || '—'}</td>
+                                <td className="hidden px-4 py-3.5 sm:table-cell sm:px-5">
                                     <div className="flex flex-wrap gap-1">
                                         {(p.clinicas || []).slice(0, 3).map((c, index) => (
                                             <span key={`${c.id}-${index}`} className="text-[10px] font-bold bg-neutral-100 text-neutral-600 px-2 py-1 rounded-md uppercase tracking-wide">
@@ -1026,7 +1004,7 @@ export default function EquipePage() {
                                         )}
                                     </div>
                                 </td>
-                                <td className="px-5 py-4">
+                                <td className="px-4 py-3.5 sm:px-5">
                                     {p.precisa_trocar_senha ? (
                                         <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 px-2 py-1 rounded-md uppercase">
                                             <KeyRound size={10} /> Senha provisória
@@ -1037,10 +1015,11 @@ export default function EquipePage() {
                                         </span>
                                     )}
                                 </td>
-                                <td className="px-5 py-4 text-right">
+                                <td className="px-4 py-3.5 text-right sm:px-5">
                                     <button
+                                        type="button"
                                         onClick={() => abrirEditorAvancado(p)}
-                                        className="touch-target inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-wider px-3 py-2 rounded-lg border border-neutral-200 text-neutral-500 hover:text-neutral-900 hover:border-neutral-400 transition-colors"
+                                        className="touch-target inline-flex items-center gap-1.5 rounded-full border border-black/10 px-3 py-1.5 text-[11px] font-semibold text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900"
                                     >
                                         <Settings size={12}/> Editar
                                     </button>
@@ -1048,12 +1027,86 @@ export default function EquipePage() {
                             </tr>
                         ))}
                         {profissionais.length === 0 && (
-                            <tr><td colSpan={5} className="px-5 py-10 text-center text-sm text-neutral-400 italic">Nenhum profissional cadastrado.</td></tr>
+                            <tr><td colSpan={5} className="px-5 py-12 text-center text-sm text-neutral-400">Nenhum profissional cadastrado.</td></tr>
                         )}
                     </tbody>
                 </table>
-                  </div>
-                </section>
+                </div>
+
+                {clinicaIdNumerica && (
+                    <div className="border-t border-black/5 p-4 md:p-5">
+                        <div className="mb-4 flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-2">
+                                <span className="rounded-full bg-emerald-100 p-2 text-emerald-700"><DollarSign size={16} /></span>
+                                <div>
+                                    <h4 className="text-sm font-semibold text-neutral-900">Comissões consolidadas</h4>
+                                    <p className="text-[11px] text-neutral-500">Regras ativas em {clinicaNomeAtiva}</p>
+                                </div>
+                            </div>
+                            {comissoesConsolidadasLoading && <Loader2 size={18} className="animate-spin text-neutral-400" />}
+                        </div>
+                        {comissoesConsolidadas.length === 0 ? (
+                            <p className="py-6 text-center text-sm text-neutral-400">Nenhuma regra de comissão ativa nesta clínica.</p>
+                        ) : (
+                            <div className="overflow-x-auto rounded-xl border border-black/5">
+                                <table className="w-full min-w-[480px] text-sm">
+                                    <thead>
+                                        <tr className="border-b border-black/5 bg-[#fafaf8] text-[10px] font-semibold uppercase tracking-wider text-neutral-500">
+                                            <th className="px-4 py-2.5 text-left">Profissional</th>
+                                            <th className="px-4 py-2.5 text-left">Gatilho</th>
+                                            <th className="px-4 py-2.5 text-left">Tipo</th>
+                                            <th className="px-4 py-2.5 text-right">Valor</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-black/5">
+                                        {comissoesConsolidadas.map((r) => (
+                                            <tr key={r.id} className="hover:bg-neutral-50/50">
+                                                <td className="px-4 py-2.5 font-medium text-neutral-800">{r.profissionais?.nome || `#${r.profissional_id}`}</td>
+                                                <td className="px-4 py-2.5 text-neutral-600">{getGatilhoLabel(r.gatilho)}</td>
+                                                <td className="px-4 py-2.5 capitalize text-neutral-500">{r.tipo?.replace('_', ' ')}</td>
+                                                <td className="px-4 py-2.5 text-right font-semibold text-emerald-700">{formatValorComissao(r.tipo, Number(r.valor))}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {clinicaIdNumerica && comissaoLancamentos.length > 0 && (
+                    <div className="border-t border-black/5 p-4 md:p-5">
+                        <h4 className="mb-3 flex items-center gap-2 text-sm font-semibold text-neutral-900">
+                            <DollarSign size={16} className="text-neutral-600" /> Lançamentos recentes
+                        </h4>
+                        <div className="overflow-x-auto rounded-xl border border-black/5">
+                            <table className="w-full min-w-[520px] text-sm">
+                                <thead>
+                                    <tr className="border-b border-black/5 bg-[#fafaf8] text-[10px] font-semibold uppercase tracking-wider text-neutral-500">
+                                        <th className="px-4 py-2.5 text-left">Profissional</th>
+                                        <th className="px-4 py-2.5 text-left">Descrição</th>
+                                        <th className="px-4 py-2.5 text-right">Base</th>
+                                        <th className="px-4 py-2.5 text-right">Comissão</th>
+                                        <th className="px-4 py-2.5 text-left">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-black/5">
+                                    {comissaoLancamentos.map((l) => (
+                                        <tr key={l.id} className="hover:bg-neutral-50/50">
+                                            <td className="px-4 py-2.5 font-medium text-neutral-800">{l.profissionais?.nome || `#${l.profissional_id}`}</td>
+                                            <td className="max-w-[200px] truncate px-4 py-2.5 text-xs text-neutral-600">{l.descricao}</td>
+                                            <td className="px-4 py-2.5 text-right text-neutral-600">R$ {Number(l.valor_base).toFixed(2)}</td>
+                                            <td className="px-4 py-2.5 text-right font-semibold text-neutral-900">R$ {Number(l.valor_comissao).toFixed(2)}</td>
+                                            <td className="px-4 py-2.5"><span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-neutral-600">{l.status}</span></td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                )}
+                </>
+                )}
             </div>
 
             {/* Editor avançado */}
@@ -1218,8 +1271,6 @@ export default function EquipePage() {
                         </div>
                         </>)}
             </Modal>
-            </>
-            )}
-        </BentoPageShell>
+        </div>
     );
 }
