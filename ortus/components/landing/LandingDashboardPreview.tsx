@@ -99,7 +99,7 @@ export default function LandingDashboardPreview() {
   const dashTabs = ['Visão do dia', 'Agenda', 'Financeiro', 'Pendências', 'Relatórios'];
 
   return (
-    <div className="font-poppins flex w-full min-h-[min(720px,82vh)] gap-1.5 overflow-hidden rounded-[1.75rem] bg-[#dfe5df] p-1.5 sm:gap-2 sm:rounded-[2rem] sm:p-2 lg:min-h-[min(760px,84vh)] lg:rounded-[2.25rem]">
+    <div className="ortus-landing-preview-ui font-poppins flex w-full gap-1.5 overflow-hidden rounded-[1.75rem] bg-[#dfe5df] p-1.5 sm:gap-2 sm:rounded-[2rem] sm:p-2 lg:rounded-[2.25rem]">
       <SidebarMock />
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-[1.75rem] bg-[#f3f4f1] shadow-[0_1px_0_rgba(0,0,0,0.04)] sm:rounded-[2rem] md:rounded-[2.25rem]">

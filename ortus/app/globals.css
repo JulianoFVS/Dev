@@ -195,9 +195,35 @@ body {
   animation: ortusShine 6s linear infinite;
 }
 
-.ortus-landing-preview {
+.landing-preview-viewport {
+  position: relative;
+  height: min(460px, 62vh);
+  overflow: hidden;
+  border-radius: 1rem;
+  border: 1px solid rgb(0 0 0 / 0.08);
+  box-shadow: 0 18px 50px -28px rgb(0 0 0 / 0.22);
   transform: translateZ(0);
   backface-visibility: hidden;
+}
+@media (min-width: 768px) {
+  .landing-preview-viewport {
+    height: min(520px, 68vh);
+    border-radius: 1.35rem;
+  }
+}
+.landing-preview-scaler {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: calc(100% / 0.58);
+  transform: translateX(-50%) scale(0.58);
+  transform-origin: top center;
+}
+@media (min-width: 768px) {
+  .landing-preview-scaler {
+    width: calc(100% / 0.67);
+    transform: translateX(-50%) scale(0.67);
+  }
 }
 .ortus-landing-preview-ui {
   -webkit-font-smoothing: antialiased;
@@ -205,12 +231,12 @@ body {
   text-rendering: optimizeLegibility;
 }
 @media (hover: hover) and (pointer: fine) {
-  .ortus-landing-preview {
+  .landing-preview-viewport {
     transition: transform 0.45s ease, box-shadow 0.45s ease;
   }
-  .group\/preview:hover .ortus-landing-preview {
+  .group\/preview:hover .landing-preview-viewport {
     transform: translateY(-6px) translateZ(0);
-    box-shadow: 0 28px 70px -24px rgba(0, 0, 0, 0.28);
+    box-shadow: 0 28px 70px -24px rgb(0 0 0 / 0.28);
   }
 }
 
@@ -225,8 +251,8 @@ body {
 @media (prefers-reduced-motion: reduce) {
     .ortus-marquee-track { animation: none; }
     .ortus-shine { animation: none; color: #171717; background: none; filter: none; }
-    .ortus-landing-preview { transform: none !important; box-shadow: none !important; }
-    .group\/preview:hover .ortus-landing-preview { transform: none !important; }
+    .landing-preview-viewport { transform: none !important; box-shadow: none !important; }
+    .group\/preview:hover .landing-preview-viewport { transform: none !important; }
     .ortus-logo-idle { animation: none; }
 }
 

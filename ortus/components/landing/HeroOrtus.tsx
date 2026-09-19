@@ -37,9 +37,11 @@ export default function HeroOrtus() {
           <MarcasCarrossel denso />
         </div>
 
-        <div className="group/preview relative z-10 mx-auto w-full max-w-[min(100%,1420px)] px-3 sm:px-5 md:px-8 lg:px-10">
-          <div className="ortus-landing-preview">
-            <LandingDashboardPreview />
+        <div className="group/preview relative z-10 mx-auto w-full max-w-[1080px] px-4 md:px-6">
+          <div className="landing-preview-viewport">
+            <div className="landing-preview-scaler">
+              <LandingDashboardPreview />
+            </div>
           </div>
         </div>
 
