@@ -33,6 +33,13 @@ import { atualizarTratamento, criarTratamento, excluirTratamento as excluirTrata
 import type { TratamentoPaciente } from '@/lib/db/types';
 import { FACE_COLORS, FACE_LABELS, ODONTO_TOOLS } from '@/lib/odontogram/constants';
 import type { LegacyToothState, OdontoFace, OdontoFaceStatus, OdontoToothStatus } from '@/lib/odontogram/types';
+import {
+    aplicarTratamentoNoSnapshot,
+    listarMarcacoesOdontograma,
+    mesclarObservacaoOdontograma,
+    parseDentesCampo,
+    sugestaoUnica,
+} from '@/lib/odontogram/marcacoes';
 import { FDI_MISSING_IN_3D } from '@/lib/odontogram/meshToFdi';
 import { selectLegacyOdontogram, useOdontogramStore } from '@/store/useOdontogramStore';
 import dynamic from 'next/dynamic';
@@ -364,7 +371,9 @@ export default function PacienteDetalhe() {
   const [textoOdontogramaLivre, setTextoOdontogramaLivre] = useState('');
   const [modalTrat, setModalTrat] = useState(false);
   const [salvandoTrat, setSalvandoTrat] = useState(false);
-  const [tratEdit, setTratEdit] = useState<any>({ id: null, dente: '', procedimento: '', data: new Date().toISOString().split('T')[0], status: 'concluido', valor: '', observacoes: '', agendarNaAgenda: false, horaAgendamento: '09:00', pagamentoPendente: false });
+  const [tratEdit, setTratEdit] = useState<any>({ id: null, dente: '', procedimento: '', data: new Date().toISOString().split('T')[0], status: 'concluido', valor: '', observacoes: '', agendarNaAgenda: false, horaAgendamento: '09:00', pagamentoPendente: false, dentesSelecionados: [] as string[], atualizarOdontograma: false });
+  const marcacoesOdonto = useMemo(() => listarMarcacoesOdontograma(odontograma), [odontograma]);
+  const marcacoesPendentes = useMemo(() => marcacoesOdonto.filter((m) => m.precisaTratamento), [marcacoesOdonto]);
   const [odontogramaZoom, setOdontogramaZoom] = useState(1);
   const [odontogramaPan, setOdontogramaPan] = useState({ x: 0, y: 0 });
   const odontogramaSurfaceRef = useRef<HTMLDivElement | null>(null);
@@ -686,9 +695,43 @@ export default function PacienteDetalhe() {
       e.currentTarget.releasePointerCapture?.(e.pointerId);
   }
 
-  function abrirNovoTratamento() {
-      setTratEdit({ id: null, dente: '', procedimento: '', data: new Date().toISOString().split('T')[0], status: 'concluido', valor: '', observacoes: '', agendarNaAgenda: false, horaAgendamento: '09:00', pagamentoPendente: false });
+  function abrirNovoTratamento(dentesPref?: number[]) {
+      const base = dentesPref?.length
+          ? marcacoesOdonto.filter((m) => dentesPref.includes(m.num))
+          : (marcacoesPendentes.length ? marcacoesPendentes : []);
+      const selecionados = base.map((m) => String(m.num));
+      const temPlano = selecionados.length > 0;
+      setTratEdit({
+          id: null,
+          dente: selecionados.join(', '),
+          procedimento: sugestaoUnica(base),
+          data: new Date().toISOString().split('T')[0],
+          status: temPlano ? 'planejado' : 'concluido',
+          valor: '',
+          observacoes: mesclarObservacaoOdontograma('', base),
+          agendarNaAgenda: false,
+          horaAgendamento: '09:00',
+          pagamentoPendente: false,
+          dentesSelecionados: selecionados,
+          atualizarOdontograma: base.some((m) => m.precisaTratamento),
+      });
       setModalTrat(true);
+  }
+
+  function toggleDenteTratamento(num: string) {
+      const atual: string[] = tratEdit.dentesSelecionados?.length
+          ? tratEdit.dentesSelecionados
+          : parseDentesCampo(tratEdit.dente).map(String);
+      const next = atual.includes(num) ? atual.filter((n) => n !== num) : [...atual, num].sort((a, b) => Number(a) - Number(b));
+      const selecionadas = marcacoesOdonto.filter((m) => next.includes(String(m.num)));
+      setTratEdit({
+          ...tratEdit,
+          dentesSelecionados: next,
+          dente: next.join(', '),
+          observacoes: mesclarObservacaoOdontograma(tratEdit.observacoes, selecionadas),
+          procedimento: tratEdit.procedimento || sugestaoUnica(selecionadas),
+          atualizarOdontograma: selecionadas.some((m) => m.precisaTratamento),
+      });
   }
 
   async function salvarTratamento() {
@@ -788,12 +831,20 @@ export default function PacienteDetalhe() {
               }
           }
 
+          if (tratSemAgenda.status === 'concluido' && tratEdit.atualizarOdontograma) {
+              const dentes = parseDentesCampo(tratSemAgenda.dente);
+              const { next, changed } = aplicarTratamentoNoSnapshot(getOdontogramLegacySnapshot(), dentes);
+              if (changed) loadOdontogramFromLegacy(next);
+          }
+
           setModalTrat(false);
           const msg = agendado
               ? 'Tratamento salvo e consulta marcada na agenda!'
               : debitoCriado
                   ? 'Tratamento salvo e débito registrado na aba Débitos.'
-                  : 'Tratamento salvo com sucesso!';
+                  : tratEdit.atualizarOdontograma && tratSemAgenda.status === 'concluido'
+                      ? 'Tratamento salvo e odontograma atualizado (cáries → tratado).'
+                      : 'Tratamento salvo com sucesso!';
           showAlert(msg, { type: 'success' });
       } finally {
           setSalvandoTrat(false);
@@ -2277,23 +2328,44 @@ export default function PacienteDetalhe() {
                             </div>
 
                             {/* Resumo de dentes alterados */}
-                            <div className="mt-6 pt-4 border-t border-slate-100">
-                                <div className="text-[10px] uppercase font-bold text-slate-400 mb-2">Dentes com Marcações ({Object.keys(odontograma).length})</div>
-                                <div className="flex flex-wrap gap-2">
-                                    {Object.keys(odontograma).length === 0 && <span className="text-xs text-slate-400">Nenhum.</span>}
-                                    {Object.entries(odontograma).map(([num, st]) => {
-                                        const facesList = Object.entries(st.faces || {}).map(([f,v]) => `${f}:${v}`).join(', ');
-                                        const condTxt = st.cond !== 'normal' ? st.cond : '';
-                                        return (
-                                            <div key={num} className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-lg text-[11px] font-bold">
-                                                <span className="text-blue-600">#{num}</span>
-                                                {condTxt && <span className="text-amber-600 uppercase">{condTxt}</span>}
-                                                {facesList && <span className="text-slate-500 normal-case">{facesList}</span>}
-                                                <button onClick={() => limparDente(parseInt(num))} className="text-rose-400 hover:text-rose-600 ml-1"><X size={12}/></button>
-                                            </div>
-                                        );
-                                    })}
+                            <div className="mt-6 border-t border-black/5 pt-4">
+                                <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                    <div className="text-[10px] font-semibold uppercase tracking-wide text-neutral-400">
+                                        Dentes com marcações ({marcacoesOdonto.length})
+                                        {marcacoesPendentes.length > 0 && (
+                                            <span className="ml-1.5 text-amber-700">· {marcacoesPendentes.length} para tratar</span>
+                                        )}
+                                    </div>
+                                    {marcacoesPendentes.length > 0 && (
+                                        <button
+                                            type="button"
+                                            onClick={() => abrirNovoTratamento()}
+                                            className="inline-flex h-9 items-center justify-center gap-1.5 rounded-full bg-neutral-900 px-3 text-xs font-semibold text-white hover:bg-neutral-800"
+                                        >
+                                            <Plus size={12} /> Tratar marcações
+                                        </button>
+                                    )}
                                 </div>
+                                <div className="flex flex-wrap gap-2">
+                                    {marcacoesOdonto.length === 0 && <span className="text-xs text-neutral-400">Nenhum.</span>}
+                                    {marcacoesOdonto.map((m) => (
+                                        <div key={m.num} className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${m.precisaTratamento ? 'border-amber-200 bg-amber-50' : 'border-black/10 bg-[#f8f8f6]'}`}>
+                                            <button
+                                                type="button"
+                                                onClick={() => abrirNovoTratamento([m.num])}
+                                                className="min-w-0 text-left"
+                                                title="Abrir tratamento deste dente"
+                                            >
+                                                <span className="text-neutral-900">#{m.num}</span>
+                                                <span className="ml-1 font-medium text-neutral-500">{m.resumo}</span>
+                                            </button>
+                                            <button type="button" onClick={() => limparDente(m.num)} className="text-rose-400 hover:text-rose-600" aria-label={`Limpar dente ${m.num}`}><X size={12}/></button>
+                                        </div>
+                                    ))}
+                                </div>
+                                {marcacoesPendentes.length > 0 && (
+                                    <p className="mt-2 text-[11px] text-neutral-500">Clique em um dente para abrir o tratamento só dele, ou em Tratar marcações para incluir todos.</p>
+                                )}
                             </div>
                             </>
                             )}
@@ -2303,11 +2375,22 @@ export default function PacienteDetalhe() {
                         <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-200 shadow-sm">
                             <div className="flex justify-between items-center mb-5">
                                 <h3 className="text-lg font-black text-slate-800 flex items-center gap-2"><CheckCircle size={20} className="text-emerald-500"/> Tratamentos Realizados</h3>
-                                <button onClick={abrirNovoTratamento} className="px-4 py-2 text-xs font-bold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 flex items-center gap-1.5 shadow-sm"><Plus size={14}/> Novo Tratamento</button>
+                                <button type="button" onClick={() => abrirNovoTratamento()} className="px-4 py-2 text-xs font-bold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 flex items-center gap-1.5 shadow-sm"><Plus size={14}/> Novo Tratamento</button>
                             </div>
 
                             {tratamentos.length === 0 ? (
-                                <div className="text-center py-10 text-slate-400 border-2 border-dashed border-slate-200 rounded-2xl text-sm">Nenhum tratamento registrado ainda.</div>
+                                <div className="rounded-2xl border-2 border-dashed border-black/10 py-10 text-center text-sm text-neutral-400">
+                                    Nenhum tratamento registrado ainda.
+                                    {marcacoesPendentes.length > 0 && (
+                                        <p className="mt-2 text-xs text-neutral-600">
+                                            Há {marcacoesPendentes.length} dente{marcacoesPendentes.length === 1 ? '' : 's'} marcado{marcacoesPendentes.length === 1 ? '' : 's'} no odontograma
+                                            {' '}({marcacoesPendentes.map((m) => `#${m.num}`).join(', ')}).{' '}
+                                            <button type="button" onClick={() => abrirNovoTratamento()} className="font-semibold text-neutral-900 underline underline-offset-2">
+                                                Incluir no novo tratamento
+                                            </button>
+                                        </p>
+                                    )}
+                                </div>
                             ) : (
                                 <div className="space-y-2">
                                     {[...tratamentos].sort((a,b) => (b.data||'').localeCompare(a.data||'')).map((t:any) => (
@@ -2834,10 +2917,42 @@ export default function PacienteDetalhe() {
                         <button onClick={() => setModalTrat(false)} className="p-2 hover:bg-slate-100 rounded-full text-slate-400"><X size={18}/></button>
                     </div>
                     <div className="space-y-3">
+                        {!tratEdit.id && marcacoesOdonto.length > 0 && (
+                            <div className="rounded-2xl border border-black/5 bg-[#f8f8f6] p-3">
+                                <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Do odontograma</p>
+                                <div className="flex flex-wrap gap-1.5">
+                                    {marcacoesOdonto.map((m) => {
+                                        const ativo = (tratEdit.dentesSelecionados || parseDentesCampo(tratEdit.dente).map(String)).includes(String(m.num));
+                                        return (
+                                            <button
+                                                key={m.num}
+                                                type="button"
+                                                onClick={() => toggleDenteTratamento(String(m.num))}
+                                                className={`rounded-full px-3 py-1.5 text-left text-xs font-semibold transition-colors ${
+                                                    ativo ? 'bg-neutral-900 text-white' : 'border border-black/10 bg-white text-neutral-600 hover:bg-neutral-50'
+                                                }`}
+                                            >
+                                                #{m.num}
+                                                <span className={`ml-1 font-medium ${ativo ? 'text-white/70' : 'text-neutral-400'}`}>{m.resumo}</span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                                <label className="mt-3 flex cursor-pointer items-start gap-2">
+                                    <input
+                                        type="checkbox"
+                                        className="mt-0.5"
+                                        checked={!!tratEdit.atualizarOdontograma}
+                                        onChange={(e) => setTratEdit({ ...tratEdit, atualizarOdontograma: e.target.checked })}
+                                    />
+                                    <span className="text-[11px] text-neutral-600">Ao concluir, marcar cáries desses dentes como tratado no odontograma</span>
+                                </label>
+                            </div>
+                        )}
                         <div className="grid grid-cols-2 gap-3">
                             <div>
                                 <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Dente</label>
-                                <input placeholder="Ex: 16" value={tratEdit.dente} onChange={e => setTratEdit({...tratEdit, dente: e.target.value})} className="w-full p-2.5 border border-slate-200 rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500"/>
+                                <input placeholder="Ex: 16, 26" value={tratEdit.dente} onChange={e => setTratEdit({...tratEdit, dente: e.target.value, dentesSelecionados: parseDentesCampo(e.target.value).map(String)})} className="w-full p-2.5 border border-slate-200 rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500"/>
                             </div>
                             <div>
                                 <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Data</label>
