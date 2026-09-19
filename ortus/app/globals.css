@@ -196,54 +196,21 @@ body {
 }
 
 /*
- * lp-viewport — clippa e define a altura visível do preview escalado.
- *
- * Preview é sempre 1280 px de largura (desktop fixo).
- * Scale mobile : 0.29 → altura visível ≈ 800 * 0.29 ≈ 232 px
- * Scale desktop: 0.68 → altura visível ≈ 800 * 0.68 ≈ 544 px
- */
-.lp-viewport {
-  position: relative;
-  height: 232px;
-  overflow: hidden;
-  border-radius: 1rem;
-  border: 1px solid rgb(0 0 0 / 0.08);
-  box-shadow: 0 18px 50px -28px rgb(0 0 0 / 0.22);
-  transform: translateZ(0);
-  backface-visibility: hidden;
-}
-@media (min-width: 768px) {
-  .lp-viewport {
-    height: 544px;
-    border-radius: 1.5rem;
-  }
-}
-
-/*
- * lp-scaler — sempre 1280 px de largura, centralizado e escalado.
- * Não use padding no viewport (já está no HeroOrtus).
+ * lp-scaler — renderiza o LandingDashboardPreview (1280 px fixo) escalado.
+ * O viewport/clip é feito via Tailwind no HeroOrtus (h-[220px] md:h-[500px] overflow-hidden).
  */
 .lp-scaler {
   position: absolute;
   top: 0;
   left: 50%;
   width: 1280px;
-  transform: translateX(-50%) scale(0.29);
+  transform: translateX(-50%) scale(0.28);
   transform-origin: top center;
+  -webkit-font-smoothing: antialiased;
 }
 @media (min-width: 768px) {
   .lp-scaler {
-    transform: translateX(-50%) scale(0.68);
-  }
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .lp-viewport {
-    transition: transform 0.45s ease, box-shadow 0.45s ease;
-  }
-  .group\/preview:hover .lp-viewport {
-    transform: translateY(-6px) translateZ(0);
-    box-shadow: 0 28px 70px -24px rgb(0 0 0 / 0.28);
+    transform: translateX(-50%) scale(0.72);
   }
 }
 
@@ -258,8 +225,7 @@ body {
 @media (prefers-reduced-motion: reduce) {
     .ortus-marquee-track { animation: none; }
     .ortus-shine { animation: none; color: #171717; background: none; filter: none; }
-    .lp-viewport { transform: none !important; box-shadow: none !important; }
-    .group\/preview:hover .lp-viewport { transform: none !important; }
+    .lp-scaler { transition: none !important; }
     .ortus-logo-idle { animation: none; }
 }
 
