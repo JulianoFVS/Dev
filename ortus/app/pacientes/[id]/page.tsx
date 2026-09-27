@@ -367,7 +367,6 @@ export default function PacienteDetalhe() {
   const [tipoArcada, setTipoArcada] = useState<'permanente' | 'leite'>('permanente');
   const [savingOdo, setSavingOdo] = useState(false);
   const [visaoOdonto, setVisaoOdonto] = useState<'anatomica' | 'esquematica' | 'livre'>('anatomica');
-  const [mostrar3D, setMostrar3D] = useState(false);
   const [textoOdontogramaLivre, setTextoOdontogramaLivre] = useState('');
   const [modalTrat, setModalTrat] = useState(false);
   const [salvandoTrat, setSalvandoTrat] = useState(false);
@@ -1751,7 +1750,7 @@ export default function PacienteDetalhe() {
         </Modal>
 
         {/* Navegação rápida mobile */}
-        <div className="sticky top-0 z-30 border-b border-black/5 bg-[#f3f4f1]/95 pb-3 pt-1 backdrop-blur lg:hidden">
+        <div className="sticky top-0 z-30 border-b border-black/5 bg-[#f3f4f1]/95 pb-3 pt-1 backdrop-blur">
             <div className="flex snap-x snap-mandatory gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none]">
                 {PATIENT_NAV_SECTIONS.map((section) => {
                     const Icon = section.icon;
@@ -1773,8 +1772,8 @@ export default function PacienteDetalhe() {
             </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-3 lg:grid-cols-4 lg:gap-4">
-            <div className="hidden space-y-1.5 lg:col-span-1 lg:block">
+        <div className="grid grid-cols-1 gap-3">
+            <div className="hidden">
                 {PATIENT_NAV_SECTIONS.map((section) => {
                     const Icon = section.icon;
                     const active = abaAtiva === section.key;
@@ -1805,7 +1804,7 @@ export default function PacienteDetalhe() {
                 })}
             </div>
 
-            <div className="lg:col-span-3">
+            <div>
                 {abaAtiva === 'dados' && (
                     <div className={prontuarioPanel}>
                         <div className="flex flex-wrap justify-between items-center gap-3 mb-6">
@@ -1813,11 +1812,11 @@ export default function PacienteDetalhe() {
                             <div className="flex gap-2">
                                 {modoEdicao ? (
                                     <>
-                                        <button onClick={() => { setModoEdicao(false); carregar(); }} className="px-4 py-2 text-slate-500 font-bold hover:bg-slate-50 rounded-xl transition-colors">Cancelar</button>
-                                        <button onClick={salvarTudo} className="px-5 py-2 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 shadow-lg shadow-blue-200 flex items-center gap-2 transition-all active:scale-95"><Save size={16}/> Salvar</button>
+                                        <button onClick={() => { setModoEdicao(false); carregar(); }} className="rounded-full px-4 py-2 text-sm font-medium text-neutral-500 hover:bg-neutral-50">Cancelar</button>
+                                        <button onClick={salvarTudo} className="inline-flex items-center gap-2 rounded-full bg-neutral-900 px-5 py-2 text-sm font-semibold text-white hover:bg-neutral-800"><Save size={16}/> Salvar</button>
                                     </>
                                 ) : (
-                                    <button onClick={() => setModoEdicao(true)} className="px-5 py-2 bg-white border border-slate-200 text-slate-600 rounded-xl font-bold hover:bg-slate-50 transition-colors flex items-center gap-2"><Edit size={16}/> Editar</button>
+                                    <button onClick={() => setModoEdicao(true)} className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-5 py-2 text-sm font-semibold text-neutral-700 hover:bg-neutral-50"><Edit size={16}/> Editar</button>
                                 )}
                             </div>
                         </div>
@@ -2146,19 +2145,79 @@ export default function PacienteDetalhe() {
                                 onClick={() => setSubAbaTratamentos('tratamentos')}
                                 className={`rounded-full px-4 py-2 text-sm font-semibold transition-colors ${subAbaTratamentos === 'tratamentos' ? 'bg-neutral-900 text-white' : 'text-neutral-600 hover:text-neutral-900'}`}
                             >
-                                Tratamentos
+                                Odontograma
                             </button>
                             <button
                                 type="button"
                                 onClick={() => setSubAbaTratamentos('evolucoes')}
                                 className={`rounded-full px-4 py-2 text-sm font-semibold transition-colors ${subAbaTratamentos === 'evolucoes' ? 'bg-neutral-900 text-white' : 'text-neutral-600 hover:text-neutral-900'}`}
                             >
-                                Evoluções
+                                Tratamentos
                             </button>
                         </div>
 
                         {subAbaTratamentos === 'evolucoes' ? (
+                            <div className="space-y-4">
                             <TabEvolucao id={id as string} form={form} ficha={ficha} setFicha={setFicha} evolucoes={evolucoes} setEvolucoes={setEvolucoes}/>
+                        {/* TRATAMENTOS REALIZADOS */}
+                        <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-200 shadow-sm">
+                            <div className="flex justify-between items-center mb-5">
+                                <h3 className="text-lg font-black text-slate-800 flex items-center gap-2"><CheckCircle size={20} className="text-emerald-500"/> Tratamentos Realizados</h3>
+                                <button type="button" onClick={() => abrirNovoTratamento()} className="inline-flex h-9 items-center gap-1.5 rounded-full bg-neutral-900 px-4 text-xs font-semibold text-white hover:bg-neutral-800"><Plus size={14}/> Novo tratamento</button>
+                            </div>
+
+                            {tratamentos.length === 0 ? (
+                                <div className="rounded-2xl border-2 border-dashed border-black/10 py-10 text-center text-sm text-neutral-400">
+                                    Nenhum tratamento registrado ainda.
+                                    {marcacoesPendentes.length > 0 && (
+                                        <p className="mt-2 text-xs text-neutral-600">
+                                            Há {marcacoesPendentes.length} dente{marcacoesPendentes.length === 1 ? '' : 's'} marcado{marcacoesPendentes.length === 1 ? '' : 's'} no odontograma
+                                            {' '}({marcacoesPendentes.map((m) => `#${m.num}`).join(', ')}).{' '}
+                                            <button type="button" onClick={() => abrirNovoTratamento()} className="font-semibold text-neutral-900 underline underline-offset-2">
+                                                Incluir no novo tratamento
+                                            </button>
+                                        </p>
+                                    )}
+                                </div>
+                            ) : (
+                                <div className="space-y-2">
+                                    {[...tratamentos].sort((a,b) => (b.data||'').localeCompare(a.data||'')).map((t:any) => (
+                                        <div key={t.id} className="flex items-center gap-3 p-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl transition-colors">
+                                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-black text-sm ${t.status === 'concluido' ? 'bg-emerald-100 text-emerald-700' : t.status === 'andamento' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>{t.dente || '-'}</div>
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <span className="font-bold text-sm text-slate-800 truncate">{t.procedimento}</span>
+                                                    <span className={`text-[9px] uppercase font-black px-2 py-0.5 rounded ${t.status === 'concluido' ? 'bg-emerald-200 text-emerald-800' : t.status === 'andamento' ? 'bg-amber-200 text-amber-800' : 'bg-blue-200 text-blue-800'}`}>{t.status}</span>
+                                                </div>
+                                                <div className="flex items-center gap-3 text-[11px] text-slate-500 font-semibold">
+                                                    <span className="flex items-center gap-1"><Calendar size={11}/> {t.data ? new Date(t.data).toLocaleDateString('pt-BR') : '-'}</span>
+                                                    {t.valor && <span className="text-emerald-600">R$ {parseFloat(t.valor).toFixed(2)}</span>}
+                                                    {t.observacoes && <span className="italic truncate">"{t.observacoes}"</span>}
+                                                </div>
+                                            </div>
+                                            <button onClick={() => { setTratEdit(t); setModalTrat(true); }} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"><Edit size={14}/></button>
+                                            <button onClick={() => excluirTratamento(t.id)} className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg"><Trash2 size={14}/></button>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            {/* Valor Total do Orçamento */}
+                            {tratamentos.length > 0 && (
+                                <div className="mt-4 pt-4 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3">
+                                    <div className="flex items-center gap-2 text-sm text-slate-500 font-semibold">
+                                        <DollarSign size={16} className="text-emerald-500"/>
+                                        <span>{tratamentos.length} tratamento{tratamentos.length !== 1 ? 's' : ''} registrado{tratamentos.length !== 1 ? 's' : ''}</span>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <span className="text-xs font-bold text-slate-400 uppercase">Valor Total:</span>
+                                        <span className="text-xl font-black text-emerald-600">{formatarMoeda(valorTotalOrcamento)}</span>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                            </div>
                         ) : (
                         <>
                         {/* ODONTOGRAMA */}
@@ -2254,8 +2313,8 @@ export default function PacienteDetalhe() {
                                 <span className="text-xs font-bold text-slate-500">{Math.round(odontogramaZoom * 100)}%</span>
                             </div>
 
-                            {/* Arcadas - dente lib + face-grid + número, em colunas alinhadas */}
-                            <div className="relative w-full bg-white rounded-2xl p-4 border border-slate-200">
+                            <div className="grid items-stretch gap-3 xl:grid-cols-2">
+                            <div className="relative max-h-[42vh] min-h-[240px] overflow-hidden rounded-2xl border border-black/10 bg-white p-3">
                                 <div className="flex justify-center">
                                     <div className="overflow-auto custom-scrollbar">
                                         {(() => {
@@ -2294,37 +2353,17 @@ export default function PacienteDetalhe() {
                                 </div>
                             </div>
 
-                            <div className="mt-6">
-                                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                                    <div className="text-[10px] font-bold uppercase text-slate-400">Vista 3D (sincronizada com o odontograma 2D)</div>
-                                    {mostrar3D && (
-                                        <button
-                                            type="button"
-                                            onClick={() => setMostrar3D(false)}
-                                            className="rounded-full border border-black/10 bg-white px-3 py-1.5 text-xs font-semibold text-neutral-600 hover:bg-neutral-50"
-                                        >
-                                            Ocultar 3D
-                                        </button>
-                                    )}
-                                </div>
-                                {mostrar3D ? (
+                            <div className="flex max-h-[42vh] min-h-[240px] flex-col overflow-hidden rounded-2xl border border-black/10 bg-[#f8f8f6] p-3">
+                                <div className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-neutral-400">Vista 3D</div>
+                                <div className="min-h-0 flex-1 overflow-hidden">
                                     <OdontogramaContainer />
-                                ) : (
-                                    <button
-                                        type="button"
-                                        onClick={() => setMostrar3D(true)}
-                                        className="flex h-32 w-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-black/15 bg-[#f8f8f6] text-neutral-600 transition-colors hover:bg-white sm:h-40"
-                                    >
-                                        <Smile size={26} className="text-neutral-400" />
-                                        <span className="text-sm font-semibold">Carregar vista 3D</span>
-                                        <span className="text-xs text-neutral-400">Modelo pesado — carrega só quando você abrir</span>
-                                    </button>
-                                )}
+                                </div>
                                 {FDI_MISSING_IN_3D.length > 0 && (
-                                    <p className="text-[10px] text-slate-400 mt-2">
-                                        Sem modelo 3D: {FDI_MISSING_IN_3D.join(', ')} — marque esses dentes no odontograma acima.
+                                    <p className="mt-2 text-[10px] text-neutral-400">
+                                        Sem modelo 3D: {FDI_MISSING_IN_3D.join(', ')} — marque esses dentes no odontograma ao lado.
                                     </p>
                                 )}
+                            </div>
                             </div>
 
                             {/* Resumo de dentes alterados */}
@@ -2371,63 +2410,6 @@ export default function PacienteDetalhe() {
                             )}
                         </div>
 
-                        {/* TRATAMENTOS REALIZADOS */}
-                        <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-200 shadow-sm">
-                            <div className="flex justify-between items-center mb-5">
-                                <h3 className="text-lg font-black text-slate-800 flex items-center gap-2"><CheckCircle size={20} className="text-emerald-500"/> Tratamentos Realizados</h3>
-                                <button type="button" onClick={() => abrirNovoTratamento()} className="px-4 py-2 text-xs font-bold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 flex items-center gap-1.5 shadow-sm"><Plus size={14}/> Novo Tratamento</button>
-                            </div>
-
-                            {tratamentos.length === 0 ? (
-                                <div className="rounded-2xl border-2 border-dashed border-black/10 py-10 text-center text-sm text-neutral-400">
-                                    Nenhum tratamento registrado ainda.
-                                    {marcacoesPendentes.length > 0 && (
-                                        <p className="mt-2 text-xs text-neutral-600">
-                                            Há {marcacoesPendentes.length} dente{marcacoesPendentes.length === 1 ? '' : 's'} marcado{marcacoesPendentes.length === 1 ? '' : 's'} no odontograma
-                                            {' '}({marcacoesPendentes.map((m) => `#${m.num}`).join(', ')}).{' '}
-                                            <button type="button" onClick={() => abrirNovoTratamento()} className="font-semibold text-neutral-900 underline underline-offset-2">
-                                                Incluir no novo tratamento
-                                            </button>
-                                        </p>
-                                    )}
-                                </div>
-                            ) : (
-                                <div className="space-y-2">
-                                    {[...tratamentos].sort((a,b) => (b.data||'').localeCompare(a.data||'')).map((t:any) => (
-                                        <div key={t.id} className="flex items-center gap-3 p-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl transition-colors">
-                                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-black text-sm ${t.status === 'concluido' ? 'bg-emerald-100 text-emerald-700' : t.status === 'andamento' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>{t.dente || '-'}</div>
-                                            <div className="flex-1 min-w-0">
-                                                <div className="flex items-center gap-2 flex-wrap">
-                                                    <span className="font-bold text-sm text-slate-800 truncate">{t.procedimento}</span>
-                                                    <span className={`text-[9px] uppercase font-black px-2 py-0.5 rounded ${t.status === 'concluido' ? 'bg-emerald-200 text-emerald-800' : t.status === 'andamento' ? 'bg-amber-200 text-amber-800' : 'bg-blue-200 text-blue-800'}`}>{t.status}</span>
-                                                </div>
-                                                <div className="flex items-center gap-3 text-[11px] text-slate-500 font-semibold">
-                                                    <span className="flex items-center gap-1"><Calendar size={11}/> {t.data ? new Date(t.data).toLocaleDateString('pt-BR') : '-'}</span>
-                                                    {t.valor && <span className="text-emerald-600">R$ {parseFloat(t.valor).toFixed(2)}</span>}
-                                                    {t.observacoes && <span className="italic truncate">"{t.observacoes}"</span>}
-                                                </div>
-                                            </div>
-                                            <button onClick={() => { setTratEdit(t); setModalTrat(true); }} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"><Edit size={14}/></button>
-                                            <button onClick={() => excluirTratamento(t.id)} className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg"><Trash2 size={14}/></button>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-
-                            {/* Valor Total do Orçamento */}
-                            {tratamentos.length > 0 && (
-                                <div className="mt-4 pt-4 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3">
-                                    <div className="flex items-center gap-2 text-sm text-slate-500 font-semibold">
-                                        <DollarSign size={16} className="text-emerald-500"/>
-                                        <span>{tratamentos.length} tratamento{tratamentos.length !== 1 ? 's' : ''} registrado{tratamentos.length !== 1 ? 's' : ''}</span>
-                                    </div>
-                                    <div className="flex items-center gap-3">
-                                        <span className="text-xs font-bold text-slate-400 uppercase">Valor Total:</span>
-                                        <span className="text-xl font-black text-emerald-600">{formatarMoeda(valorTotalOrcamento)}</span>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
                         </>
                         )}
                     </div>
@@ -2633,7 +2615,7 @@ export default function PacienteDetalhe() {
                         <div className="flex justify-center">
                             <div
                                 ref={hofSurfaceRef}
-                                className={`relative max-w-md w-full select-none rounded-2xl overflow-hidden border-2 border-slate-200 bg-cover bg-center bg-no-repeat transition-all duration-300 ${hofModo === 'alterar' ? 'cursor-crosshair' : 'cursor-default'}`}
+                                className={`relative max-h-[52vh] w-full max-w-md select-none overflow-hidden rounded-2xl border border-black/10 bg-cover bg-center bg-no-repeat ${hofModo === 'alterar' ? 'cursor-crosshair' : 'cursor-default'}`}
                                 style={{
                                     aspectRatio: '3/4',
                                     backgroundImage: faceHofAtiva === 'feminina'

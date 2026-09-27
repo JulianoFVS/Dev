@@ -14,6 +14,7 @@ import {
   DollarSign,
   LayoutDashboard,
   Settings,
+  CircleHelp,
   ShieldAlert,
   ShieldCheck,
   Smile,
@@ -58,6 +59,8 @@ function ProfileAvatar({
         src={photoUrl!}
         alt={alt}
         className={`shrink-0 object-cover ${sizeClass}`}
+        loading="eager"
+        decoding="sync"
         onError={() => setPhotoFailed(true)}
       />
     );
@@ -265,9 +268,6 @@ export default function DashboardSidebar({
         {LINKS.map((item) => (
           <NavItem key={item.href} href={item.href} label={item.label} Icon={item.icon} collapsed={collapsed} />
         ))}
-        {(showTarefas || showEquipe || showTratamentosBase) && (
-          <div className={`my-1.5 h-px bg-white/10 ${collapsed ? 'mx-2 w-7' : 'mx-1'}`} role="presentation" />
-        )}
         {showTarefas && (
           <NavItem
             href="/tarefas"
@@ -292,6 +292,28 @@ export default function DashboardSidebar({
         {showPainelSaas && (
           <div className={`h-px bg-white/10 ${collapsed ? 'my-0.5 w-7' : 'mx-1 my-0.5'}`} role="presentation" />
         )}
+        <BentoSidebarTooltip label="Configurações" show={collapsed}>
+          <Link
+            href="/configuracoes"
+            className={`flex items-center text-white/45 hover:bg-white/10 hover:text-white/90 ${
+              collapsed ? 'h-10 w-10 justify-center rounded-2xl' : 'h-10 w-full gap-3 rounded-2xl px-3'
+            }`}
+          >
+            <Settings size={18} strokeWidth={1.65} className="shrink-0" />
+            {!collapsed && <span className="text-sm font-medium">Configurações</span>}
+          </Link>
+        </BentoSidebarTooltip>
+        <BentoSidebarTooltip label="Ajuda" show={collapsed}>
+          <Link
+            href="/ajuda"
+            className={`flex items-center text-white/45 hover:bg-white/10 hover:text-white/90 ${
+              collapsed ? 'h-10 w-10 justify-center rounded-2xl' : 'h-10 w-full gap-3 rounded-2xl px-3'
+            }`}
+          >
+            <CircleHelp size={18} strokeWidth={1.65} className="shrink-0" />
+            {!collapsed && <span className="text-sm font-medium">Ajuda</span>}
+          </Link>
+        </BentoSidebarTooltip>
         <BentoSidebarTooltip label={collapsed ? 'Expandir menu' : 'Recolher menu'} show={collapsed}>
           <button
             type="button"
@@ -305,17 +327,6 @@ export default function DashboardSidebar({
             {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
             {!collapsed && <span>Recolher</span>}
           </button>
-        </BentoSidebarTooltip>
-        <BentoSidebarTooltip label="Configurações" show={collapsed}>
-          <Link
-            href="/configuracoes"
-            className={`flex items-center text-white/45 hover:bg-white/10 hover:text-white/90 ${
-              collapsed ? 'h-10 w-10 justify-center rounded-2xl' : 'h-10 w-full gap-3 rounded-2xl px-3'
-            }`}
-          >
-            <Settings size={18} strokeWidth={1.65} className="shrink-0" />
-            {!collapsed && <span className="text-sm font-medium">Configurações</span>}
-          </Link>
         </BentoSidebarTooltip>
         <BentoSidebarTooltip label="Meu perfil" show={collapsed}>
           <Link

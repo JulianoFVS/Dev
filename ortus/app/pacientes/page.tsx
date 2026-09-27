@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Search, Plus, LayoutGrid, List as ListIcon, User, Phone, Edit, Trash2, Activity, ChevronRight, Building2, Download, Filter, AlertCircle, Calendar, Clock, X, Smile } from 'lucide-react';
+import { Search, Plus, LayoutGrid, List as ListIcon, Phone, ChevronRight, Filter, AlertCircle, Calendar, X, Smile, ArrowUpDown } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { usePatientActionModal } from '@/components/PatientActionModal';
@@ -9,7 +9,6 @@ import { useClinica } from '@/app/context/ClinicaContext';
 import { fetchUserClinicas } from '@/lib/clinicScoped';
 import CustomSelect from '@/components/ui/CustomSelect';
 import PatientContactButtons from '@/components/PatientContactButtons';
-import { useCustomAlert } from '@/components/ui/CustomAlert';
 import { buildDocumentoContexto } from '@/lib/documentVariables';
 
 /** Lê o cache do sessionStorage de forma síncrona para o useState inicial */
@@ -33,7 +32,6 @@ export default function Pacientes() {
   const [clinicas, setClinicas] = useState<any[]>([]);
   // Só mostra loading se não tem nada em cache
   const [loading, setLoading] = useState(cachedRef.current.length === 0);
-  const { showAlert } = useCustomAlert();
   const [visualizacao, setVisualizacao] = useState('lista');
   const [busca, setBusca] = useState('');
 
@@ -46,6 +44,7 @@ export default function Pacientes() {
   const [filtroSemConsulta, setFiltroSemConsulta] = useState<number | null>(null);
   const [filtroProcedimento, setFiltroProcedimento] = useState('');
   const [showFiltros, setShowFiltros] = useState(false);
+  const [ordenacao, setOrdenacao] = useState<{ campo: 'nome' | 'plano' | 'status'; dir: 'asc' | 'desc' }>({ campo: 'nome', dir: 'asc' });
 
   const router = useRouter();
   const { openQuickCapture } = usePatientActionModal();
@@ -125,61 +124,18 @@ export default function Pacientes() {
       openQuickCapture(filtroClinica !== 'todas' ? filtroClinica : null);
   }
 
-  function exportarCSV() {
-      if (filtrados.length === 0) { showAlert('Nenhum paciente para exportar com os filtros atuais.', { type: 'warning' }); return; }
-
-      const headers = [
-          'ID', 'Nome', 'CPF', 'RG', 'Telefone', 'Email', 'Data Nascimento',
-          'Sexo', 'Endereço', 'Clínica', 'Status', 'Cadastrado em',
-          'Anamnese (resumo)', 'Medicamentos', 'Observações Clínicas',
-          'Total Anamneses', 'Total Tratamentos', 'Total Documentos', 'Total Débitos'
-      ];
-
-      const escapeCSV = (val: any) => {
-          if (val === null || val === undefined) return '';
-          const s = String(val).replace(/"/g, '""').replace(/\r?\n/g, ' ');
-          return `"${s}"`;
-      };
-
-      const rows = filtrados.map((p: any) => {
-          const fm = p.ficha_medica || {};
-          const condicoes = Array.isArray(fm.condicoes)
-              ? fm.condicoes.join('; ')
-              : ['Diabetes','Hipertensão','Cardiopatia','Asma/Bronquite','Alergia Antibiótico','Alergia Anestésico','Gestante','Fumante','Uso de Anticoagulante']
-                  .filter(k => fm[k]).join('; ');
-          const medicamentosStr = Array.isArray(fm.medicamentos)
-              ? fm.medicamentos.join('; ')
-              : (fm.medicamentos || '');
-          const totalAnamneses = (p.paciente_anamneses || []).length || (fm.anamneses || []).length;
-          const totalTratamentos = (p.paciente_tratamentos || []).length || (fm.tratamentos || []).length;
-          const totalDocumentos = (p.paciente_documentos || []).length || (fm.documentos || []).length;
-          return [
-              p.id, p.nome, p.cpf, p.rg, p.telefone, p.email, p.data_nascimento,
-              p.sexo, p.endereco, p.nome_clinica, p.status,
-              p.created_at ? new Date(p.created_at).toLocaleDateString('pt-BR') : '',
-              condicoes,
-              medicamentosStr,
-              p.anamnese || '',
-              totalAnamneses,
-              totalTratamentos,
-              totalDocumentos,
-              (p.agendamentos || []).filter((a: any) => a.status === 'fiado').length,
-          ].map(escapeCSV).join(',');
-      });
-
-      const bom = '\uFEFF'; // UTF-8 BOM para Excel reconhecer acentos
-      const csv = bom + headers.map(escapeCSV).join(',') + '\n' + rows.join('\n');
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      const dataStr = new Date().toISOString().split('T')[0];
-      a.download = `pacientes_${dataStr}.csv`;
-      a.click();
-      URL.revokeObjectURL(url);
+  function planoDe(p: any) {
+      if (!p.planos) return 'Particular';
+      return p.planos.tipo === 'particular' ? 'Particular' : (p.planos.nome || 'Particular');
   }
 
-  const filtrosAtivos = filtroStatus !== 'todos' || filtroDebito || filtroSemConsulta !== null || filtroProcedimento;
+  function alternarOrdem(campo: 'nome' | 'plano' | 'status') {
+      setOrdenacao((atual) => atual.campo === campo
+          ? { campo, dir: atual.dir === 'asc' ? 'desc' : 'asc' }
+          : { campo, dir: 'asc' });
+  }
+
+  const filtrosAtivos = filtroStatus !== 'todos' || filtroDebito || filtroSemConsulta !== null || filtroProcedimento || filtroClinica !== (activeClinicId === 'all' ? 'todas' : activeClinicId || 'todas');
 
   const filtrados = pacientes.filter((p: any) => {
       const bateBusca = !busca || p.nome.toLowerCase().includes(busca.toLowerCase()) || (p.telefone || '').includes(busca) || (p.cpf || '').replace(/\D/g, '').includes(busca.replace(/\D/g, ''));
@@ -213,7 +169,14 @@ export default function Pacientes() {
       }
 
       return true;
+  }).sort((a: any, b: any) => {
+      const valor = (p: any) => ordenacao.campo === 'plano' ? planoDe(p) : ordenacao.campo === 'status' ? (p.status || '') : (p.nome || '');
+      const cmp = String(valor(a)).localeCompare(String(valor(b)), 'pt-BR', { sensitivity: 'base' });
+      return ordenacao.dir === 'asc' ? cmp : -cmp;
   });
+
+  const clinicaAtivaId = !activeClinicId || activeClinicId === 'all' ? 'todas' : String(activeClinicId);
+  const clinicaDivergente = filtroClinica !== clinicaAtivaId;
 
   function limparFiltros() {
       setFiltroStatus('todos'); setFiltroDebito(false); setFiltroSemConsulta(null); setFiltroProcedimento('');
@@ -233,21 +196,19 @@ export default function Pacientes() {
             <p className="mt-1 text-sm text-neutral-500 sm:text-base">{filtrados.length} {filtrados.length === 1 ? 'paciente' : 'pacientes'}</p>
           </div>
           <div className="flex w-full gap-2 sm:w-auto">
-              <button onClick={exportarCSV} className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-full border border-black/10 bg-white px-4 text-sm font-medium text-neutral-800 hover:bg-neutral-50 sm:flex-none" title="Exportar lista filtrada para CSV"><Download size={15}/> <span className="hidden sm:inline">Exportar</span></button>
               <button onClick={novoPaciente} className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-full bg-neutral-900 px-4 text-sm font-medium text-white hover:bg-neutral-800 sm:flex-none"><Plus size={16}/> Novo paciente</button>
           </div>
       </div>
 
       <div className={`${card} flex flex-col gap-2 p-3 sm:p-4`}>
-          <div className="flex flex-col gap-2 md:flex-row">
-              <div className="relative flex-1">
+          <div className="flex flex-col gap-2 md:flex-row md:items-center">
+              <div className="relative min-w-0 flex-1">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" size={18}/>
                   <input type="text" placeholder="Buscar nome, CPF ou telefone…" className="h-10 w-full rounded-full border border-black/10 bg-[#f8f8f6] py-2 pl-10 pr-3 text-sm outline-none placeholder:text-neutral-400 focus:border-neutral-400" value={busca} onChange={e => setBusca(e.target.value)} />
               </div>
-              
-              <CustomSelect value={filtroClinica} onChange={setFiltroClinica} options={[{value:'todas',label:'Todas as Clínicas'}, ...clinicas.map((c:any) => ({value:String(c.id),label:c.nome}))]} size="sm" className="min-w-[180px]"/>
 
-              <button onClick={() => setShowFiltros(!showFiltros)} className={`inline-flex h-10 items-center gap-2 rounded-full px-3 text-sm font-medium transition-colors ${showFiltros || filtrosAtivos ? 'bg-neutral-900 text-white' : 'border border-black/10 text-neutral-700 hover:bg-neutral-50'}`}>
+              <div className="flex shrink-0 items-center gap-2">
+              <button onClick={() => setShowFiltros(!showFiltros)} className={`inline-flex h-10 items-center gap-2 rounded-full border px-4 text-sm font-medium transition-colors ${showFiltros || filtrosAtivos ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-black/10 text-neutral-700 hover:bg-neutral-50'}`}>
                   <Filter size={15}/> Filtros
                   {filtrosAtivos && <span className="h-1.5 w-1.5 rounded-full bg-[#c8f053]"></span>}
               </button>
@@ -256,28 +217,38 @@ export default function Pacientes() {
                   <button onClick={() => setVisualizacao('lista')} className={`rounded-full p-2 ${visualizacao === 'lista' ? 'bg-neutral-900 text-white' : 'text-neutral-500'}`}><ListIcon size={18}/></button>
                   <button onClick={() => setVisualizacao('cards')} className={`rounded-full p-2 ${visualizacao === 'cards' ? 'bg-neutral-900 text-white' : 'text-neutral-500'}`}><LayoutGrid size={18}/></button>
               </div>
+              </div>
           </div>
 
           {showFiltros && (
-              <div className="px-3 pb-3 pt-1 border-t border-slate-100 flex flex-wrap items-center gap-3 animate-in fade-in slide-in-from-top-2 duration-200">
-                  <div className="flex items-center gap-2">
-                      <label className="text-[10px] font-bold text-slate-400 uppercase">Status</label>
+              <div className="grid grid-cols-1 items-end gap-3 border-t border-black/5 pt-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <div>
+                      <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-neutral-400">Clínica</label>
+                      <CustomSelect value={filtroClinica} onChange={setFiltroClinica} options={[{value:'todas',label:'Todas as clínicas'}, ...clinicas.map((c:any) => ({value:String(c.id),label:c.nome}))]} size="sm"/>
+                  </div>
+                  <div>
+                      <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-neutral-400">Status</label>
                       <CustomSelect value={filtroStatus} onChange={setFiltroStatus} options={[{value:'todos',label:'Todos'},{value:'ativo',label:'Ativo'},{value:'agendado',label:'Agendado'},{value:'novo',label:'Novo'}]} size="sm"/>
                   </div>
-                  <label className="flex items-center gap-2 text-xs font-bold text-slate-600 cursor-pointer bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 hover:border-rose-300 transition-colors">
-                      <input type="checkbox" checked={filtroDebito} onChange={e => setFiltroDebito(e.target.checked)} className="rounded"/>
-                      <AlertCircle size={13} className="text-rose-500"/> Com débito
+                  <div>
+                      <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-neutral-400">Sem consulta há</label>
+                      <CustomSelect value={String(filtroSemConsulta ?? '')} onChange={v => setFiltroSemConsulta(v ? Number(v) : null)} options={[{value:'',label:'Qualquer período'},{value:'30',label:'30 dias'},{value:'60',label:'60 dias'},{value:'90',label:'90 dias'},{value:'180',label:'6 meses'},{value:'365',label:'1 ano'}]} size="sm"/>
+                  </div>
+                  <div>
+                      <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-neutral-400">Procedimento pendente</label>
+                      <input placeholder="Ex: canal" value={filtroProcedimento} onChange={e => setFiltroProcedimento(e.target.value)} className="h-10 w-full rounded-full border border-black/10 bg-[#f8f8f6] px-4 text-sm outline-none focus:border-neutral-400"/>
+                  </div>
+                  <label className="inline-flex h-10 items-center gap-2 rounded-full border border-black/10 bg-[#f8f8f6] px-4 text-sm font-medium text-neutral-700">
+                      <input type="checkbox" checked={filtroDebito} onChange={e => setFiltroDebito(e.target.checked)} className="rounded accent-neutral-900"/>
+                      <AlertCircle size={14} className="text-neutral-700"/> Com débito
                   </label>
-                  <div className="flex items-center gap-2">
-                      <label className="text-[10px] font-bold text-slate-400 uppercase whitespace-nowrap">Sem consulta há</label>
-                      <CustomSelect value={String(filtroSemConsulta ?? '')} onChange={v => setFiltroSemConsulta(v ? Number(v) : null)} options={[{value:'',label:'—'},{value:'30',label:'30 dias'},{value:'60',label:'60 dias'},{value:'90',label:'90 dias'},{value:'180',label:'6 meses'},{value:'365',label:'1 ano'}]} size="sm"/>
-                  </div>
-                  <div className="flex items-center gap-2">
-                      <label className="text-[10px] font-bold text-slate-400 uppercase">Procedimento pendente</label>
-                      <input placeholder="Ex: canal" value={filtroProcedimento} onChange={e => setFiltroProcedimento(e.target.value)} className="text-xs font-bold bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 w-36 outline-none focus:ring-2 focus:ring-blue-200"/>
-                  </div>
+                  {clinicaDivergente && (
+                      <p className="sm:col-span-2 lg:col-span-3 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-900">
+                          A clínica deste filtro não é a unidade ativa no menu lateral.
+                      </p>
+                  )}
                   {filtrosAtivos && (
-                      <button onClick={limparFiltros} className="ml-auto text-xs font-bold text-slate-400 hover:text-rose-600 flex items-center gap-1 transition-colors"><X size={13}/> Limpar filtros</button>
+                      <button onClick={() => { limparFiltros(); setFiltroClinica(clinicaAtivaId); }} className="inline-flex h-10 items-center gap-1 text-sm font-medium text-neutral-500 hover:text-neutral-900"><X size={14}/> Limpar filtros</button>
                   )}
               </div>
           )}
@@ -305,10 +276,13 @@ export default function Pacientes() {
               <AlertCircle size={14} className="text-neutral-300" />
             </h2>
           </div>
-          <div className="hidden grid-cols-[minmax(0,1.5fr)_0.8fr_0.8fr_auto] gap-3 px-5 pb-2 pt-2 text-xs font-medium text-neutral-400 md:grid">
-            <span>Nome</span>
-            <span>Plano</span>
-            <span>Status</span>
+          <div className="hidden grid-cols-[minmax(0,1.6fr)_minmax(8rem,0.7fr)_minmax(7rem,0.6fr)_9.5rem] items-center gap-3 px-5 pb-2 pt-2 text-xs font-medium text-neutral-400 md:grid">
+            {(['nome', 'plano', 'status'] as const).map((campo) => (
+              <button key={campo} type="button" onClick={() => alternarOrdem(campo)} className="inline-flex items-center gap-1 capitalize text-left hover:text-neutral-900">
+                {campo}
+                <ArrowUpDown size={12} className={ordenacao.campo === campo ? 'text-neutral-900' : 'text-neutral-300'} />
+              </button>
+            ))}
             <span className="text-right">Ações</span>
           </div>
           <ul>
@@ -322,7 +296,7 @@ export default function Pacientes() {
                 <li key={p.id}>
                   <div
                     onClick={() => router.push(`/pacientes/${p.id}`)}
-                    className="grid cursor-pointer grid-cols-1 items-center gap-2 border-t border-black/[0.05] px-4 py-3 transition-colors hover:bg-[#f8f8f6] md:grid-cols-[minmax(0,1.5fr)_0.8fr_0.8fr_auto] md:px-5"
+                    className="grid cursor-pointer grid-cols-1 items-center gap-2 border-t border-black/[0.05] px-4 py-3 transition-colors hover:bg-[#f8f8f6] md:grid-cols-[minmax(0,1.6fr)_minmax(8rem,0.7fr)_minmax(7rem,0.6fr)_9.5rem] md:px-5"
                   >
                     <div className="flex min-w-0 items-center gap-3">
                       <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#f5f5f7] text-[11px] font-semibold text-[#6e6e73]">{iniciais}</span>
@@ -331,8 +305,8 @@ export default function Pacientes() {
                         <p className="truncate text-[12px] text-[#aeaeb2]">Paciente · {telFmt}</p>
                       </div>
                     </div>
-                    <span className="pl-12 text-[14px] font-medium text-ortus-blue md:pl-0">{plano}</span>
-                    <span className="hidden capitalize text-[14px] text-[#1d1d1f] md:block">{p.status}</span>
+                    <span className="pl-12 text-sm font-medium text-neutral-800 md:pl-0">{plano}</span>
+                    <span className="hidden text-sm capitalize text-neutral-800 md:block">{p.status}</span>
                     <div className="hidden items-center justify-end gap-1 md:flex" onClick={stopRowClick}>
                       <PatientContactButtons
                         variant="icons"
@@ -346,9 +320,9 @@ export default function Pacientes() {
                           clinica_nome: p.nome_clinica,
                         })}
                       />
-                      <button type="button" onClick={() => router.push(`/agenda?paciente=${p.id}`)} className="p-1.5 rounded-lg text-[#6e6e73] hover:bg-[#eaf2fd] hover:text-ortus-blue" title="Agendar consulta"><Calendar size={15}/></button>
-                      <button type="button" onClick={() => router.push(`/proteses?paciente=${p.id}`)} className="p-1.5 rounded-lg text-[#6e6e73] hover:bg-[#eaf2fd] hover:text-ortus-blue" title="Nova prótese"><Smile size={15}/></button>
-                      <ChevronRight size={16} className="text-[#c7c7cc]" />
+                      <button type="button" onClick={() => router.push(`/agenda?paciente=${p.id}`)} className="rounded-full p-2 text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900" title="Agendar consulta"><Calendar size={15}/></button>
+                      <button type="button" onClick={() => router.push(`/proteses?paciente=${p.id}`)} className="rounded-full p-2 text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900" title="Nova prótese"><Smile size={15}/></button>
+                      <ChevronRight size={16} className="text-neutral-300" />
                     </div>
                   </div>
                 </li>
@@ -357,29 +331,33 @@ export default function Pacientes() {
           </ul>
         </div>
        ) : (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">{filtrados.map((p: any) => (
-            <div key={p.id} onClick={() => router.push(`/pacientes/${p.id}`)} className={`${card} group cursor-pointer border border-black/5 p-4 transition-colors hover:bg-neutral-50 sm:p-5`}>
-                <div className="flex items-center gap-4 mb-4"><div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center font-bold text-lg group-hover:bg-blue-600 group-hover:text-white transition-colors">{p.nome.charAt(0)}</div><div className="flex-1 min-w-0"><h3 className="font-bold text-slate-800 truncate">{p.nome}</h3><p className="text-xs text-slate-400 uppercase font-bold">{p.nome_clinica || 'Sem Clínica'}</p></div>
-                    <div className="flex items-center gap-1.5" onClick={stopRowClick}>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">{filtrados.map((p: any) => {
+            const partes = String(p.nome || '').trim().split(/\s+/);
+            const iniciais = ((partes[0]?.[0] || '') + (partes[1]?.[0] || '')).toUpperCase() || '?';
+            return (
+            <div key={p.id} onClick={() => router.push(`/pacientes/${p.id}`)} className={`${card} cursor-pointer p-4 transition-colors hover:bg-[#f8f8f6] sm:p-5`}>
+                <div className="mb-4 flex items-center gap-3">
+                    <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#c8f053] text-sm font-semibold text-neutral-900">{iniciais}</span>
+                    <div className="min-w-0 flex-1">
+                        <h3 className="truncate text-base font-semibold text-neutral-900">{p.nome}</h3>
+                        <p className="truncate text-xs font-medium text-neutral-500">{p.nome_clinica || 'Sem clínica'}</p>
+                    </div>
+                    <div className="flex items-center gap-1" onClick={stopRowClick}>
                         <PatientContactButtons variant="icons" channels={['whatsapp']} telefone={p.telefone} email={p.email} clinicaId={p.clinica_id} evento="pos_consulta" contexto={buildDocumentoContexto({ paciente_nome: p.nome?.split(' ')[0], clinica_nome: p.nome_clinica })} />
-                        <button type="button" onClick={() => router.push(`/agenda?paciente=${p.id}`)} className="p-2 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100" title="Agendar"><Calendar size={16}/></button>
-                        <button type="button" onClick={() => router.push(`/proteses?paciente=${p.id}`)} className="p-2 rounded-xl bg-violet-50 text-violet-600 hover:bg-violet-100" title="Nova prótese"><Smile size={16}/></button>
+                        <button type="button" onClick={() => router.push(`/agenda?paciente=${p.id}`)} className="rounded-full p-2 text-neutral-500 hover:bg-white hover:text-neutral-900" title="Agendar"><Calendar size={16}/></button>
+                        <button type="button" onClick={() => router.push(`/proteses?paciente=${p.id}`)} className="rounded-full p-2 text-neutral-500 hover:bg-white hover:text-neutral-900" title="Nova prótese"><Smile size={16}/></button>
                     </div>
                 </div>
                 <div className="space-y-2">
-                    <div className="text-sm text-slate-500 flex items-center gap-2"><Phone size={14}/> {p.telefone || 'Sem telefone'}</div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                        {p.planos ? <span className={`text-[10px] font-bold uppercase px-2 py-1 rounded ${p.planos.tipo === 'particular' ? 'bg-slate-100 text-slate-600' : 'bg-ortus-accent-soft text-ortus-accent-muted'}`}>{p.planos.tipo === 'particular' ? 'Particular' : p.planos.nome}</span> : <span className="text-[10px] font-bold uppercase bg-slate-100 text-slate-500 px-2 py-1 rounded">Particular</span>}
+                    <div className="flex items-center gap-2 text-sm text-neutral-600"><Phone size={14}/> {p.telefone || 'Sem telefone'}</div>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <span className="rounded-full bg-neutral-100 px-2.5 py-1 text-[11px] font-semibold uppercase text-neutral-700">{planoDe(p)}</span>
+                        <span className="rounded-full border border-black/10 px-2.5 py-1 text-[11px] font-semibold capitalize text-neutral-600">{p.status}</span>
                     </div>
-                    {p.responsavel_nome && (
-                        <div className="text-xs text-slate-500 flex items-center gap-1">
-                            <span className="font-medium">{p.responsavel_nome}</span>
-                            <span className="text-slate-400">({p.responsavel_parentesco || '—'})</span>
-                        </div>
-                    )}
                 </div>
             </div>
-        ))}</div>
+            );
+        })}</div>
        )}
     </div>
   );

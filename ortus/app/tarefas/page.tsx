@@ -75,8 +75,6 @@ export default function Tarefas() {
     const [filtroStatus, setFiltroStatus] = useState<string>('todos');
     const [filtroPrioridade, setFiltroPrioridade] = useState<string>('todos');
     const [filtroBusca, setFiltroBusca] = useState('');
-    const [viewMode, setViewMode] = useState<'lista' | 'kanban'>('kanban');
-    
     // Modal
     const [modalOpen, setModalOpen] = useState(false);
     const [tarefaEditando, setTarefaEditando] = useState<Tarefa | null>(null);
@@ -235,6 +233,18 @@ export default function Tarefas() {
         }
     }
 
+    async function confirmarMover(t: Tarefa, direcao: 'avancar' | 'voltar') {
+        const novoStatus: Tarefa['status'] = direcao === 'avancar'
+            ? (t.status === 'a_fazer' ? 'em_andamento' : 'concluido')
+            : (t.status === 'concluido' ? 'em_andamento' : 'a_fazer');
+        const ok = await showConfirm(`Alterar "${t.titulo}" para ${getStatusLabel(novoStatus)}?`, {
+            title: 'Confirmar status',
+            confirmLabel: 'Alterar',
+        });
+        if (!ok) return;
+        moverStatus(t.id, novoStatus);
+    }
+
     async function moverStatus(id: string, novoStatus: 'a_fazer' | 'em_andamento' | 'concluido') {
         const prev = tarefas;
         setTarefas((list) => list.map((t) => (t.id === id ? { ...t, status: novoStatus } : t)));
@@ -330,16 +340,10 @@ export default function Tarefas() {
                         </span>
                     )}
                 </div>
-                {t.status !== 'concluido' && (
-                    <div className="flex gap-1 mt-3">
-                        {t.status !== 'a_fazer' && (
-                            <button onClick={() => moverStatus(t.id, t.status === 'concluido' ? 'em_andamento' : 'a_fazer')} className="text-[10px] font-bold px-2 py-1 rounded-lg bg-neutral-100 text-neutral-600 hover:bg-neutral-200">← Voltar</button>
-                        )}
-                        <button onClick={() => moverStatus(t.id, t.status === 'a_fazer' ? 'em_andamento' : 'concluido')} className="text-[10px] font-bold px-2 py-1 rounded-lg bg-neutral-100 text-neutral-800 hover:bg-blue-200 ml-auto">
-                            {t.status === 'a_fazer' ? 'Iniciar →' : 'Concluir ✓'}
-                        </button>
-                    </div>
-                )}
+                <div className="mt-3 flex justify-end gap-1">
+                    <button type="button" disabled={t.status === 'a_fazer'} onClick={() => confirmarMover(t, 'voltar')} className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-black/10 text-neutral-700 hover:bg-neutral-50 disabled:opacity-30" title="Voltar status"><ChevronDown size={16} /></button>
+                    <button type="button" disabled={t.status === 'concluido'} onClick={() => confirmarMover(t, 'avancar')} className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-black/10 text-neutral-700 hover:bg-neutral-50 disabled:opacity-30" title="Avançar status"><ChevronUp size={16} /></button>
+                </div>
             </div>
         );
     }
@@ -374,7 +378,8 @@ export default function Tarefas() {
             </div>
 
             <div className={`${cardShell} flex flex-col gap-3 p-3 sm:p-4`}>
-                <div className="relative">
+                <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
+                <div className="relative min-w-0 flex-1">
                     <Search className="pointer-events-none absolute left-3 top-1/2 size-[18px] -translate-y-1/2 text-neutral-400" aria-hidden />
                     <input
                         type="text"
@@ -384,7 +389,7 @@ export default function Tarefas() {
                         onChange={(e) => setFiltroBusca(e.target.value)}
                     />
                 </div>
-                <div className="grid grid-cols-1 gap-2 border-t border-black/5 pt-3 sm:grid-cols-2 sm:gap-3">
+                <div className="grid shrink-0 grid-cols-1 gap-2 sm:grid-cols-2 lg:w-[28rem]">
                     <CustomSelect
                         value={filtroStatus}
                         onChange={setFiltroStatus}
@@ -397,6 +402,7 @@ export default function Tarefas() {
                         options={[{ value: 'todos', label: 'Todas as prioridades' }, ...TAREFA_PRIORIDADE_OPTIONS]}
                         size="sm"
                     />
+                </div>
                 </div>
                 {(filtroStatus !== 'todos' || filtroPrioridade !== 'todos') && (
                     <button
@@ -472,13 +478,7 @@ export default function Tarefas() {
                 <div className="flex flex-col gap-3 border-b border-black/5 p-4 sm:flex-row sm:items-center sm:justify-between md:p-5">
                     <div className="flex items-center gap-2">
                         <span className="rounded-full bg-[#f3f4f1] p-2 text-neutral-700"><CheckSquare size={18} /></span>
-                        <h3 className="text-base font-semibold text-neutral-900 sm:text-lg">
-                            {viewMode === 'kanban' ? 'Quadro' : 'Lista de tarefas'}
-                        </h3>
-                    </div>
-                    <div className="flex rounded-full border border-black/10 bg-[#f3f4f1] p-0.5">
-                        <button type="button" onClick={() => setViewMode('kanban')} className={`rounded-full px-4 py-1.5 text-xs font-semibold transition-all ${viewMode === 'kanban' ? 'bg-neutral-900 text-white' : 'text-neutral-600'}`}>Kanban</button>
-                        <button type="button" onClick={() => setViewMode('lista')} className={`rounded-full px-4 py-1.5 text-xs font-semibold transition-all ${viewMode === 'lista' ? 'bg-neutral-900 text-white' : 'text-neutral-600'}`}>Lista</button>
+                        <h3 className="text-base font-semibold text-neutral-900 sm:text-lg">Tarefas</h3>
                     </div>
                 </div>
 
@@ -494,12 +494,12 @@ export default function Tarefas() {
                         <p className="font-medium text-neutral-600">Nenhuma tarefa encontrada</p>
                         <p className="mt-1 text-xs">Crie uma nova tarefa para começar</p>
                     </div>
-                ) : viewMode === 'kanban' ? (
-                    <div className="grid grid-cols-1 md:grid-cols-3 md:divide-x md:divide-black/5">
+                ) : (
+                    <div className="grid min-h-[52vh] grid-cols-1 md:grid-cols-3 md:divide-x md:divide-black/5">
                         {colunasKanban.map((col) => {
                             const items = tarefasFiltradas.filter((t) => t.status === col.id);
                             return (
-                                <div key={col.id} className="min-h-[280px] bg-[#fafaf8] p-4 md:min-h-[320px] md:p-5">
+                                <div key={col.id} className="flex min-h-[280px] flex-col bg-[#fafaf8] p-4 md:min-h-0 md:flex-1 md:p-5">
                                     <div className="mb-4 flex items-center justify-between">
                                         <h4 className="text-sm font-semibold text-neutral-800">{col.label}</h4>
                                         <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold text-neutral-600 shadow-sm">{items.length}</span>
@@ -514,103 +514,10 @@ export default function Tarefas() {
                             );
                         })}
                     </div>
-                ) : (
-                    <div className="divide-y divide-black/5">
-                            {tarefasFiltradas.map(t => (
-                                <div 
-                                    key={t.id} 
-                                    className={`px-4 py-4 sm:px-5 ${
-                                        t.alerta_data === 'atrasada' && t.status !== 'concluido' 
-                                            ? 'bg-red-50/30' 
-                                            : t.alerta_data === 'proxima' && t.status !== 'concluido'
-                                                ? 'bg-amber-50/20'
-                                                : ''
-                                    }`}
-                                >
-                                    <div className="flex items-start gap-4">
-                                        <div className="flex flex-col gap-2 pt-1">
-                                            {t.status !== 'concluido' && (
-                                                <button 
-                                                    onClick={() => moverStatus(t.id, t.status === 'a_fazer' ? 'em_andamento' : 'concluido')}
-                                                    className="touch-target p-2 bg-neutral-100 hover:bg-neutral-100 text-neutral-400 hover:text-neutral-900 rounded-lg transition-colors"
-                                                    title="Avançar status"
-                                                >
-                                                    <ChevronUp size={16}/>
-                                                </button>
-                                            )}
-                                            {t.status !== 'a_fazer' && (
-                                                <button 
-                                                    onClick={() => moverStatus(t.id, t.status === 'concluido' ? 'em_andamento' : 'a_fazer')}
-                                                    className="touch-target p-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-400 hover:text-neutral-600 rounded-lg transition-colors"
-                                                    title="Voltar status"
-                                                >
-                                                    <ChevronDown size={16}/>
-                                                </button>
-                                            )}
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex items-start justify-between gap-3 mb-2">
-                                                <h3 className={`font-bold text-neutral-800 ${t.status === 'concluido' ? 'line-through text-neutral-400' : ''}`}>
-                                                    {t.titulo}
-                                                </h3>
-                                                <div className="flex items-center gap-2">
-                                                    <span className={`text-[10px] font-black uppercase px-2 py-1 rounded-full border ${getPrioridadeCor(t.prioridade)}`}>
-                                                        {t.prioridade}
-                                                    </span>
-                                                    <span className={`text-[10px] font-black uppercase px-2 py-1 rounded-full border ${getStatusCor(t.status)}`}>
-                                                        {getStatusLabel(t.status)}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                            {t.descricao && (
-                                                <p className="text-sm text-neutral-500 mb-3">{t.descricao}</p>
-                                            )}
-                                            <div className="flex flex-wrap items-center gap-3 text-xs">
-                                                {t.responsavel_nome && (
-                                                    <span className="flex items-center gap-1 text-neutral-600">
-                                                        <User size={12}/> {t.responsavel_nome}
-                                                    </span>
-                                                )}
-                                                {t.data_limite && (
-                                                    <span className={`flex items-center gap-1 ${
-                                                        t.alerta_data === 'atrasada' && t.status !== 'concluido' 
-                                                            ? 'text-red-600 font-bold' 
-                                                            : t.alerta_data === 'proxima' && t.status !== 'concluido'
-                                                                ? 'text-amber-600 font-bold'
-                                                                : 'text-neutral-500'
-                                                    }`}>
-                                                        <Calendar size={12}/> 
-                                                        {new Date(t.data_limite).toLocaleDateString('pt-BR')}
-                                                        {t.alerta_data === 'atrasada' && t.status !== 'concluido' && ' (Atrasada)'}
-                                                    </span>
-                                                )}
-                                                {t.paciente_nome && (
-                                                    <Link 
-                                                        href={`/pacientes/${t.paciente_id}`}
-                                                        className="flex items-center gap-1 text-neutral-900 hover:underline"
-                                                    >
-                                                        <Building2 size={12}/> {t.paciente_nome}
-                                                    </Link>
-                                                )}
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center gap-1">
-                                            <button 
-                                                onClick={() => abrirEditarTarefa(t)}
-                                                className="touch-target p-2 text-neutral-400 hover:text-neutral-900 hover:bg-neutral-50 rounded-lg transition-colors"
-                                                title="Editar"
-                                            >
-                                                <MoreVertical size={16}/>
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                    </div>
-                )}
+                                )}
             </div>
 
-            {/* Modal Criar/Editar */}
+                        {/* Modal Criar/Editar */}
             <Modal open={modalOpen} onClose={() => setModalOpen(false)} maxWidth="lg" hideCloseButton panelClassName="bg-white rounded-[1.35rem] shadow-2xl flex flex-col max-h-[90vh] border border-black/10">
                         <div className="p-6 border-b border-black/10 flex justify-between items-center bg-neutral-50 rounded-t-[1.35rem] shrink-0">
                             <h3 className="font-black text-xl text-neutral-800">

@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useClinica } from '@/app/context/ClinicaContext';
 import { carregarConfig } from '@/lib/configClinica';
@@ -10,7 +9,6 @@ import { usePatientSlideOver } from '@/components/PatientSlideOver';
 import {
   ArrowUpRight,
   Bell,
-  CalendarDays,
   Check,
   FileText,
   Loader2,
@@ -18,7 +16,6 @@ import {
   Plus,
   Search,
   Settings,
-  Users,
 } from 'lucide-react';
 import { useInboxCounts } from '@/hooks/useInboxCounts';
 import PillMeter from '@/components/bento/PillMeter';
@@ -450,8 +447,6 @@ export default function Dashboard() {
     return futuros[0] || agendaHoje.find((a) => a.status !== 'concluido') || null;
   }, [agendaHoje]);
 
-  const pathname = usePathname();
-
   async function concluirAtual() {
     if (!emAtendimento) return;
     setConcluindo(true);
@@ -465,7 +460,6 @@ export default function Dashboard() {
   const maxBarra = Math.max(1, ...barras.map((h) => h.valor));
   const paciente = emAtendimento?.pacientes;
   const anos = idade(paciente?.data_nascimento);
-  const cadeiraAtual = emAtendimento ? cadeiraDe(emAtendimento, mapaCadeiras) : 1;
   const graficoLabel = periodo === 'hoje' ? 'Recebimentos por hora · Hoje' : periodo === 'semana' ? 'Recebimentos por dia · Semana' : 'Recebimentos por semana · Mês';
 
   const bentoShell = 'min-h-0 rounded-[1.35rem] sm:rounded-[1.5rem] md:rounded-[1.65rem]';
@@ -478,19 +472,6 @@ export default function Dashboard() {
   const ratioConsultas = resumoConsultas > 0 ? concluidas / resumoConsultas : 0;
   const totalCaixa = financeiro.recebido + financeiro.previsto;
   const ratioCaixa = totalCaixa > 0 ? financeiro.recebido / totalCaixa : 0;
-
-  const dashTabs = [
-    { label: 'Visão do dia', href: '/dashboard' },
-    { label: 'Agenda', href: '/agenda' },
-    { label: 'Financeiro', href: '/financeiro' },
-    { label: 'Pendências', href: '/tarefas' },
-    { label: 'Relatórios', href: '/relatorios' },
-  ] as const;
-
-  function tabAtivo(href: string) {
-    if (href === '/dashboard') return pathname === '/dashboard';
-    return pathname === href || pathname.startsWith(`${href}/`);
-  }
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden px-2.5 py-2.5 sm:px-3 sm:py-3 md:px-4 md:py-3.5">
@@ -552,27 +533,72 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="mt-3 flex gap-2 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {dashTabs.map(({ label, href }) => {
-            const ativo = tabAtivo(href);
-            return (
-              <Link
-                key={href}
-                href={href}
-                className={`shrink-0 rounded-full px-4 py-2 text-sm font-medium transition-colors sm:px-5 sm:text-base ${
-                  ativo ? 'bg-neutral-900 text-white' : 'border border-black/10 bg-white text-neutral-700 hover:border-black/20'
-                }`}
-              >
-                {label}
-              </Link>
-            );
-          })}
-        </div>
       </header>
 
       {/* Renderiza sempre — skeletons inline enquanto carrega */}
       <div className="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)] gap-2.5 overflow-hidden sm:gap-3">
           <div className="grid shrink-0 grid-cols-1 gap-2.5 sm:gap-3 lg:grid-cols-3">
+            <section className={`${bentoAgenda} relative flex min-h-[10rem] flex-col justify-between overflow-hidden p-4 sm:min-h-[11rem] sm:p-5`}>
+              <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_100%_0%,rgba(200,240,83,0.18),transparent_50%)]" />
+              <div className="relative z-[1]">
+                {emAtendimento ? (
+                  <>
+                    <p className="text-sm text-neutral-300 sm:text-base">
+                      Em atendimento · {hora(emAtendimento.data_hora)}
+                    </p>
+                    <h2 className="mt-2 truncate text-xl font-semibold text-white sm:text-2xl">{paciente?.nome || 'Paciente'}</h2>
+                    <p className="mt-1 truncate text-sm text-neutral-200 sm:text-base">
+                      {emAtendimento.procedimento || 'Consulta'}
+                      {anos != null ? ` · ${anos} anos` : ''}
+                      {tratamentos.length > 0 ? ` · ${tratamentos.length} itens no plano` : ''}
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-sm text-neutral-300 sm:text-base">Nenhum atendimento agora</p>
+                    <h2 className="mt-2 truncate text-xl font-semibold text-white sm:text-2xl">
+                      {proximoAgendamento?.pacientes?.nome || 'Nenhum paciente em curso'}
+                    </h2>
+                    <p className="mt-1 text-sm text-neutral-200 sm:text-base">
+                      {proximoAgendamento
+                        ? `Próxima consulta · ${hora(proximoAgendamento.data_hora)} · ${proximoAgendamento.procedimento || 'Consulta'}`
+                        : 'Abra a agenda e encaixe o próximo paciente.'}
+                    </p>
+                  </>
+                )}
+              </div>
+              <div className="relative z-[1] mt-3 flex flex-wrap gap-2">
+                {emAtendimento ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={concluirAtual}
+                      disabled={concluindo}
+                      className="inline-flex h-10 items-center gap-2 rounded-full bg-white px-4 text-sm font-medium text-neutral-900 disabled:opacity-60 sm:h-11 sm:text-base"
+                    >
+                      {concluindo ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+                      Concluir
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openPatient(paciente?.id)}
+                      className="inline-flex h-10 items-center gap-2 rounded-full border border-white/25 px-4 text-sm font-medium text-white sm:h-11 sm:text-base"
+                    >
+                      <FileText size={16} />
+                      Ficha
+                    </button>
+                  </>
+                ) : (
+                  <Link
+                    href="/agenda"
+                    className="inline-flex h-10 items-center rounded-full bg-white px-5 text-sm font-medium text-neutral-900 sm:h-11 sm:text-base"
+                  >
+                    Ver agenda
+                  </Link>
+                )}
+              </div>
+            </section>
+
             <section className={`${bento} flex flex-col p-4 sm:p-5`}>
               <div className="flex items-start justify-between gap-2">
                 <p className="text-sm font-medium text-neutral-500 sm:text-base">Consultas do dia</p>
@@ -611,67 +637,6 @@ export default function Dashboard() {
               </p>
               <div className="mt-4">
                 <PillMeter ratio={ratioCaixa} accent="dark" />
-              </div>
-            </section>
-
-            <section className={`${bentoAgenda} relative flex min-h-[10rem] flex-col justify-between overflow-hidden p-4 sm:min-h-[11rem] sm:p-5 lg:col-span-1`}>
-              <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_100%_0%,rgba(200,240,83,0.18),transparent_50%)]" />
-              <div className="relative z-[1]">
-                {emAtendimento ? (
-                  <>
-                    <p className="text-sm text-neutral-300 sm:text-base">
-                      Em atendimento · Cadeira {cadeiraAtual} · {hora(emAtendimento.data_hora)}
-                    </p>
-                    <h2 className="mt-2 truncate text-xl font-semibold text-white sm:text-2xl">{paciente?.nome || 'Paciente'}</h2>
-                    <p className="mt-1 truncate text-sm text-neutral-200 sm:text-base">
-                      {emAtendimento.procedimento || 'Consulta'}
-                      {anos != null ? ` · ${anos} anos` : ''}
-                      {tratamentos.length > 0 ? ` · ${tratamentos.length} itens no plano` : ''}
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <p className="text-sm text-neutral-300 sm:text-base">Sala livre agora</p>
-                    <h2 className="mt-2 truncate text-xl font-semibold text-white sm:text-2xl">
-                      {proximoAgendamento?.pacientes?.nome || 'Nenhum paciente em curso'}
-                    </h2>
-                    <p className="mt-1 text-sm text-neutral-200 sm:text-base">
-                      {proximoAgendamento
-                        ? `Próximo horário · ${hora(proximoAgendamento.data_hora)} · ${proximoAgendamento.procedimento || 'Consulta'}`
-                        : 'Abra a agenda e encaixe o próximo horário.'}
-                    </p>
-                  </>
-                )}
-              </div>
-              <div className="relative z-[1] mt-3 flex flex-wrap gap-2">
-                {emAtendimento ? (
-                  <>
-                    <button
-                      type="button"
-                      onClick={concluirAtual}
-                      disabled={concluindo}
-                      className="inline-flex h-10 items-center gap-2 rounded-full bg-white px-4 text-sm font-medium text-neutral-900 disabled:opacity-60 sm:h-11 sm:text-base"
-                    >
-                      {concluindo ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
-                      Concluir
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => openPatient(paciente?.id)}
-                      className="inline-flex h-10 items-center gap-2 rounded-full border border-white/25 px-4 text-sm font-medium text-white sm:h-11 sm:text-base"
-                    >
-                      <FileText size={16} />
-                      Ficha
-                    </button>
-                  </>
-                ) : (
-                  <Link
-                    href="/agenda"
-                    className="inline-flex h-10 items-center rounded-full bg-white px-5 text-sm font-medium text-neutral-900 sm:h-11 sm:text-base"
-                  >
-                    Abrir agenda
-                  </Link>
-                )}
               </div>
             </section>
           </div>
@@ -771,24 +736,8 @@ export default function Dashboard() {
             </section>
 
             <aside className="flex min-h-0 flex-col gap-2 overflow-hidden">
-              <div className="grid shrink-0 grid-cols-2 gap-2">
-                <Link
-                  href="/agenda"
-                  className={`${bento} flex items-center gap-2.5 px-3 py-2.5 transition-colors hover:bg-neutral-50`}
-                >
-                  <CalendarDays size={18} className="shrink-0 text-neutral-800" />
-                  <span className="text-sm font-semibold text-neutral-900">Agenda</span>
-                </Link>
-                <Link
-                  href="/pacientes"
-                  className={`${bento} flex items-center gap-2.5 px-3 py-2.5 transition-colors hover:bg-neutral-50`}
-                >
-                  <Users size={18} className="shrink-0 text-neutral-800" />
-                  <span className="text-sm font-semibold text-neutral-900">Pacientes</span>
-                </Link>
-              </div>
-
-              <section className={`${bento} flex min-h-0 flex-[1.2] flex-col overflow-hidden`}>
+              <div className="grid min-h-0 flex-1 grid-cols-1 gap-2 md:grid-cols-2">
+              <section className={`${bento} flex min-h-0 flex-col overflow-hidden`}>
                 <div className="flex items-center justify-between border-b border-black/5 px-4 py-3">
                   <h3 className="text-base font-semibold text-neutral-900 sm:text-lg">Fila do dia</h3>
                   <span className="text-sm text-neutral-400">{agendaHoje.length}</span>
@@ -863,6 +812,7 @@ export default function Dashboard() {
                   )}
                 </ul>
               </section>
+              </div>
 
               <Link
                 href="/financeiro"

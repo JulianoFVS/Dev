@@ -11,9 +11,9 @@ export type ProfileSessionSnapshot = {
 };
 
 function readRaw(): ProfileSessionSnapshot | null {
-  if (typeof sessionStorage === 'undefined') return null;
+  if (typeof window === 'undefined') return null;
   try {
-    const raw = sessionStorage.getItem(PROFILE_SESSION_KEY);
+    const raw = sessionStorage.getItem(PROFILE_SESSION_KEY) || localStorage.getItem(PROFILE_SESSION_KEY);
     if (!raw) return null;
     return JSON.parse(raw) as ProfileSessionSnapshot;
   } catch {
@@ -26,19 +26,22 @@ export function readProfileSession(): ProfileSessionSnapshot | null {
 }
 
 export function writeProfileSession(patch: ProfileSessionSnapshot) {
-  if (typeof sessionStorage === 'undefined') return;
+  if (typeof window === 'undefined') return;
   const prev = readRaw() || {};
+  const next = JSON.stringify({ ...prev, ...patch });
   try {
-    sessionStorage.setItem(PROFILE_SESSION_KEY, JSON.stringify({ ...prev, ...patch }));
+    sessionStorage.setItem(PROFILE_SESSION_KEY, next);
+    localStorage.setItem(PROFILE_SESSION_KEY, next);
   } catch {
     /* quota */
   }
 }
 
 export function clearProfileSession() {
-  if (typeof sessionStorage === 'undefined') return;
+  if (typeof window === 'undefined') return;
   try {
     sessionStorage.removeItem(PROFILE_SESSION_KEY);
+    localStorage.removeItem(PROFILE_SESSION_KEY);
   } catch {
     /* ignore */
   }

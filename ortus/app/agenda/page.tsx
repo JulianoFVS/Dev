@@ -28,6 +28,40 @@ import {
   type LembreteAgendamento,
 } from '@/lib/lembretesAgenda';
 
+const OPCOES_HORA = Array.from({ length: 48 }, (_, i) => {
+  const h = String(Math.floor(i / 2)).padStart(2, '0');
+  const m = i % 2 ? '30' : '00';
+  const value = `${h}:${m}`;
+  return { value, label: value };
+});
+
+function isoLocal(d: Date) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function opcoesDataAgenda(atual?: string) {
+  const base = new Date();
+  base.setHours(12, 0, 0, 0);
+  const opcoes = Array.from({ length: 120 }, (_, i) => {
+    const d = new Date(base);
+    d.setDate(base.getDate() + i);
+    const value = isoLocal(d);
+    const label = d.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' });
+    return { value, label };
+  });
+  if (atual && !opcoes.some((o) => o.value === atual)) {
+    const d = new Date(`${atual}T12:00:00`);
+    opcoes.unshift({
+      value: atual,
+      label: Number.isNaN(d.getTime()) ? atual : d.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' }),
+    });
+  }
+  return opcoes;
+}
+
 export default function Agenda() {
   const calendarRef = useRef(null);
   const searchParams = useSearchParams();
@@ -316,11 +350,6 @@ export default function Agenda() {
       openQuickCapture(clinicaId);
   }
 
-  function irParaView(view: string) {
-      const api = (calendarRef.current as { getApi?: () => { changeView: (v: string) => void } } | null)?.getApi?.();
-      api?.changeView(view);
-  }
-
   function abrirNovoAgendamento() {
       const hoje = new Date().toISOString().split('T')[0];
       const preClinica = clinicaFiltro !== 'todas' ? clinicaFiltro : '';
@@ -344,10 +373,6 @@ export default function Agenda() {
   }
 
   const cardShell = 'rounded-[1.35rem] bg-white sm:rounded-[1.5rem]';
-  const pill = (ativo: boolean) =>
-      `shrink-0 rounded-full px-3 py-2 text-xs font-medium transition-colors sm:px-4 sm:text-sm ${
-          ativo ? 'bg-neutral-900 text-white' : 'border border-black/10 bg-white text-neutral-600 hover:bg-neutral-50'
-      }`;
 
   const renderEventContent = (eventInfo: any) => {
       const props = eventInfo.event.extendedProps;
@@ -406,8 +431,8 @@ export default function Agenda() {
   const fcProps = {
     plugins: [dayGridPlugin, timeGridPlugin, interactionPlugin, listPlugin],
     locale: ptBrLocale,
-    slotMinTime: '07:00:00',
-    slotMaxTime: '20:00:00',
+    slotMinTime: '00:00:00',
+    slotMaxTime: '24:00:00',
     allDaySlot: false as const,
     events,
     eventContent: renderEventContent,
@@ -430,7 +455,7 @@ export default function Agenda() {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
             <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 md:text-[2rem]">Agenda</h1>
-            <p className="mt-1 truncate text-sm text-neutral-500 sm:text-base">{subtituloUnidade} · arraste ou clique no horário</p>
+            <p className="mt-1 truncate text-sm text-neutral-500 sm:text-base">{subtituloUnidade}</p>
           </div>
           <button
             type="button"
@@ -442,21 +467,7 @@ export default function Agenda() {
           </button>
         </div>
 
-        <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex gap-2 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            <button type="button" className={pill(false)} onClick={() => irParaView('timeGridWeek')}>
-              Semana
-            </button>
-            <button type="button" className={pill(false)} onClick={() => irParaView('timeGridDay')}>
-              Dia
-            </button>
-            <button type="button" className={pill(false)} onClick={() => irParaView('dayGridMonth')}>
-              Mês
-            </button>
-            <button type="button" className={pill(false)} onClick={() => irParaView('listWeek')}>
-              Lista
-            </button>
-          </div>
+        <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-end">
           <div className="hidden flex-wrap items-center gap-3 text-[11px] font-medium text-neutral-500 lg:flex">
             <span className="flex items-center gap-1.5">
               <span className="h-2 w-2 rounded-full bg-neutral-900" /> Agendado
@@ -473,7 +484,7 @@ export default function Agenda() {
           </div>
         </div>
 
-        {(lembretesLoading || lembretesPendentes.length > 0) && (
+        {lembretesPendentes.length > 0 && (
           <section className={`${cardShell} border border-amber-200/80 bg-amber-50/80 p-3 sm:p-4`}>
             <button
               type="button"
@@ -487,7 +498,7 @@ export default function Agenda() {
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-amber-950">Lembretes 24h</p>
                   <p className="truncate text-xs text-amber-800/90">
-                    {lembretesLoading ? 'Carregando…' : `${lembretesPendentes.length} consulta(s) amanhã`}
+                    {`${lembretesPendentes.length} consulta(s) amanhã`}
                   </p>
                 </div>
               </div>
@@ -587,8 +598,26 @@ export default function Agenda() {
                           <CustomSelect value={formData.paciente_id} onChange={v => setFormData({...formData, paciente_id: v})} options={pacientes.filter((p:any) => !formData.clinica_id || p.clinica_id == formData.clinica_id).map((p:any) => ({ value: String(p.id), label: p.nome }))} placeholder="Selecione..." searchable/>
                       </div>
                       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                          <div><label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-neutral-500">Data</label><input type="date" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} className={inputClass} /></div>
-                          <div><label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-neutral-500">Hora</label><input type="time" value={formData.time} onChange={e => setFormData({...formData, time: e.target.value})} className={inputClass} /></div>
+                          <div>
+                              <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-neutral-500">Data</label>
+                              <CustomSelect
+                                  value={formData.date}
+                                  onChange={v => setFormData({...formData, date: v})}
+                                  options={opcoesDataAgenda(formData.date)}
+                                  placeholder="Selecione a data"
+                                  searchable
+                              />
+                          </div>
+                          <div>
+                              <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-neutral-500">Hora</label>
+                              <CustomSelect
+                                  value={formData.time}
+                                  onChange={v => setFormData({...formData, time: v})}
+                                  options={OPCOES_HORA}
+                                  placeholder="Selecione a hora"
+                                  searchable
+                              />
+                          </div>
                       </div>
                       <div>
                           <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Procedimento</label>

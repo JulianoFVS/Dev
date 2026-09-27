@@ -365,7 +365,6 @@ export default function KanbanProtesesInteligente() {
     setTargetColumnId(requestedColumn?.id || null);
     setPatientSearch('');
     setModalOpen(true);
-    if (requestedColumn?.titulo !== 'Solicitado') showToast('success', `Novo pedido será criado em ${requestedColumn?.titulo || 'Solicitado'}.`);
   }
 
   function openEditOrder(card: Card) {
@@ -438,6 +437,7 @@ export default function KanbanProtesesInteligente() {
     if (!form.paciente_id) return showToast('warning', 'Selecione o paciente da lista ou clique em “Cadastrar como novo paciente”.');
     if (!form.categoria) return showToast('warning', 'Escolha a categoria da prótese.');
     if (!form.tipo_protese) return showToast('warning', 'Escolha o tipo da prótese.');
+    if (!editingCard && cards.length >= 2000) return showToast('warning', 'Limite de 2000 pedidos atingido.');
 
     setSaving(true);
     const payload = {
@@ -492,6 +492,7 @@ export default function KanbanProtesesInteligente() {
   async function saveColumn() {
     const title = columnTitle.trim();
     if (!title) return showToast('warning', 'Informe o nome do quadro.');
+    if (!editingColumn && columns.length >= 40) return showToast('warning', 'Limite de 40 quadros atingido.');
 
     setSaving(true);
     const payload = { titulo: title, icone: columnIcon, checklist_ativo: columnChecklist };
@@ -644,7 +645,7 @@ export default function KanbanProtesesInteligente() {
       </div>
 
       {toast && (
-        <div className={`fixed top-5 right-5 z-[90] max-w-sm rounded-2xl border p-4 shadow-2xl flex gap-3 ${toast.type === 'warning' ? 'bg-amber-50 border-amber-200 text-amber-800' : 'bg-emerald-50 border-emerald-200 text-emerald-800'}`}>
+        <div className={`fixed right-5 top-5 z-[90] flex max-w-sm gap-3 rounded-2xl border border-black/10 bg-neutral-950 p-4 text-white shadow-2xl`}>
           {toast.type === 'warning' ? <AlertTriangle size={20} className="shrink-0" /> : <CheckCircle2 size={20} className="shrink-0" />}
           <p className="text-sm font-bold">{toast.message}</p>
         </div>
@@ -686,9 +687,8 @@ export default function KanbanProtesesInteligente() {
             <>
               <button type="button" aria-label="Fechar filtros" className="fixed inset-0 z-40" onClick={() => setFiltersOpen(false)} />
               <div className="absolute top-full right-0 z-50 mt-2 min-w-[260px] space-y-3 rounded-[1.25rem] border border-black/10 bg-white p-4 shadow-xl">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-neutral-400">Período e status</p>
                 <div>
-                  <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Período</label>
+                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-neutral-400">Período</label>
                   <CustomSelect
                     value={periodFilter}
                     onChange={(v) => setPeriodFilter(v as typeof periodFilter)}
@@ -702,7 +702,7 @@ export default function KanbanProtesesInteligente() {
                   />
                 </div>
                 <div>
-                  <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Status</label>
+                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-neutral-400">Status</label>
                   <CustomSelect
                     value={statusFilter}
                     onChange={(v) => setStatusFilter(v as StatusKey | 'all')}
@@ -727,7 +727,7 @@ export default function KanbanProtesesInteligente() {
           )}
         </div>
 
-        <div className="shrink-0 text-xs font-medium text-neutral-400 sm:text-sm">
+        <div className="ml-auto w-36 shrink-0 text-right text-xs font-medium tabular-nums text-neutral-400 sm:text-sm">
           {filteredCards.length} de {cards.length} pedido(s)
         </div>
       </div>

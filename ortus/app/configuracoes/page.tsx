@@ -403,6 +403,27 @@ export default function Configuracoes() {
   ) : '';
 
   // ===== BACKUP =====
+  async function exportarPacientes() {
+      const ids = (clinicas || []).map((c: any) => c.id).filter(Boolean);
+      let query = supabase.from('pacientes').select('id, nome, cpf, rg, telefone, email, data_nascimento, sexo, endereco, created_at, clinicas(nome)').order('nome');
+      if (ids.length) query = query.or(`clinica_id.in.(${ids.join(',')}),clinica_id.is.null`);
+      const { data, error } = await query;
+      if (error) { showAlert('Não foi possível exportar: ' + error.message, { type: 'error' }); return; }
+      if (!data?.length) { showAlert('Nenhum paciente para exportar.', { type: 'warning' }); return; }
+      const esc = (val: any) => `"${String(val ?? '').replace(/"/g, '""').replace(/\r?\n/g, ' ')}"`;
+      const headers = ['Nome', 'CPF', 'RG', 'Telefone', 'E-mail', 'Nascimento', 'Sexo', 'Endereço', 'Clínica', 'Cadastrado em'];
+      const rows = data.map((p: any) => [
+          p.nome, p.cpf, p.rg, p.telefone, p.email, p.data_nascimento, p.sexo, p.endereco,
+          p.clinicas?.nome || '',
+          p.created_at ? new Date(p.created_at).toLocaleDateString('pt-BR') : '',
+      ].map(esc).join(','));
+      const csv = '\uFEFF' + headers.map(esc).join(',') + '\n' + rows.join('\n');
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+      a.download = `pacientes_${new Date().toISOString().split('T')[0]}.csv`;
+      a.click();
+  }
+
   function exportarTudo() {
       const tudo = {
           versao: 1,
@@ -1325,7 +1346,14 @@ export default function Configuracoes() {
                         <h3 className="mb-2 flex items-center gap-2 text-base font-semibold text-neutral-900 sm:text-lg"><Download size={18} className="text-neutral-600"/> Configurações locais</h3>
                         <p className="mb-4 text-xs text-neutral-500">Preferências e modelos do navegador (dados do banco ficam nos backups acima).</p>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <button type="button" onClick={exportarPacientes} className="flex flex-col items-center gap-3 rounded-2xl border border-black/10 bg-white p-5 transition-all hover:bg-[#f8f8f6]">
+                                <div className={`${bentoGhostBtn} h-12 w-12 rounded-2xl p-0`}><Download size={22}/></div>
+                                <div className="text-center">
+                                    <div className="text-sm font-semibold text-neutral-900">Exportar pacientes</div>
+                                    <div className="text-[11px] text-neutral-500">CSV da lista de pacientes das suas clínicas.</div>
+                                </div>
+                            </button>
                             <button onClick={exportarTudo} className="p-5 bg-gradient-to-br from-neutral-50 to-white border-2 border-neutral-900 rounded-2xl hover:bg-neutral-50 transition-all flex flex-col items-center gap-3 group">
                                 <div className={`${bentoPrimaryBtn} h-12 w-12 rounded-2xl p-0 group-hover:scale-110 transition-transform`}><Download size={22}/></div>
                                 <div className="text-center">

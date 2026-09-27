@@ -1,171 +1,190 @@
 'use client';
+
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import { useClinica } from '@/app/context/ClinicaContext';
-import { Building2, Globe, LogOut, ChevronRight, Loader2, PlusCircle } from 'lucide-react';
+import { LoginBrandPanel } from '@/app/login/page';
+import { clearAuthCookies, clearSuperAdminCache } from '@/lib/authCookies';
+import { clearProfileSession } from '@/lib/profileSession';
+import { Building2, ChevronRight, Globe, LogOut } from 'lucide-react';
 
-function nomeRede(c: any): string | null {
+function nomeRede(c: { redes?: { nome?: string } | { nome?: string }[] | null }): string | null {
     const r = c?.redes;
     if (!r) return null;
     const obj = Array.isArray(r) ? r[0] : r;
     return obj?.nome || null;
 }
 
+type ClinicaOpcao = {
+    id: string | number;
+    nome: string;
+    endereco?: string | null;
+    redes?: { nome?: string } | { nome?: string }[] | null;
+};
+
 export default function SelecaoClinica() {
-  const [clinicas, setClinicas] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [usuario, setUsuario] = useState<any>(null);
-  const router = useRouter();
-  const { setActiveClinicById } = useClinica();
+    const [clinicas, setClinicas] = useState<ClinicaOpcao[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [usuario, setUsuario] = useState<{ nome?: string } | null>(null);
+    const router = useRouter();
+    const { setActiveClinicById } = useClinica();
 
-  useEffect(() => {
-    carregar();
-  }, []);
+    useEffect(() => {
+        carregar();
+    }, []);
 
-  async function carregar() {
-    try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) { router.push('/login'); return; }
+    async function carregar() {
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) { router.push('/login'); return; }
 
-        const res = await fetch('/api/listar-clinicas', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: user.id })
-        });
+            const res = await fetch('/api/listar-clinicas', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId: user.id }),
+            });
 
-        const json = await res.json();
-        
-        if (!res.ok) {
-            console.error(json.error);
-            // Se der erro na API, tenta carregar direto do cliente como fallback
-            fallbackCarregarDoCliente();
-            return;
+            const json = await res.json();
+            if (!res.ok) {
+                console.error(json.error);
+                await fallbackCarregarDoCliente();
+                return;
+            }
+
+            setUsuario(json.usuario);
+            const listaDoBanco = (json.clinicas || []) as ClinicaOpcao[];
+            setClinicas([{ id: 'todas', nome: 'Todas as clínicas', endereco: 'Visão geral' }, ...listaDoBanco]);
+            setLoading(false);
+        } catch (err) {
+            console.error(err);
+            setLoading(false);
+        }
+    }
+
+    async function fallbackCarregarDoCliente() {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) { setLoading(false); return; }
+
+        const { data: prof } = await supabase
+            .from('profissionais')
+            .select('id, is_super_admin, nome')
+            .eq('user_id', session.user.id)
+            .maybeSingle();
+
+        if (prof?.nome) setUsuario({ nome: prof.nome });
+
+        let minhas: ClinicaOpcao[] = [];
+        if (prof?.is_super_admin) {
+            const { data } = await supabase.from('clinicas').select('id, nome, endereco').order('nome');
+            minhas = (data || []) as ClinicaOpcao[];
+        } else if (prof?.id) {
+            const { data: vinculos } = await supabase
+                .from('profissionais_clinicas')
+                .select('clinica_id')
+                .eq('profissional_id', prof.id);
+            const ids = Array.from(new Set((vinculos || []).map((v: { clinica_id: string | number }) => v.clinica_id))).filter((x) => x != null);
+            if (ids.length > 0) {
+                const { data } = await supabase.from('clinicas').select('id, nome, endereco').in('id', ids).order('nome');
+                minhas = (data || []) as ClinicaOpcao[];
+            }
         }
 
-        setUsuario(json.usuario);
-
-        const listaDoBanco = json.clinicas || [];
-        
-        // Adiciona "Todas as Clínicas" no topo
-        const opcaoTodas = { id: 'todas', nome: 'Todas as Clínicas', endereco: 'Visão Geral Multi-Unidades' };
-        
-        setClinicas([opcaoTodas, ...listaDoBanco]);
-        setLoading(false);
-
-    } catch (err) {
-        console.error(err);
+        setClinicas([{ id: 'todas', nome: 'Todas as clínicas', endereco: 'Visão geral' }, ...minhas]);
         setLoading(false);
     }
-  }
 
-  // Fallback caso a API falhe (busca direta) — 3 etapas compatíveis com RLS.
-  async function fallbackCarregarDoCliente() {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) { setLoading(false); return; }
+    function selecionar(id: string) {
+        const normalized = id === 'todas' ? 'all' : id;
+        localStorage.setItem('ortus_clinica_id', normalized);
+        try { setActiveClinicById(normalized); } catch { /* contexto ainda hidratando */ }
+        router.replace('/dashboard');
+    }
 
-      const { data: prof } = await supabase
-          .from('profissionais')
-          .select('id, is_super_admin')
-          .eq('user_id', session.user.id)
-          .maybeSingle();
+    async function sair() {
+        await supabase.auth.signOut();
+        localStorage.removeItem('ortus_clinica_id');
+        localStorage.removeItem('ortus_clinics_cache');
+        clearAuthCookies();
+        clearSuperAdminCache();
+        clearProfileSession();
+        try { sessionStorage.clear(); } catch { /* sessão já encerrada */ }
+        router.push('/login');
+    }
 
-      let minhas: { id: any; nome: string; endereco: string }[] = [];
-      if (prof?.is_super_admin) {
-          const { data } = await supabase.from('clinicas').select('id, nome, endereco').order('nome');
-          minhas = (data || []) as any;
-      } else if (prof?.id) {
-          const { data: vinculos } = await supabase
-              .from('profissionais_clinicas')
-              .select('clinica_id')
-              .eq('profissional_id', prof.id);
-          const ids = Array.from(new Set((vinculos || []).map((v: any) => v.clinica_id))).filter((x) => x !== null && x !== undefined);
-          if (ids.length > 0) {
-              const { data } = await supabase
-                  .from('clinicas')
-                  .select('id, nome, endereco')
-                  .in('id', ids as any)
-                  .order('nome');
-              minhas = (data || []) as any;
-          }
-      }
+    const primeiroNome = usuario?.nome?.split(' ')[0];
 
-      const opcaoTodas = { id: 'todas', nome: 'Todas as Clínicas', endereco: 'Visão Geral' };
-      setClinicas([opcaoTodas, ...minhas]);
-      setLoading(false);
-  }
-
-  function selecionar(id: string) {
-      if (typeof window !== 'undefined') {
-          const normalized = id === 'todas' ? 'all' : id;
-          localStorage.setItem('ortus_clinica_id', normalized);
-          try { setActiveClinicById(normalized as any); } catch {}
-          router.replace('/dashboard');
-      }
-  }
-
-  async function sair() {
-      await supabase.auth.signOut();
-      localStorage.removeItem('ortus_clinica_id');
-      router.push('/login');
-  }
-
-  if (loading) {
-      return (
-          <div className="h-screen flex flex-col items-center justify-center bg-slate-50 text-blue-600">
-              <Loader2 className="animate-spin mb-2" size={40} />
-              <p className="text-sm font-bold text-slate-400">Carregando unidades...</p>
-          </div>
-      );
-  }
-
-  return (
-    <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 animate-in fade-in zoom-in-95 duration-500">
-        
-        <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden">
-            
-            {/* CABEÇALHO COM LOGO */}
-            <div className="p-8 text-center border-b border-slate-50 bg-white">
-                <div className="flex justify-center mb-6">
-                    <img src="/logo.png" alt="Ortus" className="h-16 w-auto object-contain hover:scale-105 transition-transform"/>
-                </div>
-                <h1 className="text-xl font-black text-slate-800">Olá, Dr(a). {usuario?.nome?.split(' ')[0]}</h1>
-                <p className="text-slate-500 text-sm font-medium mt-1">Selecione onde você vai trabalhar:</p>
+    return (
+        <div className="flex min-h-[100dvh] w-full flex-col font-poppins lg:flex-row">
+            <div className="h-[28vh] min-h-[180px] shrink-0 bg-white pt-3 sm:pt-4 lg:hidden">
+                <LoginBrandPanel className="h-full !p-0 px-3 pb-0 sm:px-4" />
             </div>
 
-            {/* LISTA DE CLÍNICAS */}
-            <div className="p-2 max-h-[60vh] overflow-y-auto custom-scrollbar bg-slate-50/50">
-                {clinicas.map((c) => (
-                    <button 
-                        key={c.id} 
-                        onClick={() => selecionar(c.id.toString())}
-                        className="w-full flex items-center justify-between p-4 mb-2 bg-white hover:bg-blue-50 rounded-xl border border-slate-100 hover:border-blue-200 transition-all group shadow-sm last:mb-0"
-                    >
-                        <div className="flex items-center gap-4 text-left">
-                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-lg font-bold shadow-sm transition-colors ${c.id === 'todas' ? 'bg-slate-800 text-white' : 'bg-white border border-slate-100 text-blue-600'}`}>
-                                {c.id === 'todas' ? <Globe size={22}/> : <Building2 size={22}/>}
-                            </div>
-                            <div>
-                                {c.id !== 'todas' && nomeRede(c) && (
-                                    <p className="text-[10px] text-blue-500 font-black uppercase tracking-wider mb-0.5">{nomeRede(c)}</p>
-                                )}
-                                <h3 className="font-bold text-slate-700 text-sm group-hover:text-blue-700 transition-colors">{c.nome}</h3>
-                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wide">{c.endereco || 'Unidade'}</p>
-                            </div>
+            <div className="relative z-10 flex flex-1 flex-col bg-white lg:max-w-[50%] lg:shrink-0">
+                <div className="flex flex-1 flex-col items-center justify-center px-4 py-8 sm:px-10 sm:py-14">
+                    <div className="w-full max-w-[420px]">
+                        <div className="mb-8 text-center">
+                            <img src="/landing/ortus-wordmark.svg" alt="Ortus" className="mx-auto mb-6 h-6 w-auto brightness-0 sm:h-[1.65rem]" />
+                            <h1 className="text-[1.5rem] font-bold leading-tight tracking-tight text-neutral-900 sm:text-[1.65rem]">
+                                {primeiroNome ? `Olá, ${primeiroNome}` : 'Olá'}
+                            </h1>
+                            <p className="mx-auto mt-2 max-w-[320px] text-xs leading-relaxed text-neutral-500 sm:text-[13px]">
+                                Escolha a unidade para continuar.
+                            </p>
                         </div>
-                        <ChevronRight size={20} className="text-slate-300 group-hover:text-blue-500 transition-colors"/>
-                    </button>
-                ))}
+
+                        <div className="max-h-[52vh] space-y-2 overflow-y-auto pr-0.5 sm:max-h-[58vh]">
+                            {loading ? (
+                                Array.from({ length: 3 }).map((_, i) => (
+                                    <div key={i} className="flex h-[4.5rem] animate-pulse items-center gap-3 rounded-[1.15rem] bg-[#f3f4f1] px-3" />
+                                ))
+                            ) : clinicas.length === 0 ? (
+                                <p className="rounded-[1.15rem] bg-[#f3f4f1] px-4 py-8 text-center text-sm text-neutral-500">
+                                    Nenhuma unidade vinculada a esta conta.
+                                </p>
+                            ) : (
+                                clinicas.map((c) => {
+                                    const todas = String(c.id) === 'todas';
+                                    const rede = nomeRede(c);
+                                    return (
+                                        <button
+                                            key={String(c.id)}
+                                            type="button"
+                                            onClick={() => selecionar(String(c.id))}
+                                            className="flex w-full items-center gap-3 rounded-[1.15rem] border border-black/8 bg-white px-3 py-3 text-left transition-colors hover:border-black/15 hover:bg-[#f8f8f6] sm:px-4"
+                                        >
+                                            <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${todas ? 'bg-neutral-900 text-white' : 'bg-[#f3f4f1] text-neutral-700'}`}>
+                                                {todas ? <Globe size={18} strokeWidth={1.75} /> : <Building2 size={18} strokeWidth={1.75} />}
+                                            </span>
+                                            <span className="min-w-0 flex-1">
+                                                {!todas && rede ? (
+                                                    <span className="block truncate text-[10px] font-semibold uppercase tracking-wider text-neutral-400">{rede}</span>
+                                                ) : null}
+                                                <span className="block truncate text-sm font-semibold text-neutral-900">{c.nome}</span>
+                                                <span className="mt-0.5 block truncate text-xs text-neutral-500">{c.endereco || 'Unidade'}</span>
+                                            </span>
+                                            <ChevronRight size={18} className="shrink-0 text-neutral-300" />
+                                        </button>
+                                    );
+                                })
+                            )}
+                        </div>
+
+                        <button
+                            type="button"
+                            onClick={sair}
+                            className="mt-6 flex w-full items-center justify-center gap-2 rounded-full border border-black/10 py-3 text-sm font-medium text-neutral-600 transition-colors hover:bg-[#f3f4f1] hover:text-neutral-900"
+                        >
+                            <LogOut size={16} />
+                            Sair da conta
+                        </button>
+                    </div>
+                </div>
             </div>
 
-            {/* RODAPÉ */}
-            <div className="p-4 bg-white border-t border-slate-100">
-                <button onClick={sair} className="w-full py-3 text-red-400 font-bold text-xs hover:bg-red-50 rounded-xl transition-all flex items-center justify-center gap-2">
-                    <LogOut size={16}/> Sair da Conta
-                </button>
+            <div className="hidden min-h-[100dvh] flex-1 bg-white lg:flex lg:flex-col">
+                <LoginBrandPanel className="flex-1" />
             </div>
-
         </div>
-    </div>
-  );
+    );
 }

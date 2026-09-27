@@ -32,6 +32,7 @@ import {
   clearProfileSession,
   mergeProfilFromSession,
   PROFILE_PATCH_EVENT,
+  readProfileSession,
   type ProfileSessionSnapshot,
 } from '@/lib/profileSession';
 
@@ -106,7 +107,16 @@ function hasAuthCookie(): boolean {
 
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<any>(null);
-  const [perfil, setPerfil] = useState<any>(null);
+  const [perfil, setPerfil] = useState<any>(() => {
+    const boot = readProfileSession();
+    if (!boot?.foto_url && !boot?.nome) return null;
+    return {
+      foto_url: boot.foto_url ?? null,
+      nome: boot.nome ?? null,
+      cargo: boot.cargo ?? null,
+      nivel_acesso: boot.nivel_acesso ?? null,
+    };
+  });
   // Se já existe cookie de auth, renderiza a casca imediatamente (sem spinner)
   const [loading, setLoading] = useState(() => !hasAuthCookie());
   
@@ -337,7 +347,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
       router.push('/login');
   }
 
-  if (['/login', '/', '/site', '/termos', '/checkout', '/cadastro', '/teste-3d'].includes(pathname)) return <>{children}</>;
+  if (['/login', '/', '/site', '/termos', '/checkout', '/cadastro', '/teste-3d', '/selecao', '/primeiro-acesso'].includes(pathname)) return <>{children}</>;
   // Mostra spinner bloqueante APENAS se não temos cookie de auth (primeiro acesso)
   if (loading) return <div className="h-screen w-screen bg-slate-50 flex items-center justify-center text-ortus-accent-muted animate-pulse"><Building2 size={40}/></div>;
   // Se validação em background ainda não terminou mas já temos cookie, continua renderizando

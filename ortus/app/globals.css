@@ -375,8 +375,7 @@ input[type="time"] {
 }
 .kanban-scrollbar::-webkit-scrollbar {
   width: 12px;
-  /* horizontal: altura ~ botão (h-10/h-11) */
-  height: 44px;
+  height: 14px;
 }
 .kanban-scrollbar::-webkit-scrollbar-track {
   background: #c8cdc6;

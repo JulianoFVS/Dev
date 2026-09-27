@@ -5,6 +5,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { supabase } from '@/lib/supabase';
 import { AlertCircle, Calendar, CheckCircle, Clock, DollarSign, ExternalLink, Loader2, Phone, Smile, User, X } from 'lucide-react';
 import PatientContactButtons from '@/components/PatientContactButtons';
+import Modal from '@/components/ui/Modal';
 import { buildDocumentoContexto } from '@/lib/documentVariables';
 import { receberAgendamento } from '@/lib/recebimentoAgendamento';
 
@@ -101,40 +102,42 @@ export function PatientSlideOverProvider({ children }: { children: React.ReactNo
     if (error) {
       setError(error.message);
       setPatient(null);
-    } else {
-      setPatient(data as PatientData);
-      if (data?.nome) {
-        const { data: cards } = await supabase
-          .from('kanban_cartoes')
-          .select('id, tipo_protese, descricao, coluna_id, data_entrega, valor')
-          .eq('paciente_nome', data.nome)
-          .limit(5);
-
-        if (cards?.length) {
-          const colunaIds = [...new Set(cards.map((card: any) => card.coluna_id).filter(Boolean))];
-          let columnMap: Record<string, string> = {};
-
-          if (colunaIds.length) {
-            const { data: columns } = await supabase
-              .from('kanban_colunas')
-              .select('id, titulo')
-              .in('id', colunaIds);
-
-            columnMap = (columns || []).reduce((acc: Record<string, string>, column: any) => {
-              acc[String(column.id)] = column.titulo;
-              return acc;
-            }, {});
-          }
-
-          setKanbanProstheses(cards.map((card: any) => ({
-            ...card,
-            etapa: columnMap[String(card.coluna_id)] || 'Em produção',
-          })));
-        }
-      }
+      setLoading(false);
+      return;
     }
 
+    setPatient(data as PatientData);
     setLoading(false);
+
+    if (data?.nome) {
+      const { data: cards } = await supabase
+        .from('kanban_cartoes')
+        .select('id, tipo_protese, descricao, coluna_id, data_entrega, valor')
+        .eq('paciente_nome', data.nome)
+        .limit(5);
+
+      if (cards?.length) {
+        const colunaIds = [...new Set(cards.map((card: any) => card.coluna_id).filter(Boolean))];
+        let columnMap: Record<string, string> = {};
+
+        if (colunaIds.length) {
+          const { data: columns } = await supabase
+            .from('kanban_colunas')
+            .select('id, titulo')
+            .in('id', colunaIds);
+
+          columnMap = (columns || []).reduce((acc: Record<string, string>, column: any) => {
+            acc[String(column.id)] = column.titulo;
+            return acc;
+          }, {});
+        }
+
+        setKanbanProstheses(cards.map((card: any) => ({
+          ...card,
+          etapa: columnMap[String(card.coluna_id)] || 'Em produção',
+        })));
+      }
+    }
   }, []);
 
   const value = useMemo(() => ({ openPatient, closePatient }), [openPatient, closePatient]);
@@ -193,20 +196,25 @@ export function PatientSlideOverProvider({ children }: { children: React.ReactNo
   return (
     <PatientSlideOverContext.Provider value={value}>
       {children}
-      {open && (
-        <div className="fixed inset-0 z-[80] flex justify-end">
-          <button aria-label="Fechar visão do paciente" className="absolute inset-0 bg-slate-900/30 backdrop-blur-[2px]" onClick={closePatient} />
-          <aside className="relative h-full w-full max-w-md bg-white shadow-2xl border-l border-slate-200 animate-in slide-in-from-right duration-300 flex flex-col">
-            <div className="p-5 border-b border-slate-100 bg-gradient-to-br from-slate-50 to-white">
+      <Modal
+        open={open}
+        onClose={closePatient}
+        zIndex={80}
+        maxWidth="lg"
+        hideCloseButton
+        panelClassName="flex max-h-[90vh] flex-col overflow-hidden rounded-[1.5rem] border border-black/10 bg-white shadow-xl"
+      >
+          <div className="flex max-h-[90vh] flex-col">
+            <div className="border-b border-black/5 bg-white p-5">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-12 h-12 rounded-2xl bg-blue-600 text-white flex items-center justify-center shadow-lg shadow-blue-100 shrink-0">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-neutral-900 text-white">
                     <User size={22} />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-[10px] font-black uppercase tracking-wider text-blue-600">Visão 360º</p>
-                    <h2 className="text-xl font-black text-slate-900 truncate">{patient?.nome || 'Paciente'}</h2>
-                    <p className="text-xs font-bold text-slate-400 truncate">{getClinicName(patient)}</p>
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400">Ficha</p>
+                    <h2 className="truncate text-xl font-semibold text-neutral-900">{loading ? 'Abrindo ficha…' : (patient?.nome || 'Paciente')}</h2>
+                    <p className="truncate text-xs font-medium text-neutral-400">{getClinicName(patient)}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
@@ -223,18 +231,18 @@ export function PatientSlideOverProvider({ children }: { children: React.ReactNo
                       })}
                     />
                   )}
-                  <button onClick={closePatient} className="p-2 rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors">
+                  <button onClick={closePatient} className="rounded-full p-2 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-800">
                     <X size={20} />
                   </button>
                 </div>
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto custom-scrollbar p-5 space-y-4 bg-slate-50/60">
+            <div className="flex-1 space-y-4 overflow-y-auto bg-[#f3f4f1] p-5">
               {loading && (
-                <div className="h-64 flex flex-col items-center justify-center text-slate-400 gap-3">
-                  <Loader2 className="animate-spin text-blue-600" size={28} />
-                  <span className="text-sm font-bold">Carregando paciente...</span>
+                <div className="flex h-40 flex-col items-center justify-center gap-3 text-neutral-400">
+                  <Loader2 className="animate-spin text-neutral-900" size={28} />
+                  <span className="text-sm font-medium">Carregando paciente…</span>
                 </div>
               )}
 
@@ -331,15 +339,14 @@ export function PatientSlideOverProvider({ children }: { children: React.ReactNo
             </div>
 
             {patient && (
-              <div className="p-4 border-t border-slate-100 bg-white flex gap-3">
-                <Link href={`/pacientes/${patient.id}`} className="flex-1 px-4 py-3 rounded-2xl bg-slate-900 text-white text-sm font-black text-center hover:bg-slate-800 transition-colors flex items-center justify-center gap-2">
+              <div className="flex gap-3 border-t border-black/5 bg-white p-4">
+                <Link href={`/pacientes/${patient.id}`} className="flex flex-1 items-center justify-center gap-2 rounded-full bg-neutral-900 px-4 py-3 text-center text-sm font-semibold text-white transition-colors hover:bg-neutral-800">
                   Abrir ficha completa <ExternalLink size={15} />
                 </Link>
               </div>
             )}
-          </aside>
-        </div>
-      )}
+          </div>
+      </Modal>
     </PatientSlideOverContext.Provider>
   );
 }

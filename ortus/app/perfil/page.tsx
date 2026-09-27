@@ -10,11 +10,6 @@ import {
   Lock,
   Mail,
   Upload,
-  Trash2,
-  AlertTriangle,
-  Download,
-  ShieldCheck,
-  Camera,
 } from 'lucide-react';
 import { bentoInput, bentoPrimaryBtn, bentoGhostBtn } from '@/lib/bentoUi';
 import { useRouter } from 'next/navigation';
@@ -247,9 +242,6 @@ export default function Perfil() {
 
   const isAdmin = perfil?.nivel_acesso === 'admin';
   const kpiLoading = loading && !jaCarregou.current;
-  const temFoto = Boolean(fotoUrl);
-  const labelAcesso = isAdmin ? 'Administrador' : 'Profissional';
-
   const iniciais = useMemo(() => {
     const n = (form.nome || perfil?.nome || '').trim();
     if (!n) return '—';
@@ -280,60 +272,7 @@ export default function Perfil() {
         </button>
       </div>
 
-      <div className="grid grid-cols-2 gap-2.5 sm:gap-3 md:grid-cols-4">
-        <section className={`${cardShell} p-4 sm:p-5`}>
-          <div className="mb-2 flex items-center justify-between">
-            <span className="rounded-full bg-neutral-100 p-2 text-neutral-700"><User size={18} /></span>
-            <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Conta</span>
-          </div>
-          <p className="text-xs font-medium text-neutral-500">Nome</p>
-          {kpiLoading ? (
-            <div className="mt-2 h-8 w-24 animate-pulse rounded-xl bg-neutral-100" />
-          ) : (
-            <p className="mt-1 truncate text-lg font-semibold text-neutral-900 sm:text-xl">{form.nome || '—'}</p>
-          )}
-        </section>
-        <section className={`${cardShell} p-4 sm:p-5`}>
-          <div className="mb-2 flex items-center justify-between">
-            <span className="rounded-full bg-emerald-100 p-2 text-emerald-700"><ShieldCheck size={18} /></span>
-            <span className="text-[10px] font-semibold uppercase tracking-wide text-emerald-700">Acesso</span>
-          </div>
-          <p className="text-xs font-medium text-neutral-500">Nível</p>
-          {kpiLoading ? (
-            <div className="mt-2 h-8 w-20 animate-pulse rounded-xl bg-neutral-100" />
-          ) : (
-            <p className="mt-1 text-lg font-semibold text-neutral-900 sm:text-xl">{labelAcesso}</p>
-          )}
-        </section>
-        <section className={`${cardShell} p-4 sm:p-5`}>
-          <div className="mb-2 flex items-center justify-between">
-            <span className="rounded-full bg-neutral-100 p-2 text-neutral-700"><Camera size={18} /></span>
-            <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Avatar</span>
-          </div>
-          <p className="text-xs font-medium text-neutral-500">Foto</p>
-          {kpiLoading ? (
-            <div className="mt-2 h-8 w-16 animate-pulse rounded-xl bg-neutral-100" />
-          ) : (
-            <p className="mt-1 text-lg font-semibold text-neutral-900 sm:text-xl">{temFoto ? 'Configurada' : 'Pendente'}</p>
-          )}
-        </section>
-        <section className="rounded-[1.35rem] border border-neutral-800 bg-neutral-950 p-4 text-white sm:rounded-[1.5rem] sm:p-5">
-          <div className="mb-2 flex items-center justify-between">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#c8f053] text-sm font-bold text-neutral-900">
-              {iniciais}
-            </span>
-            <span className="text-[10px] font-semibold uppercase tracking-wide text-white/70">ID</span>
-          </div>
-          <p className="text-xs font-medium text-white/60">Cargo</p>
-          {kpiLoading ? (
-            <div className="mt-2 h-8 w-28 animate-pulse rounded-xl bg-white/10" />
-          ) : (
-            <p className="mt-1 truncate text-lg font-semibold sm:text-xl">{form.cargo || '—'}</p>
-          )}
-        </section>
-      </div>
-
-      <div className={`${cardShell} overflow-hidden`}>
+      <div className={`${cardShell} mx-auto w-full max-w-3xl overflow-hidden`}>
         <div className="divide-y divide-black/5">
           <section className={sectionPad}>
             <div className="flex flex-col gap-6 md:flex-row md:items-start">
@@ -418,24 +357,6 @@ export default function Perfil() {
             </div>
           </section>
 
-          <section className={sectionPad}>
-            <h2 className="flex items-center gap-2 text-base font-semibold text-neutral-900 sm:text-lg">
-              <AlertTriangle size={18} className="text-amber-600" /> Seus dados (LGPD)
-            </h2>
-            <p className="mt-1 text-xs text-neutral-500">Exportação e solicitação de exclusão conforme a Lei 13.709/2018.</p>
-            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <button type="button" onClick={handleExportarMeusDados} className={`${bentoGhostBtn} h-11 justify-center sm:justify-start`}>
-                <Download size={18} /> Exportar JSON
-              </button>
-              <button
-                type="button"
-                onClick={handleSolicitarExclusao}
-                className={`${bentoGhostBtn} h-11 justify-center border-red-200 text-red-700 hover:bg-red-50 sm:justify-start`}
-              >
-                <Trash2 size={18} /> Solicitar exclusão
-              </button>
-            </div>
-          </section>
         </div>
       </div>
     </div>

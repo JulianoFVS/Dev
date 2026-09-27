@@ -185,7 +185,7 @@ function LoginFluidGlow() {
   );
 }
 
-function LoginBrandPanel({ className = '' }: { className?: string }) {
+export function LoginBrandPanel({ className = '' }: { className?: string }) {
   return (
     <div className={`flex min-h-[inherit] flex-col p-3 sm:p-4 md:p-5 lg:p-6 ${className}`}>
       <div className="relative min-h-0 flex-1 overflow-hidden rounded-[1.35rem] bg-neutral-950 sm:rounded-[1.65rem] md:rounded-[1.85rem] lg:rounded-[2rem]">
