@@ -48,7 +48,7 @@ import dynamic from 'next/dynamic';
 const OdontogramaContainer = dynamic(() => import('@/components/OdontogramaContainer'), {
   ssr: false,
   loading: () => (
-    <div className="h-[380px] w-full animate-pulse rounded-xl bg-slate-100 sm:h-[480px] md:h-[600px]" />
+    <div className="h-[min(68vh,560px)] min-h-[320px] w-full animate-pulse rounded-xl bg-[#f4f6f8] sm:min-h-[420px]" />
   ),
 });
 
@@ -373,6 +373,7 @@ export default function PacienteDetalhe() {
   const [tratEdit, setTratEdit] = useState<any>({ id: null, dente: '', procedimento: '', data: new Date().toISOString().split('T')[0], status: 'concluido', valor: '', observacoes: '', agendarNaAgenda: false, horaAgendamento: '09:00', pagamentoPendente: false, dentesSelecionados: [] as string[], atualizarOdontograma: false });
   const marcacoesOdonto = useMemo(() => listarMarcacoesOdontograma(odontograma), [odontograma]);
   const marcacoesPendentes = useMemo(() => marcacoesOdonto.filter((m) => m.precisaTratamento), [marcacoesOdonto]);
+  const [mostrar3D, setMostrar3D] = useState(false);
   const [odontogramaZoom, setOdontogramaZoom] = useState(1);
   const [odontogramaPan, setOdontogramaPan] = useState({ x: 0, y: 0 });
   const odontogramaSurfaceRef = useRef<HTMLDivElement | null>(null);
@@ -2313,10 +2314,9 @@ export default function PacienteDetalhe() {
                                 <span className="text-xs font-bold text-slate-500">{Math.round(odontogramaZoom * 100)}%</span>
                             </div>
 
-                            <div className="grid items-stretch gap-3 xl:grid-cols-2">
-                            <div className="relative max-h-[42vh] min-h-[240px] overflow-hidden rounded-2xl border border-black/10 bg-white p-3">
-                                <div className="flex justify-center">
-                                    <div className="overflow-auto custom-scrollbar">
+                            <div className="overflow-x-auto rounded-2xl border border-black/10 bg-white p-3 sm:p-5">
+                                <div className="flex w-max min-w-full justify-center">
+                                    <div>
                                         {(() => {
                                             const isEsq = visaoOdonto === 'esquematica';
                                             const quad = tipoArcada === 'permanente' ? QUAD_PERM : QUAD_LEITE;
@@ -2353,18 +2353,27 @@ export default function PacienteDetalhe() {
                                 </div>
                             </div>
 
-                            <div className="flex max-h-[42vh] min-h-[240px] flex-col overflow-hidden rounded-2xl border border-black/10 bg-[#f8f8f6] p-3">
-                                <div className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-neutral-400">Vista 3D</div>
-                                <div className="min-h-0 flex-1 overflow-hidden">
+                            <div className="mt-3">
+                                <button
+                                    type="button"
+                                    onClick={() => setMostrar3D((v) => !v)}
+                                    className={`inline-flex h-10 items-center justify-center rounded-full px-4 text-sm font-semibold ${mostrar3D ? 'border border-black/10 bg-white text-neutral-800' : 'bg-neutral-900 text-white'}`}
+                                >
+                                    {mostrar3D ? 'Fechar vista 3D' : 'Abrir vista 3D'}
+                                </button>
+                            </div>
+
+                            {mostrar3D && (
+                                <div className="mt-3 overflow-hidden rounded-2xl border border-black/10 bg-[#f8f8f6] p-3 sm:p-4">
+                                    <div className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-neutral-400">Vista 3D</div>
                                     <OdontogramaContainer />
+                                    {FDI_MISSING_IN_3D.length > 0 && (
+                                        <p className="mt-2 text-[10px] text-neutral-400">
+                                            Sem modelo 3D: {FDI_MISSING_IN_3D.join(', ')}.
+                                        </p>
+                                    )}
                                 </div>
-                                {FDI_MISSING_IN_3D.length > 0 && (
-                                    <p className="mt-2 text-[10px] text-neutral-400">
-                                        Sem modelo 3D: {FDI_MISSING_IN_3D.join(', ')} — marque esses dentes no odontograma ao lado.
-                                    </p>
-                                )}
-                            </div>
-                            </div>
+                            )}
 
                             {/* Resumo de dentes alterados */}
                             <div className="mt-6 border-t border-black/5 pt-4">
