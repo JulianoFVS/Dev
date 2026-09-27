@@ -48,7 +48,7 @@ import dynamic from 'next/dynamic';
 const OdontogramaContainer = dynamic(() => import('@/components/OdontogramaContainer'), {
   ssr: false,
   loading: () => (
-    <div className="h-[min(68vh,560px)] min-h-[320px] w-full animate-pulse rounded-xl bg-[#f4f6f8] sm:min-h-[420px]" />
+    <div className="h-full min-h-[240px] w-full animate-pulse rounded-xl bg-[#f4f6f8]" />
   ),
 });
 
@@ -2314,7 +2314,8 @@ export default function PacienteDetalhe() {
                                 <span className="text-xs font-bold text-slate-500">{Math.round(odontogramaZoom * 100)}%</span>
                             </div>
 
-                            <div className="overflow-x-auto rounded-2xl border border-black/10 bg-white p-3 sm:p-5">
+                            <div className={mostrar3D ? 'grid grid-cols-1 items-stretch gap-3 lg:grid-cols-[minmax(0,7fr)_minmax(0,3fr)]' : ''}>
+                            <div className="min-w-0 overflow-x-auto rounded-2xl border border-black/10 bg-white p-3 sm:p-5">
                                 <div className="flex w-max min-w-full justify-center">
                                     <div>
                                         {(() => {
@@ -2353,25 +2354,39 @@ export default function PacienteDetalhe() {
                                 </div>
                             </div>
 
-                            <div className="mt-3">
-                                <button
-                                    type="button"
-                                    onClick={() => setMostrar3D((v) => !v)}
-                                    className={`inline-flex h-10 items-center justify-center rounded-full px-4 text-sm font-semibold ${mostrar3D ? 'border border-black/10 bg-white text-neutral-800' : 'bg-neutral-900 text-white'}`}
-                                >
-                                    {mostrar3D ? 'Fechar vista 3D' : 'Abrir vista 3D'}
-                                </button>
-                            </div>
-
                             {mostrar3D && (
-                                <div className="mt-3 overflow-hidden rounded-2xl border border-black/10 bg-[#f8f8f6] p-3 sm:p-4">
-                                    <div className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-neutral-400">Vista 3D</div>
-                                    <OdontogramaContainer />
+                                <div className="flex h-[min(52vh,480px)] min-h-[280px] min-w-0 flex-col overflow-hidden rounded-2xl border border-black/10 bg-[#f8f8f6] p-2 sm:p-3 lg:h-full">
+                                    <div className="mb-2 flex items-center justify-between gap-2">
+                                        <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-400">Vista 3D</span>
+                                        <button
+                                            type="button"
+                                            onClick={() => setMostrar3D(false)}
+                                            className="inline-flex h-8 items-center justify-center rounded-full border border-black/10 bg-white px-3 text-xs font-semibold text-neutral-700"
+                                        >
+                                            Fechar
+                                        </button>
+                                    </div>
+                                    <div className="min-h-0 flex-1">
+                                        <OdontogramaContainer />
+                                    </div>
                                     {FDI_MISSING_IN_3D.length > 0 && (
                                         <p className="mt-2 text-[10px] text-neutral-400">
                                             Sem modelo 3D: {FDI_MISSING_IN_3D.join(', ')}.
                                         </p>
                                     )}
+                                </div>
+                            )}
+                            </div>
+
+                            {!mostrar3D && (
+                                <div className="mt-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => setMostrar3D(true)}
+                                        className="inline-flex h-10 items-center justify-center rounded-full bg-neutral-900 px-4 text-sm font-semibold text-white"
+                                    >
+                                        Abrir vista 3D
+                                    </button>
                                 </div>
                             )}
 

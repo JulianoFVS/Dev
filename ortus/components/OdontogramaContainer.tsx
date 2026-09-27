@@ -17,7 +17,7 @@ export default function OdontogramaContainer() {
   }, []);
 
   return (
-    <div className="h-[min(68vh,560px)] min-h-[320px] w-full overflow-hidden rounded-xl bg-[#f4f6f8] sm:min-h-[420px]">
+    <div className="h-full min-h-[240px] w-full overflow-hidden rounded-xl bg-[#f4f6f8]">
       <Canvas
         // demand: só renderiza quando algo muda — sem loop de 60fps travando a CPU
         frameloop="demand"
@@ -41,7 +41,7 @@ export default function OdontogramaContainer() {
         <directionalLight position={[10, 10, 10]} intensity={1.3} castShadow={false} />
         <directionalLight position={[-6, 4, -4]} intensity={0.45} castShadow={false} />
         <directionalLight position={[0, -6, 6]} intensity={0.25} castShadow={false} />
-        <Bounds fit clip observe margin={1.45}>
+        <Bounds fit clip observe margin={1.08}>
           <Odontogram3D />
         </Bounds>
         <OrbitControls makeDefault enablePan={false} minDistance={2} maxDistance={24} />
