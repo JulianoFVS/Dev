@@ -7,9 +7,7 @@ import { carregarConfig } from '@/lib/configClinica';
 import CustomSelect from '@/components/ui/CustomSelect';
 import { useClinica, getClinicLabel } from '@/app/context/ClinicaContext';
 import { printDocument, printTable, escapePrintHtml } from '@/lib/printDocument';
-import {
-    AlertCircle, ArrowLeft, CalendarRange, ChevronRight, Printer, Users, Wallet,
-} from 'lucide-react';
+import { AlertCircle, ArrowLeft, ChevronRight, Printer } from 'lucide-react';
 
 const cardShell = 'rounded-[1.35rem] bg-white sm:rounded-[1.5rem]';
 const REL_CACHE_KEY = 'ortus:relatorios:v2';
@@ -97,27 +95,34 @@ const VAZIO: Snap = {
 type Atalho = 'hoje' | '7d' | 'mes' | 'trimestre' | 'ano';
 type Modo = 'atalho' | 'intervalo';
 type Secao = { titulo: string; nota?: string; colunas: string[]; linhas: string[][] };
-type Kpi = { id: ReportId; titulo: string; valor: string; detalhe: string; antes: string };
+type Kpi = { id: ReportId; titulo: string; valor: string; detalhe: string; antes: string; delta: string };
 
-const CATALOGO: { id: ReportId; titulo: string; texto: string }[] = [
-    { id: 'comparecimento', titulo: 'Comparecimento', texto: 'Presença, falta, cancelamento e a lista nominal.' },
-    { id: 'ocupacao', titulo: 'Ocupação da agenda', texto: 'Horas marcadas, horas livres e a taxa por dia e profissional.' },
-    { id: 'producao', titulo: 'Produção por profissional', texto: 'Consultas, faturamento, ticket e faltas.' },
-    { id: 'procedimentos', titulo: 'Procedimentos', texto: 'Ranking por quantidade, valor, ticket e participação.' },
-    { id: 'novos', titulo: 'Novos pacientes e retornos', texto: 'Primeira vez, retorno e a taxa de volta em 90 dias.' },
-    { id: 'resultado', titulo: 'Resultado do período', texto: 'Bruto, descontos, taxas, líquido, despesas e o resultado.' },
-    { id: 'fluxo', titulo: 'Fluxo realizado e previsto', texto: 'O que já entrou e o que ainda está na agenda.' },
-    { id: 'inadimplencia', titulo: 'Inadimplência', texto: 'Fiado em aberto por idade: 0–30, 31–60, 61–90 e 90+.' },
-    { id: 'pagamentos', titulo: 'Formas de pagamento', texto: 'Mix, bruto e líquido com a taxa do cartão.' },
-    { id: 'convenio', titulo: 'Particular e convênio', texto: 'Produção separada pelo plano do paciente.' },
-    { id: 'inativos', titulo: 'Base inativa', texto: 'Quem não volta há 30, 90, 180 ou 365 dias.' },
-    { id: 'planos', titulo: 'Planos da carteira', texto: 'Quantos pacientes estão em cada plano.' },
-    { id: 'proteses', titulo: 'Próteses', texto: 'Etapa, atraso e o valor cobrado. O kanban continua no Laboratório.' },
-    { id: 'comissoes', titulo: 'Comissões a pagar', texto: 'O que já foi lançado e ainda não foi pago.' },
-    { id: 'carga', titulo: 'Carga da agenda', texto: 'Horas ocupadas e livres de cada profissional.' },
+const NOMES: Record<Exclude<ReportId, 'painel'>, string> = {
+    comparecimento: 'Comparecimento',
+    ocupacao: 'Ocupação',
+    producao: 'Produção por profissional',
+    procedimentos: 'Procedimentos',
+    novos: 'Pacientes novos',
+    resultado: 'Faturamento',
+    fluxo: 'Fluxo do caixa',
+    inadimplencia: 'Inadimplência',
+    pagamentos: 'Formas de pagamento',
+    convenio: 'Particular e convênio',
+    inativos: 'Quem não volta',
+    planos: 'Planos',
+    proteses: 'Próteses',
+    comissoes: 'Comissões',
+    carga: 'Carga da agenda',
+};
+
+const GRUPOS: { titulo: string; itens: Exclude<ReportId, 'painel'>[] }[] = [
+    { titulo: 'Dinheiro', itens: ['resultado', 'inadimplencia', 'pagamentos', 'fluxo'] },
+    { titulo: 'Agenda', itens: ['comparecimento', 'ocupacao', 'producao', 'procedimentos', 'carga'] },
+    { titulo: 'Pacientes', itens: ['novos', 'inativos', 'convenio', 'planos'] },
+    { titulo: 'Laboratório', itens: ['proteses', 'comissoes'] },
 ];
 
-const USA_PROF = new Set<ReportId>(['painel', 'comparecimento', 'ocupacao', 'producao', 'procedimentos', 'carga', 'novos']);
+const USA_PROF = new Set<ReportId>(['comparecimento', 'ocupacao', 'producao', 'procedimentos', 'carga', 'novos']);
 
 function periodoCacheKey(modo: Modo, atalho: Atalho, ini: string, fim: string) {
     return modo === 'intervalo' ? `iv:${ini}_${fim}` : `at:${atalho}`;
@@ -282,6 +287,13 @@ function compararTexto(atual: number, anterior: number, formato: (n: number) => 
     const sinal = diff > 0 ? '+' : '';
     const variacao = anterior ? ` · ${sinal}${Math.round((diff / Math.abs(anterior)) * 100)}%` : '';
     return `Antes ${formato(anterior)}${variacao}`;
+}
+
+function deltaPct(atual: number, anterior: number) {
+    if (!anterior) return '';
+    const p = Math.round(((atual - anterior) / Math.abs(anterior)) * 100);
+    if (!Number.isFinite(p) || p === 0) return '';
+    return `${p > 0 ? '+' : ''}${p}%`;
 }
 
 export default function Relatorios() {
@@ -452,12 +464,12 @@ export default function Relatorios() {
         const aberto = dados.fiados.reduce((s, a) => s + (Number(a.valor_final ?? a.valor) || 0), 0);
 
         const kpis: Kpi[] = [
-            { id: 'resultado', titulo: 'Faturamento líquido', valor: brl(fatAtual), detalhe: 'Consultas concluídas, já com a taxa do cartão', antes: compararTexto(fatAtual, fatAntes, brl) },
-            { id: 'producao', titulo: 'Ticket médio', valor: brl(ticketAtual), detalhe: 'Por consulta concluída', antes: compararTexto(ticketAtual, ticketAntes, brl) },
-            { id: 'comparecimento', titulo: 'Comparecimento', valor: pct(compAtual.taxa), detalhe: `${compAtual.p} presentes · ${compAtual.f} faltas · ${compAtual.c} cancelamentos`, antes: compararTexto(compAtual.taxa, compAntes.taxa, pct) },
-            { id: 'inadimplencia', titulo: 'Inadimplência', valor: brl(aberto), detalhe: `${dados.fiados.length} fiado${dados.fiados.length === 1 ? '' : 's'} em aberto, de qualquer data`, antes: 'Saldo em aberto agora, fora da comparação de período' },
-            { id: 'ocupacao', titulo: 'Ocupação da agenda', valor: pct(ocAtual.taxa), detalhe: ocAtual.estimada ? 'Sem horário cadastrado: a capacidade usa 10h em dias úteis' : `${num(ocAtual.ocupado / 60)} h marcadas`, antes: compararTexto(ocAtual.taxa, ocAntes.taxa, pct) },
-            { id: 'novos', titulo: 'Pacientes novos', valor: String(novosAtual), detalhe: 'Cadastros no período', antes: compararTexto(novosAtual, novosAntes, (n) => String(Math.round(n))) },
+            { id: 'resultado', titulo: 'Faturamento', valor: brl(fatAtual), detalhe: '', antes: compararTexto(fatAtual, fatAntes, brl), delta: deltaPct(fatAtual, fatAntes) },
+            { id: 'producao', titulo: 'Ticket médio', valor: brl(ticketAtual), detalhe: '', antes: compararTexto(ticketAtual, ticketAntes, brl), delta: deltaPct(ticketAtual, ticketAntes) },
+            { id: 'comparecimento', titulo: 'Comparecimento', valor: pct(compAtual.taxa), detalhe: '', antes: compararTexto(compAtual.taxa, compAntes.taxa, pct), delta: deltaPct(compAtual.taxa, compAntes.taxa) },
+            { id: 'inadimplencia', titulo: 'Inadimplência', valor: brl(aberto), detalhe: '', antes: '', delta: '' },
+            { id: 'ocupacao', titulo: 'Ocupação', valor: pct(ocAtual.taxa), detalhe: '', antes: compararTexto(ocAtual.taxa, ocAntes.taxa, pct), delta: deltaPct(ocAtual.taxa, ocAntes.taxa) },
+            { id: 'novos', titulo: 'Pacientes novos', valor: String(novosAtual), detalhe: '', antes: compararTexto(novosAtual, novosAntes, (n) => String(Math.round(n))), delta: deltaPct(novosAtual, novosAntes) },
         ];
 
         const secoes = montarSecoes(tipo, {
@@ -471,7 +483,7 @@ export default function Relatorios() {
     }, [dados, periodo.inicio, periodo.fim, anterior.inicio, anterior.fim, aplicaProf, tipo, profNome]);
 
     const kpiLoading = loading && !jaCarregou.current;
-    const titulo = tipo === 'painel' ? 'Visão geral' : CATALOGO.find((c) => c.id === tipo)?.titulo || 'Relatório';
+    const titulo = tipo === 'painel' ? 'Relatórios' : NOMES[tipo];
 
     function imprimir() {
         const body = modelo.secoes.map((s) => {
@@ -500,17 +512,19 @@ export default function Relatorios() {
                 <div>
                     {tipo !== 'painel' && (
                         <button type="button" onClick={() => setTipo('painel')} className="mb-2 inline-flex items-center gap-1 text-sm font-medium text-neutral-500 hover:text-neutral-900">
-                            <ArrowLeft size={16} /> Visão geral
+                            <ArrowLeft size={16} /> Relatórios
                         </button>
                     )}
-                    <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 md:text-[2rem]">Relatórios</h1>
-                    <p className="mt-1 text-sm text-neutral-500 sm:text-base">
-                        {activeClinic ? getClinicLabel(activeClinic) : 'Todas as suas clínicas'} · {periodo.label}. Só leitura — o caixa fica no Financeiro.
+                    <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 md:text-[2rem]">{titulo}</h1>
+                    <p className="mt-1 text-sm text-neutral-500">
+                        {activeClinic ? getClinicLabel(activeClinic) : 'Todas as suas clínicas'} · {periodo.label}
                     </p>
                 </div>
-                <button type="button" onClick={imprimir} className="inline-flex h-10 items-center justify-center gap-2 self-start rounded-full border border-black/10 bg-white px-4 text-sm font-medium text-neutral-800 hover:bg-neutral-50">
-                    <Printer size={16} /> <span className="hidden sm:inline">Exportar PDF</span>
-                </button>
+                {tipo !== 'painel' && (
+                    <button type="button" onClick={imprimir} className="inline-flex h-10 items-center justify-center gap-2 self-start rounded-full border border-black/10 bg-white px-4 text-sm font-medium text-neutral-800 hover:bg-neutral-50">
+                        <Printer size={16} /> <span className="hidden sm:inline">PDF</span>
+                    </button>
+                )}
             </div>
 
             {activeClinicId === 'all' && (
@@ -536,51 +550,54 @@ export default function Relatorios() {
                         <input type="date" value={dataFim} onChange={(e) => setDataFim(e.target.value)} className="bg-transparent text-xs font-medium text-neutral-700 outline-none sm:text-sm" />
                     </div>
                 )}
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                     <button type="button" onClick={() => setComparar((v) => !v)} className={pill(comparar)}>
-                        Comparar com o período anterior
+                        Comparar
                     </button>
-                    <div className="min-w-0 flex-1 sm:max-w-xs">
-                        <CustomSelect
-                            value={filtroProf}
-                            onChange={setFiltroProf}
-                            options={[{ value: 'todos', label: 'Todos os profissionais' }, ...dados.profissionais.map((p) => ({ value: String(p.id), label: p.nome }))]}
-                            size="md"
-                        />
-                    </div>
+                    {USA_PROF.has(tipo) && (
+                        <div className="min-w-0 sm:w-64">
+                            <CustomSelect
+                                value={filtroProf}
+                                onChange={setFiltroProf}
+                                options={[{ value: 'todos', label: 'Todos os profissionais' }, ...dados.profissionais.map((p) => ({ value: String(p.id), label: p.nome }))]}
+                                size="md"
+                            />
+                        </div>
+                    )}
                 </div>
-                <p className="text-[11px] text-neutral-400">O profissional filtra comparecimento, ocupação, produção, procedimentos, novos pacientes e a carga da agenda.</p>
             </section>
 
             {tipo === 'painel' ? (
-                <>
-                    <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-3 sm:gap-3">
-                        {modelo.kpis.map((k) => (
-                            <button key={k.id} type="button" onClick={() => setTipo(k.id)} className={`${cardShell} p-4 text-left transition-colors hover:bg-[#f8f8f6] sm:p-5`}>
-                                <div className="flex items-start justify-between gap-2">
-                                    <p className="text-xs font-medium text-neutral-500">{k.titulo}</p>
-                                    <ChevronRight size={16} className="shrink-0 text-neutral-300" />
-                                </div>
-                                {kpiLoading ? <div className="mt-3 h-8 w-24 animate-pulse rounded-xl bg-neutral-100" /> : (
-                                    <p className="mt-2 text-xl font-semibold tracking-tight text-neutral-900 sm:text-2xl">{k.valor}</p>
-                                )}
-                                <p className="mt-1 text-[11px] text-neutral-500 sm:text-xs">{k.detalhe}</p>
-                                {comparar && !kpiLoading && <p className="mt-2 text-[11px] font-medium text-neutral-400">{k.antes}</p>}
-                            </button>
-                        ))}
-                    </div>
-                    <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
-                        {CATALOGO.map((item) => (
-                            <button key={item.id} type="button" onClick={() => setTipo(item.id)} className={`${cardShell} flex items-start gap-3 p-4 text-left hover:bg-[#f8f8f6]`}>
-                                <span className="rounded-full bg-[#f3f4f1] p-2 text-neutral-700"><CalendarRange size={16} /></span>
-                                <span className="min-w-0">
-                                    <span className="block text-sm font-semibold text-neutral-900">{item.titulo}</span>
-                                    <span className="mt-0.5 block text-xs text-neutral-500">{item.texto}</span>
-                                </span>
-                            </button>
-                        ))}
-                    </div>
-                </>
+                <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                    {GRUPOS.map((grupo) => (
+                        <section key={grupo.titulo} className={`${cardShell} overflow-hidden`}>
+                            <h2 className="px-4 pb-1 pt-4 text-[11px] font-semibold uppercase tracking-[0.14em] text-neutral-400 sm:px-5">{grupo.titulo}</h2>
+                            <div>
+                                {grupo.itens.map((id) => {
+                                    const kpi = modelo.kpis.find((k) => k.id === id);
+                                    return (
+                                        <button
+                                            key={id}
+                                            type="button"
+                                            onClick={() => setTipo(id)}
+                                            className="flex w-full items-center gap-3 border-t border-black/5 px-4 py-3.5 text-left transition-colors hover:bg-[#f8f8f6] sm:px-5"
+                                        >
+                                            <span className="min-w-0 flex-1 truncate text-sm font-medium text-neutral-900 sm:text-[15px]">{NOMES[id]}</span>
+                                            {kpi && kpiLoading ? <span className="h-4 w-16 animate-pulse rounded-md bg-neutral-100" /> : null}
+                                            {kpi && !kpiLoading ? (
+                                                <span className="flex shrink-0 items-baseline gap-2">
+                                                    <span className="text-sm font-semibold tabular-nums text-neutral-900">{kpi.valor}</span>
+                                                    {comparar && kpi.delta ? <span className="text-[11px] tabular-nums text-neutral-400">{kpi.delta}</span> : null}
+                                                </span>
+                                            ) : null}
+                                            <ChevronRight size={16} className="shrink-0 text-neutral-300" />
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </section>
+                    ))}
+                </div>
             ) : (
                 <div className="space-y-3">
                     {kpiLoading ? (
@@ -618,10 +635,6 @@ export default function Relatorios() {
                 </div>
             )}
 
-            <p className="flex items-center gap-2 px-1 text-[11px] text-neutral-400">
-                <Wallet size={14} /> Fechamento de caixa, baixa de fiado e cancelamento continuam no Financeiro.
-                <Users size={14} className="ml-2" /> A lista de pacientes continua em Pacientes.
-            </p>
         </div>
     );
 }
