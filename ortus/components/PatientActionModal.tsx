@@ -64,8 +64,9 @@ function getInitials(name?: string | null) {
   return (first + last).toUpperCase();
 }
 
-const qcInput = 'h-8 w-full rounded-xl border border-black/10 bg-[#f8f8f6] px-2.5 text-sm font-medium text-neutral-800 outline-none placeholder:font-normal placeholder:text-neutral-400 focus:border-neutral-400 focus:bg-white';
-const qcLabel = 'mb-0.5 block text-[10px] font-medium uppercase tracking-wide text-neutral-400';
+const qcInput = 'h-10 w-full rounded-xl border border-black/10 bg-[#f8f8f6] px-3 text-sm font-medium text-neutral-800 outline-none placeholder:font-normal placeholder:text-neutral-400 focus:border-neutral-400 focus:bg-white';
+const qcLabel = 'mb-1.5 block text-xs font-medium text-neutral-500';
+const qcSection = 'mb-3 text-sm font-semibold text-neutral-900';
 
 const FLOW_META: Record<Exclude<ActiveFlow, 'idle'>, { title: string; subtitle: string; gradient: string }> = {
   agendamento: { title: 'Novo Agendamento', subtitle: 'Reserve um horário sem sair da página.', gradient: 'from-blue-50 to-white' },
@@ -389,7 +390,7 @@ export function PatientActionModalProvider({ children }: { children: React.React
     <PatientActionModalContext.Provider value={value}>
       {children}
 
-      <Modal open={open} onClose={closePatientActions} maxWidth={quickCapture ? '3xl' : 'lg'} zIndex={80} hideCloseButton panelClassName={quickCapture ? 'overflow-hidden rounded-[1.35rem] border border-black/10 bg-white shadow-2xl sm:rounded-[1.5rem]' : 'bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[92vh] animate-in zoom-in-95 duration-200'}>
+      <Modal open={open} onClose={closePatientActions} maxWidth={quickCapture ? '4xl' : 'lg'} zIndex={80} hideCloseButton panelClassName={quickCapture ? 'overflow-hidden rounded-[1.5rem] border border-black/10 bg-white shadow-2xl' : 'bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[92vh] animate-in zoom-in-95 duration-200'}>
           {!quickCapture && <div className={`p-5 border-b border-slate-100 bg-gradient-to-br ${flowMeta?.gradient || 'from-blue-50 to-white'} flex items-start justify-between gap-4 shrink-0`}>
               <div className="flex items-center gap-3 min-w-0">
                 {activeFlow !== 'idle' ? (
@@ -434,30 +435,32 @@ export function PatientActionModalProvider({ children }: { children: React.React
             </div>}
 
             {quickCapture && (
-              <div className="px-3 py-2.5 sm:overflow-visible sm:px-4 max-sm:max-h-[calc(100dvh-1rem)] max-sm:overflow-y-auto">
-                <div className="mb-2 flex items-center justify-between gap-3">
-                  <div className="flex min-w-0 items-center gap-2.5">
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-neutral-900 text-white">
-                      <User size={15} />
+              <div className="px-5 py-4 sm:px-6 sm:py-5">
+                <div className="mb-5 flex items-center justify-between gap-4 border-b border-black/5 pb-4">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-neutral-900 text-white">
+                      <User size={18} />
                     </div>
                     <div className="min-w-0">
-                      <p className="text-[10px] font-medium uppercase tracking-wide text-neutral-400">Cadastro rápido</p>
-                      <h2 className="truncate text-base font-semibold text-neutral-900">Novo paciente</h2>
+                      <p className="text-xs font-medium text-neutral-500">Cadastro rápido</p>
+                      <h2 className="text-lg font-semibold text-neutral-900">Novo paciente</h2>
                     </div>
                   </div>
-                  <button type="button" onClick={closePatientActions} className="rounded-full p-1.5 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-800" aria-label="Fechar">
+                  <button type="button" onClick={closePatientActions} className="rounded-full p-2 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-800" aria-label="Fechar">
                     <X size={18} />
                   </button>
                 </div>
 
-                <div className="grid grid-cols-2 gap-x-2 gap-y-1 lg:grid-cols-4">
-                  <label className="col-span-2 min-w-0">
+                <section>
+                  <h3 className={qcSection}>Identificação</h3>
+                  <div className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <label className="min-w-0 sm:col-span-2">
                     <span className={qcLabel}>Nome <span className="text-red-500">*</span></span>
                     <input autoFocus type="text" value={qcNome} onChange={(event) => setQcNome(event.target.value)} placeholder="Nome completo do paciente" className={qcInput} />
                   </label>
                   <label className="min-w-0">
                     <span className={qcLabel}>Sexo <span className="text-red-500">*</span></span>
-                    <CustomSelect value={qcSexo} onChange={setQcSexo} options={SEXO_OPTIONS} size="xs" />
+                    <CustomSelect value={qcSexo} onChange={setQcSexo} options={SEXO_OPTIONS} size="md" />
                   </label>
                   <label className="min-w-0">
                     <span className={qcLabel}>Nascimento</span>
@@ -486,8 +489,8 @@ export function PatientActionModalProvider({ children }: { children: React.React
                           setPlanos([]);
                         }
                       }}
-                      options={[{ value: '', label: 'Selecione a clínica...' }, ...clinics.map((c: any) => ({ value: c.id, label: c.nome }))]}
-                      size="xs"
+                      options={[{ value: '', label: 'Selecione a clínica' }, ...clinics.map((c: any) => ({ value: c.id, label: c.nome }))]}
+                      size="md"
                     />
                   </label>
                   <label className="min-w-0">
@@ -497,9 +500,15 @@ export function PatientActionModalProvider({ children }: { children: React.React
                       onChange={setQcPlanoId}
                       disabled={!qcClinicaId}
                       options={[{ value: '', label: 'Particular (sem convênio)' }, ...planos.map(p => ({ value: p.id, label: p.nome }))]}
-                      size="xs"
+                      size="md"
                     />
                   </label>
+                  </div>
+                </section>
+
+                <section className="mt-5 border-t border-black/5 pt-4">
+                  <h3 className={qcSection}>Endereço</h3>
+                  <div className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2 lg:grid-cols-4">
                   <label className="min-w-0">
                     <span className={qcLabel}>CEP</span>
                     <input
@@ -515,12 +524,12 @@ export function PatientActionModalProvider({ children }: { children: React.React
                     />
                   </label>
                   <label className="min-w-0">
+                    <span className={qcLabel}>Rua / avenida {qcBuscandoCep && <Loader2 size={12} className="ml-1 inline animate-spin" />}</span>
+                    <input type="text" value={qcRua} onChange={(e) => setQcRua(e.target.value)} placeholder="Rua / Avenida" className={qcInput} />
+                  </label>
+                  <label className="min-w-0">
                     <span className={qcLabel}>Número</span>
                     <input type="text" value={qcNumero} onChange={(e) => setQcNumero(e.target.value)} placeholder="Nº" className={qcInput} />
-                  </label>
-                  <label className="col-span-2 min-w-0">
-                    <span className={qcLabel}>Rua / avenida {qcBuscandoCep && <Loader2 size={10} className="ml-1 inline animate-spin" />}</span>
-                    <input type="text" value={qcRua} onChange={(e) => setQcRua(e.target.value)} placeholder="Rua / Avenida" className={qcInput} />
                   </label>
                   <label className="min-w-0">
                     <span className={qcLabel}>Complemento</span>
@@ -536,35 +545,42 @@ export function PatientActionModalProvider({ children }: { children: React.React
                   </label>
                   <label className="min-w-0">
                     <span className={qcLabel}>UF</span>
-                    <CustomSelect value={qcUf} onChange={setQcUf} options={UF_OPTIONS} size="xs" />
+                    <CustomSelect value={qcUf} onChange={setQcUf} options={UF_OPTIONS} size="md" />
                   </label>
-                  <label className="col-span-2 min-w-0">
-                    <span className={qcLabel}>Responsável {isMenorDeIdade(qcDataNascimento) && <span className="text-red-500">*</span>}</span>
+                  </div>
+                </section>
+
+                <section className="mt-5 border-t border-black/5 pt-4">
+                  <h3 className={qcSection}>Responsável {isMenorDeIdade(qcDataNascimento) && <span className="text-xs font-medium text-red-500">obrigatório para menor de 18 anos</span>}</h3>
+                  <div className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-3">
+                  <label className="min-w-0">
+                    <span className={qcLabel}>Nome</span>
                     <input type="text" value={qcResponsavelNome} onChange={(e) => setQcResponsavelNome(e.target.value)} placeholder="Nome do responsável" className={qcInput} />
                   </label>
                   <label className="min-w-0">
                     <span className={qcLabel}>Parentesco</span>
-                    <CustomSelect value={qcResponsavelParentesco} onChange={setQcResponsavelParentesco} options={PARENTESCO_OPTIONS} size="xs" />
+                    <CustomSelect value={qcResponsavelParentesco} onChange={setQcResponsavelParentesco} options={PARENTESCO_OPTIONS} size="md" />
                   </label>
                   <label className="min-w-0">
-                    <span className={qcLabel}>Tel. responsável</span>
+                    <span className={qcLabel}>Telefone</span>
                     <input type="tel" value={qcResponsavelTelefone} onChange={(e) => setQcResponsavelTelefone(e.target.value)} placeholder="(00) 00000-0000" className={qcInput} />
                   </label>
-                </div>
+                  </div>
+                </section>
 
                 {qcError && (
-                  <p className="mt-2 flex items-center gap-1.5 text-xs font-medium text-red-600">
-                    <AlertCircle size={14} className="shrink-0" />
+                  <p className="mt-4 flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-sm font-medium text-red-700">
+                    <AlertCircle size={16} className="shrink-0" />
                     {qcError}
                   </p>
                 )}
 
-                <div className="mt-2 flex items-center justify-between gap-3 border-t border-black/5 pt-2">
-                  <p className="text-[11px] text-neutral-400">Depois você agenda, cria a prótese ou abre a ficha.</p>
+                <div className="mt-5 flex items-center justify-between gap-4 border-t border-black/5 pt-4">
+                  <p className="text-sm text-neutral-500">Depois você agenda, cria a prótese ou abre a ficha.</p>
                   <button
                     onClick={submitQuickCapture}
                     disabled={qcSaving || !qcNome.trim() || !qcClinicaId}
-                    className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-neutral-900 px-4 text-sm font-medium text-white hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-40"
+                    className="inline-flex h-10 shrink-0 items-center gap-2 rounded-full bg-neutral-900 px-5 text-sm font-medium text-white hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     {qcSaving ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
                     {qcSaving ? 'Cadastrando...' : 'Cadastrar'}

@@ -63,7 +63,7 @@ const TOOLS = ODONTO_TOOLS;
 const prontuarioPanel =
   'rounded-[1.35rem] border border-black/5 bg-white p-4 sm:rounded-[1.5rem] sm:p-6 md:p-8';
 
-const campoLabel = 'mb-1 block text-[10px] font-medium uppercase tracking-wide text-neutral-400';
+const campoLabel = 'mb-1.5 block text-xs font-medium text-neutral-500';
 
 function campoClass(editing: boolean) {
   return `h-9 w-full rounded-xl border px-3 text-sm font-medium text-neutral-800 outline-none placeholder:text-neutral-400 disabled:cursor-default ${
@@ -1758,8 +1758,9 @@ export default function PacienteDetalhe() {
                 </div>
         </Modal>
 
-        <div className="mt-2 flex min-h-0 flex-1 gap-1 sm:gap-3">
-            <nav aria-label="Seções do prontuário" className="flex w-[7.25rem] shrink-0 flex-col pt-1 sm:w-48">
+        <div className="mt-2 flex min-h-0 flex-1 gap-4">
+            <div className="flex w-[11.5rem] shrink-0 items-center sm:w-56">
+            <nav aria-label="Seções do prontuário" className="w-full rounded-[1.35rem] bg-white p-2">
                 {PATIENT_NAV_SECTIONS.map((section) => {
                     const Icon = section.icon;
                     const active = abaAtiva === section.key;
@@ -1774,23 +1775,24 @@ export default function PacienteDetalhe() {
                             key={section.key}
                             type="button"
                             onClick={() => setAbaAtiva(section.key)}
-                            className={`flex w-full items-center gap-1.5 border-l-2 py-1.5 pl-2 pr-1 text-left text-[12px] leading-tight sm:gap-2 sm:py-2 sm:pl-3 sm:text-[13px] ${active ? 'border-neutral-900 font-semibold text-neutral-900' : 'border-transparent font-medium text-neutral-500 hover:text-neutral-800'}`}
+                            className={`flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-sm leading-snug ${active ? 'bg-neutral-900 font-medium text-white' : 'font-medium text-neutral-600 hover:bg-[#f3f4f1]'}`}
                         >
-                            <Icon size={15} className="shrink-0" />
+                            <Icon size={16} className="shrink-0" />
                             <span className="min-w-0 flex-1">{section.label}</span>
                             {badge != null && (
-                                <span className="text-[10px] font-medium tabular-nums text-neutral-400">{badge}</span>
+                                <span className={`text-[11px] font-medium tabular-nums ${active ? 'text-white/70' : 'text-neutral-400'}`}>{badge}</span>
                             )}
                         </button>
                     );
                 })}
             </nav>
+            </div>
 
-            <div className="min-h-0 min-w-0 flex-1 overflow-y-auto">
+            <div className={abaAtiva === 'dados' ? 'flex min-h-0 min-w-0 flex-1 items-center overflow-y-auto' : 'min-h-0 min-w-0 flex-1 overflow-y-auto'}>
                 {abaAtiva === 'dados' && (
-                    <div className="rounded-[1.25rem] border border-black/5 bg-white p-3 sm:p-4">
-                        <div className="mb-2 flex items-center justify-between gap-2">
-                            <h3 className="text-sm font-semibold text-neutral-900">Informações do paciente</h3>
+                    <div className="w-full rounded-[1.35rem] border border-black/5 bg-white p-4 sm:p-5">
+                        <div className="mb-4 flex items-center justify-between gap-2">
+                            <h3 className="text-base font-semibold text-neutral-900">Informações do paciente</h3>
                             <div className="flex gap-1.5">
                                 {modoEdicao ? (
                                     <>
@@ -1803,109 +1805,124 @@ export default function PacienteDetalhe() {
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-x-2.5 gap-y-2 md:grid-cols-4 xl:grid-cols-6">
-                            <label className="col-span-2 min-w-0">
-                                <span className={campoLabel}>Nome completo</span>
-                                <input disabled={!modoEdicao} className={campoClass(modoEdicao)} value={form.nome || ''} onChange={e => setForm({...form, nome: e.target.value})} />
-                            </label>
-                            <label className="min-w-0">
-                                <span className={campoLabel}>Sexo <span className="text-red-500">*</span></span>
-                                <CustomSelect disabled={!modoEdicao} value={form.sexo || ''} onChange={v => setForm({...form, sexo: v})} options={[{value:'',label:'Selecione...'},{value:'masculino',label:'Masculino'},{value:'feminino',label:'Feminino'},{value:'outro',label:'Outro'},{value:'nao_informar',label:'Prefiro não informar'}]} size="sm"/>
-                            </label>
-                            <label className="min-w-0">
-                                <span className={campoLabel}>Nascimento</span>
-                                <input type="date" disabled={!modoEdicao} className={campoClass(modoEdicao)} value={form.data_nascimento || ''} onChange={e => setForm({...form, data_nascimento: e.target.value})} />
-                            </label>
-                            <label className="min-w-0">
-                                <span className={campoLabel}>CPF</span>
-                                <input disabled={!modoEdicao} className={campoClass(modoEdicao)} value={form.cpf || ''} onChange={e => setForm({...form, cpf: e.target.value})} placeholder="000.000.000-00" />
-                            </label>
-                            <label className="min-w-0">
-                                <span className={campoLabel}>WhatsApp</span>
-                                <input disabled={!modoEdicao} className={campoClass(modoEdicao)} value={form.telefone || ''} onChange={e => setForm({...form, telefone: e.target.value})} placeholder="(00) 00000-0000" />
-                            </label>
-                            <label className="col-span-2 min-w-0">
-                                <span className={campoLabel}>E-mail</span>
-                                <input disabled={!modoEdicao} className={campoClass(modoEdicao)} value={form.email || ''} onChange={e => setForm({...form, email: e.target.value})} />
-                            </label>
-                            <label className="col-span-2 min-w-0">
-                                <span className={campoLabel}>Clínica</span>
-                                <CustomSelect disabled={!modoEdicao} value={form.clinica_id || ''} onChange={v => setForm({...form, clinica_id: v})} options={[{value:'',label:'Sem clínica definida'}, ...clinicas.map((c:any) => ({value:String(c.id),label:c.nome}))]} size="sm"/>
-                            </label>
-                            <label className="col-span-2 min-w-0">
-                                <span className={campoLabel}>Plano / convênio</span>
-                                <CustomSelect disabled={!modoEdicao} value={form.plano_id || ''} onChange={v => setForm({...form, plano_id: v || null})} options={[{value:'', label:'Particular (sem convênio)'}, ...planos.map((p:any) => ({value:String(p.id), label:p.nome}))]} size="sm"/>
-                            </label>
+                        <div className="space-y-4">
+                            <section>
+                                <h4 className="mb-3 text-sm font-semibold text-neutral-900">Identificação</h4>
+                                <div className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
+                                    <label className="min-w-0">
+                                        <span className={campoLabel}>Nome completo</span>
+                                        <input disabled={!modoEdicao} className={campoClass(modoEdicao)} value={form.nome || ''} onChange={e => setForm({...form, nome: e.target.value})} />
+                                    </label>
+                                    <label className="min-w-0">
+                                        <span className={campoLabel}>Sexo <span className="text-red-500">*</span></span>
+                                        <CustomSelect disabled={!modoEdicao} value={form.sexo || ''} onChange={v => setForm({...form, sexo: v})} options={[{value:'',label:'Selecione...'},{value:'masculino',label:'Masculino'},{value:'feminino',label:'Feminino'},{value:'outro',label:'Outro'},{value:'nao_informar',label:'Prefiro não informar'}]} size="sm"/>
+                                    </label>
+                                    <label className="min-w-0">
+                                        <span className={campoLabel}>Nascimento</span>
+                                        <input type="date" disabled={!modoEdicao} className={campoClass(modoEdicao)} value={form.data_nascimento || ''} onChange={e => setForm({...form, data_nascimento: e.target.value})} />
+                                    </label>
+                                    <label className="min-w-0">
+                                        <span className={campoLabel}>CPF</span>
+                                        <input disabled={!modoEdicao} className={campoClass(modoEdicao)} value={form.cpf || ''} onChange={e => setForm({...form, cpf: e.target.value})} placeholder="000.000.000-00" />
+                                    </label>
+                                    <label className="min-w-0">
+                                        <span className={campoLabel}>WhatsApp</span>
+                                        <input disabled={!modoEdicao} className={campoClass(modoEdicao)} value={form.telefone || ''} onChange={e => setForm({...form, telefone: e.target.value})} placeholder="(00) 00000-0000" />
+                                    </label>
+                                    <label className="min-w-0">
+                                        <span className={campoLabel}>E-mail</span>
+                                        <input disabled={!modoEdicao} className={campoClass(modoEdicao)} value={form.email || ''} onChange={e => setForm({...form, email: e.target.value})} />
+                                    </label>
+                                    <label className="min-w-0">
+                                        <span className={campoLabel}>Clínica</span>
+                                        <CustomSelect disabled={!modoEdicao} value={form.clinica_id || ''} onChange={v => setForm({...form, clinica_id: v})} options={[{value:'',label:'Sem clínica definida'}, ...clinicas.map((c:any) => ({value:String(c.id),label:c.nome}))]} size="sm"/>
+                                    </label>
+                                    <label className="min-w-0">
+                                        <span className={campoLabel}>Plano / convênio</span>
+                                        <CustomSelect disabled={!modoEdicao} value={form.plano_id || ''} onChange={v => setForm({...form, plano_id: v || null})} options={[{value:'', label:'Particular (sem convênio)'}, ...planos.map((p:any) => ({value:String(p.id), label:p.nome}))]} size="sm"/>
+                                    </label>
+                                </div>
+                            </section>
 
-                            <label className="min-w-0">
-                                <span className="mb-1 flex items-center justify-between gap-2 text-[10px] font-medium uppercase tracking-wide text-neutral-400">
-                                    <span>CEP <span className="text-red-500">*</span></span>
-                                    {modoEdicao && (
-                                        <button
-                                            type="button"
-                                            onClick={async () => {
-                                                const cep = form.cep?.replace(/\D/g, '');
-                                                if (cep?.length === 8) {
-                                                    try {
-                                                        const res = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
-                                                        const data = await res.json();
-                                                        if (!data.erro) {
-                                                            setForm({
-                                                                ...form,
-                                                                rua: data.logradouro || form.rua,
-                                                                bairro: data.bairro || form.bairro,
-                                                                cidade: data.localidade || form.cidade,
-                                                                uf: data.uf || form.uf
-                                                            });
+                            <section className="border-t border-black/5 pt-4">
+                                <h4 className="mb-3 text-sm font-semibold text-neutral-900">Endereço</h4>
+                                <div className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2 lg:grid-cols-4">
+                                    <label className="min-w-0">
+                                        <span className="mb-1.5 flex items-center justify-between gap-2 text-xs font-medium text-neutral-500">
+                                            <span>CEP <span className="text-red-500">*</span></span>
+                                            {modoEdicao && (
+                                                <button
+                                                    type="button"
+                                                    onClick={async () => {
+                                                        const cep = form.cep?.replace(/\D/g, '');
+                                                        if (cep?.length === 8) {
+                                                            try {
+                                                                const res = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+                                                                const data = await res.json();
+                                                                if (!data.erro) {
+                                                                    setForm({
+                                                                        ...form,
+                                                                        rua: data.logradouro || form.rua,
+                                                                        bairro: data.bairro || form.bairro,
+                                                                        cidade: data.localidade || form.cidade,
+                                                                        uf: data.uf || form.uf
+                                                                    });
+                                                                }
+                                                            } catch (e) { console.error('Erro ViaCEP:', e); }
                                                         }
-                                                    } catch (e) { console.error('Erro ViaCEP:', e); }
-                                                }
-                                            }}
-                                            className="font-medium normal-case tracking-normal text-neutral-900 hover:underline"
-                                        >
-                                            Buscar
-                                        </button>
-                                    )}
-                                </span>
-                                <input disabled={!modoEdicao} className={campoClass(modoEdicao)} value={form.cep || ''} onChange={e => setForm({...form, cep: e.target.value})} placeholder="00000-000" />
-                            </label>
-                            <label className="col-span-2 min-w-0 xl:col-span-2">
-                                <span className={campoLabel}>Rua / avenida</span>
-                                <input disabled={!modoEdicao} className={campoClass(modoEdicao)} value={form.rua || ''} onChange={e => setForm({...form, rua: e.target.value})} />
-                            </label>
-                            <label className="min-w-0">
-                                <span className={campoLabel}>Número</span>
-                                <input disabled={!modoEdicao} className={campoClass(modoEdicao)} value={form.numero || ''} onChange={e => setForm({...form, numero: e.target.value})} />
-                            </label>
-                            <label className="col-span-2 min-w-0">
-                                <span className={campoLabel}>Complemento</span>
-                                <input disabled={!modoEdicao} className={campoClass(modoEdicao)} value={form.complemento || ''} onChange={e => setForm({...form, complemento: e.target.value})} placeholder="Apto, bloco, sala" />
-                            </label>
-                            <label className="min-w-0 md:col-span-2">
-                                <span className={campoLabel}>Bairro</span>
-                                <input disabled={!modoEdicao} className={campoClass(modoEdicao)} value={form.bairro || ''} onChange={e => setForm({...form, bairro: e.target.value})} />
-                            </label>
-                            <label className="col-span-2 min-w-0">
-                                <span className={campoLabel}>Cidade</span>
-                                <input disabled={!modoEdicao} className={campoClass(modoEdicao)} value={form.cidade || ''} onChange={e => setForm({...form, cidade: e.target.value})} />
-                            </label>
-                            <label className="col-span-2 min-w-0">
-                                <span className={campoLabel}>UF</span>
-                                <CustomSelect disabled={!modoEdicao} value={form.uf || ''} onChange={v => setForm({...form, uf: v})} options={[{value:'',label:'UF'}, ...['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'].map(uf => ({value:uf,label:uf}))]} size="sm"/>
-                            </label>
+                                                    }}
+                                                    className="font-medium text-neutral-900 hover:underline"
+                                                >
+                                                    Buscar
+                                                </button>
+                                            )}
+                                        </span>
+                                        <input disabled={!modoEdicao} className={campoClass(modoEdicao)} value={form.cep || ''} onChange={e => setForm({...form, cep: e.target.value})} placeholder="00000-000" />
+                                    </label>
+                                    <label className="min-w-0">
+                                        <span className={campoLabel}>Rua / avenida</span>
+                                        <input disabled={!modoEdicao} className={campoClass(modoEdicao)} value={form.rua || ''} onChange={e => setForm({...form, rua: e.target.value})} />
+                                    </label>
+                                    <label className="min-w-0">
+                                        <span className={campoLabel}>Número</span>
+                                        <input disabled={!modoEdicao} className={campoClass(modoEdicao)} value={form.numero || ''} onChange={e => setForm({...form, numero: e.target.value})} />
+                                    </label>
+                                    <label className="min-w-0">
+                                        <span className={campoLabel}>Complemento</span>
+                                        <input disabled={!modoEdicao} className={campoClass(modoEdicao)} value={form.complemento || ''} onChange={e => setForm({...form, complemento: e.target.value})} placeholder="Apto, bloco, sala" />
+                                    </label>
+                                    <label className="min-w-0">
+                                        <span className={campoLabel}>Bairro</span>
+                                        <input disabled={!modoEdicao} className={campoClass(modoEdicao)} value={form.bairro || ''} onChange={e => setForm({...form, bairro: e.target.value})} />
+                                    </label>
+                                    <label className="min-w-0">
+                                        <span className={campoLabel}>Cidade</span>
+                                        <input disabled={!modoEdicao} className={campoClass(modoEdicao)} value={form.cidade || ''} onChange={e => setForm({...form, cidade: e.target.value})} />
+                                    </label>
+                                    <label className="min-w-0">
+                                        <span className={campoLabel}>UF</span>
+                                        <CustomSelect disabled={!modoEdicao} value={form.uf || ''} onChange={v => setForm({...form, uf: v})} options={[{value:'',label:'Selecione...'}, ...['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'].map(uf => ({value:uf,label:uf}))]} size="sm"/>
+                                    </label>
+                                </div>
+                            </section>
 
-                            <label className="col-span-2 min-w-0">
-                                <span className={campoLabel}>Responsável {menorDeIdade && <span className="text-red-500">*</span>}</span>
-                                <input disabled={!modoEdicao} className={campoClass(modoEdicao)} value={form.responsavel_nome || ''} onChange={e => setForm({...form, responsavel_nome: e.target.value})} />
-                            </label>
-                            <label className="col-span-2 min-w-0">
-                                <span className={campoLabel}>Parentesco</span>
-                                <CustomSelect disabled={!modoEdicao} value={form.responsavel_parentesco || ''} onChange={v => setForm({...form, responsavel_parentesco: v})} options={[{value:'',label:'Selecione...'},{value:'pai',label:'Pai'},{value:'mae',label:'Mãe'},{value:'tutor',label:'Tutor'},{value:'avo',label:'Avô/Avó'},{value:'outro',label:'Outro'}]} size="sm"/>
-                            </label>
-                            <label className="col-span-2 min-w-0">
-                                <span className={campoLabel}>Telefone do responsável</span>
-                                <input disabled={!modoEdicao} className={campoClass(modoEdicao)} value={form.responsavel_telefone || ''} onChange={e => setForm({...form, responsavel_telefone: e.target.value})} placeholder="(00) 00000-0000" />
-                            </label>
+                            <section className="border-t border-black/5 pt-4">
+                                <h4 className="mb-3 text-sm font-semibold text-neutral-900">Responsável {menorDeIdade && <span className="text-xs font-medium text-red-500">obrigatório para menor de 18 anos</span>}</h4>
+                                <div className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
+                                    <label className="min-w-0">
+                                        <span className={campoLabel}>Nome</span>
+                                        <input disabled={!modoEdicao} className={campoClass(modoEdicao)} value={form.responsavel_nome || ''} onChange={e => setForm({...form, responsavel_nome: e.target.value})} />
+                                    </label>
+                                    <label className="min-w-0">
+                                        <span className={campoLabel}>Parentesco</span>
+                                        <CustomSelect disabled={!modoEdicao} value={form.responsavel_parentesco || ''} onChange={v => setForm({...form, responsavel_parentesco: v})} options={[{value:'',label:'Selecione...'},{value:'pai',label:'Pai'},{value:'mae',label:'Mãe'},{value:'tutor',label:'Tutor'},{value:'avo',label:'Avô/Avó'},{value:'outro',label:'Outro'}]} size="sm"/>
+                                    </label>
+                                    <label className="min-w-0">
+                                        <span className={campoLabel}>Telefone</span>
+                                        <input disabled={!modoEdicao} className={campoClass(modoEdicao)} value={form.responsavel_telefone || ''} onChange={e => setForm({...form, responsavel_telefone: e.target.value})} placeholder="(00) 00000-0000" />
+                                    </label>
+                                </div>
+                            </section>
                         </div>
                         {form.endereco && !form.rua && (
                             <p className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">Endereço antigo: {form.endereco}</p>

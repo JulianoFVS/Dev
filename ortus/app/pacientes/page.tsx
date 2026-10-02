@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Search, Plus, LayoutGrid, List as ListIcon, Phone, ChevronRight, Filter, AlertCircle, Calendar, X, Smile, ArrowUpDown } from 'lucide-react';
+import { Search, Plus, LayoutGrid, List as ListIcon, Phone, ChevronRight, Filter, AlertCircle, Calendar, X, Smile, ArrowUpDown, Check } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { usePatientActionModal } from '@/components/PatientActionModal';
@@ -238,21 +238,31 @@ export default function Pacientes() {
                       <label className="mb-1 block text-[10px] font-medium uppercase tracking-wide text-neutral-400">Procedimento pendente</label>
                       <input placeholder="Ex: canal" value={filtroProcedimento} onChange={e => setFiltroProcedimento(e.target.value)} className="h-10 w-full rounded-full border border-black/10 bg-[#f8f8f6] px-4 text-sm outline-none focus:border-neutral-400"/>
                   </div>
-                  <label className="inline-flex h-10 items-center gap-2 rounded-full border border-black/10 bg-[#f8f8f6] px-4 text-sm font-medium text-neutral-700">
-                      <input type="checkbox" checked={filtroDebito} onChange={e => setFiltroDebito(e.target.checked)} className="rounded accent-neutral-900"/>
-                      <AlertCircle size={14} className="text-neutral-700"/> Com débito
-                  </label>
-                  {clinicaDivergente && (
-                      <p className="sm:col-span-2 lg:col-span-3 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-900">
-                          A clínica deste filtro não é a unidade ativa no menu lateral.
-                      </p>
-                  )}
+                  <button
+                      type="button"
+                      onClick={() => setFiltroDebito((atual) => !atual)}
+                      aria-pressed={filtroDebito}
+                      className={`inline-flex h-10 items-center gap-2 rounded-full border px-4 text-sm font-medium transition-colors ${filtroDebito ? 'border-red-200 bg-red-50 text-neutral-900' : 'border-black/10 bg-[#f8f8f6] text-neutral-700 hover:bg-white'}`}
+                  >
+                      <span className={`flex h-4 w-4 items-center justify-center rounded-md border ${filtroDebito ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-300 bg-white'}`}>
+                          {filtroDebito && <Check size={11} strokeWidth={3} />}
+                      </span>
+                      <AlertCircle size={15} className="text-red-500" />
+                      Com débito
+                  </button>
                   {filtrosAtivos && (
                       <button onClick={() => { limparFiltros(); setFiltroClinica(clinicaAtivaId); }} className="inline-flex h-10 items-center gap-1 text-sm font-medium text-neutral-500 hover:text-neutral-900"><X size={14}/> Limpar filtros</button>
                   )}
               </div>
           )}
       </div>
+
+      {clinicaDivergente && (
+          <div className="flex items-start gap-3 rounded-[1.25rem] border border-amber-300 bg-amber-50 px-4 py-3.5 text-sm font-medium text-amber-950 sm:items-center sm:text-base">
+              <AlertCircle size={20} className="mt-0.5 shrink-0 text-amber-600 sm:mt-0" />
+              <p>A clínica deste filtro não é a unidade ativa no menu lateral.</p>
+          </div>
+      )}
 
       {/* Sem spinner bloqueante — skeletons inline se não há dados ainda */}
       {loading && !jaCarregou.current ? (
