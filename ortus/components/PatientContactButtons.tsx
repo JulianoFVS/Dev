@@ -107,18 +107,20 @@ export default function PatientContactButtons({
     );
   }
 
+  const pill = 'inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-xs font-medium transition-colors disabled:opacity-50';
+
   return (
-    <div className={`flex flex-wrap gap-2 ${className}`}>
-      <button type="button" onClick={() => enviar('whatsapp')} disabled={!!loading} className="px-4 py-2 bg-green-500 text-white rounded-xl font-bold text-sm hover:bg-green-600 transition-colors flex items-center gap-2 shadow-lg shadow-green-200 disabled:opacity-50">
-        {loading === 'whatsapp' ? <Loader2 size={16} className="animate-spin" /> : <MessageCircle size={16} />}
+    <div className={`flex flex-wrap items-center gap-1.5 ${className}`}>
+      <button type="button" onClick={() => enviar('whatsapp')} disabled={!!loading} className={`${pill} bg-neutral-900 text-white hover:bg-neutral-800`}>
+        {loading === 'whatsapp' ? <Loader2 size={14} className="animate-spin" /> : <MessageCircle size={14} />}
         WhatsApp
       </button>
-      <button type="button" onClick={() => enviar('email')} disabled={!!loading} className="px-4 py-2 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 transition-colors flex items-center gap-2 shadow-lg shadow-blue-200 disabled:opacity-50">
-        {loading === 'email' ? <Loader2 size={16} className="animate-spin" /> : <Mail size={16} />}
+      <button type="button" onClick={() => enviar('email')} disabled={!!loading} className={`${pill} border border-black/10 bg-white text-neutral-800 hover:bg-neutral-50`}>
+        {loading === 'email' ? <Loader2 size={14} className="animate-spin" /> : <Mail size={14} />}
         E-mail
       </button>
-      <button type="button" onClick={() => enviar('sms')} disabled={!!loading} className="px-4 py-2 bg-slate-600 text-white rounded-xl font-bold text-sm hover:bg-slate-700 transition-colors flex items-center gap-2 shadow-lg shadow-slate-200 disabled:opacity-50">
-        {loading === 'sms' ? <Loader2 size={16} className="animate-spin" /> : <Smartphone size={16} />}
+      <button type="button" onClick={() => enviar('sms')} disabled={!!loading} className={`${pill} border border-black/10 bg-white text-neutral-800 hover:bg-neutral-50`}>
+        {loading === 'sms' ? <Loader2 size={14} className="animate-spin" /> : <Smartphone size={14} />}
         SMS
       </button>
     </div>

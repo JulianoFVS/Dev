@@ -6,6 +6,7 @@ import { ClinicaProvider } from '@/app/context/ClinicaContext';
 import CookieBanner from '@/components/CookieBanner';
 import { CustomAlertProvider } from '@/components/ui/CustomAlert';
 import ThemeProvider from '@/components/ThemeProvider';
+import BentoHoverTooltip from '@/components/bento/BentoHoverTooltip';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -41,6 +42,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </ThemeProvider>
           </ClinicaProvider>
           <CookieBanner />
+          <BentoHoverTooltip />
         </CustomAlertProvider>
       </body>
     </html>

@@ -15,7 +15,7 @@ type ModalProps = {
   /** Fechar com ESC */
   closeOnEscape?: boolean;
   /** Largura máxima do painel interno */
-  maxWidth?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | 'full';
+  maxWidth?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl' | 'full';
   /** Ocultar botão X no canto (se o conteúdo já tiver) */
   hideCloseButton?: boolean;
   className?: string;
@@ -28,6 +28,7 @@ const MAX_WIDTH: Record<NonNullable<ModalProps['maxWidth']>, string> = {
   lg: 'max-w-lg',
   xl: 'max-w-xl',
   '2xl': 'max-w-2xl',
+  '3xl': 'max-w-4xl',
   full: 'max-w-[95vw]',
 };
 

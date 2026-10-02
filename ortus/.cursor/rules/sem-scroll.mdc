@@ -1,0 +1,26 @@
+---
+description: Evitar rolagem sempre que o conteúdo puder caber na tela
+alwaysApply: true
+---
+
+# Evitar scroll
+
+Sempre que criar ou ajustar uma tela, modal ou formulário, faça o conteúdo caber na viewport. Rolagem é o último recurso, não o layout padrão.
+
+## O que fazer
+
+- Encaixe o que a pessoa precisa ver de uma vez: reduza padding, gap e altura de campo antes de aceitar `overflow-y-auto`.
+- Prefira grade compacta (várias colunas) a uma coluna longa.
+- Modal fixo, sem scroll interno, quando os campos couberem. Não use `max-h` com rolagem se der para apertar o espaçamento.
+- Cabeçalho, abas e ações principais ficam visíveis. O miolo só rola se a lista for realmente longa (histórico, tabela, chat).
+- Desktop e mobile: no estreito, diminua o campo e a coluna, e só então permita rolagem.
+
+```tsx
+// ❌ BAD — formulário curto numa coluna com scroll
+<div className="max-h-[90vh] space-y-6 overflow-y-auto p-8">
+
+// ✅ GOOD — grade curta, tudo visível
+<div className="grid grid-cols-2 gap-2 p-3 lg:grid-cols-4">
+```
+
+Não feche uma tela com barra de rolagem se o conteúdo cabia sem ela.

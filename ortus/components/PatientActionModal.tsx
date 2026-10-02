@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import { AlertCircle, ArrowLeft, Building2, Calendar, CheckCircle2, DollarSign, FileText, FolderOpen, Loader2, MessageCircle, Phone, Smile, Sparkles, User, X } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Calendar, CheckCircle2, DollarSign, FileText, FolderOpen, Loader2, Smile, Sparkles, User, X } from 'lucide-react';
 import { useClinica } from '@/app/context/ClinicaContext';
 import AppointmentForm from '@/components/forms/AppointmentForm';
 import ProsthesisForm from '@/components/forms/ProsthesisForm';
@@ -64,6 +64,9 @@ function getInitials(name?: string | null) {
   return (first + last).toUpperCase();
 }
 
+const qcInput = 'h-8 w-full rounded-xl border border-black/10 bg-[#f8f8f6] px-2.5 text-sm font-medium text-neutral-800 outline-none placeholder:font-normal placeholder:text-neutral-400 focus:border-neutral-400 focus:bg-white';
+const qcLabel = 'mb-0.5 block text-[10px] font-medium uppercase tracking-wide text-neutral-400';
+
 const FLOW_META: Record<Exclude<ActiveFlow, 'idle'>, { title: string; subtitle: string; gradient: string }> = {
   agendamento: { title: 'Novo Agendamento', subtitle: 'Reserve um horário sem sair da página.', gradient: 'from-blue-50 to-white' },
   protese: { title: 'Nova Prótese', subtitle: 'Pedido com checklist automático.', gradient: 'from-pink-50 to-white' },
@@ -109,7 +112,6 @@ export function PatientActionModalProvider({ children }: { children: React.React
   const [qcResponsavelNome, setQcResponsavelNome] = useState('');
   const [qcResponsavelParentesco, setQcResponsavelParentesco] = useState('');
   const [qcResponsavelTelefone, setQcResponsavelTelefone] = useState('');
-  const [qcMostrarResponsavel, setQcMostrarResponsavel] = useState(false);
   
   // Plano/Convênio
   const [qcPlanoId, setQcPlanoId] = useState<string>('');
@@ -167,7 +169,6 @@ export function PatientActionModalProvider({ children }: { children: React.React
     setQcResponsavelNome('');
     setQcResponsavelParentesco('');
     setQcResponsavelTelefone('');
-    setQcMostrarResponsavel(false);
     setQcPlanoId('');
     setQcError(null);
     setQcSaving(false);
@@ -359,12 +360,6 @@ export function PatientActionModalProvider({ children }: { children: React.React
     setReceiving(false);
   }
 
-  useEffect(() => {
-    if (isMenorDeIdade(qcDataNascimento)) {
-      setQcMostrarResponsavel(true);
-    }
-  }, [qcDataNascimento]);
-
   const flowMeta = activeFlow !== 'idle' ? FLOW_META[activeFlow] : null;
 
   // Buscar endereço via ViaCEP
@@ -394,17 +389,13 @@ export function PatientActionModalProvider({ children }: { children: React.React
     <PatientActionModalContext.Provider value={value}>
       {children}
 
-      <Modal open={open} onClose={closePatientActions} maxWidth="lg" zIndex={80} hideCloseButton panelClassName="bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[92vh] animate-in zoom-in-95 duration-200">
-          <div className={`p-5 border-b border-slate-100 bg-gradient-to-br ${quickCapture ? 'from-indigo-50 to-white' : (flowMeta?.gradient || 'from-blue-50 to-white')} flex items-start justify-between gap-4 shrink-0`}>
+      <Modal open={open} onClose={closePatientActions} maxWidth={quickCapture ? '3xl' : 'lg'} zIndex={80} hideCloseButton panelClassName={quickCapture ? 'overflow-hidden rounded-[1.35rem] border border-black/10 bg-white shadow-2xl sm:rounded-[1.5rem]' : 'bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[92vh] animate-in zoom-in-95 duration-200'}>
+          {!quickCapture && <div className={`p-5 border-b border-slate-100 bg-gradient-to-br ${flowMeta?.gradient || 'from-blue-50 to-white'} flex items-start justify-between gap-4 shrink-0`}>
               <div className="flex items-center gap-3 min-w-0">
                 {activeFlow !== 'idle' ? (
                   <button onClick={() => setActiveFlow('idle')} className="w-11 h-11 rounded-2xl bg-white border border-slate-200 text-slate-500 hover:text-slate-800 hover:bg-slate-50 flex items-center justify-center shrink-0 transition-colors" aria-label="Voltar">
                     <ArrowLeft size={18} />
                   </button>
-                ) : quickCapture ? (
-                  <div className="w-14 h-14 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shadow-lg shadow-indigo-100 shrink-0">
-                    <Sparkles size={22} />
-                  </div>
                 ) : (
                   <div className="w-14 h-14 rounded-2xl bg-blue-600 text-white flex items-center justify-center shadow-lg shadow-blue-100 shrink-0 font-black text-lg tracking-wider">
                     {loading ? <Loader2 className="animate-spin" size={22} /> : getInitials(patient?.nome)}
@@ -412,13 +403,13 @@ export function PatientActionModalProvider({ children }: { children: React.React
                 )}
                 <div className="min-w-0">
                   <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">
-                    {quickCapture ? 'Cadastro rápido' : activeFlow === 'idle' ? 'Ações rápidas' : flowMeta?.title}
+                    {activeFlow === 'idle' ? 'Ações rápidas' : flowMeta?.title}
                   </p>
                   <h2 className="text-xl font-black text-slate-900 truncate">
-                    {quickCapture ? (qcNome.trim() || 'Novo paciente') : (patient?.nome || (loading ? 'Carregando...' : 'Paciente'))}
+                    {patient?.nome || (loading ? 'Carregando...' : 'Paciente')}
                   </h2>
                   <p className="text-xs font-bold text-slate-400 truncate">
-                    {quickCapture ? 'Cadastre em segundos para iniciar uma ação.' : activeFlow === 'idle' ? getClinicName(patient) : flowMeta?.subtitle}
+                    {activeFlow === 'idle' ? getClinicName(patient) : flowMeta?.subtitle}
                   </p>
                 </div>
               </div>
@@ -440,229 +431,148 @@ export function PatientActionModalProvider({ children }: { children: React.React
                   <X size={20} />
                 </button>
               </div>
-            </div>
+            </div>}
 
             {quickCapture && (
-              <div className="flex-1 overflow-y-auto custom-scrollbar p-5 space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                {/* Dados Básicos */}
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-                    <User size={12} /> Nome <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    autoFocus
-                    type="text"
-                    value={qcNome}
-                    onChange={(event) => setQcNome(event.target.value)}
-                    placeholder="Nome completo do paciente"
-                    className="w-full p-3 rounded-2xl bg-slate-50 border border-slate-200 font-bold text-slate-800 outline-none focus:bg-white focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition-all"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-500">Sexo <span className="text-red-500">*</span></label>
-                    <CustomSelect value={qcSexo} onChange={setQcSexo} options={SEXO_OPTIONS} size="lg" />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-500">Data Nascimento</label>
-                    <input
-                      type="date"
-                      value={qcDataNascimento}
-                      onChange={(e) => setQcDataNascimento(e.target.value)}
-                      className="w-full p-3 rounded-2xl bg-slate-50 border border-slate-200 font-bold text-slate-800 outline-none focus:bg-white focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition-all"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-500">CPF</label>
-                    <input
-                      type="text"
-                      value={qcCpf}
-                      onChange={(e) => setQcCpf(e.target.value)}
-                      placeholder="000.000.000-00"
-                      className="w-full p-3 rounded-2xl bg-slate-50 border border-slate-200 font-bold text-slate-800 outline-none focus:bg-white focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition-all"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-                      <Phone size={12} /> WhatsApp
-                    </label>
-                    <input
-                      type="tel"
-                      value={qcTelefone}
-                      onChange={(event) => setQcTelefone(event.target.value)}
-                      placeholder="(00) 00000-0000"
-                      className="w-full p-3 rounded-2xl bg-slate-50 border border-slate-200 font-bold text-slate-800 outline-none focus:bg-white focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition-all"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-                    <Building2 size={12} /> Clínica <span className="text-red-500">*</span>
-                  </label>
-                  <CustomSelect
-                    value={qcClinicaId}
-                    onChange={(v) => {
-                      setQcClinicaId(v);
-                      setQcPlanoId('');
-                      if (v) {
-                        supabase.from('planos').select('id, nome').eq('clinica_id', v).eq('ativo', true).order('nome').then(({ data }) => {
-                          setPlanos(data || []);
-                        });
-                      } else {
-                        setPlanos([]);
-                      }
-                    }}
-                    options={[{ value: '', label: 'Selecione a clínica...' }, ...clinics.map((c: any) => ({ value: c.id, label: c.nome }))]}
-                    size="lg"
-                  />
-                </div>
-
-                {/* Plano/Convênio — sempre visível */}
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase tracking-wider text-slate-500">Plano / Convênio</label>
-                  <CustomSelect
-                    value={qcPlanoId}
-                    onChange={setQcPlanoId}
-                    disabled={!qcClinicaId}
-                    options={[{ value: '', label: 'Particular (sem convênio)' }, ...planos.map(p => ({ value: p.id, label: p.nome }))]}
-                    size="lg"
-                  />
-                </div>
-
-                {/* Endereço com ViaCEP */}
-                <div className="pt-2 border-t border-slate-100">
-                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-3">Endereço <span className="text-red-500">*</span> (ViaCEP)</p>
-                  
-                  <div className="space-y-2">
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={qcCep}
-                        onChange={(e) => {
-                          setQcCep(e.target.value);
-                          if (e.target.value.replace(/\D/g, '').length === 8) {
-                            buscarCep(e.target.value);
-                          }
-                        }}
-                        onBlur={(e) => buscarCep(e.target.value)}
-                        placeholder="00000-000"
-                        className="flex-1 p-3 rounded-2xl bg-slate-50 border border-slate-200 font-bold text-slate-800 outline-none focus:bg-white focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition-all"
-                      />
-                      {qcBuscandoCep && <Loader2 size={20} className="animate-spin text-indigo-500 self-center" />}
+              <div className="px-3 py-2.5 sm:overflow-visible sm:px-4 max-sm:max-h-[calc(100dvh-1rem)] max-sm:overflow-y-auto">
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <div className="flex min-w-0 items-center gap-2.5">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-neutral-900 text-white">
+                      <User size={15} />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-medium uppercase tracking-wide text-neutral-400">Cadastro rápido</p>
+                      <h2 className="truncate text-base font-semibold text-neutral-900">Novo paciente</h2>
                     </div>
                   </div>
-
-                  <div className="grid grid-cols-3 gap-2 mt-2">
-                    <div className="col-span-2 space-y-1">
-                      <input
-                        type="text"
-                        value={qcRua}
-                        onChange={(e) => setQcRua(e.target.value)}
-                        placeholder="Rua / Avenida"
-                        className="w-full p-2.5 rounded-xl bg-slate-50 border border-slate-200 font-bold text-slate-700 text-sm outline-none focus:bg-white focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition-all"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <input
-                        type="text"
-                        value={qcNumero}
-                        onChange={(e) => setQcNumero(e.target.value)}
-                        placeholder="Nº"
-                        className="w-full p-2.5 rounded-xl bg-slate-50 border border-slate-200 font-bold text-slate-700 text-sm outline-none focus:bg-white focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition-all"
-                      />
-                    </div>
-                  </div>
-
-                  <input
-                    type="text"
-                    value={qcComplemento}
-                    onChange={(e) => setQcComplemento(e.target.value)}
-                    placeholder="Complemento (Apto, Bloco, Sala...)"
-                    className="w-full mt-2 p-2.5 rounded-xl bg-slate-50 border border-slate-200 font-bold text-slate-700 text-sm outline-none focus:bg-white focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition-all"
-                  />
-
-                  <div className="grid grid-cols-2 gap-2 mt-2">
-                    <input
-                      type="text"
-                      value={qcBairro}
-                      onChange={(e) => setQcBairro(e.target.value)}
-                      placeholder="Bairro"
-                      className="w-full p-2.5 rounded-xl bg-slate-50 border border-slate-200 font-bold text-slate-700 text-sm outline-none focus:bg-white focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition-all"
-                    />
-                    <input
-                      type="text"
-                      value={qcCidade}
-                      onChange={(e) => setQcCidade(e.target.value)}
-                      placeholder="Cidade"
-                      className="w-full p-2.5 rounded-xl bg-slate-50 border border-slate-200 font-bold text-slate-700 text-sm outline-none focus:bg-white focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition-all"
-                    />
-                  </div>
-
-                  <CustomSelect value={qcUf} onChange={setQcUf} options={UF_OPTIONS} size="sm" />
-                </div>
-
-                {/* Responsável (para menores) */}
-                <div className="pt-2 border-t border-slate-100">
-                  <button
-                    type="button"
-                    onClick={() => setQcMostrarResponsavel(!qcMostrarResponsavel)}
-                    className="text-[10px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-2 hover:text-indigo-600 transition-colors"
-                  >
-                    {qcMostrarResponsavel ? '▼' : '▶'} Responsável {isMenorDeIdade(qcDataNascimento) && <span className="text-red-500">* (obrigatório)</span>}
+                  <button type="button" onClick={closePatientActions} className="rounded-full p-1.5 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-800" aria-label="Fechar">
+                    <X size={18} />
                   </button>
-                  
-                  {(qcMostrarResponsavel || isMenorDeIdade(qcDataNascimento)) && (
-                    <div className="mt-3 space-y-3 animate-in fade-in slide-in-from-top-2">
-                      <input
-                        type="text"
-                        value={qcResponsavelNome}
-                        onChange={(e) => setQcResponsavelNome(e.target.value)}
-                        placeholder="Nome do responsável"
-                        className="w-full p-3 rounded-2xl bg-slate-50 border border-slate-200 font-bold text-slate-800 outline-none focus:bg-white focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition-all"
-                      />
-                      <div className="grid grid-cols-2 gap-2">
-                        <CustomSelect value={qcResponsavelParentesco} onChange={setQcResponsavelParentesco} options={PARENTESCO_OPTIONS} size="lg" />
-                        <input
-                          type="tel"
-                          value={qcResponsavelTelefone}
-                          onChange={(e) => setQcResponsavelTelefone(e.target.value)}
-                          placeholder="Telefone do responsável"
-                          className="w-full p-3 rounded-2xl bg-slate-50 border border-slate-200 font-bold text-slate-800 outline-none focus:bg-white focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition-all"
-                        />
-                      </div>
-                    </div>
-                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-x-2 gap-y-1 lg:grid-cols-4">
+                  <label className="col-span-2 min-w-0">
+                    <span className={qcLabel}>Nome <span className="text-red-500">*</span></span>
+                    <input autoFocus type="text" value={qcNome} onChange={(event) => setQcNome(event.target.value)} placeholder="Nome completo do paciente" className={qcInput} />
+                  </label>
+                  <label className="min-w-0">
+                    <span className={qcLabel}>Sexo <span className="text-red-500">*</span></span>
+                    <CustomSelect value={qcSexo} onChange={setQcSexo} options={SEXO_OPTIONS} size="xs" />
+                  </label>
+                  <label className="min-w-0">
+                    <span className={qcLabel}>Nascimento</span>
+                    <input type="date" value={qcDataNascimento} onChange={(e) => setQcDataNascimento(e.target.value)} className={qcInput} />
+                  </label>
+                  <label className="min-w-0">
+                    <span className={qcLabel}>CPF</span>
+                    <input type="text" value={qcCpf} onChange={(e) => setQcCpf(e.target.value)} placeholder="000.000.000-00" className={qcInput} />
+                  </label>
+                  <label className="min-w-0">
+                    <span className={qcLabel}>WhatsApp</span>
+                    <input type="tel" value={qcTelefone} onChange={(event) => setQcTelefone(event.target.value)} placeholder="(00) 00000-0000" className={qcInput} />
+                  </label>
+                  <label className="min-w-0">
+                    <span className={qcLabel}>Clínica <span className="text-red-500">*</span></span>
+                    <CustomSelect
+                      value={qcClinicaId}
+                      onChange={(v) => {
+                        setQcClinicaId(v);
+                        setQcPlanoId('');
+                        if (v) {
+                          supabase.from('planos').select('id, nome').eq('clinica_id', v).eq('ativo', true).order('nome').then(({ data }) => {
+                            setPlanos(data || []);
+                          });
+                        } else {
+                          setPlanos([]);
+                        }
+                      }}
+                      options={[{ value: '', label: 'Selecione a clínica...' }, ...clinics.map((c: any) => ({ value: c.id, label: c.nome }))]}
+                      size="xs"
+                    />
+                  </label>
+                  <label className="min-w-0">
+                    <span className={qcLabel}>Plano / convênio</span>
+                    <CustomSelect
+                      value={qcPlanoId}
+                      onChange={setQcPlanoId}
+                      disabled={!qcClinicaId}
+                      options={[{ value: '', label: 'Particular (sem convênio)' }, ...planos.map(p => ({ value: p.id, label: p.nome }))]}
+                      size="xs"
+                    />
+                  </label>
+                  <label className="min-w-0">
+                    <span className={qcLabel}>CEP</span>
+                    <input
+                      type="text"
+                      value={qcCep}
+                      onChange={(e) => {
+                        setQcCep(e.target.value);
+                        if (e.target.value.replace(/\D/g, '').length === 8) buscarCep(e.target.value);
+                      }}
+                      onBlur={(e) => buscarCep(e.target.value)}
+                      placeholder="00000-000"
+                      className={qcInput}
+                    />
+                  </label>
+                  <label className="min-w-0">
+                    <span className={qcLabel}>Número</span>
+                    <input type="text" value={qcNumero} onChange={(e) => setQcNumero(e.target.value)} placeholder="Nº" className={qcInput} />
+                  </label>
+                  <label className="col-span-2 min-w-0">
+                    <span className={qcLabel}>Rua / avenida {qcBuscandoCep && <Loader2 size={10} className="ml-1 inline animate-spin" />}</span>
+                    <input type="text" value={qcRua} onChange={(e) => setQcRua(e.target.value)} placeholder="Rua / Avenida" className={qcInput} />
+                  </label>
+                  <label className="min-w-0">
+                    <span className={qcLabel}>Complemento</span>
+                    <input type="text" value={qcComplemento} onChange={(e) => setQcComplemento(e.target.value)} placeholder="Apto, bloco, sala" className={qcInput} />
+                  </label>
+                  <label className="min-w-0">
+                    <span className={qcLabel}>Bairro</span>
+                    <input type="text" value={qcBairro} onChange={(e) => setQcBairro(e.target.value)} placeholder="Bairro" className={qcInput} />
+                  </label>
+                  <label className="min-w-0">
+                    <span className={qcLabel}>Cidade</span>
+                    <input type="text" value={qcCidade} onChange={(e) => setQcCidade(e.target.value)} placeholder="Cidade" className={qcInput} />
+                  </label>
+                  <label className="min-w-0">
+                    <span className={qcLabel}>UF</span>
+                    <CustomSelect value={qcUf} onChange={setQcUf} options={UF_OPTIONS} size="xs" />
+                  </label>
+                  <label className="col-span-2 min-w-0">
+                    <span className={qcLabel}>Responsável {isMenorDeIdade(qcDataNascimento) && <span className="text-red-500">*</span>}</span>
+                    <input type="text" value={qcResponsavelNome} onChange={(e) => setQcResponsavelNome(e.target.value)} placeholder="Nome do responsável" className={qcInput} />
+                  </label>
+                  <label className="min-w-0">
+                    <span className={qcLabel}>Parentesco</span>
+                    <CustomSelect value={qcResponsavelParentesco} onChange={setQcResponsavelParentesco} options={PARENTESCO_OPTIONS} size="xs" />
+                  </label>
+                  <label className="min-w-0">
+                    <span className={qcLabel}>Tel. responsável</span>
+                    <input type="tel" value={qcResponsavelTelefone} onChange={(e) => setQcResponsavelTelefone(e.target.value)} placeholder="(00) 00000-0000" className={qcInput} />
+                  </label>
                 </div>
 
                 {qcError && (
-                  <div className="p-3 rounded-2xl bg-red-50 border border-red-100 text-red-700 flex gap-2 text-sm font-bold">
-                    <AlertCircle size={18} className="shrink-0" />
-                    <span>{qcError}</span>
-                  </div>
+                  <p className="mt-2 flex items-center gap-1.5 text-xs font-medium text-red-600">
+                    <AlertCircle size={14} className="shrink-0" />
+                    {qcError}
+                  </p>
                 )}
 
-                <button
-                  onClick={submitQuickCapture}
-                  disabled={qcSaving || !qcNome.trim() || !qcClinicaId}
-                  className="w-full p-4 rounded-2xl bg-indigo-600 text-white font-black text-sm hover:bg-indigo-700 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed transition-all shadow-lg shadow-indigo-100 flex items-center justify-center gap-2"
-                >
-                  {qcSaving ? (
-                    <><Loader2 size={18} className="animate-spin" /> Cadastrando...</>
-                  ) : (
-                    <><Sparkles size={18} /> Cadastrar Paciente</>
-                  )}
-                </button>
-
-                <p className="text-[11px] text-slate-400 font-medium text-center">
-                  Após cadastrar, você poderá agendar, criar prótese ou abrir a ficha completa.
-                </p>
+                <div className="mt-2 flex items-center justify-between gap-3 border-t border-black/5 pt-2">
+                  <p className="text-[11px] text-neutral-400">Depois você agenda, cria a prótese ou abre a ficha.</p>
+                  <button
+                    onClick={submitQuickCapture}
+                    disabled={qcSaving || !qcNome.trim() || !qcClinicaId}
+                    className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-neutral-900 px-4 text-sm font-medium text-white hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {qcSaving ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
+                    {qcSaving ? 'Cadastrando...' : 'Cadastrar'}
+                  </button>
+                </div>
               </div>
             )}
+
 
             {!quickCapture && activeFlow === 'idle' && (
               <>

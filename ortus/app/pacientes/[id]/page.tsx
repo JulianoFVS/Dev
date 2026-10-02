@@ -63,6 +63,14 @@ const TOOLS = ODONTO_TOOLS;
 const prontuarioPanel =
   'rounded-[1.35rem] border border-black/5 bg-white p-4 sm:rounded-[1.5rem] sm:p-6 md:p-8';
 
+const campoLabel = 'mb-1 block text-[10px] font-medium uppercase tracking-wide text-neutral-400';
+
+function campoClass(editing: boolean) {
+  return `h-9 w-full rounded-xl border px-3 text-sm font-medium text-neutral-800 outline-none placeholder:text-neutral-400 disabled:cursor-default ${
+    editing ? 'border-neutral-300 bg-white focus:border-neutral-900' : 'border-black/10 bg-[#f8f8f6]'
+  }`;
+}
+
 const PATIENT_NAV_SECTIONS = [
   { key: 'dados', label: 'Dados', icon: User },
   { key: 'anamnese', label: 'Anamnese', icon: FileText },
@@ -1625,19 +1633,19 @@ export default function PacienteDetalhe() {
   }
 
   return (
-    <div className="w-full space-y-3 px-2.5 py-2.5 pb-16 sm:px-3 sm:py-3 md:px-4 md:py-3.5">
+    <div className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden px-2.5 py-2 font-poppins sm:px-3 md:px-4">
         
         {/* HEADER */}
-        <div className="flex flex-col items-start justify-between gap-4 rounded-[1.35rem] border border-black/5 bg-white p-4 sm:flex-row sm:items-center sm:rounded-[1.5rem] sm:p-5">
-            <div className="flex items-center gap-4">
-                <Link href="/pacientes" className="rounded-2xl border border-black/10 bg-[#f8f8f6] p-2.5 text-neutral-600 transition-colors hover:bg-white"><ArrowLeft size={20}/></Link>
-                <div>
-                    <h1 className="text-2xl font-semibold text-neutral-900">{form.nome}</h1>
-                    <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-neutral-500"><User size={12}/> Prontuário digital</p>
+        <div className="flex shrink-0 items-center justify-between gap-3 rounded-[1.25rem] border border-black/5 bg-white px-3 py-2">
+            <div className="flex min-w-0 items-center gap-2.5">
+                <Link href="/pacientes" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-black/10 bg-[#f8f8f6] text-neutral-600 transition-colors hover:bg-white"><ArrowLeft size={16}/></Link>
+                <div className="min-w-0">
+                    <h1 className="truncate text-lg font-semibold text-neutral-900">{form.nome}</h1>
+                    <p className="text-[11px] font-medium text-neutral-400">Prontuário digital</p>
                 </div>
             </div>
-            <div className="flex flex-wrap gap-2">
-                {form.nome && <button onClick={handleExportarDados} className="flex items-center gap-1.5 rounded-full border border-black/10 bg-white px-3 py-2 text-xs font-semibold text-neutral-700 hover:bg-neutral-50" title="Exportar prontuário (LGPD)"><Download size={14}/> LGPD</button>}
+            <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
+                {form.nome && <button onClick={handleExportarDados} className="inline-flex h-8 items-center gap-1.5 rounded-full border border-black/10 bg-white px-3 text-xs font-medium text-neutral-700 hover:bg-neutral-50" title="Exportar prontuário (LGPD)"><Download size={14}/> LGPD</button>}
                 <PatientContactButtons
                     variant="buttons"
                     telefone={form.telefone}
@@ -1750,31 +1758,8 @@ export default function PacienteDetalhe() {
                 </div>
         </Modal>
 
-        {/* Navegação rápida mobile */}
-        <div className="sticky top-0 z-30 border-b border-black/5 bg-[#f3f4f1]/95 pb-3 pt-1 backdrop-blur">
-            <div className="flex snap-x snap-mandatory gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none]">
-                {PATIENT_NAV_SECTIONS.map((section) => {
-                    const Icon = section.icon;
-                    const active = abaAtiva === section.key;
-                    return (
-                        <button
-                            type="button"
-                            key={section.key}
-                            onClick={() => setAbaAtiva(section.key)}
-                            className={`touch-target min-w-[120px] flex-none snap-start rounded-full border px-3 py-2 text-left text-xs font-semibold transition-colors ${active ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-black/10 bg-white text-neutral-600'}`}
-                        >
-                            <div className="flex items-center gap-2">
-                                <Icon size={16} />
-                                <span className="text-sm">{section.label}</span>
-                            </div>
-                        </button>
-                    );
-                })}
-            </div>
-        </div>
-
-        <div className="grid grid-cols-1 gap-3">
-            <div className="hidden">
+        <div className="mt-2 flex min-h-0 flex-1 gap-1 sm:gap-3">
+            <nav aria-label="Seções do prontuário" className="flex w-[7.25rem] shrink-0 flex-col pt-1 sm:w-48">
                 {PATIENT_NAV_SECTIONS.map((section) => {
                     const Icon = section.icon;
                     const active = abaAtiva === section.key;
@@ -1784,186 +1769,147 @@ export default function PacienteDetalhe() {
                         : section.key === 'debitos' && debitos.length > 0 ? debitos.length
                         : section.key === 'hof' && marcacoesHof.length > 0 ? marcacoesHof.length
                         : null;
-                    const badgeClass =
-                        section.key === 'debitos' ? 'bg-red-500 text-white'
-                        : section.key === 'tratamentos' ? 'bg-[#c8f053] text-neutral-900'
-                        : section.key === 'hof' ? 'bg-neutral-200 text-neutral-700'
-                        : 'bg-neutral-200 text-neutral-700';
                     return (
                         <button
                             key={section.key}
                             type="button"
                             onClick={() => setAbaAtiva(section.key)}
-                            className={`flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition-colors ${active ? 'bg-white text-neutral-900 shadow-sm' : 'text-neutral-600 hover:bg-white/70'}`}
+                            className={`flex w-full items-center gap-1.5 border-l-2 py-1.5 pl-2 pr-1 text-left text-[12px] leading-tight sm:gap-2 sm:py-2 sm:pl-3 sm:text-[13px] ${active ? 'border-neutral-900 font-semibold text-neutral-900' : 'border-transparent font-medium text-neutral-500 hover:text-neutral-800'}`}
                         >
-                            <Icon size={18}/> {section.label}
+                            <Icon size={15} className="shrink-0" />
+                            <span className="min-w-0 flex-1">{section.label}</span>
                             {badge != null && (
-                                <span className={`ml-auto rounded-full px-1.5 py-0.5 text-[10px] font-bold ${badgeClass}`}>{badge}</span>
+                                <span className="text-[10px] font-medium tabular-nums text-neutral-400">{badge}</span>
                             )}
                         </button>
                     );
                 })}
-            </div>
+            </nav>
 
-            <div>
+            <div className="min-h-0 min-w-0 flex-1 overflow-y-auto">
                 {abaAtiva === 'dados' && (
-                    <div className={prontuarioPanel}>
-                        <div className="flex flex-wrap justify-between items-center gap-3 mb-6">
-                            <h3 className="text-lg font-black text-slate-800 flex items-center gap-2"><User size={20} className="text-blue-500"/> Informações do Paciente</h3>
-                            <div className="flex gap-2">
+                    <div className="rounded-[1.25rem] border border-black/5 bg-white p-3 sm:p-4">
+                        <div className="mb-2 flex items-center justify-between gap-2">
+                            <h3 className="text-sm font-semibold text-neutral-900">Informações do paciente</h3>
+                            <div className="flex gap-1.5">
                                 {modoEdicao ? (
                                     <>
-                                        <button onClick={() => { setModoEdicao(false); carregar(); }} className="rounded-full px-4 py-2 text-sm font-medium text-neutral-500 hover:bg-neutral-50">Cancelar</button>
-                                        <button onClick={salvarTudo} className="inline-flex items-center gap-2 rounded-full bg-neutral-900 px-5 py-2 text-sm font-semibold text-white hover:bg-neutral-800"><Save size={16}/> Salvar</button>
+                                        <button onClick={() => { setModoEdicao(false); carregar(); }} className="h-8 rounded-full px-3 text-xs font-medium text-neutral-500 hover:bg-neutral-50">Cancelar</button>
+                                        <button onClick={salvarTudo} className="inline-flex h-8 items-center gap-1.5 rounded-full bg-neutral-900 px-3.5 text-xs font-medium text-white hover:bg-neutral-800"><Save size={14}/> Salvar</button>
                                     </>
                                 ) : (
-                                    <button onClick={() => setModoEdicao(true)} className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-5 py-2 text-sm font-semibold text-neutral-700 hover:bg-neutral-50"><Edit size={16}/> Editar</button>
+                                    <button onClick={() => setModoEdicao(true)} className="inline-flex h-8 items-center gap-1.5 rounded-full border border-black/10 bg-white px-3.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"><Edit size={14}/> Editar</button>
                                 )}
                             </div>
                         </div>
-                        
-                        {/* Dados Básicos */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="col-span-2 md:col-span-1">
-                                <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Clínica</label>
-                                <CustomSelect disabled={!modoEdicao} value={form.clinica_id || ''} onChange={v => setForm({...form, clinica_id: v})} options={[{value:'',label:'Sem Clínica Definida'}, ...clinicas.map((c:any) => ({value:String(c.id),label:c.nome}))]} size="lg"/>
-                            </div>
-                            <div>
-                                <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Nome Completo</label>
-                                <input disabled={!modoEdicao} className={`w-full p-3 rounded-xl border outline-none font-bold text-slate-700 ${modoEdicao ? 'bg-white border-blue-300 ring-2 ring-blue-100' : 'bg-slate-50 border-slate-200'}`} value={form.nome || ''} onChange={e => setForm({...form, nome: e.target.value})} />
-                            </div>
-                            <div>
-                                <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Sexo <span className="text-red-500">*</span></label>
-                                <CustomSelect disabled={!modoEdicao} value={form.sexo || ''} onChange={v => setForm({...form, sexo: v})} options={[{value:'',label:'Selecione...'},{value:'masculino',label:'Masculino'},{value:'feminino',label:'Feminino'},{value:'outro',label:'Outro'},{value:'nao_informar',label:'Prefiro não informar'}]} size="lg"/>
-                            </div>
-                            <div>
-                                <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Data Nascimento</label>
-                                <input type="date" disabled={!modoEdicao} className={`w-full p-3 rounded-xl border outline-none ${modoEdicao ? 'bg-white border-blue-300' : 'bg-slate-50 border-slate-200'}`} value={form.data_nascimento || ''} onChange={e => setForm({...form, data_nascimento: e.target.value})} />
-                            </div>
-                            <div>
-                                <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">CPF</label>
-                                <input disabled={!modoEdicao} className={`w-full p-3 rounded-xl border outline-none ${modoEdicao ? 'bg-white border-blue-300' : 'bg-slate-50 border-slate-200'}`} value={form.cpf || ''} onChange={e => setForm({...form, cpf: e.target.value})} placeholder="000.000.000-00" />
-                            </div>
-                            <div>
-                                <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Telefone / WhatsApp</label>
-                                <input disabled={!modoEdicao} className={`w-full p-3 rounded-xl border outline-none ${modoEdicao ? 'bg-white border-blue-300' : 'bg-slate-50 border-slate-200'}`} value={form.telefone || ''} onChange={e => setForm({...form, telefone: e.target.value})} placeholder="(00) 00000-0000" />
-                            </div>
-                            <div className="md:col-span-2">
-                                <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Email</label>
-                                <input disabled={!modoEdicao} className={`w-full p-3 rounded-xl border outline-none ${modoEdicao ? 'bg-white border-blue-300' : 'bg-slate-50 border-slate-200'}`} value={form.email || ''} onChange={e => setForm({...form, email: e.target.value})} />
-                            </div>
-                        </div>
 
-                        {/* Plano/Convênio */}
-                        <div className="mt-6 pt-6 border-t border-slate-100">
-                            <h4 className="text-sm font-black text-slate-700 mb-3">Plano / Convênio</h4>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div>
-                                    <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Plano de Saúde</label>
-                                    <CustomSelect 
-                                        disabled={!modoEdicao} 
-                                        value={form.plano_id || ''} 
-                                        onChange={v => setForm({...form, plano_id: v || null})} 
-                                        options={[{value:'', label:'Particular (sem convênio)'}, ...planos.map((p:any) => ({value:String(p.id), label:p.nome}))]} 
-                                        size="lg"
-                                    />
-                                </div>
-                            </div>
-                        </div>
+                        <div className="grid grid-cols-2 gap-x-2.5 gap-y-2 md:grid-cols-4 xl:grid-cols-6">
+                            <label className="col-span-2 min-w-0">
+                                <span className={campoLabel}>Nome completo</span>
+                                <input disabled={!modoEdicao} className={campoClass(modoEdicao)} value={form.nome || ''} onChange={e => setForm({...form, nome: e.target.value})} />
+                            </label>
+                            <label className="min-w-0">
+                                <span className={campoLabel}>Sexo <span className="text-red-500">*</span></span>
+                                <CustomSelect disabled={!modoEdicao} value={form.sexo || ''} onChange={v => setForm({...form, sexo: v})} options={[{value:'',label:'Selecione...'},{value:'masculino',label:'Masculino'},{value:'feminino',label:'Feminino'},{value:'outro',label:'Outro'},{value:'nao_informar',label:'Prefiro não informar'}]} size="sm"/>
+                            </label>
+                            <label className="min-w-0">
+                                <span className={campoLabel}>Nascimento</span>
+                                <input type="date" disabled={!modoEdicao} className={campoClass(modoEdicao)} value={form.data_nascimento || ''} onChange={e => setForm({...form, data_nascimento: e.target.value})} />
+                            </label>
+                            <label className="min-w-0">
+                                <span className={campoLabel}>CPF</span>
+                                <input disabled={!modoEdicao} className={campoClass(modoEdicao)} value={form.cpf || ''} onChange={e => setForm({...form, cpf: e.target.value})} placeholder="000.000.000-00" />
+                            </label>
+                            <label className="min-w-0">
+                                <span className={campoLabel}>WhatsApp</span>
+                                <input disabled={!modoEdicao} className={campoClass(modoEdicao)} value={form.telefone || ''} onChange={e => setForm({...form, telefone: e.target.value})} placeholder="(00) 00000-0000" />
+                            </label>
+                            <label className="col-span-2 min-w-0">
+                                <span className={campoLabel}>E-mail</span>
+                                <input disabled={!modoEdicao} className={campoClass(modoEdicao)} value={form.email || ''} onChange={e => setForm({...form, email: e.target.value})} />
+                            </label>
+                            <label className="col-span-2 min-w-0">
+                                <span className={campoLabel}>Clínica</span>
+                                <CustomSelect disabled={!modoEdicao} value={form.clinica_id || ''} onChange={v => setForm({...form, clinica_id: v})} options={[{value:'',label:'Sem clínica definida'}, ...clinicas.map((c:any) => ({value:String(c.id),label:c.nome}))]} size="sm"/>
+                            </label>
+                            <label className="col-span-2 min-w-0">
+                                <span className={campoLabel}>Plano / convênio</span>
+                                <CustomSelect disabled={!modoEdicao} value={form.plano_id || ''} onChange={v => setForm({...form, plano_id: v || null})} options={[{value:'', label:'Particular (sem convênio)'}, ...planos.map((p:any) => ({value:String(p.id), label:p.nome}))]} size="sm"/>
+                            </label>
 
-                        {/* Endereço Completo com ViaCEP */}
-                        <div className="mt-6 pt-6 border-t border-slate-100">
-                            <h4 className="text-sm font-black text-slate-700 mb-3 flex items-center gap-2">
-                                Endereço <span className="text-red-500 text-xs">*</span>
-                                {modoEdicao && (
-                                    <button 
-                                        onClick={async () => {
-                                            const cep = form.cep?.replace(/\D/g, '');
-                                            if (cep?.length === 8) {
-                                                try {
-                                                    const res = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
-                                                    const data = await res.json();
-                                                    if (!data.erro) {
-                                                        setForm({
-                                                            ...form,
-                                                            rua: data.logradouro || form.rua,
-                                                            bairro: data.bairro || form.bairro,
-                                                            cidade: data.localidade || form.cidade,
-                                                            uf: data.uf || form.uf
-                                                        });
-                                                    }
-                                                } catch (e) { console.error('Erro ViaCEP:', e); }
-                                            }
-                                        }}
-                                        className="text-[10px] bg-blue-50 text-blue-600 px-2 py-1 rounded-lg hover:bg-blue-100 transition-colors"
-                                    >
-                                        Buscar CEP
-                                    </button>
-                                )}
-                            </h4>
-                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                                <div className="md:col-span-1">
-                                    <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">CEP</label>
-                                    <input disabled={!modoEdicao} className={`w-full p-3 rounded-xl border outline-none ${modoEdicao ? 'bg-white border-blue-300' : 'bg-slate-50 border-slate-200'}`} value={form.cep || ''} onChange={e => setForm({...form, cep: e.target.value})} placeholder="00000-000" />
-                                </div>
-                                <div className="md:col-span-2">
-                                    <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Rua / Avenida</label>
-                                    <input disabled={!modoEdicao} className={`w-full p-3 rounded-xl border outline-none ${modoEdicao ? 'bg-white border-blue-300' : 'bg-slate-50 border-slate-200'}`} value={form.rua || ''} onChange={e => setForm({...form, rua: e.target.value})} />
-                                </div>
-                                <div className="md:col-span-1">
-                                    <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Número</label>
-                                    <input disabled={!modoEdicao} className={`w-full p-3 rounded-xl border outline-none ${modoEdicao ? 'bg-white border-blue-300' : 'bg-slate-50 border-slate-200'}`} value={form.numero || ''} onChange={e => setForm({...form, numero: e.target.value})} />
-                                </div>
-                            </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                                <div>
-                                    <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Complemento</label>
-                                    <input disabled={!modoEdicao} className={`w-full p-3 rounded-xl border outline-none ${modoEdicao ? 'bg-white border-blue-300' : 'bg-slate-50 border-slate-200'}`} value={form.complemento || ''} onChange={e => setForm({...form, complemento: e.target.value})} placeholder="Apto, Bloco, Sala..." />
-                                </div>
-                                <div>
-                                    <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Bairro</label>
-                                    <input disabled={!modoEdicao} className={`w-full p-3 rounded-xl border outline-none ${modoEdicao ? 'bg-white border-blue-300' : 'bg-slate-50 border-slate-200'}`} value={form.bairro || ''} onChange={e => setForm({...form, bairro: e.target.value})} />
-                                </div>
-                            </div>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
-                                <div className="md:col-span-2">
-                                    <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Cidade</label>
-                                    <input disabled={!modoEdicao} className={`w-full p-3 rounded-xl border outline-none ${modoEdicao ? 'bg-white border-blue-300' : 'bg-slate-50 border-slate-200'}`} value={form.cidade || ''} onChange={e => setForm({...form, cidade: e.target.value})} />
-                                </div>
-                                <div>
-                                    <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">UF</label>
-                                    <CustomSelect disabled={!modoEdicao} value={form.uf || ''} onChange={v => setForm({...form, uf: v})} options={[{value:'',label:'Selecione...'}, ...['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'].map(uf => ({value:uf,label:uf}))]} size="lg"/>
-                                </div>
-                            </div>
-                            {/* Campo endereco antigo (legado) - apenas visualização */}
-                            {form.endereco && !form.rua && (
-                                <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-xl">
-                                    <p className="text-xs text-amber-700 font-bold">Endereço legado (antigo formato):</p>
-                                    <p className="text-sm text-amber-800">{form.endereco}</p>
-                                </div>
-                            )}
-                        </div>
+                            <label className="min-w-0">
+                                <span className="mb-1 flex items-center justify-between gap-2 text-[10px] font-medium uppercase tracking-wide text-neutral-400">
+                                    <span>CEP <span className="text-red-500">*</span></span>
+                                    {modoEdicao && (
+                                        <button
+                                            type="button"
+                                            onClick={async () => {
+                                                const cep = form.cep?.replace(/\D/g, '');
+                                                if (cep?.length === 8) {
+                                                    try {
+                                                        const res = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+                                                        const data = await res.json();
+                                                        if (!data.erro) {
+                                                            setForm({
+                                                                ...form,
+                                                                rua: data.logradouro || form.rua,
+                                                                bairro: data.bairro || form.bairro,
+                                                                cidade: data.localidade || form.cidade,
+                                                                uf: data.uf || form.uf
+                                                            });
+                                                        }
+                                                    } catch (e) { console.error('Erro ViaCEP:', e); }
+                                                }
+                                            }}
+                                            className="font-medium normal-case tracking-normal text-neutral-900 hover:underline"
+                                        >
+                                            Buscar
+                                        </button>
+                                    )}
+                                </span>
+                                <input disabled={!modoEdicao} className={campoClass(modoEdicao)} value={form.cep || ''} onChange={e => setForm({...form, cep: e.target.value})} placeholder="00000-000" />
+                            </label>
+                            <label className="col-span-2 min-w-0 xl:col-span-2">
+                                <span className={campoLabel}>Rua / avenida</span>
+                                <input disabled={!modoEdicao} className={campoClass(modoEdicao)} value={form.rua || ''} onChange={e => setForm({...form, rua: e.target.value})} />
+                            </label>
+                            <label className="min-w-0">
+                                <span className={campoLabel}>Número</span>
+                                <input disabled={!modoEdicao} className={campoClass(modoEdicao)} value={form.numero || ''} onChange={e => setForm({...form, numero: e.target.value})} />
+                            </label>
+                            <label className="col-span-2 min-w-0">
+                                <span className={campoLabel}>Complemento</span>
+                                <input disabled={!modoEdicao} className={campoClass(modoEdicao)} value={form.complemento || ''} onChange={e => setForm({...form, complemento: e.target.value})} placeholder="Apto, bloco, sala" />
+                            </label>
+                            <label className="min-w-0 md:col-span-2">
+                                <span className={campoLabel}>Bairro</span>
+                                <input disabled={!modoEdicao} className={campoClass(modoEdicao)} value={form.bairro || ''} onChange={e => setForm({...form, bairro: e.target.value})} />
+                            </label>
+                            <label className="col-span-2 min-w-0">
+                                <span className={campoLabel}>Cidade</span>
+                                <input disabled={!modoEdicao} className={campoClass(modoEdicao)} value={form.cidade || ''} onChange={e => setForm({...form, cidade: e.target.value})} />
+                            </label>
+                            <label className="col-span-2 min-w-0">
+                                <span className={campoLabel}>UF</span>
+                                <CustomSelect disabled={!modoEdicao} value={form.uf || ''} onChange={v => setForm({...form, uf: v})} options={[{value:'',label:'UF'}, ...['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'].map(uf => ({value:uf,label:uf}))]} size="sm"/>
+                            </label>
 
-                        {/* Responsável (para menores) */}
-                        <div className="mt-6 pt-6 border-t border-slate-100">
-                            <h4 className="text-sm font-black text-slate-700 mb-3">
-                                Responsável {menorDeIdade && <span className="text-red-500 text-xs">* (obrigatório — menor de 18 anos)</span>}
-                            </h4>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <div>
-                                    <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Nome do Responsável</label>
-                                    <input disabled={!modoEdicao} className={`w-full p-3 rounded-xl border outline-none ${modoEdicao ? 'bg-white border-blue-300' : 'bg-slate-50 border-slate-200'}`} value={form.responsavel_nome || ''} onChange={e => setForm({...form, responsavel_nome: e.target.value})} />
-                                </div>
-                                <div>
-                                    <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Parentesco</label>
-                                    <CustomSelect disabled={!modoEdicao} value={form.responsavel_parentesco || ''} onChange={v => setForm({...form, responsavel_parentesco: v})} options={[{value:'',label:'Selecione...'},{value:'pai',label:'Pai'},{value:'mae',label:'Mãe'},{value:'tutor',label:'Tutor'},{value:'avo',label:'Avô/Avó'},{value:'outro',label:'Outro'}]} size="lg"/>
-                                </div>
-                                <div>
-                                    <label className="text-xs font-bold text-slate-400 uppercase mb-1 block">Telefone do Responsável</label>
-                                    <input disabled={!modoEdicao} className={`w-full p-3 rounded-xl border outline-none ${modoEdicao ? 'bg-white border-blue-300' : 'bg-slate-50 border-slate-200'}`} value={form.responsavel_telefone || ''} onChange={e => setForm({...form, responsavel_telefone: e.target.value})} placeholder="(00) 00000-0000" />
-                                </div>
-                            </div>
+                            <label className="col-span-2 min-w-0">
+                                <span className={campoLabel}>Responsável {menorDeIdade && <span className="text-red-500">*</span>}</span>
+                                <input disabled={!modoEdicao} className={campoClass(modoEdicao)} value={form.responsavel_nome || ''} onChange={e => setForm({...form, responsavel_nome: e.target.value})} />
+                            </label>
+                            <label className="col-span-2 min-w-0">
+                                <span className={campoLabel}>Parentesco</span>
+                                <CustomSelect disabled={!modoEdicao} value={form.responsavel_parentesco || ''} onChange={v => setForm({...form, responsavel_parentesco: v})} options={[{value:'',label:'Selecione...'},{value:'pai',label:'Pai'},{value:'mae',label:'Mãe'},{value:'tutor',label:'Tutor'},{value:'avo',label:'Avô/Avó'},{value:'outro',label:'Outro'}]} size="sm"/>
+                            </label>
+                            <label className="col-span-2 min-w-0">
+                                <span className={campoLabel}>Telefone do responsável</span>
+                                <input disabled={!modoEdicao} className={campoClass(modoEdicao)} value={form.responsavel_telefone || ''} onChange={e => setForm({...form, responsavel_telefone: e.target.value})} placeholder="(00) 00000-0000" />
+                            </label>
                         </div>
+                        {form.endereco && !form.rua && (
+                            <p className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">Endereço antigo: {form.endereco}</p>
+                        )}
                     </div>
                 )}
 

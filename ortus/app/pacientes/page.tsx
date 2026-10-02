@@ -223,19 +223,19 @@ export default function Pacientes() {
           {showFiltros && (
               <div className="grid grid-cols-1 items-end gap-3 border-t border-black/5 pt-3 sm:grid-cols-2 lg:grid-cols-4">
                   <div>
-                      <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-neutral-400">Clínica</label>
-                      <CustomSelect value={filtroClinica} onChange={setFiltroClinica} options={[{value:'todas',label:'Todas as clínicas'}, ...clinicas.map((c:any) => ({value:String(c.id),label:c.nome}))]} size="sm"/>
+                      <label className="mb-1 block text-[10px] font-medium uppercase tracking-wide text-neutral-400">Clínica</label>
+                      <CustomSelect pill value={filtroClinica} onChange={setFiltroClinica} options={[{value:'todas',label:'Todas as clínicas'}, ...clinicas.map((c:any) => ({value:String(c.id),label:c.nome}))]} size="sm"/>
                   </div>
                   <div>
-                      <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-neutral-400">Status</label>
-                      <CustomSelect value={filtroStatus} onChange={setFiltroStatus} options={[{value:'todos',label:'Todos'},{value:'ativo',label:'Ativo'},{value:'agendado',label:'Agendado'},{value:'novo',label:'Novo'}]} size="sm"/>
+                      <label className="mb-1 block text-[10px] font-medium uppercase tracking-wide text-neutral-400">Status</label>
+                      <CustomSelect pill value={filtroStatus} onChange={setFiltroStatus} options={[{value:'todos',label:'Todos'},{value:'ativo',label:'Ativo'},{value:'agendado',label:'Agendado'},{value:'novo',label:'Novo'}]} size="sm"/>
                   </div>
                   <div>
-                      <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-neutral-400">Sem consulta há</label>
-                      <CustomSelect value={String(filtroSemConsulta ?? '')} onChange={v => setFiltroSemConsulta(v ? Number(v) : null)} options={[{value:'',label:'Qualquer período'},{value:'30',label:'30 dias'},{value:'60',label:'60 dias'},{value:'90',label:'90 dias'},{value:'180',label:'6 meses'},{value:'365',label:'1 ano'}]} size="sm"/>
+                      <label className="mb-1 block text-[10px] font-medium uppercase tracking-wide text-neutral-400">Sem consulta há</label>
+                      <CustomSelect pill value={String(filtroSemConsulta ?? '')} onChange={v => setFiltroSemConsulta(v ? Number(v) : null)} options={[{value:'',label:'Qualquer período'},{value:'30',label:'30 dias'},{value:'60',label:'60 dias'},{value:'90',label:'90 dias'},{value:'180',label:'6 meses'},{value:'365',label:'1 ano'}]} size="sm"/>
                   </div>
                   <div>
-                      <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-neutral-400">Procedimento pendente</label>
+                      <label className="mb-1 block text-[10px] font-medium uppercase tracking-wide text-neutral-400">Procedimento pendente</label>
                       <input placeholder="Ex: canal" value={filtroProcedimento} onChange={e => setFiltroProcedimento(e.target.value)} className="h-10 w-full rounded-full border border-black/10 bg-[#f8f8f6] px-4 text-sm outline-none focus:border-neutral-400"/>
                   </div>
                   <label className="inline-flex h-10 items-center gap-2 rounded-full border border-black/10 bg-[#f8f8f6] px-4 text-sm font-medium text-neutral-700">

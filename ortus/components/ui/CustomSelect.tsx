@@ -17,7 +17,9 @@ interface CustomSelectProps {
   triggerClassName?: string;
   disabled?: boolean;
   searchable?: boolean;
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'xs' | 'sm' | 'md' | 'lg';
+  /** Campo em pílula — barra de filtros */
+  pill?: boolean;
   /** Renderiza o menu via portal (evita corte em modais com overflow hidden) */
   menuPortal?: boolean;
 }
@@ -32,6 +34,7 @@ export default function CustomSelect({
   disabled = false,
   searchable = false,
   size = 'md',
+  pill = false,
   menuPortal = false,
 }: CustomSelectProps) {
   const [open, setOpen] = useState(false);
@@ -99,34 +102,35 @@ export default function CustomSelect({
   }, [open, menuPortal, filtered.length]);
 
   const sizeClasses = {
-    sm: 'px-2.5 py-1.5 text-xs gap-1.5',
-    md: 'px-3 py-2.5 text-sm gap-2',
-    lg: 'px-4 py-3 text-sm gap-2',
+    xs: 'h-8 gap-1.5 px-2.5 text-sm',
+    sm: 'h-9 gap-2 px-3 text-sm',
+    md: 'h-10 gap-2 px-3.5 text-sm',
+    lg: 'h-10 gap-2 px-3.5 text-sm',
   };
 
   const menuContent = (
     <div
       ref={menuRef}
-      className={`${menuPortal ? '' : 'absolute z-50 mt-1.5 w-full min-w-[180px]'} bg-white border border-slate-200 rounded-xl shadow-xl shadow-slate-200/50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150`}
+      className={`${menuPortal ? '' : 'absolute z-50 mt-1.5 w-full min-w-[180px]'} overflow-hidden rounded-2xl border border-black/10 bg-white shadow-[0_12px_40px_rgba(0,0,0,0.12)]`}
       style={menuPortal ? menuStyle : undefined}
     >
       {searchable && (
-        <div className="p-2 border-b border-slate-100">
+        <div className="border-b border-black/5 p-2">
           <div className="relative">
-            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-neutral-400" />
             <input
               ref={searchRef}
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Buscar..."
-              className="w-full pl-8 pr-3 py-2 text-xs bg-slate-50 border border-slate-100 rounded-lg outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-300 font-medium"
+              className="w-full rounded-lg border border-black/10 bg-[#f8f8f6] py-2 pl-8 pr-3 text-xs font-medium text-neutral-800 outline-none focus:border-neutral-400"
             />
           </div>
         </div>
       )}
-      <div className="max-h-56 overflow-y-auto py-1 custom-scrollbar">
+      <div className="custom-scrollbar max-h-56 overflow-y-auto py-1">
         {filtered.length === 0 ? (
-          <div className="px-3 py-4 text-center text-xs text-slate-400 font-medium">
+          <div className="px-3 py-4 text-center text-xs font-medium text-neutral-400">
             Nenhuma opção encontrada
           </div>
         ) : (
@@ -139,26 +143,14 @@ export default function CustomSelect({
                 setOpen(false);
                 setSearch('');
               }}
-              className={`
-                w-full flex items-center gap-2 px-3 py-2.5 text-left transition-colors
-                ${option.value === value
-                  ? 'bg-blue-50 text-blue-700 font-semibold'
-                  : 'text-slate-700 hover:bg-slate-50 font-medium'
-                }
-              `}
+              className={`flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm transition-colors ${
+                option.value === value
+                  ? 'bg-neutral-900 font-medium text-white'
+                  : 'font-medium text-neutral-700 hover:bg-[#f6f6f4]'
+              }`}
             >
-              <div className={`
-                w-4 h-4 rounded-md flex items-center justify-center shrink-0 transition-colors
-                ${option.value === value
-                  ? 'bg-blue-600 text-white'
-                  : 'border border-slate-200'
-                }
-              `}>
-                {option.value === value && <Check size={10} strokeWidth={3} />}
-              </div>
-              <span className={`truncate ${size === 'sm' ? 'text-xs' : 'text-sm'}`}>
-                {option.label}
-              </span>
+              <span className="truncate">{option.label}</span>
+              {option.value === value && <Check size={14} strokeWidth={2.5} className="shrink-0" />}
             </button>
           ))
         )}
@@ -172,24 +164,16 @@ export default function CustomSelect({
         type="button"
         onClick={() => !disabled && setOpen(!open)}
         disabled={disabled}
-        className={`
-          w-full flex items-center justify-between
-          bg-white border border-slate-200 rounded-xl
-          font-medium text-slate-700 transition-all
-          hover:border-blue-300 hover:bg-blue-50/30
-          focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400
-          disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-slate-200 disabled:hover:bg-white
-          ${sizeClasses[size]}
-          ${open ? 'ring-2 ring-blue-500/20 border-blue-400' : ''}
-          ${triggerClassName}
-        `}
+        className={`flex w-full items-center justify-between border border-black/10 font-medium text-neutral-800 outline-none transition-colors hover:border-neutral-300 focus:border-neutral-400 disabled:cursor-default disabled:bg-[#f8f8f6] disabled:text-neutral-800 disabled:opacity-100 disabled:hover:border-black/10 disabled:hover:bg-[#f8f8f6] ${
+          pill ? 'h-10 gap-2 rounded-full bg-[#f8f8f6] px-4 text-sm' : `rounded-xl bg-white ${sizeClasses[size]}`
+        } ${open ? 'border-neutral-400' : ''} ${triggerClassName}`}
       >
-        <span className={`truncate ${!selected ? 'text-slate-400' : 'font-semibold'}`}>
+        <span className={`truncate ${!selected ? 'text-neutral-400' : 'font-medium'}`}>
           {selected ? selected.label : placeholder}
         </span>
         <ChevronDown
-          size={size === 'sm' ? 14 : 16}
-          className={`shrink-0 text-slate-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+          size={16}
+          className={`shrink-0 text-neutral-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
         />
       </button>
 

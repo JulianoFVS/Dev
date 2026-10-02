@@ -50,7 +50,8 @@ function ProfileAvatar({
   }, [photoUrl]);
 
   const showPhoto = Boolean(photoUrl) && !photoFailed;
-  const sizeClass = collapsed ? 'h-full w-full' : 'h-9 w-9 rounded-xl';
+  const sizeClass = 'h-9 w-9 rounded-full';
+  const collapsedPhoto = collapsed ? 'h-full w-full rounded-full' : sizeClass;
   const alt = profileName ? `Foto de ${profileName}` : 'Meu perfil';
 
   if (showPhoto) {
@@ -58,7 +59,7 @@ function ProfileAvatar({
       <img
         src={photoUrl!}
         alt={alt}
-        className={`shrink-0 object-cover ${sizeClass}`}
+        className={`shrink-0 object-cover ${collapsedPhoto}`}
         loading="eager"
         decoding="sync"
         onError={() => setPhotoFailed(true)}
@@ -68,7 +69,7 @@ function ProfileAvatar({
 
   return (
     <span
-      className={`flex shrink-0 items-center justify-center bg-[#c8f053] text-neutral-900 ${sizeClass}`}
+      className={`flex shrink-0 items-center justify-center rounded-full bg-[#c8f053] text-neutral-900 ${collapsed ? 'h-full w-full' : 'h-9 w-9'}`}
     >
       <User size={18} strokeWidth={1.75} />
     </span>
@@ -249,7 +250,7 @@ export default function DashboardSidebar({
             <img
               src="/landing/ortus-mark.svg"
               alt=""
-              className={`shrink-0 brightness-0 invert ${collapsed ? 'h-7 w-7' : 'h-6 w-6'}`}
+              className={`shrink-0 brightness-0 invert ${collapsed ? 'h-9 w-9' : 'h-6 w-6'}`}
             />
             {!collapsed && (
               <img src="/landing/ortus-wordmark.svg" alt="ortus" className="h-4 w-auto brightness-0 invert" />
@@ -331,7 +332,7 @@ export default function DashboardSidebar({
         <BentoSidebarTooltip label="Meu perfil" show={collapsed}>
           <Link
             href="/perfil"
-            className={`flex items-center ${collapsed ? 'h-11 w-11 justify-center overflow-hidden rounded-2xl ring-2 ring-neutral-800' : 'gap-3 rounded-2xl px-3 py-2 hover:bg-white/10'}`}
+            className={`flex items-center ${collapsed ? 'h-11 w-11 justify-center overflow-hidden rounded-full ring-2 ring-neutral-800' : 'gap-3 rounded-2xl px-3 py-2 hover:bg-white/10'}`}
           >
             <ProfileAvatar photoUrl={profilePhotoUrl} profileName={profileName} collapsed={collapsed} />
             {!collapsed && <span className="truncate text-sm font-medium text-white/90">Meu perfil</span>}
