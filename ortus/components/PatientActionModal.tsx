@@ -1,9 +1,9 @@
 'use client';
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import { AlertCircle, ArrowLeft, Calendar, CheckCircle2, DollarSign, FileText, FolderOpen, Loader2, Smile, Sparkles, User, X } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Calendar, Camera, CheckCircle2, DollarSign, FileText, FolderOpen, Loader2, Smile, Sparkles, User, X } from 'lucide-react';
 import { useClinica } from '@/app/context/ClinicaContext';
 import AppointmentForm from '@/components/forms/AppointmentForm';
 import ProsthesisForm from '@/components/forms/ProsthesisForm';
@@ -16,6 +16,7 @@ import Modal from '@/components/ui/Modal';
 import CustomSelect from '@/components/ui/CustomSelect';
 import { calcularValorLiquido, type TaxaMaquininha } from '@/lib/configDefaults';
 import { PARENTESCO_OPTIONS, SEXO_OPTIONS, UF_OPTIONS } from '@/lib/formOptions';
+import { prepararFotoPaciente } from '@/lib/prepararFotoPaciente';
 
 type PatientActionModalContextValue = {
   openPatientActions: (patientId: string | number | null | undefined) => void;
@@ -120,12 +121,44 @@ export function PatientActionModalProvider({ children }: { children: React.React
   
   const [qcSaving, setQcSaving] = useState(false);
   const [qcError, setQcError] = useState<string | null>(null);
+  const [qcFotoBlob, setQcFotoBlob] = useState<Blob | null>(null);
+  const [qcFotoPreview, setQcFotoPreview] = useState<string | null>(null);
+  const [qcFotoErro, setQcFotoErro] = useState<string | null>(null);
+  const qcFotoInputRef = useRef<HTMLInputElement>(null);
+
+  const limparFotoCadastro = useCallback(() => {
+    setQcFotoPreview((atual) => {
+      if (atual) URL.revokeObjectURL(atual);
+      return null;
+    });
+    setQcFotoBlob(null);
+    setQcFotoErro(null);
+    if (qcFotoInputRef.current) qcFotoInputRef.current.value = '';
+  }, []);
+
+  async function escolherFotoCadastro(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    try {
+      const blob = await prepararFotoPaciente(file);
+      setQcFotoPreview((atual) => {
+        if (atual) URL.revokeObjectURL(atual);
+        return URL.createObjectURL(blob);
+      });
+      setQcFotoBlob(blob);
+      setQcFotoErro(null);
+    } catch (err) {
+      setQcFotoErro(err instanceof Error ? err.message : 'Não foi possível usar essa foto.');
+    }
+  }
 
   const closePatientActions = useCallback(() => {
     setOpen(false);
     setActiveFlow('idle');
     setQuickCapture(false);
-  }, []);
+    limparFotoCadastro();
+  }, [limparFotoCadastro]);
 
   const openPatientActions = useCallback(async (patientId: string | number | null | undefined) => {
     if (!patientId) return;
@@ -173,6 +206,7 @@ export function PatientActionModalProvider({ children }: { children: React.React
     setQcPlanoId('');
     setQcError(null);
     setQcSaving(false);
+    limparFotoCadastro();
     setPatient(null);
     setError(null);
     setActiveFlow('idle');
@@ -186,7 +220,7 @@ export function PatientActionModalProvider({ children }: { children: React.React
     } else {
       setPlanos([]);
     }
-  }, [activeClinicId]);
+  }, [activeClinicId, limparFotoCadastro]);
 
   async function submitQuickCapture() {
     const payload = {
@@ -257,6 +291,25 @@ export function PatientActionModalProvider({ children }: { children: React.React
       return;
     }
 
+    let avisoFoto = '';
+    if (qcFotoBlob) {
+      const caminho = `pacientes/${data.id}/avatar.jpg`;
+      const { error: uploadErr } = await supabase.storage.from('arquivos_ortus').upload(caminho, qcFotoBlob, {
+        contentType: 'image/jpeg',
+        upsert: true,
+        cacheControl: '3600',
+      });
+      if (uploadErr) {
+        avisoFoto = ' A foto não foi salva.';
+      } else {
+        const { data: urlData } = supabase.storage.from('arquivos_ortus').getPublicUrl(caminho);
+        const publicUrl = `${urlData.publicUrl}?v=${Date.now()}`;
+        const { error: updErr } = await supabase.from('pacientes').update({ foto_url: publicUrl }).eq('id', data.id);
+        if (updErr) avisoFoto = ' A foto não foi salva.';
+      }
+    }
+    limparFotoCadastro();
+
     // Notifica a lista de pacientes (e qualquer outro listener)
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('ortus:paciente-changed'));
@@ -266,7 +319,7 @@ export function PatientActionModalProvider({ children }: { children: React.React
     setPatient(data as PatientData);
     setQuickCapture(false);
     setActiveFlow('idle');
-    setToast({ message: `${(data as PatientData).nome} cadastrado. O que deseja fazer agora?`, tone: 'success' });
+    setToast({ message: `${(data as PatientData).nome} cadastrado.${avisoFoto} O que deseja fazer agora?`, tone: avisoFoto ? 'info' : 'success' });
   }
 
   const value = useMemo(() => ({ openPatientActions, openQuickCapture, closePatientActions }), [openPatientActions, openQuickCapture, closePatientActions]);
@@ -437,13 +490,29 @@ export function PatientActionModalProvider({ children }: { children: React.React
             {quickCapture && (
               <div className="px-5 py-4 sm:px-6 sm:py-5">
                 <div className="mb-5 flex items-center justify-between gap-4 border-b border-black/5 pb-4">
-                  <div className="flex min-w-0 items-center gap-3">
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-neutral-900 text-white">
-                      <User size={18} />
-                    </div>
+                  <div className="flex min-w-0 items-center gap-3.5">
+                    <label className="relative h-16 w-16 shrink-0 cursor-pointer">
+                      <input ref={qcFotoInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={escolherFotoCadastro} />
+                      <span className={`flex h-16 w-16 items-center justify-center overflow-hidden rounded-full border bg-[#f8f8f6] text-lg font-semibold text-neutral-700 ${qcFotoPreview ? 'border-[#c8f053] ring-2 ring-[#c8f053]' : 'border-black/10'}`}>
+                        {qcFotoPreview ? (
+                          <img src={qcFotoPreview} alt="" className="h-full w-full object-cover" />
+                        ) : (
+                          (qcNome.trim().split(/\s+/).slice(0, 2).map((parte) => parte[0] || '').join('').toUpperCase() || <User size={20} className="text-neutral-400" />)
+                        )}
+                      </span>
+                      <span className="absolute -bottom-0.5 -right-0.5 flex h-6 w-6 items-center justify-center rounded-full bg-neutral-900 text-white">
+                        <Camera size={12} />
+                      </span>
+                    </label>
                     <div className="min-w-0">
                       <p className="text-xs font-medium text-neutral-500">Cadastro rápido</p>
                       <h2 className="text-lg font-semibold text-neutral-900">Novo paciente</h2>
+                      <div className={`mt-0.5 text-xs font-medium ${qcFotoErro ? 'text-red-600' : 'text-neutral-400'}`}>
+                        {qcFotoErro || 'Foto opcional. JPG, PNG ou WebP, até 8 MB — a imagem é reduzida antes de enviar.'}
+                        {qcFotoPreview && (
+                          <button type="button" onClick={limparFotoCadastro} className="ml-2 text-neutral-700 underline">Remover</button>
+                        )}
+                      </div>
                     </div>
                   </div>
                   <button type="button" onClick={closePatientActions} className="rounded-full p-2 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-800" aria-label="Fechar">

@@ -1614,31 +1614,24 @@ export default function PacienteDetalhe() {
   // Só bloqueia com skeleton se não há NADA em cache (acesso direto/link, sem passar pela lista)
   if (loading && prontuarioIdCarregado.current !== id && !pacienteCache.current) {
     return (
-      <div className="w-full space-y-3 px-2.5 py-2.5 pb-16 sm:px-3 sm:py-3 md:px-4 md:py-3.5">
-        <div className="flex items-center gap-4 rounded-[1.35rem] border border-black/5 bg-white p-4 sm:rounded-[1.5rem] sm:p-5">
-          <div className="h-11 w-11 shrink-0 animate-pulse rounded-2xl bg-neutral-100" />
-          <div className="flex-1 space-y-2">
-            <div className="h-6 w-48 animate-pulse rounded-lg bg-neutral-100" />
-            <div className="h-3 w-32 animate-pulse rounded-lg bg-neutral-50" />
-          </div>
+      <div className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden bg-white">
+        <div className="h-14 shrink-0 border-b border-black/10 bg-[#f8f8f6]" />
+        <div className="flex min-h-0 flex-1">
+          <div className="w-[12.75rem] shrink-0 border-r border-black/10 sm:w-56" />
+          <div className="min-w-0 flex-1 bg-white" />
         </div>
-        <div className="flex gap-2 overflow-x-auto pb-1">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="h-9 w-28 shrink-0 animate-pulse rounded-full bg-neutral-100" />
-          ))}
-        </div>
-        <div className="h-[50vh] animate-pulse rounded-[1.35rem] bg-neutral-100 sm:rounded-[1.5rem]" />
       </div>
     );
   }
 
   return (
-    <div className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden px-2.5 py-2 font-poppins sm:px-3 md:px-4">
-        
-        {/* HEADER */}
-        <div className="flex shrink-0 items-center justify-between gap-3 rounded-[1.25rem] border border-black/5 bg-white px-3 py-2">
+    <div className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden bg-white font-poppins">
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-black/10 px-4 py-2.5">
             <div className="flex min-w-0 items-center gap-2.5">
                 <Link href="/pacientes" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-black/10 bg-[#f8f8f6] text-neutral-600 transition-colors hover:bg-white"><ArrowLeft size={16}/></Link>
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-neutral-900 text-[11px] font-semibold text-white">
+                    {form.foto_url ? <img src={form.foto_url} alt="" className="h-full w-full object-cover" /> : (form.nome || 'P').trim().split(/\s+/).slice(0, 2).map((parte: string) => parte[0] || '').join('').toUpperCase()}
+                </div>
                 <div className="min-w-0">
                     <h1 className="truncate text-lg font-semibold text-neutral-900">{form.nome}</h1>
                     <p className="text-[11px] font-medium text-neutral-400">Prontuário digital</p>
@@ -1758,9 +1751,8 @@ export default function PacienteDetalhe() {
                 </div>
         </Modal>
 
-        <div className="mt-2 flex min-h-0 flex-1 gap-4">
-            <div className="flex w-[11.5rem] shrink-0 items-center sm:w-56">
-            <nav aria-label="Seções do prontuário" className="w-full rounded-[1.35rem] bg-white p-2">
+        <div className="flex min-h-0 flex-1">
+            <nav aria-label="Seções do prontuário" className="flex w-[12.75rem] shrink-0 flex-col border-r border-black/10 px-2 py-2 sm:w-56">
                 {PATIENT_NAV_SECTIONS.map((section) => {
                     const Icon = section.icon;
                     const active = abaAtiva === section.key;
@@ -1786,11 +1778,10 @@ export default function PacienteDetalhe() {
                     );
                 })}
             </nav>
-            </div>
 
-            <div className={abaAtiva === 'dados' ? 'flex min-h-0 min-w-0 flex-1 items-center overflow-y-auto' : 'min-h-0 min-w-0 flex-1 overflow-y-auto'}>
+            <div className="min-h-0 min-w-0 flex-1 overflow-y-auto px-5 py-4">
                 {abaAtiva === 'dados' && (
-                    <div className="w-full rounded-[1.35rem] border border-black/5 bg-white p-4 sm:p-5">
+                    <div className="w-full">
                         <div className="mb-4 flex items-center justify-between gap-2">
                             <h3 className="text-base font-semibold text-neutral-900">Informações do paciente</h3>
                             <div className="flex gap-1.5">
