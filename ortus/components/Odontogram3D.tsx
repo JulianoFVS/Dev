@@ -164,7 +164,21 @@ function ToothMesh(props: ToothMeshProps) {
 }
 
 export function Model(props: React.ComponentProps<'group'>) {
-  const { nodes, materials } = useGLTF('/arcada4k.glb') as unknown as GLTFResult;
+  const { nodes, materials } = useGLTF('/arcada4k.glb?v=1024') as unknown as GLTFResult;
+
+  useEffect(() => {
+    for (const material of Object.values(materials)) {
+      for (const chave of ['map', 'roughnessMap', 'metalnessMap'] as const) {
+        const textura = material[chave];
+        if (!textura) continue;
+        textura.generateMipmaps = true;
+        textura.minFilter = THREE.LinearMipmapLinearFilter;
+        textura.magFilter = THREE.LinearFilter;
+        textura.anisotropy = 1;
+        textura.needsUpdate = true;
+      }
+    }
+  }, [materials]);
 
   return (
     <group {...props} dispose={null}>
@@ -229,6 +243,4 @@ export default function Odontogram3D(props: React.ComponentProps<'group'>) {
   return <Model {...props} />;
 }
 
-// Sem useGLTF.preload aqui: o .glb tem ~10MB e o preload no escopo do módulo
-// disparava o download assim que a página de prontuário era importada.
-// O carregamento acontece só quando a vista 3D é realmente montada.
+// Sem useGLTF.preload: o modelo só baixa quando a vista 3D é montada.

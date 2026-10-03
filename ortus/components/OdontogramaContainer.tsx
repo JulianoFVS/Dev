@@ -26,6 +26,7 @@ export default function OdontogramaContainer() {
         gl={{
           antialias: true,
           alpha: false,
+          stencil: false,
           powerPreference: 'high-performance',
         }}
         onCreated={({ gl }) => {

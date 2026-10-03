@@ -47,7 +47,7 @@ import { FDI_MISSING_IN_3D } from '@/lib/odontogram/meshToFdi';
 import { selectLegacyOdontogram, useOdontogramStore } from '@/store/useOdontogramStore';
 import dynamic from 'next/dynamic';
 
-// three.js + drei + modelo de ~10MB só entram no bundle quando a vista 3D é aberta
+// three.js + drei só entram no bundle quando a vista 3D é aberta
 const OdontogramaContainer = dynamic(() => import('@/components/OdontogramaContainer'), {
   ssr: false,
   loading: () => (
