@@ -94,12 +94,22 @@ export default function BentoHoverTooltip() {
       setTip(place(el, text));
     };
 
+    const stillOver = (target: EventTarget | null) =>
+      !!current && target instanceof Node && (target === current || current.contains(target));
+
     const onOver = (event: MouseEvent) => {
       const el = findHost(event.target);
-      if (!el) return;
+      if (!el) {
+        if (current && !stillOver(event.target)) release();
+        return;
+      }
       if (el === current) return;
       if (showTimer) window.clearTimeout(showTimer);
-      showTimer = window.setTimeout(() => arm(el), SHOW_DELAY_MS);
+      showTimer = window.setTimeout(() => {
+        showTimer = null;
+        if (!el.isConnected) return;
+        arm(el);
+      }, SHOW_DELAY_MS);
     };
 
     const onOut = (event: MouseEvent) => {
@@ -111,8 +121,24 @@ export default function BentoHoverTooltip() {
         showTimer = null;
       }
       if (!current) return;
-      const from = event.target;
-      if (from instanceof Node && (from === current || current.contains(from))) release();
+      if (!stillOver(related)) release();
+    };
+
+    const onMove = (event: PointerEvent) => {
+      if (showTimer && !findHost(event.target)) {
+        window.clearTimeout(showTimer);
+        showTimer = null;
+      }
+      if (!current || stillOver(event.target)) return;
+      release();
+    };
+
+    const onDown = () => {
+      if (showTimer) {
+        window.clearTimeout(showTimer);
+        showTimer = null;
+      }
+      if (current) release();
     };
 
     const onScroll = () => {
@@ -121,14 +147,20 @@ export default function BentoHoverTooltip() {
 
     document.addEventListener('mouseover', onOver, true);
     document.addEventListener('mouseout', onOut, true);
+    document.addEventListener('pointermove', onMove, true);
+    document.addEventListener('pointerdown', onDown, true);
     window.addEventListener('scroll', onScroll, true);
     window.addEventListener('resize', onScroll);
+    window.addEventListener('blur', release);
     return () => {
       if (showTimer) window.clearTimeout(showTimer);
       document.removeEventListener('mouseover', onOver, true);
       document.removeEventListener('mouseout', onOut, true);
+      document.removeEventListener('pointermove', onMove, true);
+      document.removeEventListener('pointerdown', onDown, true);
       window.removeEventListener('scroll', onScroll, true);
       window.removeEventListener('resize', onScroll);
+      window.removeEventListener('blur', release);
       release();
     };
   }, []);
