@@ -89,7 +89,7 @@ export function CustomAlertProvider({ children }: { children: ReactNode }) {
             className="fixed inset-0 z-[9999] flex items-center justify-center p-4 animate-in fade-in duration-150"
             onClick={() => dismiss(dialog.id, false)}
           >
-            <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" />
+            <div className="absolute inset-0 bg-black/25 backdrop-blur-md" />
             <div
               className="relative bg-white w-full max-w-sm rounded-2xl shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-200"
               onClick={e => e.stopPropagation()}

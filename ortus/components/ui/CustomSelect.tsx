@@ -35,7 +35,7 @@ export default function CustomSelect({
   searchable = false,
   size = 'md',
   pill = false,
-  menuPortal = false,
+  menuPortal = true,
 }: CustomSelectProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -76,19 +76,22 @@ export default function CustomSelect({
     const updatePosition = () => {
       if (!ref.current) return;
       const rect = ref.current.getBoundingClientRect();
-      const menuMaxH = 224;
       const gap = 6;
+      const needed = Math.min(filtered.length * 36 + (searchable ? 52 : 8), 360);
       const spaceBelow = window.innerHeight - rect.bottom - gap;
       const spaceAbove = rect.top - gap;
-      const openUp = spaceBelow < Math.min(menuMaxH, 180) && spaceAbove > spaceBelow;
+      const openUp = needed > spaceBelow && spaceAbove > spaceBelow;
+      const available = Math.max(8, openUp ? spaceAbove : spaceBelow);
+      const maxH = Math.min(needed, available);
 
       setMenuStyle({
         position: 'fixed',
         left: rect.left,
-        width: Math.max(rect.width, 180),
+        width: rect.width,
         top: openUp ? undefined : rect.bottom + gap,
         bottom: openUp ? window.innerHeight - rect.top + gap : undefined,
         zIndex: 9999,
+        maxHeight: maxH,
       });
     };
 
@@ -103,15 +106,15 @@ export default function CustomSelect({
 
   const sizeClasses = {
     xs: 'h-8 gap-1.5 px-2.5 text-sm',
-    sm: 'h-9 gap-2 px-3 text-sm',
-    md: 'h-10 gap-2 px-3.5 text-sm',
-    lg: 'h-10 gap-2 px-3.5 text-sm',
+    sm: 'h-10 gap-2 px-3 text-sm',
+    md: 'h-10 gap-2 px-3 text-sm',
+    lg: 'h-10 gap-2 px-3 text-sm',
   };
 
   const menuContent = (
     <div
       ref={menuRef}
-      className={`${menuPortal ? '' : 'absolute z-50 mt-1.5 w-full min-w-[180px]'} overflow-hidden rounded-2xl border border-black/10 bg-white shadow-[0_12px_40px_rgba(0,0,0,0.12)]`}
+      className={`${menuPortal ? 'flex min-h-0 flex-col' : 'absolute z-50 mt-1.5 flex max-h-72 w-full min-h-0 flex-col'} overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-[0_8px_24px_rgba(0,0,0,0.08)]`}
       style={menuPortal ? menuStyle : undefined}
     >
       {searchable && (
@@ -128,7 +131,7 @@ export default function CustomSelect({
           </div>
         </div>
       )}
-      <div className="custom-scrollbar max-h-56 overflow-y-auto py-1">
+      <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto py-1">
         {filtered.length === 0 ? (
           <div className="px-3 py-4 text-center text-xs font-medium text-neutral-400">
             Nenhuma opção encontrada
@@ -159,14 +162,16 @@ export default function CustomSelect({
   );
 
   return (
-    <div ref={ref} className={`relative ${className}`}>
+    <div ref={ref} className={`relative w-full min-w-0 ${className}`}>
       <button
         type="button"
         onClick={() => !disabled && setOpen(!open)}
         disabled={disabled}
-        className={`flex w-full items-center justify-between border border-black/10 font-medium text-neutral-800 outline-none transition-colors hover:border-neutral-300 focus:border-neutral-400 disabled:cursor-default disabled:bg-[#f8f8f6] disabled:text-neutral-800 disabled:opacity-100 disabled:hover:border-black/10 disabled:hover:bg-[#f8f8f6] ${
-          pill ? 'h-10 gap-2 rounded-full bg-[#f8f8f6] px-4 text-sm' : `rounded-xl bg-white ${sizeClasses[size]}`
-        } ${open ? 'border-neutral-400' : ''} ${triggerClassName}`}
+        className={`box-border flex w-full items-center justify-between border font-medium text-neutral-900 outline-none transition-colors disabled:cursor-default disabled:opacity-100 ${
+          pill
+            ? 'h-10 gap-2 rounded-full border-neutral-200 bg-white px-4 text-sm hover:border-neutral-300 focus:border-neutral-900 disabled:bg-neutral-50'
+            : `rounded-md border-neutral-200 bg-white hover:border-neutral-300 focus:border-neutral-900 disabled:border-neutral-200 disabled:bg-white ${sizeClasses[size]}`
+        } ${open ? 'border-neutral-900' : ''} ${triggerClassName}`}
       >
         <span className={`truncate ${!selected ? 'text-neutral-400' : 'font-medium'}`}>
           {selected ? selected.label : placeholder}

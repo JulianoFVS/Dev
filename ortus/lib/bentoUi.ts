@@ -5,7 +5,7 @@ export const bentoCard = 'rounded-[1.35rem] bg-white sm:rounded-[1.5rem]';
 export const bentoSection = `${bentoCard} border border-black/10 p-4 sm:p-6`;
 export const bentoPagePad = 'px-2.5 py-2.5 pb-12 sm:px-3 sm:py-3 md:px-4 md:py-3.5';
 export const bentoInput =
-  'w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm font-medium text-neutral-800 outline-none focus:border-neutral-400';
+  'box-border h-10 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm text-neutral-900 outline-none focus:border-neutral-900';
 
 export function bentoPill(ativo: boolean) {
   return `shrink-0 rounded-full px-3 py-2 text-xs font-medium transition-colors sm:px-4 sm:text-sm ${

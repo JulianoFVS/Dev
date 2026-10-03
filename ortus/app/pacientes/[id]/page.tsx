@@ -66,8 +66,8 @@ const prontuarioPanel =
 const campoLabel = 'mb-1.5 block text-xs font-medium text-neutral-500';
 
 function campoClass(editing: boolean) {
-  return `h-9 w-full rounded-xl border px-3 text-sm font-medium text-neutral-800 outline-none placeholder:text-neutral-400 disabled:cursor-default ${
-    editing ? 'border-neutral-300 bg-white focus:border-neutral-900' : 'border-black/10 bg-[#f8f8f6]'
+  return `box-border h-10 max-h-10 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm text-neutral-900 outline-none placeholder:text-neutral-400 disabled:cursor-default ${
+    editing ? 'focus:border-neutral-900' : ''
   }`;
 }
 
@@ -1779,10 +1779,10 @@ export default function PacienteDetalhe() {
                 })}
             </nav>
 
-            <div className="min-h-0 min-w-0 flex-1 overflow-y-auto px-5 py-4">
+            <div className={abaAtiva === 'dados' ? 'flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden' : 'min-h-0 min-w-0 flex-1 overflow-y-auto px-5 py-4'}>
                 {abaAtiva === 'dados' && (
-                    <div className="w-full">
-                        <div className="mb-4 flex items-center justify-between gap-2">
+                    <div className="flex h-full min-h-0 flex-col overflow-y-auto px-4 py-3">
+                        <div className="mb-3 flex shrink-0 items-center justify-between gap-2">
                             <h3 className="text-base font-semibold text-neutral-900">Informações do paciente</h3>
                             <div className="flex gap-1.5">
                                 {modoEdicao ? (
@@ -1796,10 +1796,10 @@ export default function PacienteDetalhe() {
                             </div>
                         </div>
 
-                        <div className="space-y-4">
+                        <div className="flex min-h-0 flex-1 flex-col justify-between gap-4">
                             <section>
-                                <h4 className="mb-3 text-sm font-semibold text-neutral-900">Identificação</h4>
-                                <div className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
+                                <h4 className="mb-2 text-sm font-semibold text-neutral-900">Identificação</h4>
+                                <div className="grid grid-cols-2 gap-x-3 gap-y-2.5 lg:grid-cols-4">
                                     <label className="min-w-0">
                                         <span className={campoLabel}>Nome completo</span>
                                         <input disabled={!modoEdicao} className={campoClass(modoEdicao)} value={form.nome || ''} onChange={e => setForm({...form, nome: e.target.value})} />
@@ -1837,7 +1837,7 @@ export default function PacienteDetalhe() {
 
                             <section className="border-t border-black/5 pt-4">
                                 <h4 className="mb-3 text-sm font-semibold text-neutral-900">Endereço</h4>
-                                <div className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2 lg:grid-cols-4">
+                                <div className="grid grid-cols-2 gap-x-3 gap-y-2.5 lg:grid-cols-4">
                                     <label className="min-w-0">
                                         <span className="mb-1.5 flex items-center justify-between gap-2 text-xs font-medium text-neutral-500">
                                             <span>CEP <span className="text-red-500">*</span></span>
@@ -1899,7 +1899,7 @@ export default function PacienteDetalhe() {
 
                             <section className="border-t border-black/5 pt-4">
                                 <h4 className="mb-3 text-sm font-semibold text-neutral-900">Responsável {menorDeIdade && <span className="text-xs font-medium text-red-500">obrigatório para menor de 18 anos</span>}</h4>
-                                <div className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
+                                <div className="grid grid-cols-2 gap-x-3 gap-y-2.5 lg:grid-cols-4">
                                     <label className="min-w-0">
                                         <span className={campoLabel}>Nome</span>
                                         <input disabled={!modoEdicao} className={campoClass(modoEdicao)} value={form.responsavel_nome || ''} onChange={e => setForm({...form, responsavel_nome: e.target.value})} />

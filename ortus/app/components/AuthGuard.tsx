@@ -318,7 +318,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
 
       {/* Seleção de clínica obrigatória quando múltiplas e nenhuma escolhida */}
       {ctxClinics.length > 1 && !ctxActive && (
-        <div className="fixed inset-0 z-[60] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[60] bg-black/25 backdrop-blur-md flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl border border-slate-100 shadow-2xl w-full max-w-lg overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-100">
               <h3 className="text-lg font-bold text-slate-800">Selecione a clínica</h3>
@@ -346,7 +346,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
       )}
 
       {menuMobileAberto && (
-        <div className="md:hidden fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm animate-in fade-in" onClick={() => setMenuMobileAberto(false)}>
+        <div className="md:hidden fixed inset-0 z-50 bg-black/25 backdrop-blur-md animate-in fade-in" onClick={() => setMenuMobileAberto(false)}>
             <div className="absolute right-0 top-0 h-full w-[280px] bg-white shadow-2xl flex flex-col animate-in slide-in-from-right duration-300" onClick={e => e.stopPropagation()}>
                 <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
                     <h3 className="font-black text-slate-800 text-lg">Menu</h3>

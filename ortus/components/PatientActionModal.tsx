@@ -65,7 +65,7 @@ function getInitials(name?: string | null) {
   return (first + last).toUpperCase();
 }
 
-const qcInput = 'h-10 w-full rounded-xl border border-black/10 bg-[#f8f8f6] px-3 text-sm font-medium text-neutral-800 outline-none placeholder:font-normal placeholder:text-neutral-400 focus:border-neutral-400 focus:bg-white';
+const qcInput = 'box-border h-10 max-h-10 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm text-neutral-900 outline-none placeholder:text-neutral-400 focus:border-neutral-900';
 const qcLabel = 'mb-1.5 block text-xs font-medium text-neutral-500';
 const qcSection = 'mb-3 text-sm font-semibold text-neutral-900';
 
@@ -443,7 +443,7 @@ export function PatientActionModalProvider({ children }: { children: React.React
     <PatientActionModalContext.Provider value={value}>
       {children}
 
-      <Modal open={open} onClose={closePatientActions} maxWidth={quickCapture ? '4xl' : 'lg'} zIndex={80} hideCloseButton panelClassName={quickCapture ? 'overflow-hidden rounded-[1.5rem] border border-black/10 bg-white shadow-2xl' : 'bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[92vh] animate-in zoom-in-95 duration-200'}>
+      <Modal open={open} onClose={closePatientActions} maxWidth={quickCapture ? '4xl' : 'lg'} zIndex={80} hideCloseButton panelClassName={quickCapture ? 'overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-2xl' : 'bg-white rounded-xl shadow-2xl border border-neutral-200 overflow-hidden flex flex-col max-h-[92vh] animate-in zoom-in-95 duration-200'}>
           {!quickCapture && <div className={`p-5 border-b border-slate-100 bg-gradient-to-br ${flowMeta?.gradient || 'from-blue-50 to-white'} flex items-start justify-between gap-4 shrink-0`}>
               <div className="flex items-center gap-3 min-w-0">
                 {activeFlow !== 'idle' ? (
@@ -522,8 +522,8 @@ export function PatientActionModalProvider({ children }: { children: React.React
 
                 <section>
                   <h3 className={qcSection}>Identificação</h3>
-                  <div className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2 lg:grid-cols-4">
-                  <label className="min-w-0 sm:col-span-2">
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-2.5 lg:grid-cols-4">
+                  <label className="min-w-0">
                     <span className={qcLabel}>Nome <span className="text-red-500">*</span></span>
                     <input autoFocus type="text" value={qcNome} onChange={(event) => setQcNome(event.target.value)} placeholder="Nome completo do paciente" className={qcInput} />
                   </label>
@@ -577,7 +577,7 @@ export function PatientActionModalProvider({ children }: { children: React.React
 
                 <section className="mt-5 border-t border-black/5 pt-4">
                   <h3 className={qcSection}>Endereço</h3>
-                  <div className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-2.5 lg:grid-cols-4">
                   <label className="min-w-0">
                     <span className={qcLabel}>CEP</span>
                     <input
@@ -621,7 +621,7 @@ export function PatientActionModalProvider({ children }: { children: React.React
 
                 <section className="mt-5 border-t border-black/5 pt-4">
                   <h3 className={qcSection}>Responsável {isMenorDeIdade(qcDataNascimento) && <span className="text-xs font-medium text-red-500">obrigatório para menor de 18 anos</span>}</h3>
-                  <div className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-3">
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-2.5 lg:grid-cols-4">
                   <label className="min-w-0">
                     <span className={qcLabel}>Nome</span>
                     <input type="text" value={qcResponsavelNome} onChange={(e) => setQcResponsavelNome(e.target.value)} placeholder="Nome do responsável" className={qcInput} />

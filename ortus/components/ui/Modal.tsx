@@ -74,7 +74,7 @@ export default function Modal({
       <button
         type="button"
         aria-label="Fechar"
-        className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/25 backdrop-blur-md"
         onClick={closeOnBackdrop ? onClose : undefined}
       />
       <div

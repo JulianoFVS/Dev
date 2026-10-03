@@ -1,0 +1,30 @@
+---
+description: Menus e combos nunca podem ser cortados pelo contêiner
+alwaysApply: true
+---
+
+# Menus sempre visíveis
+
+Um combo, select, popover ou menu que abre ao clique tem que mostrar as opções por inteiro. Cortar a lista na borda de um modal, card ou `overflow: hidden` é um erro.
+
+## O que fazer
+
+- Renderize o menu em portal (`document.body`), com `position: fixed`, nunca dentro do pai que recorta.
+- Meça o espaço acima e abaixo do campo. Abra para o lado em que a lista cabe. Se não couber inteira, limite a altura ao espaço visível e deixe a lista rolar dentro do menu — a rolagem é do menu, não da página.
+- A largura do menu acompanha o campo. Não invente uma largura menor que esconda o texto.
+- O z-index fica acima do modal. O fundo desfocado do modal não pode cobrir o menu.
+
+```tsx
+// ❌ BAD — menu absoluto dentro de modal com overflow hidden
+<div className="overflow-hidden">
+  <div className="absolute mt-1">{opcoes}</div>
+</div>
+
+// ✅ GOOD — portal, cabe na viewport, rola só se passar da tela
+createPortal(
+  <div style={{ position: 'fixed', top, left, width, maxHeight: espacoVisivel, zIndex: 9999 }}>
+    <div className="overflow-y-auto">{opcoes}</div>
+  </div>,
+  document.body,
+)
+```

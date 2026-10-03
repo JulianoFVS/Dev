@@ -302,7 +302,7 @@ export default function Omnibar({ moduleAccess, isAdmin }: OmnibarProps) {
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-start justify-center bg-neutral-950/50 px-3 pt-[10vh] backdrop-blur-sm sm:px-4"
+      className="fixed inset-0 z-[100] flex items-start justify-center bg-black/25 px-3 pt-[10vh] backdrop-blur-md sm:px-4"
       onClick={() => setOpen(false)}
       role="presentation"
     >

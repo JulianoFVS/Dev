@@ -591,7 +591,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
       )}
 
       {menuMobileAberto && (
-        <div className="md:hidden fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm animate-in fade-in" onClick={() => setMenuMobileAberto(false)}>
+        <div className="md:hidden fixed inset-0 z-50 bg-black/25 backdrop-blur-md animate-in fade-in" onClick={() => setMenuMobileAberto(false)}>
             <div className="absolute left-0 top-0 h-full w-[280px] bg-[#f5f5f7] shadow-2xl flex flex-col animate-in slide-in-from-left duration-300" onClick={e => e.stopPropagation()}>
                 <div className="p-5 border-b border-black/[0.06] flex justify-between items-center">
                     <img src="/landing/ortus-wordmark.svg" alt="ortus" className="h-6"/>

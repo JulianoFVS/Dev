@@ -215,7 +215,7 @@ export default function SuperAdminPage() {
 
             {/* Modal de onboarding */}
             {modalOpen && (
-                <div className="fixed inset-0 bg-neutral-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div className="fixed inset-0 bg-black/25 backdrop-blur-md z-50 flex items-center justify-center p-4">
                     <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl border border-neutral-100 overflow-hidden animate-in zoom-in-95 duration-200">
                         <div className="bg-neutral-900 text-white px-6 py-4 flex items-center justify-between">
                             <div className="flex items-center gap-2">
@@ -282,7 +282,7 @@ export default function SuperAdminPage() {
 
             {/* Modal de credenciais */}
             {credenciais && (
-                <div className="fixed inset-0 bg-neutral-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div className="fixed inset-0 bg-black/25 backdrop-blur-md z-50 flex items-center justify-center p-4">
                     <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-neutral-100 overflow-hidden animate-in zoom-in-95 duration-200">
                         <div className="bg-neutral-900 px-6 py-5 text-white">
                             <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-white/15">
