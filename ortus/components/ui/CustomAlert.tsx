@@ -70,10 +70,10 @@ export function CustomAlertProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const iconMap: Record<AlertType, ReactNode> = {
-    info: <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center"><Info size={24} /></div>,
-    success: <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center"><CheckCircle size={24} /></div>,
-    warning: <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center"><AlertTriangle size={24} /></div>,
-    error: <div className="w-12 h-12 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center"><XCircle size={24} /></div>,
+    info: <Info size={16} />,
+    success: <CheckCircle size={16} />,
+    warning: <AlertTriangle size={16} />,
+    error: <XCircle size={16} />,
   };
 
   return (
@@ -91,54 +91,55 @@ export function CustomAlertProvider({ children }: { children: ReactNode }) {
           >
             <div className="absolute inset-0 bg-black/25 backdrop-blur-md" />
             <div
-              className="relative bg-white w-full max-w-sm rounded-2xl shadow-2xl border border-slate-100 overflow-hidden animate-in zoom-in-95 duration-200"
+              className="relative w-full max-w-sm overflow-hidden rounded-xl border border-neutral-200 bg-white"
               onClick={e => e.stopPropagation()}
             >
               <button
+                type="button"
                 onClick={() => dismiss(dialog.id, false)}
-                className="absolute top-3 right-3 p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-100"
+                aria-label="Fechar"
               >
                 <X size={16} />
               </button>
 
-              <div className="p-6 text-center">
-                <div className="flex justify-center mb-4">
+              <div className="px-5 pb-2 pt-5">
+                <div className="mb-3 flex h-8 w-8 items-center justify-center rounded-md bg-neutral-100 text-neutral-700">
                   {iconMap[type]}
                 </div>
                 {cfg.title && (
-                  <h3 className="text-lg font-bold text-slate-800 mb-1">{cfg.title}</h3>
+                  <h3 className="text-base font-semibold text-neutral-900">{cfg.title}</h3>
                 )}
-                <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-line">
+                <p className="mt-1 text-sm leading-relaxed text-neutral-600 whitespace-pre-line">
                   {cfg.message}
                 </p>
               </div>
 
-              <div className="px-6 pb-6 flex gap-3">
+              <div className="flex justify-end gap-2 px-5 py-4">
                 {isConfirm ? (
                   <>
                     <button
+                      type="button"
                       onClick={() => dismiss(dialog.id, false)}
-                      className="flex-1 py-2.5 px-4 rounded-xl text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors"
+                      className="h-9 rounded-md px-3 text-sm font-medium text-neutral-500 hover:bg-neutral-50"
                     >
                       {cfg.cancelLabel || 'Cancelar'}
                     </button>
                     <button
+                      type="button"
                       autoFocus
                       onClick={() => dismiss(dialog.id, true)}
-                      className={`flex-1 py-2.5 px-4 rounded-xl text-sm font-bold text-white transition-colors shadow-sm ${
-                        type === 'error' || type === 'warning'
-                          ? 'bg-red-600 hover:bg-red-700'
-                          : 'bg-blue-600 hover:bg-blue-700'
-                      }`}
+                      className="h-9 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800"
                     >
                       {cfg.confirmLabel || 'Confirmar'}
                     </button>
                   </>
                 ) : (
                   <button
+                    type="button"
                     autoFocus
                     onClick={() => dismiss(dialog.id, true)}
-                    className="flex-1 py-2.5 px-4 rounded-xl text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 transition-colors shadow-sm"
+                    className="h-9 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800"
                   >
                     OK
                   </button>

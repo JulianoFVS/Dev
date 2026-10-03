@@ -59,7 +59,7 @@ interface PlanoTratamentoForm {
 
 export function PlanosContent({ embedded = false }: { embedded?: boolean }) {
     const { activeClinicId } = useClinica();
-    const { showAlert } = useCustomAlert();
+    const { showAlert, showConfirm } = useCustomAlert();
 
     const clinicaId = activeClinicId && activeClinicId !== 'all' ? Number(activeClinicId) : null;
 
@@ -458,7 +458,7 @@ export function PlanosContent({ embedded = false }: { embedded?: boolean }) {
             showAlert('O plano Particular não pode ser excluído.', { type: 'warning' });
             return;
         }
-        if (!window.confirm(`Excluir o plano "${plano.nome}"?`)) return;
+        if (!(await showConfirm(`Excluir o plano "${plano.nome}"?`, { title: 'Excluir', type: 'error', confirmLabel: 'Excluir' }))) return;
         try {
             await supabase.from('planos_tratamentos').delete().eq('plano_id', plano.id);
             const { error } = await supabase.from('planos').delete().eq('id', plano.id);

@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, cloneElement, type ReactElement, type PointerEvent as ReactPointerEvent } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Search, Plus, LayoutGrid, List as ListIcon, Phone, ChevronRight, Filter, AlertCircle, Calendar, X, Smile, ArrowUpDown, Check } from 'lucide-react';
 import Link from 'next/link';
@@ -21,6 +21,25 @@ function readPacientesCache(clinicId: string | null): any[] {
     if (parsed.clinicId === clinicId && Array.isArray(parsed.items)) return parsed.items;
   } catch { /* ignore */ }
   return [];
+}
+
+function DicaAcao({ label, children }: { label: string; children: ReactElement<{ onPointerDown?: (e: ReactPointerEvent) => void }> }) {
+  const [visivel, setVisivel] = useState(false);
+  return (
+    <span className="relative inline-flex" onMouseEnter={() => setVisivel(true)} onMouseLeave={() => setVisivel(false)}>
+      {cloneElement(children, {
+        onPointerDown: (e: ReactPointerEvent) => {
+          setVisivel(false);
+          children.props.onPointerDown?.(e);
+        },
+      })}
+      {visivel && (
+        <span className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-1.5 -translate-x-1/2 whitespace-nowrap rounded-md bg-neutral-900 px-2 py-1 text-[11px] font-medium text-white">
+          {label}
+        </span>
+      )}
+    </span>
+  );
 }
 
 export default function Pacientes() {
@@ -330,8 +349,8 @@ export default function Pacientes() {
                           clinica_nome: p.nome_clinica,
                         })}
                       />
-                      <button type="button" onClick={() => router.push(`/agenda?paciente=${p.id}`)} className="rounded-full p-2 text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900" title="Agendar consulta"><Calendar size={15}/></button>
-                      <button type="button" onClick={() => router.push(`/proteses?paciente=${p.id}`)} className="rounded-full p-2 text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900" title="Nova prótese"><Smile size={15}/></button>
+                      <DicaAcao label="Agendar consulta"><button type="button" onClick={() => router.push(`/agenda?paciente=${p.id}`)} className="rounded-full p-2 text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900"><Calendar size={15}/></button></DicaAcao>
+                      <DicaAcao label="Nova prótese"><button type="button" onClick={() => router.push(`/proteses?paciente=${p.id}`)} className="rounded-full p-2 text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900"><Smile size={15}/></button></DicaAcao>
                       <ChevronRight size={16} className="text-neutral-300" />
                     </div>
                   </div>
@@ -354,8 +373,8 @@ export default function Pacientes() {
                     </div>
                     <div className="flex items-center gap-1" onClick={stopRowClick}>
                         <PatientContactButtons variant="icons" channels={['whatsapp']} telefone={p.telefone} email={p.email} clinicaId={p.clinica_id} evento="pos_consulta" contexto={buildDocumentoContexto({ paciente_nome: p.nome?.split(' ')[0], clinica_nome: p.nome_clinica })} />
-                        <button type="button" onClick={() => router.push(`/agenda?paciente=${p.id}`)} className="rounded-full p-2 text-neutral-500 hover:bg-white hover:text-neutral-900" title="Agendar"><Calendar size={16}/></button>
-                        <button type="button" onClick={() => router.push(`/proteses?paciente=${p.id}`)} className="rounded-full p-2 text-neutral-500 hover:bg-white hover:text-neutral-900" title="Nova prótese"><Smile size={16}/></button>
+                        <DicaAcao label="Agendar consulta"><button type="button" onClick={() => router.push(`/agenda?paciente=${p.id}`)} className="rounded-full p-2 text-neutral-500 hover:bg-white hover:text-neutral-900"><Calendar size={16}/></button></DicaAcao>
+                        <DicaAcao label="Nova prótese"><button type="button" onClick={() => router.push(`/proteses?paciente=${p.id}`)} className="rounded-full p-2 text-neutral-500 hover:bg-white hover:text-neutral-900"><Smile size={16}/></button></DicaAcao>
                     </div>
                 </div>
                 <div className="space-y-2">
