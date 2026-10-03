@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { ClipboardList, Clock, Calendar, User, Trash2, Save, Loader2, Printer } from 'lucide-react';
+import { Trash2, Save, Loader2, Printer } from 'lucide-react';
+import CampoData from '@/components/ui/CampoData';
 
 import { supabase } from '@/lib/supabase';
 
@@ -165,110 +166,54 @@ export default function TabEvolucao({ id, form, evolucoes, setEvolucoes }: Props
 
     return (
 
-        <div className="space-y-6 animate-in fade-in">
-
-            <div className="bg-white p-4 sm:p-6 md:p-8 rounded-2xl sm:rounded-3xl border border-slate-200 shadow-sm">
-
-                <h3 className="text-lg font-black text-slate-800 flex items-center gap-2 mb-5"><ClipboardList size={20} className="text-teal-500"/> Evolução Clínica</h3>
-
-                <div className="space-y-4">
-
-                    <div>
-
-                        <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Data do Atendimento</label>
-
-                        <input type="date" value={novaEvolucao.data} onChange={e => setNovaEvolucao({ ...novaEvolucao, data: e.target.value })} className="w-full max-w-xs p-2.5 border border-slate-200 rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-teal-500"/>
-
+        <div className="space-y-5">
+            <div>
+                <h3 className="mb-3 text-sm font-semibold text-neutral-900">Evolução clínica</h3>
+                <div className="grid gap-3">
+                    <div className="max-w-xs">
+                        <label className="mb-1.5 block text-xs font-medium text-neutral-500">Data do atendimento</label>
+                        <CampoData value={novaEvolucao.data} onChange={v => setNovaEvolucao({ ...novaEvolucao, data: v })} />
                     </div>
-
                     <div>
-
-                        <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Relato da Evolução</label>
-
-                        <textarea rows={5} placeholder="Descreva o atendimento realizado, observações clínicas, conduta adotada, medicamentos prescritos, próximos passos..." value={novaEvolucao.texto} onChange={e => setNovaEvolucao({ ...novaEvolucao, texto: e.target.value })} className="w-full p-3 border border-slate-200 rounded-xl text-sm leading-relaxed outline-none focus:ring-2 focus:ring-teal-500 resize-none"/>
-
+                        <label className="mb-1.5 block text-xs font-medium text-neutral-500">Relato</label>
+                        <textarea rows={4} placeholder="O que foi feito, conduta e próximos passos." value={novaEvolucao.texto} onChange={e => setNovaEvolucao({ ...novaEvolucao, texto: e.target.value })} className="w-full resize-none rounded-md border border-neutral-200 bg-white p-3 text-sm text-neutral-900 outline-none focus:border-neutral-900"/>
                     </div>
-
-                    <div className="flex items-center justify-between gap-3 flex-wrap">
-
-                        <p className="text-xs text-slate-500 font-semibold flex items-center gap-1.5"><User size={13}/> Profissional: <span className="text-slate-700">{profissionalNome}</span></p>
-
-                        <button onClick={salvarEvolucao} disabled={savingEvo || !novaEvolucao.texto.trim()} className="w-full sm:w-auto px-5 py-2.5 bg-teal-600 text-white rounded-xl font-bold text-sm hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-sm transition-all touch-target">
-
-                            {savingEvo ? <Loader2 size={14} className="animate-spin"/> : <Save size={14}/>} Registrar Evolução
-
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                        <p className="text-xs font-medium text-neutral-500">{profissionalNome}</p>
+                        <button onClick={salvarEvolucao} disabled={savingEvo || !novaEvolucao.texto.trim()} className="inline-flex h-9 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-40">
+                            {savingEvo ? <Loader2 size={14} className="animate-spin"/> : <Save size={14}/>} Registrar
                         </button>
-
                     </div>
-
                 </div>
-
             </div>
 
 
 
-            <div className="bg-white p-4 sm:p-6 md:p-8 rounded-2xl sm:rounded-3xl border border-slate-200 shadow-sm">
-
-                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-5">
-
-                    <h3 className="text-sm font-black text-slate-600 flex items-center gap-2 uppercase tracking-wider"><Clock size={16} className="text-teal-500"/> Registros Anteriores ({evolucoes.length})</h3>
-
+            <div className="border-t border-neutral-200 pt-4">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                    <h3 className="text-sm font-semibold text-neutral-900">Registros anteriores ({evolucoes.length})</h3>
                     {evolucoes.length > 0 && (
-
-                        <button onClick={imprimirProntuario} className="w-full sm:w-auto px-3 py-2 text-xs font-bold rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center justify-center gap-1 touch-target"><Printer size={12}/> Imprimir Prontuário</button>
-
+                        <button onClick={imprimirProntuario} className="inline-flex h-8 items-center gap-1.5 rounded-md border border-neutral-200 px-2.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"><Printer size={12}/> PDF</button>
                     )}
-
                 </div>
 
                 {evolucoes.length === 0 ? (
-
-                    <div className="text-center py-12 text-slate-400 border-2 border-dashed border-slate-200 rounded-2xl">
-
-                        <ClipboardList className="mx-auto mb-2 text-slate-300" size={36}/>
-
-                        <p className="text-sm">Nenhuma evolução registrada.</p>
-
-                        <p className="text-xs mt-1">Registre o relato de cada atendimento acima.</p>
-
-                    </div>
-
+                    <p className="py-6 text-center text-sm text-neutral-400">Nenhuma evolução registrada.</p>
                 ) : (
-
-                    <div className="relative border-l-2 border-teal-100 ml-1 sm:ml-3 space-y-6 pb-2">
-
+                    <div>
                         {evolucoes.map((ev: any) => (
-
-                            <div key={ev.id} className="ml-6 sm:ml-8 relative group">
-
-                                <div className="absolute -left-[29px] sm:-left-[37px] top-1.5 w-4 h-4 rounded-full border-[3px] border-white bg-teal-500 shadow-sm"></div>
-
-                                <div className="bg-slate-50 p-4 sm:p-5 rounded-2xl border border-slate-200/60 hover:shadow-md transition-shadow">
-
-                                    <div className="flex justify-between items-start mb-2 gap-2">
-
-                                        <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs font-bold text-slate-500 min-w-0">
-
-                                            <span className="flex items-center gap-1 text-teal-700 bg-teal-50 px-2 py-0.5 rounded"><Calendar size={12}/> {new Date(ev.data + 'T12:00:00').toLocaleDateString('pt-BR')}</span>
-
-                                            <span className="flex items-center gap-1 truncate"><User size={12}/> {ev.profissional}</span>
-
-                                        </div>
-
-                                        <button onClick={() => excluirEvolucao(ev.id)} className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all shrink-0 touch-target" title="Excluir"><Trash2 size={13}/></button>
-
-                                    </div>
-
-                                    <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap break-words">{ev.texto}</p>
-
+                            <div key={ev.id} className="group flex items-start justify-between gap-3 border-b border-neutral-100 py-3">
+                                <div className="min-w-0">
+                                    <p className="text-xs font-medium text-neutral-500">
+                                        {new Date(ev.data + 'T12:00:00').toLocaleDateString('pt-BR')}
+                                        {ev.profissional ? ` · ${ev.profissional}` : ''}
+                                    </p>
+                                    <p className="mt-1 whitespace-pre-wrap break-words text-sm text-neutral-800">{ev.texto}</p>
                                 </div>
-
+                                <button type="button" onClick={() => excluirEvolucao(ev.id)} className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-100 hover:text-rose-600" aria-label="Excluir"><Trash2 size={14}/></button>
                             </div>
-
                         ))}
-
                     </div>
-
                 )}
 
             </div>

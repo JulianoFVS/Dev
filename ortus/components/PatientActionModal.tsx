@@ -17,6 +17,8 @@ import CustomSelect from '@/components/ui/CustomSelect';
 import { calcularValorLiquido, type TaxaMaquininha } from '@/lib/configDefaults';
 import { PARENTESCO_OPTIONS, SEXO_OPTIONS, UF_OPTIONS } from '@/lib/formOptions';
 import { prepararFotoPaciente } from '@/lib/prepararFotoPaciente';
+import { cpfValido, mascaraCep, mascaraCpf, mascaraNumero, mascaraTelefone, variantesCpf } from '@/lib/mascaras';
+import CampoData from '@/components/ui/CampoData';
 
 type PatientActionModalContextValue = {
   openPatientActions: (patientId: string | number | null | undefined) => void;
@@ -121,6 +123,7 @@ export function PatientActionModalProvider({ children }: { children: React.React
   
   const [qcSaving, setQcSaving] = useState(false);
   const [qcError, setQcError] = useState<string | null>(null);
+  const [qcCpfExistente, setQcCpfExistente] = useState<{ id: string; nome: string } | null>(null);
   const [qcFotoBlob, setQcFotoBlob] = useState<Blob | null>(null);
   const [qcFotoPreview, setQcFotoPreview] = useState<string | null>(null);
   const [qcFotoErro, setQcFotoErro] = useState<string | null>(null);
@@ -205,6 +208,7 @@ export function PatientActionModalProvider({ children }: { children: React.React
     setQcResponsavelTelefone('');
     setQcPlanoId('');
     setQcError(null);
+    setQcCpfExistente(null);
     setQcSaving(false);
     limparFotoCadastro();
     setPatient(null);
@@ -221,6 +225,12 @@ export function PatientActionModalProvider({ children }: { children: React.React
       setPlanos([]);
     }
   }, [activeClinicId, limparFotoCadastro]);
+
+  async function buscarPacientePorCpf(cpf: string) {
+    const { data } = await supabase.from('pacientes').select('id, nome, cpf').in('cpf', variantesCpf(cpf)).limit(1);
+    const achado = data?.[0];
+    setQcCpfExistente(achado ? { id: String(achado.id), nome: achado.nome || 'Paciente' } : null);
+  }
 
   async function submitQuickCapture() {
     const payload = {
@@ -505,7 +515,6 @@ export function PatientActionModalProvider({ children }: { children: React.React
                       </span>
                     </label>
                     <div className="min-w-0">
-                      <p className="text-xs font-medium text-neutral-500">Cadastro rápido</p>
                       <h2 className="text-lg font-semibold text-neutral-900">Novo paciente</h2>
                       <div className={`mt-0.5 text-xs font-medium ${qcFotoErro ? 'text-red-600' : 'text-neutral-400'}`}>
                         {qcFotoErro || 'Foto opcional. JPG, PNG ou WebP, até 8 MB — a imagem é reduzida antes de enviar.'}
@@ -533,15 +542,16 @@ export function PatientActionModalProvider({ children }: { children: React.React
                   </label>
                   <label className="min-w-0">
                     <span className={qcLabel}>Nascimento</span>
-                    <input type="date" value={qcDataNascimento} onChange={(e) => setQcDataNascimento(e.target.value)} className={qcInput} />
+                    <CampoData value={qcDataNascimento} onChange={setQcDataNascimento} />
                   </label>
                   <label className="min-w-0">
                     <span className={qcLabel}>CPF</span>
-                    <input type="text" value={qcCpf} onChange={(e) => setQcCpf(e.target.value)} placeholder="000.000.000-00" className={qcInput} />
+                    <input type="text" inputMode="numeric" value={qcCpf} onChange={(e) => { const cpf = mascaraCpf(e.target.value); setQcCpf(cpf); if (cpfValido(cpf)) buscarPacientePorCpf(cpf); else setQcCpfExistente(null); }} placeholder="000.000.000.00" className={qcInput} />
+                    {qcCpfExistente && <span className="mt-1 block text-[11px] font-medium text-amber-700">CPF já cadastrado: {qcCpfExistente.nome}</span>}
                   </label>
                   <label className="min-w-0">
                     <span className={qcLabel}>WhatsApp</span>
-                    <input type="tel" value={qcTelefone} onChange={(event) => setQcTelefone(event.target.value)} placeholder="(00) 00000-0000" className={qcInput} />
+                    <input type="tel" inputMode="numeric" value={qcTelefone} onChange={(event) => setQcTelefone(mascaraTelefone(event.target.value))} placeholder="(00)9 0000-0000" className={qcInput} />
                   </label>
                   <label className="min-w-0">
                     <span className={qcLabel}>Clínica <span className="text-red-500">*</span></span>
@@ -584,8 +594,9 @@ export function PatientActionModalProvider({ children }: { children: React.React
                       type="text"
                       value={qcCep}
                       onChange={(e) => {
-                        setQcCep(e.target.value);
-                        if (e.target.value.replace(/\D/g, '').length === 8) buscarCep(e.target.value);
+                        const cep = mascaraCep(e.target.value);
+                        setQcCep(cep);
+                        if (cep.replace(/\D/g, '').length === 8) buscarCep(cep);
                       }}
                       onBlur={(e) => buscarCep(e.target.value)}
                       placeholder="00000-000"
@@ -598,7 +609,7 @@ export function PatientActionModalProvider({ children }: { children: React.React
                   </label>
                   <label className="min-w-0">
                     <span className={qcLabel}>Número</span>
-                    <input type="text" value={qcNumero} onChange={(e) => setQcNumero(e.target.value)} placeholder="Nº" className={qcInput} />
+                    <input type="text" inputMode="numeric" value={qcNumero} onChange={(e) => setQcNumero(mascaraNumero(e.target.value))} placeholder="Nº" className={qcInput} />
                   </label>
                   <label className="min-w-0">
                     <span className={qcLabel}>Complemento</span>
@@ -632,7 +643,7 @@ export function PatientActionModalProvider({ children }: { children: React.React
                   </label>
                   <label className="min-w-0">
                     <span className={qcLabel}>Telefone</span>
-                    <input type="tel" value={qcResponsavelTelefone} onChange={(e) => setQcResponsavelTelefone(e.target.value)} placeholder="(00) 00000-0000" className={qcInput} />
+                    <input type="tel" inputMode="numeric" value={qcResponsavelTelefone} onChange={(e) => setQcResponsavelTelefone(mascaraTelefone(e.target.value))} placeholder="(00)9 0000-0000" className={qcInput} />
                   </label>
                   </div>
                 </section>
@@ -644,8 +655,7 @@ export function PatientActionModalProvider({ children }: { children: React.React
                   </p>
                 )}
 
-                <div className="mt-5 flex items-center justify-between gap-4 border-t border-black/5 pt-4">
-                  <p className="text-sm text-neutral-500">Depois você agenda, cria a prótese ou abre a ficha.</p>
+                <div className="mt-5 flex justify-end border-t border-black/5 pt-4">
                   <button
                     onClick={submitQuickCapture}
                     disabled={qcSaving || !qcNome.trim() || !qcClinicaId}

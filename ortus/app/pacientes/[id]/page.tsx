@@ -1,9 +1,9 @@
 ﻿'use client';
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import type { MouseEvent, PointerEvent } from 'react';
+import type { MouseEvent } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { User, Phone, Edit, ArrowLeft, Save, Loader2, FileText, Clock, Trash2, Calendar, CalendarPlus, Pill, AlertTriangle, Stethoscope, X, Check, Building2, Printer, Smile, Plus, Eraser, CheckCircle, ClipboardList, FolderOpen, AlertCircle, Upload, Download, Image as ImageIcon, DollarSign, Settings, Sparkles, Camera, Bell, ArrowLeftRight, ShieldCheck, Zap, Link2, Copy } from 'lucide-react';
+import { User, Phone, Edit, ArrowLeft, Save, Loader2, FileText, Clock, Trash2, Calendar, CalendarPlus, Pill, AlertTriangle, Stethoscope, X, Check, Building2, Printer, Smile, Plus, Eraser, CheckCircle, ClipboardList, FolderOpen, AlertCircle, Upload, Download, Image as ImageIcon, DollarSign, Settings, Sparkles, Camera, Bell, ArrowLeftRight, ShieldCheck, Zap, Link2, Copy, ChevronDown } from 'lucide-react';
 import Link from 'next/link';
 import { carregarModelos, formatarRespostaAnamnese, respostaInicial, type ModeloAnamnese, type RespostaAnamnese, type RespostaSimNaoTexto } from '@/lib/anamnese';
 // teeth-data lib no longer needed — using PNG images from /assets/dentes/
@@ -17,6 +17,9 @@ import Modal from '@/components/ui/Modal';
 import { MEDICAMENTOS_CATALOGO } from '@/lib/medicamentosCatalogo';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
 import { validarPaciente, isMenorDeIdade } from '@/lib/pacienteValidation';
+import { cpfValido, mascaraCep, mascaraCpf, mascaraNumero, mascaraTelefone, variantesCpf } from '@/lib/mascaras';
+import { prepararFotoPaciente } from '@/lib/prepararFotoPaciente';
+import CampoData from '@/components/ui/CampoData';
 import { carregarConfig } from '@/lib/configClinica';
 import { buildDocumentoContexto, aplicarVariaveisDocumento } from '@/lib/documentVariables';
 import { printDocument, printQaBlock, printSignatureBlock, printTable, escapePrintHtml } from '@/lib/printDocument';
@@ -60,8 +63,7 @@ interface ToothState { faces: Partial<Record<Face, FaceStatus>>; cond: ToothCond
 
 const TOOLS = ODONTO_TOOLS;
 
-const prontuarioPanel =
-  'rounded-[1.35rem] border border-black/5 bg-white p-4 sm:rounded-[1.5rem] sm:p-6 md:p-8';
+const prontuarioPanel = '';
 
 const campoLabel = 'mb-1.5 block text-xs font-medium text-neutral-500';
 
@@ -382,10 +384,6 @@ export default function PacienteDetalhe() {
   const marcacoesOdonto = useMemo(() => listarMarcacoesOdontograma(odontograma), [odontograma]);
   const marcacoesPendentes = useMemo(() => marcacoesOdonto.filter((m) => m.precisaTratamento), [marcacoesOdonto]);
   const [mostrar3D, setMostrar3D] = useState(false);
-  const [odontogramaZoom, setOdontogramaZoom] = useState(1);
-  const [odontogramaPan, setOdontogramaPan] = useState({ x: 0, y: 0 });
-  const odontogramaSurfaceRef = useRef<HTMLDivElement | null>(null);
-  const odontogramaPanSession = useRef<{ active: boolean; lastX: number; lastY: number }>({ active: false, lastX: 0, lastY: 0 });
 
   // ANAMNESE
   const [modelosAnamnese, setModelosAnamnese] = useState<ModeloAnamnese[]>([]);
@@ -416,11 +414,6 @@ export default function PacienteDetalhe() {
       bioestimulador: { meses: 18, label: '18-24 meses' }, fios: { meses: 12, label: '12 meses' },
       peeling: { meses: 2, label: '1-3 meses' },
   };
-  const clampValue = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
-  const ODONTO_ZOOM_RANGE = { min: 0.85, max: 1.4 } as const;
-  const HOF_ZOOM_RANGE = { min: 0.9, max: 1.5 } as const;
-  const PAN_LIMIT_FACTOR = 160;
-  const getPanLimit = (zoom: number) => (zoom - 1) * PAN_LIMIT_FACTOR;
   type HofFoto = { id: string; sessao: string; angulo: string; dataUrl: string; storagePath?: string; criado_em: string };
   const [marcacoesHof, setMarcacoesHof] = useState<HofMarcacao[]>([]);
   const [hofFotos, setHofFotos] = useState<HofFoto[]>([]);
@@ -490,6 +483,36 @@ export default function PacienteDetalhe() {
   }, [form.clinica_id]);
 
   const menorDeIdade = isMenorDeIdade(form.data_nascimento);
+  const [responsavelAberto, setResponsavelAberto] = useState(true);
+  const [cpfEncontrado, setCpfEncontrado] = useState<{ id: string; nome: string } | null>(null);
+  const [enviandoFotoPerfil, setEnviandoFotoPerfil] = useState(false);
+
+  async function buscarPacientePorCpf(cpf: string) {
+      if (!cpfValido(cpf)) { setCpfEncontrado(null); return; }
+      const { data } = await supabase.from('pacientes').select('id, nome, cpf').in('cpf', variantesCpf(cpf)).limit(5);
+      const outro = (data || []).find((p) => String(p.id) !== String(id));
+      setCpfEncontrado(outro ? { id: String(outro.id), nome: outro.nome || 'Paciente' } : null);
+  }
+
+  async function trocarFotoPaciente(arquivo?: File) {
+      if (!arquivo) return;
+      setEnviandoFotoPerfil(true);
+      try {
+          const blob = await prepararFotoPaciente(arquivo);
+          const caminho = `pacientes/${id}/avatar.jpg`;
+          const { error: uploadErr } = await supabase.storage.from('arquivos_ortus').upload(caminho, blob, { contentType: 'image/jpeg', upsert: true, cacheControl: '3600' });
+          if (uploadErr) throw uploadErr;
+          const { data: urlData } = supabase.storage.from('arquivos_ortus').getPublicUrl(caminho);
+          const publicUrl = `${urlData.publicUrl}?v=${Date.now()}`;
+          const { error: updErr } = await supabase.from('pacientes').update({ foto_url: publicUrl }).eq('id', id);
+          if (updErr) throw updErr;
+          setForm((atual: any) => ({ ...atual, foto_url: publicUrl }));
+      } catch (erro: any) {
+          showAlert(erro?.message || 'Não foi possível salvar a foto.', { type: 'error' });
+      } finally {
+          setEnviandoFotoPerfil(false);
+      }
+  }
 
   async function carregar(opts?: { silent?: boolean }) {
       if (!opts?.silent) setLoading(true);
@@ -658,50 +681,6 @@ export default function PacienteDetalhe() {
       const timer = setTimeout(() => { salvarFichaMedicaRapida(ficha, form.anamnese || ''); }, 800);
       return () => clearTimeout(timer);
   }, [ficha, form.anamnese, loading, salvarFichaMedicaRapida]);
-
-  function updateOdontogramaZoom(value: number) {
-      const normalized = Number(clampValue(value, ODONTO_ZOOM_RANGE.min, ODONTO_ZOOM_RANGE.max).toFixed(2));
-      setOdontogramaZoom(normalized);
-      if (normalized === 1) setOdontogramaPan({ x: 0, y: 0 });
-  }
-
-  function nudgeOdontogramaZoom(delta: number) {
-      updateOdontogramaZoom(odontogramaZoom + delta);
-  }
-
-  function resetOdontogramaView() {
-      odontogramaPanSession.current.active = false;
-      setOdontogramaPan({ x: 0, y: 0 });
-      updateOdontogramaZoom(1);
-  }
-
-  function handleOdontoPanStart(e: PointerEvent<HTMLDivElement>) {
-      if (odontogramaZoom <= 1) return;
-      odontogramaPanSession.current.active = true;
-      odontogramaPanSession.current.lastX = e.clientX;
-      odontogramaPanSession.current.lastY = e.clientY;
-      e.currentTarget.setPointerCapture?.(e.pointerId);
-  }
-
-  function handleOdontoPanMove(e: PointerEvent<HTMLDivElement>) {
-      if (!odontogramaPanSession.current.active) return;
-      const dx = e.clientX - odontogramaPanSession.current.lastX;
-      const dy = e.clientY - odontogramaPanSession.current.lastY;
-      if (dx === 0 && dy === 0) return;
-      odontogramaPanSession.current.lastX = e.clientX;
-      odontogramaPanSession.current.lastY = e.clientY;
-      const limit = getPanLimit(odontogramaZoom);
-      setOdontogramaPan(prev => ({
-          x: clampValue(prev.x + dx, -limit, limit),
-          y: clampValue(prev.y + dy, -limit, limit),
-      }));
-  }
-
-  function handleOdontoPanEnd(e: PointerEvent<HTMLDivElement>) {
-      if (!odontogramaPanSession.current.active) return;
-      odontogramaPanSession.current.active = false;
-      e.currentTarget.releasePointerCapture?.(e.pointerId);
-  }
 
   function abrirNovoTratamento(dentesPref?: number[]) {
       const base = dentesPref?.length
@@ -1796,10 +1775,20 @@ export default function PacienteDetalhe() {
                             </div>
                         </div>
 
-                        <div className="flex min-h-0 flex-1 flex-col justify-between gap-4">
+                        <div className="space-y-5">
                             <section>
                                 <h4 className="mb-2 text-sm font-semibold text-neutral-900">Identificação</h4>
-                                <div className="grid grid-cols-2 gap-x-3 gap-y-2.5 lg:grid-cols-4">
+                                <div className="flex items-start gap-4">
+                                <label className="group relative h-36 w-36 shrink-0 cursor-pointer">
+                                    <input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={(e) => { const arquivo = e.target.files?.[0]; e.target.value = ''; trocarFotoPaciente(arquivo); }} />
+                                    <span className="flex h-36 w-36 items-center justify-center overflow-hidden rounded-md border border-neutral-200 bg-neutral-50 text-2xl font-semibold text-neutral-700">
+                                        {form.foto_url ? <img src={form.foto_url} alt="" className="h-full w-full object-cover" /> : (form.nome || 'P').trim().split(/\s+/).slice(0, 2).map((parte: string) => parte[0] || '').join('').toUpperCase()}
+                                    </span>
+                                    <span className="absolute bottom-1.5 right-1.5 flex h-7 w-7 items-center justify-center rounded-md bg-neutral-900 text-white">
+                                        {enviandoFotoPerfil ? <Loader2 size={14} className="animate-spin" /> : <Camera size={14} />}
+                                    </span>
+                                </label>
+                                <div className="grid min-w-0 flex-1 grid-cols-2 gap-x-3 gap-y-2.5 lg:grid-cols-4">
                                     <label className="min-w-0">
                                         <span className={campoLabel}>Nome completo</span>
                                         <input disabled={!modoEdicao} className={campoClass(modoEdicao)} value={form.nome || ''} onChange={e => setForm({...form, nome: e.target.value})} />
@@ -1810,15 +1799,16 @@ export default function PacienteDetalhe() {
                                     </label>
                                     <label className="min-w-0">
                                         <span className={campoLabel}>Nascimento</span>
-                                        <input type="date" disabled={!modoEdicao} className={campoClass(modoEdicao)} value={form.data_nascimento || ''} onChange={e => setForm({...form, data_nascimento: e.target.value})} />
+                                        <CampoData disabled={!modoEdicao} value={form.data_nascimento || ''} onChange={v => setForm({...form, data_nascimento: v})} />
                                     </label>
                                     <label className="min-w-0">
                                         <span className={campoLabel}>CPF</span>
-                                        <input disabled={!modoEdicao} className={campoClass(modoEdicao)} value={form.cpf || ''} onChange={e => setForm({...form, cpf: e.target.value})} placeholder="000.000.000-00" />
+                                        <input disabled={!modoEdicao} inputMode="numeric" className={campoClass(modoEdicao)} value={form.cpf || ''} onChange={e => { const cpf = mascaraCpf(e.target.value); setForm({...form, cpf}); if (cpfValido(cpf)) buscarPacientePorCpf(cpf); else setCpfEncontrado(null); }} placeholder="000.000.000.00" />
+                                        {cpfEncontrado && <span className="mt-1 block text-[11px] font-medium text-amber-700">CPF já cadastrado: {cpfEncontrado.nome}</span>}
                                     </label>
                                     <label className="min-w-0">
                                         <span className={campoLabel}>WhatsApp</span>
-                                        <input disabled={!modoEdicao} className={campoClass(modoEdicao)} value={form.telefone || ''} onChange={e => setForm({...form, telefone: e.target.value})} placeholder="(00) 00000-0000" />
+                                        <input disabled={!modoEdicao} inputMode="numeric" className={campoClass(modoEdicao)} value={form.telefone || ''} onChange={e => setForm({...form, telefone: mascaraTelefone(e.target.value)})} placeholder="(00)9 0000-0000" />
                                     </label>
                                     <label className="min-w-0">
                                         <span className={campoLabel}>E-mail</span>
@@ -1832,6 +1822,7 @@ export default function PacienteDetalhe() {
                                         <span className={campoLabel}>Plano / convênio</span>
                                         <CustomSelect disabled={!modoEdicao} value={form.plano_id || ''} onChange={v => setForm({...form, plano_id: v || null})} options={[{value:'', label:'Particular (sem convênio)'}, ...planos.map((p:any) => ({value:String(p.id), label:p.nome}))]} size="sm"/>
                                     </label>
+                                </div>
                                 </div>
                             </section>
 
@@ -1868,7 +1859,7 @@ export default function PacienteDetalhe() {
                                                 </button>
                                             )}
                                         </span>
-                                        <input disabled={!modoEdicao} className={campoClass(modoEdicao)} value={form.cep || ''} onChange={e => setForm({...form, cep: e.target.value})} placeholder="00000-000" />
+                                        <input disabled={!modoEdicao} inputMode="numeric" className={campoClass(modoEdicao)} value={form.cep || ''} onChange={e => setForm({...form, cep: mascaraCep(e.target.value)})} placeholder="00000-000" />
                                     </label>
                                     <label className="min-w-0">
                                         <span className={campoLabel}>Rua / avenida</span>
@@ -1876,7 +1867,7 @@ export default function PacienteDetalhe() {
                                     </label>
                                     <label className="min-w-0">
                                         <span className={campoLabel}>Número</span>
-                                        <input disabled={!modoEdicao} className={campoClass(modoEdicao)} value={form.numero || ''} onChange={e => setForm({...form, numero: e.target.value})} />
+                                        <input disabled={!modoEdicao} inputMode="numeric" className={campoClass(modoEdicao)} value={form.numero || ''} onChange={e => setForm({...form, numero: mascaraNumero(e.target.value)})} />
                                     </label>
                                     <label className="min-w-0">
                                         <span className={campoLabel}>Complemento</span>
@@ -1897,9 +1888,13 @@ export default function PacienteDetalhe() {
                                 </div>
                             </section>
 
-                            <section className="border-t border-black/5 pt-4">
-                                <h4 className="mb-3 text-sm font-semibold text-neutral-900">Responsável {menorDeIdade && <span className="text-xs font-medium text-red-500">obrigatório para menor de 18 anos</span>}</h4>
-                                <div className="grid grid-cols-2 gap-x-3 gap-y-2.5 lg:grid-cols-4">
+                            <section className="border-t border-neutral-200 pt-4">
+                                <button type="button" onClick={() => setResponsavelAberto((aberto) => !aberto)} className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-neutral-900">
+                                    <ChevronDown size={16} className={`transition-transform ${responsavelAberto ? '' : '-rotate-90'}`} />
+                                    Responsável
+                                    {menorDeIdade && <span className="text-xs font-medium text-red-500">obrigatório para menor de 18 anos</span>}
+                                </button>
+                                {responsavelAberto && <div className="grid grid-cols-2 gap-x-3 gap-y-2.5 lg:grid-cols-4">
                                     <label className="min-w-0">
                                         <span className={campoLabel}>Nome</span>
                                         <input disabled={!modoEdicao} className={campoClass(modoEdicao)} value={form.responsavel_nome || ''} onChange={e => setForm({...form, responsavel_nome: e.target.value})} />
@@ -1910,9 +1905,9 @@ export default function PacienteDetalhe() {
                                     </label>
                                     <label className="min-w-0">
                                         <span className={campoLabel}>Telefone</span>
-                                        <input disabled={!modoEdicao} className={campoClass(modoEdicao)} value={form.responsavel_telefone || ''} onChange={e => setForm({...form, responsavel_telefone: e.target.value})} placeholder="(00) 00000-0000" />
+                                        <input disabled={!modoEdicao} inputMode="numeric" className={campoClass(modoEdicao)} value={form.responsavel_telefone || ''} onChange={e => setForm({...form, responsavel_telefone: mascaraTelefone(e.target.value)})} placeholder="(00)9 0000-0000" />
                                     </label>
-                                </div>
+                                </div>}
                             </section>
                         </div>
                         {form.endereco && !form.rua && (
@@ -1924,50 +1919,46 @@ export default function PacienteDetalhe() {
                 {abaAtiva === 'anamnese' && (
                     <div className="space-y-6 animate-in fade-in">
                         {/* NOVA ANAMNESE - MODELO */}
-                        <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-200 shadow-sm">
-                            <div className="flex flex-wrap justify-between items-center gap-3 mb-5">
-                                <h3 className="text-lg font-black text-slate-800 flex items-center gap-2">
-                                    <ClipboardList size={20} className="text-blue-500"/>
-                                    {anamneseAtual.id ? 'Editar Anamnese' : 'Nova Anamnese'}
+                        <div>
+                            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                                <h3 className="text-sm font-semibold text-neutral-900">
+                                    {anamneseAtual.id ? 'Editar anamnese' : 'Nova anamnese'}
                                 </h3>
-                                <Link href="/configuracoes?aba=anamnese" className="text-xs font-bold text-blue-600 hover:underline flex items-center gap-1.5"><Settings size={14}/> Criar/Editar Modelos</Link>
+                                <Link href="/configuracoes?aba=anamnese" className="inline-flex items-center gap-1.5 text-xs font-medium text-neutral-500 hover:text-neutral-900"><Settings size={14}/> Modelos</Link>
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
-                                <div className="md:col-span-1">
-                                    <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Modelo</label>
+                            <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+                                <div>
+                                    <label className={campoLabel}>Modelo</label>
                                     <CustomSelect value={anamneseAtual.modelo_id} onChange={v => selecionarModeloAnamnese(v)} options={modelosAnamnese.map(m => ({value:m.id,label:m.nome}))} placeholder="Selecione..." size="md"/>
                                 </div>
                                 <div>
-                                    <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block flex items-center gap-1"><Calendar size={11}/> Data</label>
-                                    <input type="date" value={anamneseAtual.data} onChange={e => setAnamneseAtual({...anamneseAtual, data: e.target.value})} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500"/>
+                                    <label className={campoLabel}>Data</label>
+                                    <CampoData value={anamneseAtual.data} onChange={v => setAnamneseAtual({...anamneseAtual, data: v})} />
                                 </div>
                                 <div>
-                                    <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Preenchido por</label>
-                                    <div className="flex bg-slate-100 p-1 rounded-lg">
-                                        <button onClick={() => { setAnamneseAtual({...anamneseAtual, preenchido_por: 'profissional'}); setLinkAnamnesePaciente(null); }} className={`flex-1 py-1.5 rounded text-xs font-bold transition-all ${anamneseAtual.preenchido_por === 'profissional' ? 'bg-white text-blue-600 shadow' : 'text-slate-500'}`}>Profissional</button>
-                                        <button onClick={() => setAnamneseAtual({...anamneseAtual, preenchido_por: 'paciente'})} className={`flex-1 py-1.5 rounded text-xs font-bold transition-all ${anamneseAtual.preenchido_por === 'paciente' ? 'bg-white text-blue-600 shadow' : 'text-slate-500'}`}>Paciente</button>
+                                    <label className={campoLabel}>Preenchido por</label>
+                                    <div className="flex h-10 overflow-hidden rounded-md border border-neutral-200 bg-white">
+                                        <button type="button" onClick={() => { setAnamneseAtual({...anamneseAtual, preenchido_por: 'profissional'}); setLinkAnamnesePaciente(null); }} className={`flex-1 text-xs font-medium ${anamneseAtual.preenchido_por === 'profissional' ? 'bg-neutral-900 text-white' : 'text-neutral-600'}`}>Profissional</button>
+                                        <button type="button" onClick={() => setAnamneseAtual({...anamneseAtual, preenchido_por: 'paciente'})} className={`flex-1 border-l border-neutral-200 text-xs font-medium ${anamneseAtual.preenchido_por === 'paciente' ? 'bg-neutral-900 text-white' : 'text-neutral-600'}`}>Paciente</button>
                                     </div>
                                 </div>
                             </div>
 
                             {anamneseAtual.preenchido_por === 'paciente' && anamneseAtual.modelo_id && !anamneseAtual.id ? (
-                                <div className="border-t border-slate-100 pt-5 space-y-4">
-                                    <div className="p-4 bg-purple-50 border border-purple-100 rounded-xl">
-                                        <p className="text-sm font-bold text-purple-800 flex items-center gap-2"><Link2 size={16}/> Modo paciente</p>
-                                        <p className="text-xs text-purple-700 mt-1">Gere um link seguro e temporário para o paciente preencher este formulário no celular ou computador.</p>
-                                    </div>
+                                <div className="space-y-3 border-t border-neutral-200 pt-4">
+                                    <p className="text-sm font-medium text-neutral-800">Link para o paciente preencher no celular.</p>
                                     {linkAnamnesePaciente ? (
-                                        <div className="space-y-3">
+                                        <div className="space-y-2">
                                             <div className="flex gap-2">
-                                                <input readOnly value={linkAnamnesePaciente.url} className="flex-1 p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono text-slate-600"/>
-                                                <button onClick={copiarLinkAnamnese} className="px-4 py-2 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 flex items-center gap-2 shrink-0"><Copy size={14}/> Copiar</button>
+                                                <input readOnly value={linkAnamnesePaciente.url} className="h-10 flex-1 rounded-md border border-neutral-200 bg-white px-3 font-mono text-xs text-neutral-700"/>
+                                                <button type="button" onClick={copiarLinkAnamnese} className="inline-flex h-10 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800"><Copy size={14}/> Copiar</button>
                                             </div>
-                                            <p className="text-[11px] text-slate-500 font-semibold">Válido até {formatarDataAnamnese(linkAnamnesePaciente.expires_at)}</p>
+                                            <p className="text-xs text-neutral-500">Válido até {formatarDataAnamnese(linkAnamnesePaciente.expires_at)}</p>
                                         </div>
                                     ) : (
-                                        <button onClick={gerarLinkAnamnesePaciente} disabled={gerandoLinkAnamnese} className="px-5 py-2.5 bg-purple-600 text-white rounded-xl font-bold text-sm hover:bg-purple-700 disabled:opacity-50 flex items-center gap-2">
-                                            {gerandoLinkAnamnese ? <Loader2 size={14} className="animate-spin"/> : <Link2 size={14}/>} Gerar link para paciente
+                                        <button type="button" onClick={gerarLinkAnamnesePaciente} disabled={gerandoLinkAnamnese} className="inline-flex h-9 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50">
+                                            {gerandoLinkAnamnese ? <Loader2 size={14} className="animate-spin"/> : <Link2 size={14}/>} Gerar link
                                         </button>
                                     )}
                                 </div>
@@ -1975,21 +1966,21 @@ export default function PacienteDetalhe() {
                                 const modelo = modelosAnamnese.find(m => m.id === anamneseAtual.modelo_id);
                                 if (!modelo) return null;
                                 return (
-                                    <div className="space-y-4 border-t border-slate-100 pt-5">
+                                    <div className="space-y-4 border-t border-neutral-200 pt-4">
                                         {modelo.perguntas.map((p, i) => (
                                             <div key={p.id} className="space-y-1.5">
-                                                <label className="text-sm font-bold text-slate-700 flex items-start gap-2">
-                                                    <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-[11px] font-black flex-none">{i+1}</span>
-                                                    <span className="pt-0.5">{p.label}</span>
+                                                <label className="flex items-start gap-2 text-sm font-medium text-neutral-800">
+                                                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-neutral-100 text-[11px] font-medium text-neutral-600">{i+1}</span>
+                                                    <span>{p.label}</span>
                                                 </label>
-                                                <div className="ml-8">
+                                                <div className="ml-7">
                                                     {p.tipo === 'texto' && (
-                                                        <textarea value={anamneseAtual.respostas[p.id] || ''} onChange={e => setAnamneseAtual({...anamneseAtual, respostas: {...anamneseAtual.respostas, [p.id]: e.target.value}})} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 resize-none" rows={2} placeholder="Resposta..."/>
+                                                        <textarea value={anamneseAtual.respostas[p.id] || ''} onChange={e => setAnamneseAtual({...anamneseAtual, respostas: {...anamneseAtual.respostas, [p.id]: e.target.value}})} className="w-full resize-none rounded-md border border-neutral-200 bg-white p-2.5 text-sm text-neutral-900 outline-none focus:border-neutral-900" rows={2} placeholder="Resposta"/>
                                                     )}
                                                     {p.tipo === 'sim_nao' && (
-                                                        <div className="flex gap-2">
+                                                        <div className="flex h-8 w-fit overflow-hidden rounded-md border border-neutral-200 bg-white">
                                                             {['Sim','Não'].map(opt => (
-                                                                <button key={opt} onClick={() => setAnamneseAtual({...anamneseAtual, respostas: {...anamneseAtual.respostas, [p.id]: opt}})} className={`px-4 py-1.5 rounded-lg text-xs font-bold border transition-all ${anamneseAtual.respostas[p.id] === opt ? (opt === 'Sim' ? 'bg-rose-50 border-rose-300 text-rose-700' : 'bg-emerald-50 border-emerald-300 text-emerald-700') : 'bg-white border-slate-200 text-slate-500 hover:border-slate-400'}`}>{opt}</button>
+                                                                <button key={opt} type="button" onClick={() => setAnamneseAtual({...anamneseAtual, respostas: {...anamneseAtual.respostas, [p.id]: opt}})} className={`h-8 border-r border-neutral-200 px-3 text-xs font-medium last:border-r-0 ${anamneseAtual.respostas[p.id] === opt ? 'bg-neutral-900 text-white' : 'text-neutral-600 hover:bg-neutral-50'}`}>{opt}</button>
                                                             ))}
                                                         </div>
                                                     )}
@@ -1997,21 +1988,21 @@ export default function PacienteDetalhe() {
                                                         const atual = (anamneseAtual.respostas[p.id] as RespostaSimNaoTexto) || { sim_nao: '', texto: '' };
                                                         return (
                                                             <div className="space-y-2">
-                                                                <div className="flex gap-2">
+                                                                <div className="flex h-8 w-fit overflow-hidden rounded-md border border-neutral-200 bg-white">
                                                                     {['Sim','Não'].map(opt => (
-                                                                        <button key={opt} onClick={() => setAnamneseAtual({...anamneseAtual, respostas: {...anamneseAtual.respostas, [p.id]: { ...atual, sim_nao: opt, texto: opt === 'Não' ? '' : atual.texto }}})} className={`px-4 py-1.5 rounded-lg text-xs font-bold border transition-all ${atual.sim_nao === opt ? (opt === 'Sim' ? 'bg-rose-50 border-rose-300 text-rose-700' : 'bg-emerald-50 border-emerald-300 text-emerald-700') : 'bg-white border-slate-200 text-slate-500 hover:border-slate-400'}`}>{opt}</button>
+                                                                        <button key={opt} type="button" onClick={() => setAnamneseAtual({...anamneseAtual, respostas: {...anamneseAtual.respostas, [p.id]: { ...atual, sim_nao: opt, texto: opt === 'Não' ? '' : atual.texto }}})} className={`h-8 border-r border-neutral-200 px-3 text-xs font-medium last:border-r-0 ${atual.sim_nao === opt ? 'bg-neutral-900 text-white' : 'text-neutral-600 hover:bg-neutral-50'}`}>{opt}</button>
                                                                     ))}
                                                                 </div>
                                                                 {atual.sim_nao === 'Sim' && (
-                                                                    <textarea value={atual.texto || ''} onChange={e => setAnamneseAtual({...anamneseAtual, respostas: {...anamneseAtual.respostas, [p.id]: { ...atual, texto: e.target.value }}})} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 resize-none" rows={2} placeholder="Especifique..."/>
+                                                                    <textarea value={atual.texto || ''} onChange={e => setAnamneseAtual({...anamneseAtual, respostas: {...anamneseAtual.respostas, [p.id]: { ...atual, texto: e.target.value }}})} className="w-full resize-none rounded-md border border-neutral-200 bg-white p-2.5 text-sm text-neutral-900 outline-none focus:border-neutral-900" rows={2} placeholder="Especifique"/>
                                                                 )}
                                                             </div>
                                                         );
                                                     })()}
                                                     {p.tipo === 'multipla' && (
-                                                        <div className="flex flex-wrap gap-2">
+                                                        <div className="flex flex-wrap gap-1.5">
                                                             {(p.opcoes || []).map(opt => (
-                                                                <button key={opt} onClick={() => setAnamneseAtual({...anamneseAtual, respostas: {...anamneseAtual.respostas, [p.id]: opt}})} className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${anamneseAtual.respostas[p.id] === opt ? 'bg-blue-50 border-blue-300 text-blue-700' : 'bg-white border-slate-200 text-slate-500 hover:border-slate-400'}`}>{opt}</button>
+                                                                <button key={opt} type="button" onClick={() => setAnamneseAtual({...anamneseAtual, respostas: {...anamneseAtual.respostas, [p.id]: opt}})} className={`h-8 rounded-md border px-2.5 text-xs font-medium ${anamneseAtual.respostas[p.id] === opt ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50'}`}>{opt}</button>
                                                             ))}
                                                         </div>
                                                     )}
@@ -2019,25 +2010,25 @@ export default function PacienteDetalhe() {
                                             </div>
                                         ))}
 
-                                        <div className="flex flex-wrap gap-2 pt-4 border-t border-slate-100">
-                                            <button onClick={salvarAnamnese} className="px-5 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 shadow-sm flex items-center gap-2"><Save size={14}/> {anamneseAtual.id ? 'Atualizar Anamnese' : 'Salvar Anamnese'}</button>
-                                            <button onClick={() => emitirAnamnese()} className="px-5 py-2.5 bg-slate-800 text-white rounded-xl font-bold text-sm hover:bg-black flex items-center gap-2"><Printer size={14}/> Emitir / Imprimir</button>
-                                            <button onClick={() => { setAnamneseAtual({ id: null, modelo_id: '', data: new Date().toISOString().split('T')[0], preenchido_por: 'profissional', respostas: {} }); setLinkAnamnesePaciente(null); }} className="px-4 py-2.5 text-slate-500 font-bold rounded-xl text-sm hover:bg-slate-100">Limpar</button>
+                                        <div className="flex flex-wrap gap-2 border-t border-neutral-200 pt-4">
+                                            <button type="button" onClick={salvarAnamnese} className="inline-flex h-9 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800"><Save size={14}/> {anamneseAtual.id ? 'Atualizar' : 'Salvar'}</button>
+                                            <button type="button" onClick={() => emitirAnamnese()} className="inline-flex h-9 items-center gap-1.5 rounded-md border border-neutral-200 px-3 text-sm font-medium text-neutral-700 hover:bg-neutral-50"><Printer size={14}/> Imprimir</button>
+                                            <button type="button" onClick={() => { setAnamneseAtual({ id: null, modelo_id: '', data: new Date().toISOString().split('T')[0], preenchido_por: 'profissional', respostas: {} }); setLinkAnamnesePaciente(null); }} className="h-9 rounded-md px-3 text-sm font-medium text-neutral-500 hover:bg-neutral-50">Limpar</button>
                                         </div>
                                     </div>
                                 );
                             })() : (
-                                <div className="text-center py-8 text-slate-400 border-2 border-dashed border-slate-200 rounded-xl text-sm">
+                                <p className="border-t border-neutral-200 py-6 text-center text-sm text-neutral-400">
                                     Selecione um modelo de anamnese acima para começar.
-                                </div>
+                                </p>
                             )}
                         </div>
 
                         {/* ANAMNESES SALVAS */}
                         {anamnesesAnteriores.length > 0 && (
-                            <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-200 shadow-sm">
-                                <h3 className="text-lg font-black text-slate-800 mb-4 flex items-center gap-2"><FileText size={20} className="text-emerald-500"/> Anamneses Salvas ({anamnesesAnteriores.length})</h3>
-                                <div className="space-y-2">
+                            <div className="border-t border-neutral-200 pt-4">
+                                <h3 className="mb-2 text-sm font-semibold text-neutral-900">Anamneses salvas ({anamnesesAnteriores.length})</h3>
+                                <div>
                                     {[...anamnesesAnteriores].sort((a,b) => (b.data||'').localeCompare(a.data||'')).map(a => (
                                         <div
                                             key={a.id}
@@ -2045,21 +2036,20 @@ export default function PacienteDetalhe() {
                                             tabIndex={0}
                                             onClick={() => setAnamnesePreview(a)}
                                             onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setAnamnesePreview(a); } }}
-                                            className="flex items-center gap-3 p-3 bg-slate-50 hover:bg-white border border-slate-200 rounded-xl transition-colors cursor-pointer"
+                                            className="flex cursor-pointer items-center gap-3 border-b border-neutral-100 py-2.5"
                                         >
-                                            <div className="w-10 h-10 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center"><ClipboardList size={18}/></div>
-                                            <div className="flex-1 min-w-0">
-                                                <div className="font-bold text-sm text-slate-800 truncate">{a.modelo_nome}</div>
-                                                <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-[11px] text-slate-500 font-semibold mt-0.5">
-                                                    <span className="flex items-center gap-1"><Calendar size={11}/> {a.data ? new Date(a.data).toLocaleDateString('pt-BR') : '—'}</span>
-                                                    <span className={`px-1.5 py-0.5 rounded text-[9px] uppercase font-black ${a.preenchido_por === 'paciente' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>{a.preenchido_por === 'paciente' ? 'paciente' : 'profissional'}</span>
-                                                    {a.criado_em && <span>Criado: {formatarDataAnamnese(a.criado_em)}</span>}
-                                                    {a.atualizado_em && a.atualizado_em !== a.criado_em && <span>Atualizado: {formatarDataAnamnese(a.atualizado_em)}</span>}
+                                            <div className="min-w-0 flex-1">
+                                                <div className="truncate text-sm font-medium text-neutral-900">{a.modelo_nome}</div>
+                                                <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[11px] text-neutral-500">
+                                                    <span>{a.data ? new Date(a.data).toLocaleDateString('pt-BR') : '—'}</span>
+                                                    <span>{a.preenchido_por === 'paciente' ? 'Paciente' : 'Profissional'}</span>
+                                                    {a.criado_em && <span>Criado {formatarDataAnamnese(a.criado_em)}</span>}
+                                                    {a.atualizado_em && a.atualizado_em !== a.criado_em && <span>Atualizado {formatarDataAnamnese(a.atualizado_em)}</span>}
                                                 </div>
                                             </div>
-                                            <button onClick={(e) => { e.stopPropagation(); editarAnamnese(a); }} className="p-2 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg" title="Editar"><Edit size={14}/></button>
-                                            <button onClick={(e) => { e.stopPropagation(); emitirAnamnese(a); }} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg" title="Emitir"><Printer size={14}/></button>
-                                            <button onClick={(e) => { e.stopPropagation(); excluirAnamnese(a.id); }} className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg"><Trash2 size={14}/></button>
+                                            <button type="button" onClick={(e) => { e.stopPropagation(); editarAnamnese(a); }} className="rounded-md p-1.5 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-900" aria-label="Editar"><Edit size={14}/></button>
+                                            <button type="button" onClick={(e) => { e.stopPropagation(); emitirAnamnese(a); }} className="rounded-md p-1.5 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-900" aria-label="Imprimir"><Printer size={14}/></button>
+                                            <button type="button" onClick={(e) => { e.stopPropagation(); excluirAnamnese(a.id); }} className="rounded-md p-1.5 text-neutral-400 hover:bg-neutral-100 hover:text-rose-600" aria-label="Excluir"><Trash2 size={14}/></button>
                                         </div>
                                     ))}
                                 </div>
@@ -2067,17 +2057,17 @@ export default function PacienteDetalhe() {
                         )}
 
                         {/* FICHA MÉDICA (mantida) */}
-                        <div className={prontuarioPanel}>
-                            <h3 className="text-lg font-black text-slate-800 mb-4 flex items-center gap-2"><Stethoscope size={20} className="text-pink-500"/> Ficha Médica Rápida</h3>
-                            <p className="text-xs text-slate-400 mb-3">Digite condições relevantes e pressione Enter para adicionar.</p>
+                        <div className="border-t border-neutral-200 pt-4">
+                            <h3 className="mb-1 text-sm font-semibold text-neutral-900">Ficha médica</h3>
+                            <p className="mb-3 text-xs text-neutral-500">Digite a condição e pressione Enter.</p>
                             <TagInput
                                 value={getCondicoesFromFicha(ficha)}
                                 onChange={updateCondicoes}
                                 placeholder="Ex: Diabetes, Hipertensão..."
                             />
                         </div>
-                        <div className={prontuarioPanel}>
-                            <h3 className="text-lg font-black text-slate-800 mb-4 flex items-center gap-2"><Pill size={20} className="text-purple-500"/> Medicamentos em Uso</h3>
+                        <div className="border-t border-neutral-200 pt-4">
+                            <h3 className="mb-3 text-sm font-semibold text-neutral-900">Medicamentos em uso</h3>
                             <TagInput
                                 value={getMedicamentosFromFicha(ficha)}
                                 onChange={updateMedicamentos}
@@ -2085,44 +2075,32 @@ export default function PacienteDetalhe() {
                                 placeholder="Digite o medicamento e pressione Enter..."
                             />
                         </div>
-                        <div className={prontuarioPanel}>
-                            <h3 className="text-lg font-black text-slate-800 mb-4 flex items-center gap-2"><AlertTriangle size={20} className="text-amber-500"/> Observações Clínicas</h3>
-                            <textarea value={form.anamnese || ''} onChange={e => setForm({...form, anamnese: e.target.value})} className="w-full p-4 bg-yellow-50 border border-yellow-200 rounded-xl outline-none focus:ring-2 focus:ring-yellow-300 h-40 resize-none text-slate-700" placeholder="Histórico detalhado, queixas principais e evolução..." />
+                        <div className="border-t border-neutral-200 pt-4">
+                            <h3 className="mb-3 text-sm font-semibold text-neutral-900">Observações clínicas</h3>
+                            <textarea value={form.anamnese || ''} onChange={e => setForm({...form, anamnese: e.target.value})} className="h-32 w-full resize-none rounded-md border border-neutral-200 bg-white p-3 text-sm text-neutral-900 outline-none focus:border-neutral-900" placeholder="Histórico, queixas e evolução" />
                         </div>
                     </div>
                 )}
 
                 {abaAtiva === 'tratamentos' && (
                     <div className="animate-in fade-in space-y-4">
-                        <div className="flex w-fit rounded-full border border-black/10 bg-[#f3f4f1] p-1">
-                            <button
-                                type="button"
-                                onClick={() => setSubAbaTratamentos('tratamentos')}
-                                className={`rounded-full px-4 py-2 text-sm font-semibold transition-colors ${subAbaTratamentos === 'tratamentos' ? 'bg-neutral-900 text-white' : 'text-neutral-600 hover:text-neutral-900'}`}
-                            >
-                                Odontograma
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setSubAbaTratamentos('evolucoes')}
-                                className={`rounded-full px-4 py-2 text-sm font-semibold transition-colors ${subAbaTratamentos === 'evolucoes' ? 'bg-neutral-900 text-white' : 'text-neutral-600 hover:text-neutral-900'}`}
-                            >
-                                Tratamentos
-                            </button>
+                        <div className="flex h-8 w-fit overflow-hidden rounded-md border border-neutral-200 bg-white">
+                            <button type="button" onClick={() => setSubAbaTratamentos('tratamentos')} className={`h-8 px-3 text-xs font-medium ${subAbaTratamentos === 'tratamentos' ? 'bg-neutral-900 text-white' : 'text-neutral-600 hover:bg-neutral-50'}`}>Odontograma</button>
+                            <button type="button" onClick={() => setSubAbaTratamentos('evolucoes')} className={`h-8 border-l border-neutral-200 px-3 text-xs font-medium ${subAbaTratamentos === 'evolucoes' ? 'bg-neutral-900 text-white' : 'text-neutral-600 hover:bg-neutral-50'}`}>Tratamentos</button>
                         </div>
 
                         {subAbaTratamentos === 'evolucoes' ? (
                             <div className="space-y-4">
                             <TabEvolucao id={id as string} form={form} ficha={ficha} setFicha={setFicha} evolucoes={evolucoes} setEvolucoes={setEvolucoes}/>
                         {/* TRATAMENTOS REALIZADOS */}
-                        <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-200 shadow-sm">
-                            <div className="flex justify-between items-center mb-5">
-                                <h3 className="text-lg font-black text-slate-800 flex items-center gap-2"><CheckCircle size={20} className="text-emerald-500"/> Tratamentos Realizados</h3>
-                                <button type="button" onClick={() => abrirNovoTratamento()} className="inline-flex h-9 items-center gap-1.5 rounded-full bg-neutral-900 px-4 text-xs font-semibold text-white hover:bg-neutral-800"><Plus size={14}/> Novo tratamento</button>
+                        <div className="border-t border-neutral-200 pt-4">
+                            <div className="mb-3 flex items-center justify-between gap-3">
+                                <h3 className="text-sm font-semibold text-neutral-900">Tratamentos realizados</h3>
+                                <button type="button" onClick={() => abrirNovoTratamento()} className="inline-flex h-8 items-center gap-1.5 rounded-md bg-neutral-900 px-2.5 text-xs font-medium text-white hover:bg-neutral-800"><Plus size={14}/> Novo</button>
                             </div>
 
                             {tratamentos.length === 0 ? (
-                                <div className="rounded-2xl border-2 border-dashed border-black/10 py-10 text-center text-sm text-neutral-400">
+                                <div className="py-6 text-center text-sm text-neutral-400">
                                     Nenhum tratamento registrado ainda.
                                     {marcacoesPendentes.length > 0 && (
                                         <p className="mt-2 text-xs text-neutral-600">
@@ -2137,21 +2115,21 @@ export default function PacienteDetalhe() {
                             ) : (
                                 <div className="space-y-2">
                                     {[...tratamentos].sort((a,b) => (b.data||'').localeCompare(a.data||'')).map((t:any) => (
-                                        <div key={t.id} className="flex items-center gap-3 p-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl transition-colors">
-                                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-black text-sm ${t.status === 'concluido' ? 'bg-emerald-100 text-emerald-700' : t.status === 'andamento' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>{t.dente || '-'}</div>
+                                        <div key={t.id} className="flex items-center gap-3 border-b border-neutral-100 py-2.5">
+                                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-neutral-200 text-xs font-medium text-neutral-800">{t.dente || '—'}</div>
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center gap-2 flex-wrap">
-                                                    <span className="font-bold text-sm text-slate-800 truncate">{t.procedimento}</span>
-                                                    <span className={`text-[9px] uppercase font-black px-2 py-0.5 rounded ${t.status === 'concluido' ? 'bg-emerald-200 text-emerald-800' : t.status === 'andamento' ? 'bg-amber-200 text-amber-800' : 'bg-blue-200 text-blue-800'}`}>{t.status}</span>
+                                                    <span className="truncate text-sm font-medium text-neutral-900">{t.procedimento}</span>
+                                                    <span className="text-[11px] font-medium text-neutral-500">{t.status}</span>
                                                 </div>
-                                                <div className="flex items-center gap-3 text-[11px] text-slate-500 font-semibold">
+                                                <div className="flex items-center gap-3 text-[11px] text-neutral-500">
                                                     <span className="flex items-center gap-1"><Calendar size={11}/> {t.data ? new Date(t.data).toLocaleDateString('pt-BR') : '-'}</span>
                                                     {t.valor && <span className="text-emerald-600">R$ {parseFloat(t.valor).toFixed(2)}</span>}
                                                     {t.observacoes && <span className="italic truncate">"{t.observacoes}"</span>}
                                                 </div>
                                             </div>
-                                            <button onClick={() => { setTratEdit(t); setModalTrat(true); }} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"><Edit size={14}/></button>
-                                            <button onClick={() => excluirTratamento(t.id)} className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg"><Trash2 size={14}/></button>
+                                            <button onClick={() => { setTratEdit(t); setModalTrat(true); }} className="rounded-md p-1.5 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-900"><Edit size={14}/></button>
+                                            <button onClick={() => excluirTratamento(t.id)} className="rounded-md p-1.5 text-neutral-400 hover:bg-neutral-100 hover:text-red-600"><Trash2 size={14}/></button>
                                         </div>
                                     ))}
                                 </div>
@@ -2159,15 +2137,9 @@ export default function PacienteDetalhe() {
 
                             {/* Valor Total do Orçamento */}
                             {tratamentos.length > 0 && (
-                                <div className="mt-4 pt-4 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3">
-                                    <div className="flex items-center gap-2 text-sm text-slate-500 font-semibold">
-                                        <DollarSign size={16} className="text-emerald-500"/>
-                                        <span>{tratamentos.length} tratamento{tratamentos.length !== 1 ? 's' : ''} registrado{tratamentos.length !== 1 ? 's' : ''}</span>
-                                    </div>
-                                    <div className="flex items-center gap-3">
-                                        <span className="text-xs font-bold text-slate-400 uppercase">Valor Total:</span>
-                                        <span className="text-xl font-black text-emerald-600">{formatarMoeda(valorTotalOrcamento)}</span>
-                                    </div>
+                                <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-neutral-200 pt-3">
+                                    <span className="text-xs font-medium text-neutral-500">{tratamentos.length} registrado{tratamentos.length !== 1 ? 's' : ''}</span>
+                                    <span className="text-sm font-semibold text-neutral-900">{formatarMoeda(valorTotalOrcamento)}</span>
                                 </div>
                             )}
                         </div>
@@ -2177,35 +2149,39 @@ export default function PacienteDetalhe() {
                         <>
                         {/* ODONTOGRAMA */}
                         <div className={prontuarioPanel}>
-                            <div className="mb-5 flex flex-col justify-between gap-3 lg:flex-row lg:items-center">
-                                <h3 className="flex items-center gap-2 text-lg font-semibold text-neutral-900"><Smile size={20} className="text-neutral-700"/> Odontograma</h3>
-                                <div className="flex flex-wrap gap-2">
-                                    <div className="flex rounded-full border border-black/10 bg-[#f3f4f1] p-0.5">
-                                        {(['anatomica', 'esquematica', 'livre'] as const).map(v => (
-                                            <button
-                                                key={v}
-                                                type="button"
-                                                onClick={() => setVisaoOdonto(v)}
-                                                className={`min-h-[40px] rounded-full px-3 py-2 text-xs font-semibold transition-colors sm:text-sm ${visaoOdonto === v ? 'bg-neutral-900 text-white' : 'text-neutral-600'}`}
-                                            >
-                                                {v === 'anatomica' ? 'Anatômica' : v === 'esquematica' ? 'Esquemática' : 'Texto Livre'}
-                                            </button>
-                                        ))}
-                                    </div>
+                            <div className="mb-3 flex flex-wrap items-center gap-2">
+                                <h3 className="mr-1 text-sm font-semibold text-neutral-900">Odontograma</h3>
+                                <div className="flex h-8 overflow-hidden rounded-md border border-neutral-200 bg-white">
+                                    {(['anatomica', 'esquematica', 'livre'] as const).map(v => (
+                                        <button
+                                            key={v}
+                                            type="button"
+                                            onClick={() => setVisaoOdonto(v)}
+                                            className={`h-8 border-r border-neutral-200 px-2.5 text-xs font-medium last:border-r-0 ${visaoOdonto === v ? 'bg-neutral-900 text-white' : 'text-neutral-600 hover:bg-neutral-50'}`}
+                                        >
+                                            {v === 'anatomica' ? 'Anatômica' : v === 'esquematica' ? 'Esquemática' : 'Texto livre'}
+                                        </button>
+                                    ))}
                                     {visaoOdonto !== 'livre' && (
                                         <button
                                             type="button"
                                             onClick={async () => {
                                                 if (await showConfirm('Limpar todo o odontograma?', { title: 'Limpar', type: 'warning', confirmLabel: 'Limpar' })) resetOdontogramAll();
                                             }}
-                                            className="flex items-center gap-1 rounded-full border border-black/10 px-3 py-2 text-xs font-semibold text-neutral-700 hover:bg-neutral-50"
+                                            className="inline-flex h-8 items-center gap-1 border-l border-neutral-200 px-2.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
                                         >
-                                            <Eraser size={14}/> Limpar
+                                            <Eraser size={12}/> Limpar
                                         </button>
                                     )}
-                                    <button type="button" onClick={imprimirOrcamento} className="flex items-center gap-1 rounded-full border border-black/10 px-3 py-2 text-xs font-semibold text-neutral-700 hover:bg-neutral-50"><Printer size={14}/> PDF</button>
-                                    {savingOdo && <span className="flex items-center gap-1 text-xs font-medium text-neutral-400"><Loader2 size={12} className="animate-spin"/> Salvando...</span>}
                                 </div>
+                                {visaoOdonto !== 'livre' && (
+                                    <div className="flex h-8 overflow-hidden rounded-md border border-neutral-200 bg-white">
+                                        <button type="button" onClick={() => setTipoArcada('permanente')} className={`h-8 px-2.5 text-xs font-medium ${tipoArcada === 'permanente' ? 'bg-neutral-900 text-white' : 'text-neutral-600 hover:bg-neutral-50'}`}>Permanentes</button>
+                                        <button type="button" onClick={() => setTipoArcada('leite')} className={`h-8 border-l border-neutral-200 px-2.5 text-xs font-medium ${tipoArcada === 'leite' ? 'bg-neutral-900 text-white' : 'text-neutral-600 hover:bg-neutral-50'}`}>De leite</button>
+                                    </div>
+                                )}
+                                <button type="button" onClick={imprimirOrcamento} className="inline-flex h-8 items-center gap-1 rounded-md border border-neutral-200 bg-white px-2.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"><Printer size={12}/> PDF</button>
+                                {savingOdo && <span className="flex items-center gap-1 text-xs font-medium text-neutral-400"><Loader2 size={12} className="animate-spin"/> Salvando</span>}
                             </div>
 
                             {visaoOdonto === 'livre' ? (
@@ -2213,59 +2189,25 @@ export default function PacienteDetalhe() {
                                     <textarea
                                         value={textoOdontogramaLivre}
                                         onChange={e => setTextoOdontogramaLivre(e.target.value)}
-                                        className="w-full min-h-[400px] p-4 text-base text-slate-700 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 resize-y leading-relaxed font-medium"
-                                        placeholder="Digite livremente as observações e o plano de tratamento do paciente..."
+                                        className="min-h-[280px] w-full resize-y rounded-md border border-neutral-200 bg-white p-3 text-sm leading-relaxed text-neutral-900 outline-none focus:border-neutral-900"
+                                        placeholder="Observações e plano de tratamento"
                                     />
-                                    <p className="text-[10px] text-slate-400 mt-2">Este texto será salvo junto ao odontograma e pode ser impresso via o botão PDF.</p>
+                                    <p className="mt-2 text-xs text-neutral-400">Salvo junto ao odontograma e incluído no PDF.</p>
                                 </div>
                             ) : (
                             <>
-                            {/* Tabs Permanente/Leite */}
-                            <div className="mb-4 flex justify-end rounded-2xl border border-black/5 bg-[#f8f8f6] p-3">
-                                    <div className="flex rounded-full border border-black/10 bg-white p-0.5">
-                                        <button type="button" onClick={() => setTipoArcada('permanente')} className={`min-h-[40px] rounded-full px-4 py-2 text-xs font-semibold transition-colors sm:text-sm ${tipoArcada === 'permanente' ? 'bg-neutral-900 text-white' : 'text-neutral-600'}`}>Dentes Permanentes</button>
-                                        <button type="button" onClick={() => setTipoArcada('leite')} className={`min-h-[40px] rounded-full px-4 py-2 text-xs font-semibold transition-colors sm:text-sm ${tipoArcada === 'leite' ? 'bg-neutral-900 text-white' : 'text-neutral-600'}`}>Dentes de Leite</button>
-                                    </div>
-                            </div>
-
-                            {/* Toolbar de ferramentas */}
-                            <div className="mb-6 flex flex-wrap gap-2 rounded-2xl border border-black/5 bg-[#f8f8f6] p-3">
+                            <div className="mb-3 flex flex-wrap gap-1.5">
                                 {TOOLS.map(t => (
                                     <button
                                         key={t.key}
+                                        type="button"
                                         onClick={() => setFerramenta(t.key)}
-                                        className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold border min-h-[48px] transition-all ${ferramenta === t.key ? 'border-slate-800 ring-2 ring-slate-300 bg-white shadow' : 'border-slate-200 bg-white hover:border-slate-400'}`}
+                                        className={`inline-flex h-8 items-center gap-1.5 rounded-md border px-2 text-xs font-medium ${ferramenta === t.key ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50'}`}
                                     >
-                                        <span className="w-4 h-4 rounded border border-slate-300" style={{ background: t.color }}></span>
-                                        <span>{t.label}</span>
-                                        {t.tipo === 'cond' && <span className="text-[9px] uppercase text-slate-400">dente</span>}
+                                        <span className="h-2.5 w-2.5 rounded-sm border border-black/10" style={{ background: t.color }}></span>
+                                        {t.label}
                                     </button>
                                 ))}
-                                <div className="ml-auto text-[10px] text-slate-500 font-semibold flex items-center px-2">
-                                    {TOOLS.find(t => t.key === ferramenta)?.tipo === 'face'
-                                        ? 'Clique em uma face na vista oclusal'
-                                        : 'Clique em qualquer face para alternar a condição do dente'}
-                                </div>
-                            </div>
-
-                            <div className="mb-4 flex flex-col gap-3 rounded-2xl border border-black/5 bg-[#f8f8f6] p-3 lg:flex-row lg:items-center lg:gap-4">
-                                <div className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500">Zoom e navegação</div>
-                                <div className="flex flex-1 flex-wrap items-center gap-2">
-                                    <button onClick={() => nudgeOdontogramaZoom(-0.1)} className="px-3 py-2 rounded-lg border border-slate-200 min-h-[44px] text-sm font-bold text-slate-600 hover:border-slate-400" aria-label="Diminuir zoom do odontograma">−</button>
-                                    <input
-                                        type="range"
-                                        min={ODONTO_ZOOM_RANGE.min}
-                                        max={ODONTO_ZOOM_RANGE.max}
-                                        step="0.05"
-                                        value={odontogramaZoom}
-                                        onChange={(e) => updateOdontogramaZoom(parseFloat(e.target.value))}
-                                        aria-label="Controle de zoom do odontograma"
-                                        className="flex-1 accent-blue-600"
-                                    />
-                                    <button onClick={() => nudgeOdontogramaZoom(0.1)} className="px-3 py-2 rounded-lg border border-slate-200 min-h-[44px] text-sm font-bold text-slate-600 hover:border-slate-400" aria-label="Aumentar zoom do odontograma">+</button>
-                                    <button onClick={resetOdontogramaView} className="px-4 py-2 rounded-lg min-h-[44px] text-sm font-semibold bg-white border border-slate-200 text-slate-600 hover:border-slate-400">Centralizar</button>
-                                </div>
-                                <span className="text-xs font-bold text-slate-500">{Math.round(odontogramaZoom * 100)}%</span>
                             </div>
 
                             <div className={mostrar3D ? 'grid grid-cols-1 items-stretch gap-3 lg:grid-cols-[minmax(0,7fr)_minmax(0,3fr)]' : ''}>
@@ -2276,20 +2218,7 @@ export default function PacienteDetalhe() {
                                             const isEsq = visaoOdonto === 'esquematica';
                                             const quad = tipoArcada === 'permanente' ? QUAD_PERM : QUAD_LEITE;
                                             return (
-                                                <div
-                                                    ref={odontogramaSurfaceRef}
-                                                    className="inline-flex flex-col items-center min-w-max select-none transition-transform"
-                                                    style={{
-                                                        transform: `translate3d(${odontogramaPan.x}px, ${odontogramaPan.y}px, 0) scale(${odontogramaZoom})`,
-                                                        transformOrigin: 'center center',
-                                                        touchAction: odontogramaZoom > 1 ? 'none' : 'pan-x pan-y',
-                                                    }}
-                                                    onPointerDown={handleOdontoPanStart}
-                                                    onPointerMove={handleOdontoPanMove}
-                                                    onPointerUp={handleOdontoPanEnd}
-                                                    onPointerLeave={handleOdontoPanEnd}
-                                                    onPointerCancel={handleOdontoPanEnd}
-                                                >
+                                                <div className="inline-flex flex-col items-center min-w-max select-none">
                                                     <div className={`flex justify-center ${isEsq ? 'items-center' : 'items-end'}`}>
                                                         {quad.sup[0].map(n => <Tooth key={n} num={n} isUpper={true} esquematico={isEsq} state={odontograma[n] || { faces: {}, cond: 'normal' }} ferramenta={ferramenta} onApply={(f) => aplicarFerramenta(n, f)} />)}
                                                         <div className="w-1 self-stretch border-l-2 border-dashed border-slate-300 mx-2"></div>
@@ -2315,7 +2244,7 @@ export default function PacienteDetalhe() {
                                         <button
                                             type="button"
                                             onClick={() => setMostrar3D(false)}
-                                            className="inline-flex h-8 items-center justify-center rounded-full border border-black/10 bg-white px-3 text-xs font-semibold text-neutral-700"
+                                            className="inline-flex h-8 items-center justify-center rounded-md border border-neutral-200 bg-white px-2.5 text-xs font-medium text-neutral-700"
                                         >
                                             Fechar
                                         </button>
@@ -2337,7 +2266,7 @@ export default function PacienteDetalhe() {
                                     <button
                                         type="button"
                                         onClick={() => setMostrar3D(true)}
-                                        className="inline-flex h-10 items-center justify-center rounded-full bg-neutral-900 px-4 text-sm font-semibold text-white"
+                                        className="inline-flex h-8 items-center justify-center rounded-md bg-neutral-900 px-3 text-xs font-medium text-white"
                                     >
                                         Abrir vista 3D
                                     </button>
@@ -2346,27 +2275,27 @@ export default function PacienteDetalhe() {
 
                             {/* Resumo de dentes alterados */}
                             <div className="mt-6 border-t border-black/5 pt-4">
-                                <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                                    <div className="text-[10px] font-semibold uppercase tracking-wide text-neutral-400">
-                                        Dentes com marcações ({marcacoesOdonto.length})
-                                        {marcacoesPendentes.length > 0 && (
-                                            <span className="ml-1.5 text-amber-700">· {marcacoesPendentes.length} para tratar</span>
-                                        )}
-                                    </div>
+                                <div className="mb-2 flex flex-wrap items-center gap-3">
                                     {marcacoesPendentes.length > 0 && (
                                         <button
                                             type="button"
                                             onClick={() => abrirNovoTratamento()}
-                                            className="inline-flex h-9 items-center justify-center gap-1.5 rounded-full bg-neutral-900 px-3 text-xs font-semibold text-white hover:bg-neutral-800"
+                                            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md bg-neutral-900 px-2.5 text-xs font-medium text-white hover:bg-neutral-800"
                                         >
                                             <Plus size={12} /> Tratar marcações
                                         </button>
                                     )}
+                                    <div className="text-xs font-medium text-neutral-500">
+                                        {marcacoesOdonto.length} marcações
+                                        {marcacoesPendentes.length > 0 && (
+                                            <span className="ml-1.5 text-amber-700">· {marcacoesPendentes.length} para tratar</span>
+                                        )}
+                                    </div>
                                 </div>
                                 <div className="flex flex-wrap gap-2">
                                     {marcacoesOdonto.length === 0 && <span className="text-xs text-neutral-400">Nenhum.</span>}
                                     {marcacoesOdonto.map((m) => (
-                                        <div key={m.num} className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${m.precisaTratamento ? 'border-amber-200 bg-amber-50' : 'border-black/10 bg-[#f8f8f6]'}`}>
+                                        <div key={m.num} className={`flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] font-medium ${m.precisaTratamento ? 'border-amber-200 bg-amber-50' : 'border-neutral-200 bg-white'}`}>
                                             <button
                                                 type="button"
                                                 onClick={() => abrirNovoTratamento([m.num])}
@@ -2870,11 +2799,11 @@ export default function PacienteDetalhe() {
         </div>
 
         {/* MODAL TRATAMENTO */}
-        <Modal open={modalTrat} onClose={() => setModalTrat(false)} maxWidth="lg" hideCloseButton panelClassName="bg-white rounded-3xl shadow-2xl overflow-y-auto max-h-[90vh]">
-                <div className="p-6 animate-in zoom-in-95">
-                    <div className="flex justify-between items-center mb-5">
-                        <h3 className="text-lg font-black text-slate-800 flex items-center gap-2"><Smile size={20} className="text-emerald-500"/> {tratEdit.id ? 'Editar' : 'Novo'} Tratamento</h3>
-                        <button onClick={() => setModalTrat(false)} className="p-2 hover:bg-slate-100 rounded-full text-slate-400"><X size={18}/></button>
+        <Modal open={modalTrat} onClose={() => setModalTrat(false)} maxWidth="lg" hideCloseButton panelClassName="overflow-hidden rounded-xl border border-neutral-200 bg-white">
+                <div className="p-5">
+                    <div className="mb-4 flex items-center justify-between">
+                        <h3 className="text-base font-semibold text-neutral-900">{tratEdit.id ? 'Editar' : 'Novo'} tratamento</h3>
+                        <button type="button" onClick={() => setModalTrat(false)} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-100" aria-label="Fechar"><X size={16}/></button>
                     </div>
                     <div className="space-y-3">
                         {!tratEdit.id && marcacoesOdonto.length > 0 && (
@@ -2888,8 +2817,8 @@ export default function PacienteDetalhe() {
                                                 key={m.num}
                                                 type="button"
                                                 onClick={() => toggleDenteTratamento(String(m.num))}
-                                                className={`rounded-full px-3 py-1.5 text-left text-xs font-semibold transition-colors ${
-                                                    ativo ? 'bg-neutral-900 text-white' : 'border border-black/10 bg-white text-neutral-600 hover:bg-neutral-50'
+                                                className={`rounded-md px-2.5 py-1 text-left text-xs font-medium ${
+                                                    ativo ? 'bg-neutral-900 text-white' : 'border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50'
                                                 }`}
                                             >
                                                 #{m.num}
@@ -2911,74 +2840,71 @@ export default function PacienteDetalhe() {
                         )}
                         <div className="grid grid-cols-2 gap-3">
                             <div>
-                                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Dente</label>
-                                <input placeholder="Ex: 16, 26" value={tratEdit.dente} onChange={e => setTratEdit({...tratEdit, dente: e.target.value, dentesSelecionados: parseDentesCampo(e.target.value).map(String)})} className="w-full p-2.5 border border-slate-200 rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500"/>
+                                <label className={campoLabel}>Dente</label>
+                                <input placeholder="16, 26" value={tratEdit.dente} onChange={e => setTratEdit({...tratEdit, dente: e.target.value, dentesSelecionados: parseDentesCampo(e.target.value).map(String)})} className={campoClass(true)}/>
                             </div>
                             <div>
-                                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Data</label>
-                                <input type="date" value={tratEdit.data} onChange={e => setTratEdit({...tratEdit, data: e.target.value})} className="w-full p-2.5 border border-slate-200 rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500"/>
+                                <label className={campoLabel}>Data</label>
+                                <CampoData value={tratEdit.data} onChange={v => setTratEdit({...tratEdit, data: v})} />
                             </div>
                         </div>
                         <div>
-                            <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Procedimento</label>
-                            <input placeholder="Ex: Restauração em resina" value={tratEdit.procedimento} onChange={e => setTratEdit({...tratEdit, procedimento: e.target.value})} className="w-full p-2.5 border border-slate-200 rounded-lg text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500"/>
+                            <label className={campoLabel}>Procedimento</label>
+                            <input placeholder="Restauração em resina" value={tratEdit.procedimento} onChange={e => setTratEdit({...tratEdit, procedimento: e.target.value})} className={campoClass(true)}/>
                         </div>
                         <div className="grid grid-cols-2 gap-3">
                             <div>
-                                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Status</label>
+                                <label className={campoLabel}>Status</label>
                                 <CustomSelect value={tratEdit.status} onChange={v => setTratEdit({...tratEdit, status: v})} options={[{value:'planejado',label:'Planejado'},{value:'andamento',label:'Em Andamento'},{value:'concluido',label:'Concluído'}]}/>
                             </div>
                             <div>
-                                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Valor (R$)</label>
-                                <input type="number" step="0.01" value={tratEdit.valor} onChange={e => setTratEdit({...tratEdit, valor: e.target.value})} className="w-full p-2.5 border border-slate-200 rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500"/>
+                                <label className={campoLabel}>Valor (R$)</label>
+                                <input type="number" step="0.01" value={tratEdit.valor} onChange={e => setTratEdit({...tratEdit, valor: e.target.value})} className={campoClass(true)}/>
                             </div>
                         </div>
                         <div>
-                            <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Observações</label>
-                            <textarea value={tratEdit.observacoes} onChange={e => setTratEdit({...tratEdit, observacoes: e.target.value})} className="w-full p-2.5 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 h-20 resize-none" />
+                            <label className={campoLabel}>Observações</label>
+                            <textarea value={tratEdit.observacoes} onChange={e => setTratEdit({...tratEdit, observacoes: e.target.value})} className="h-20 w-full resize-none rounded-md border border-neutral-200 bg-white p-3 text-sm text-neutral-900 outline-none focus:border-neutral-900" />
                         </div>
                         {/* Agendar na Agenda */}
-                        <div className={`p-3 rounded-xl border transition-all ${tratEdit.agendarNaAgenda ? 'bg-blue-50 border-blue-200' : 'bg-slate-50 border-slate-200'}`}>
+                        <div className={`rounded-md border p-3 ${tratEdit.agendarNaAgenda ? 'border-neutral-900 bg-neutral-50' : 'border-neutral-200 bg-white'}`}>
                             <label className="flex items-center gap-3 cursor-pointer">
-                                <div className={`w-5 h-5 rounded-md border flex items-center justify-center transition-colors ${tratEdit.agendarNaAgenda ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-slate-300'}`}>
+                                <div className={`flex h-5 w-5 items-center justify-center rounded-md border ${tratEdit.agendarNaAgenda ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-300 bg-white'}`}>
                                     {tratEdit.agendarNaAgenda && <Check size={14}/>}
                                 </div>
                                 <input type="checkbox" className="hidden" checked={tratEdit.agendarNaAgenda || false} onChange={e => setTratEdit({...tratEdit, agendarNaAgenda: e.target.checked})} />
                                 <div className="flex items-center gap-2">
-                                    <CalendarPlus size={16} className={tratEdit.agendarNaAgenda ? 'text-blue-600' : 'text-slate-400'}/>
-                                    <span className={`text-sm font-bold ${tratEdit.agendarNaAgenda ? 'text-blue-700' : 'text-slate-600'}`}>Agendar consulta na Agenda</span>
+                                    <CalendarPlus size={16} className="text-neutral-500"/>
+                                    <span className="text-sm font-medium text-neutral-800">Agendar consulta na agenda</span>
                                 </div>
                             </label>
                             {tratEdit.agendarNaAgenda && (
                                 <div className="mt-3 ml-8">
-                                    <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Horário da Consulta</label>
-                                    <input type="time" value={tratEdit.horaAgendamento || '09:00'} onChange={e => setTratEdit({...tratEdit, horaAgendamento: e.target.value})} className="w-full max-w-[160px] p-2.5 border border-blue-200 rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500 bg-white"/>
-                                    <p className="text-[10px] text-blue-500 mt-1.5 font-semibold">A consulta será criada na data acima ({tratEdit.data ? new Date(tratEdit.data + 'T12:00:00').toLocaleDateString('pt-BR') : '-'}) às {tratEdit.horaAgendamento || '09:00'}.</p>
+                                    <label className={campoLabel}>Horário</label>
+                                    <input type="time" value={tratEdit.horaAgendamento || '09:00'} onChange={e => setTratEdit({...tratEdit, horaAgendamento: e.target.value})} className="box-border h-10 w-full max-w-[160px] rounded-md border border-neutral-200 bg-white px-3 text-sm text-neutral-900 outline-none focus:border-neutral-900"/>
+                                    <p className="mt-1.5 text-xs text-neutral-500">Consulta em {tratEdit.data ? new Date(tratEdit.data + 'T12:00:00').toLocaleDateString('pt-BR') : '—'} às {tratEdit.horaAgendamento || '09:00'}.</p>
                                 </div>
                             )}
                         </div>
                         {/* Pagamento pendente */}
                         {parseFloat(tratEdit.valor) > 0 && (
-                        <div className={`p-3 rounded-xl border transition-all ${tratEdit.pagamentoPendente ? 'bg-rose-50 border-rose-200' : 'bg-slate-50 border-slate-200'}`}>
-                            <label className="flex items-center gap-3 cursor-pointer">
-                                <div className={`w-5 h-5 rounded-md border flex items-center justify-center transition-colors ${tratEdit.pagamentoPendente ? 'bg-rose-600 border-rose-600 text-white' : 'bg-white border-slate-300'}`}>
+                        <div className={`rounded-md border p-3 ${tratEdit.pagamentoPendente ? 'border-neutral-900 bg-neutral-50' : 'border-neutral-200 bg-white'}`}>
+                            <label className="flex cursor-pointer items-center gap-3">
+                                <div className={`flex h-5 w-5 items-center justify-center rounded-md border ${tratEdit.pagamentoPendente ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-300 bg-white'}`}>
                                     {tratEdit.pagamentoPendente && <Check size={14}/>}
                                 </div>
                                 <input type="checkbox" className="hidden" checked={tratEdit.pagamentoPendente || false} onChange={e => setTratEdit({...tratEdit, pagamentoPendente: e.target.checked})} />
-                                <div className="flex items-center gap-2">
-                                    <DollarSign size={16} className={tratEdit.pagamentoPendente ? 'text-rose-600' : 'text-slate-400'}/>
-                                    <span className={`text-sm font-bold ${tratEdit.pagamentoPendente ? 'text-rose-700' : 'text-slate-600'}`}>Registrar como pagamento pendente (fiado)</span>
-                                </div>
+                                <span className="text-sm font-medium text-neutral-800">Pagamento pendente</span>
                             </label>
                             {tratEdit.pagamentoPendente && (
-                                <p className="text-[10px] text-rose-600 mt-2 ml-8 font-semibold">O valor aparecerá na aba Débitos até ser recebido.</p>
+                                <p className="ml-8 mt-2 text-xs text-neutral-500">O valor fica na aba Débitos até ser recebido.</p>
                             )}
                         </div>
                         )}
                     </div>
                     <div className="flex gap-2 justify-end mt-5">
-                        <button onClick={() => setModalTrat(false)} className="px-4 py-2 text-slate-500 font-bold hover:bg-slate-100 rounded-lg">Cancelar</button>
-                        <button onClick={salvarTratamento} disabled={salvandoTrat} className="px-5 py-2 bg-emerald-600 text-white font-bold rounded-lg hover:bg-emerald-700 shadow-sm flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"><Save size={14}/> {salvandoTrat ? 'Salvando...' : (tratEdit.agendarNaAgenda ? 'Salvar e Agendar' : 'Salvar')}</button>
+                        <button onClick={() => setModalTrat(false)} className="h-9 rounded-md px-3 text-sm font-medium text-neutral-500 hover:bg-neutral-50">Cancelar</button>
+                        <button onClick={salvarTratamento} disabled={salvandoTrat} className="inline-flex h-9 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-60"><Save size={14}/> {salvandoTrat ? 'Salvando...' : 'Salvar'}</button>
                     </div>
                 </div>
         </Modal>
@@ -3020,34 +2946,32 @@ export default function PacienteDetalhe() {
                 </div>
         </Modal>
 
-        <Modal open={!!anamnesePreview} onClose={() => setAnamnesePreview(null)} maxWidth="2xl">
+        <Modal open={!!anamnesePreview} onClose={() => setAnamnesePreview(null)} maxWidth="2xl" panelClassName="overflow-hidden rounded-xl border border-neutral-200 bg-white">
             {anamnesePreview && (
-                <div className="bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden">
-                    <div className="p-6 border-b border-slate-100">
-                        <h3 className="text-lg font-black text-slate-800 pr-8">{anamnesePreview.modelo_nome}</h3>
-                        <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-slate-500 font-semibold">
-                            <span className="flex items-center gap-1"><Calendar size={12}/> {anamnesePreview.data ? new Date(anamnesePreview.data).toLocaleDateString('pt-BR') : '—'}</span>
-                            <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-black ${anamnesePreview.preenchido_por === 'paciente' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
-                                {anamnesePreview.preenchido_por === 'paciente' ? 'paciente' : 'profissional'}
-                            </span>
-                            {anamnesePreview.criado_em && <span>Criado: {formatarDataAnamnese(anamnesePreview.criado_em)}</span>}
-                            {anamnesePreview.atualizado_em && anamnesePreview.atualizado_em !== anamnesePreview.criado_em && <span>Atualizado: {formatarDataAnamnese(anamnesePreview.atualizado_em)}</span>}
-                        </div>
+                <div>
+                    <div className="border-b border-neutral-200 p-5">
+                        <h3 className="pr-8 text-base font-semibold text-neutral-900">{anamnesePreview.modelo_nome}</h3>
+                        <p className="mt-1 text-xs text-neutral-500">
+                            {anamnesePreview.data ? new Date(anamnesePreview.data).toLocaleDateString('pt-BR') : '—'}
+                            {' · '}
+                            {anamnesePreview.preenchido_por === 'paciente' ? 'Paciente' : 'Profissional'}
+                            {anamnesePreview.criado_em ? ` · Criado ${formatarDataAnamnese(anamnesePreview.criado_em)}` : ''}
+                        </p>
                     </div>
-                    <div className="p-6 max-h-[60vh] overflow-y-auto space-y-4">
+                    <div className="max-h-[60vh] space-y-3 overflow-y-auto p-5">
                         {(anamnesePreview.perguntas_snapshot || []).map((p: { id: string; label: string }, i: number) => (
-                            <div key={p.id} className="space-y-1">
-                                <p className="text-xs font-black uppercase tracking-wide text-slate-400">{i + 1}. {p.label}</p>
-                                <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap bg-slate-50 border border-slate-100 rounded-xl p-3">
+                            <div key={p.id}>
+                                <p className="text-xs font-medium text-neutral-500">{i + 1}. {p.label}</p>
+                                <p className="mt-1 whitespace-pre-wrap text-sm text-neutral-800">
                                     {formatarRespostaAnamnese(anamnesePreview.respostas?.[p.id])}
                                 </p>
                             </div>
                         ))}
                     </div>
-                    <div className="p-4 border-t border-slate-100 flex justify-end gap-2 bg-slate-50">
-                        <button onClick={() => { editarAnamnese(anamnesePreview); }} className="px-4 py-2 bg-amber-50 text-amber-700 border border-amber-200 rounded-xl font-bold text-sm hover:bg-amber-100 flex items-center gap-2"><Edit size={14}/> Editar</button>
-                        <button onClick={() => emitirAnamnese(anamnesePreview)} className="px-4 py-2 bg-slate-800 text-white rounded-xl font-bold text-sm hover:bg-black flex items-center gap-2"><Printer size={14}/> Imprimir</button>
-                        <button onClick={() => setAnamnesePreview(null)} className="px-4 py-2 text-slate-500 font-bold hover:bg-slate-100 rounded-xl">Fechar</button>
+                    <div className="flex justify-end gap-2 border-t border-neutral-200 p-4">
+                        <button type="button" onClick={() => setAnamnesePreview(null)} className="h-9 rounded-md px-3 text-sm font-medium text-neutral-500 hover:bg-neutral-50">Fechar</button>
+                        <button type="button" onClick={() => { editarAnamnese(anamnesePreview); }} className="inline-flex h-9 items-center gap-1.5 rounded-md border border-neutral-200 px-3 text-sm font-medium text-neutral-700 hover:bg-neutral-50"><Edit size={14}/> Editar</button>
+                        <button type="button" onClick={() => emitirAnamnese(anamnesePreview)} className="inline-flex h-9 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800"><Printer size={14}/> Imprimir</button>
                     </div>
                 </div>
             )}

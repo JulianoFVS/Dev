@@ -516,7 +516,7 @@ export default function Relatorios() {
                         </button>
                     )}
                     <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 md:text-[2rem]">{titulo}</h1>
-                    <p className="mt-1 text-sm text-neutral-500">
+                    <p className="mt-1 text-sm text-neutral-500 sm:text-base">
                         {activeClinic ? getClinicLabel(activeClinic) : 'Todas as suas clínicas'} · {periodo.label}
                     </p>
                 </div>
