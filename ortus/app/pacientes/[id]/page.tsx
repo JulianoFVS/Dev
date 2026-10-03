@@ -20,6 +20,7 @@ import { validarPaciente, isMenorDeIdade } from '@/lib/pacienteValidation';
 import { cpfValido, mascaraCep, mascaraCpf, mascaraNumero, mascaraTelefone, variantesCpf } from '@/lib/mascaras';
 import { prepararFotoPaciente } from '@/lib/prepararFotoPaciente';
 import CampoData from '@/components/ui/CampoData';
+import HofPreviewRosto from '@/components/clinico/HofPreviewRosto';
 import { carregarConfig } from '@/lib/configClinica';
 import { buildDocumentoContexto, aplicarVariaveisDocumento } from '@/lib/documentVariables';
 import { printDocument, printQaBlock, printSignatureBlock, printTable, escapePrintHtml } from '@/lib/printDocument';
@@ -437,6 +438,7 @@ export default function PacienteDetalhe() {
   const [savingHof, setSavingHof] = useState(false);
   const [enviandoFoto, setEnviandoFoto] = useState<string | null>(null);
   const [hofModo, setHofModo] = useState<'visualizar' | 'alterar'>('visualizar');
+  const [hofVista, setHofVista] = useState<'mapa' | 'demo' | 'frontal'>('mapa');
   const hofSurfaceRef = useRef<HTMLDivElement | null>(null);
 
   async function comprimirImagem(file: File, maxDim = 1200, qualidade = 0.8): Promise<Blob> {
@@ -2562,23 +2564,48 @@ export default function PacienteDetalhe() {
                                     <button key={modo} type="button" onClick={() => { setHofModo(modo); if (modo === 'visualizar') setHofPopover({ x: 0, y: 0, open: false }); }} className={`h-8 border-r border-neutral-200 px-3 text-xs font-medium last:border-r-0 ${hofModo === modo ? 'bg-neutral-900 text-white' : 'text-neutral-600'}`} aria-pressed={hofModo === modo}>{modo === 'visualizar' ? 'Visualizar' : 'Alterar'}</button>
                                 ))}
                             </div>
+                            <div className="flex h-8 overflow-hidden rounded-md border border-neutral-200 bg-white">
+                                {(['mapa', 'demo', 'frontal'] as const).map((vista) => (
+                                    <button key={vista} type="button" onClick={() => { setHofVista(vista); if (vista !== 'mapa') setHofPopover({ x: 0, y: 0, open: false }); }} className={`h-8 border-r border-neutral-200 px-3 text-xs font-medium last:border-r-0 ${hofVista === vista ? 'bg-neutral-900 text-white' : 'text-neutral-600'}`}>{vista === 'mapa' ? 'Mapa' : vista === 'demo' ? 'Demonstração' : 'Frontal'}</button>
+                                ))}
+                            </div>
                         </div>
-                        <p className="mb-3 text-xs text-neutral-400">{hofModo === 'alterar' ? 'Clique no rosto para marcar.' : 'Visualizar não cria pontos novos.'}</p>
+                        <p className="mb-3 text-xs text-neutral-400">{hofVista === 'demo' ? 'Ilustração na foto fixa, para demonstrar. Não é o resultado clínico.' : hofVista === 'frontal' ? 'Ilustração na foto frontal desta sessão. Não é o resultado clínico.' : hofModo === 'alterar' ? 'Clique no rosto para marcar.' : 'Visualizar não cria pontos novos.'}</p>
 
                         {/* Canvas Facial */}
                         <div className="flex justify-center">
                             <div
                                 ref={hofSurfaceRef}
-                                className={`relative max-h-[68vh] w-full max-w-lg select-none overflow-hidden rounded-xl border border-neutral-200 bg-cover bg-center bg-no-repeat ${hofModo === 'alterar' ? 'cursor-crosshair' : 'cursor-default'}`}
+                                className={`relative max-h-[68vh] w-full max-w-lg select-none overflow-hidden rounded-xl border border-neutral-200 bg-[#f3f4f1] bg-cover bg-center bg-no-repeat ${hofVista === 'mapa' && hofModo === 'alterar' ? 'cursor-crosshair' : 'cursor-default'}`}
                                 style={{
                                     aspectRatio: '3/4',
-                                    backgroundImage: faceHofAtiva === 'feminina'
-                                        ? "url('/hof/imagem_feminina.png')"
-                                        : "url('/hof/imagem_masculina.png')",
+                                    backgroundImage: hofVista === 'mapa'
+                                        ? (faceHofAtiva === 'feminina' ? "url('/hof/imagem_feminina.png')" : "url('/hof/imagem_masculina.png')")
+                                        : undefined,
                                     touchAction: 'manipulation',
                                 }}
-                                onClick={hofModo === 'alterar' ? handleFaceClick : undefined}
+                                onClick={hofVista === 'mapa' && hofModo === 'alterar' ? handleFaceClick : undefined}
                             >
+                                {hofVista !== 'mapa' && (
+                                    hofVista === 'frontal' && !hofFotos.some((f) => f.sessao === hofSessaoAtiva && f.angulo === 'Frontal' && f.dataUrl) ? (
+                                        <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
+                                            <p className="text-sm font-medium text-neutral-800">Envie a foto frontal desta sessão.</p>
+                                            <p className="text-xs text-neutral-500">A ilustração usa essa foto. Não é o resultado clínico.</p>
+                                            <label className={`inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-xs font-medium text-white ${enviandoFoto ? 'pointer-events-none opacity-50' : ''}`}>
+                                                <Camera size={12}/> Enviar frontal
+                                                <input type="file" accept="image/*" className="hidden" disabled={!!enviandoFoto} onChange={(e) => uploadHofFoto(e, 'Frontal')} />
+                                            </label>
+                                        </div>
+                                    ) : (
+                                        <HofPreviewRosto
+                                            src={hofVista === 'demo'
+                                                ? (faceHofAtiva === 'feminina' ? '/hof/imagem_feminina.png' : '/hof/imagem_masculina.png')
+                                                : (hofFotos.filter((f) => f.sessao === hofSessaoAtiva && f.angulo === 'Frontal' && f.dataUrl).slice(-1)[0]?.dataUrl || '')}
+                                            marks={marcacoesHof.map((m) => ({ x: m.x, y: m.y, tipo: m.tipo, dosagem: m.dosagem }))}
+                                        />
+                                    )
+                                )}
+                                {hofVista === 'mapa' && (<>
                                 {/* Labels anatômicos sobre a imagem */}
                                 <span className="absolute top-[10%] left-1/2 -translate-x-1/2 text-[9px] font-black uppercase tracking-[0.2em] text-white/80 pointer-events-none" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.7), 0 0 8px rgba(0,0,0,0.4)' }}>Testa</span>
                                 <span className="absolute top-[38%] left-[8%] text-[8px] font-black uppercase tracking-[0.15em] text-white/80 pointer-events-none -rotate-90 origin-center" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.7), 0 0 8px rgba(0,0,0,0.4)' }}>Temporal</span>
@@ -2640,6 +2667,7 @@ export default function PacienteDetalhe() {
                                         </div>
                                     </div>
                                 )}
+                                </>)}
                             </div>
                         </div>
 
