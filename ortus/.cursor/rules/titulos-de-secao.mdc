@@ -1,0 +1,34 @@
+---
+description: Tamanho de título e campo nas telas do prontuário e painéis internos
+alwaysApply: true
+---
+
+# Títulos de seção
+
+Telas internas do prontuário e painéis do mesmo tipo usam um único tamanho de título de seção. Não misture `text-sm`, `text-lg` ou `font-black` no mesmo nível.
+
+## Título da seção
+
+O título da aba ou do bloco principal, no mesmo nível de "Informações do paciente", é:
+
+`text-base font-semibold text-neutral-900`
+
+Isso vale para Anamnese, Odontograma, Documentos, Débitos, HOF, Histórico e para o título do modal que abre a partir dessas telas.
+
+## Título da página
+
+O nome da rota (Pacientes, Financeiro, Relatórios) é:
+
+`text-2xl font-semibold tracking-tight text-neutral-900 md:text-[2rem]`
+
+O subtítulo logo abaixo é:
+
+`mt-1 text-sm text-neutral-500 sm:text-base`
+
+## Campo
+
+O rótulo do campo é `mb-1.5 block text-xs font-medium text-neutral-500`.
+
+O campo é `h-10 rounded-md border border-neutral-200 bg-white px-3 text-sm text-neutral-900`.
+
+Não use caixa azul, amarela, `rounded-xl` ou `font-bold` nesses campos.

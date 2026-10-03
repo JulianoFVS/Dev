@@ -190,7 +190,7 @@ export default function Pacientes() {
 
   return (
     <div className="w-full space-y-3 px-2.5 py-2.5 pb-12 font-poppins sm:px-3 sm:py-3 md:px-4 md:py-3.5">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 md:text-[2rem]">Pacientes</h1>
             <p className="mt-1 text-sm text-neutral-500 sm:text-base">{filtrados.length} {filtrados.length === 1 ? 'paciente' : 'pacientes'}</p>
@@ -221,20 +221,20 @@ export default function Pacientes() {
           </div>
 
           {showFiltros && (
-              <div className="grid grid-cols-1 items-end gap-3 border-t border-black/5 pt-3 sm:grid-cols-2 lg:grid-cols-4">
-                  <div>
+              <div className="flex items-end gap-2 border-t border-black/5 pt-3">
+                  <div className="min-w-0 flex-1">
                       <label className="mb-1 block text-[10px] font-medium uppercase tracking-wide text-neutral-400">Clínica</label>
                       <CustomSelect pill value={filtroClinica} onChange={setFiltroClinica} options={[{value:'todas',label:'Todas as clínicas'}, ...clinicas.map((c:any) => ({value:String(c.id),label:c.nome}))]} size="sm"/>
                   </div>
-                  <div>
+                  <div className="min-w-0 flex-1">
                       <label className="mb-1 block text-[10px] font-medium uppercase tracking-wide text-neutral-400">Status</label>
                       <CustomSelect pill value={filtroStatus} onChange={setFiltroStatus} options={[{value:'todos',label:'Todos'},{value:'ativo',label:'Ativo'},{value:'agendado',label:'Agendado'},{value:'novo',label:'Novo'}]} size="sm"/>
                   </div>
-                  <div>
+                  <div className="min-w-0 flex-1">
                       <label className="mb-1 block text-[10px] font-medium uppercase tracking-wide text-neutral-400">Sem consulta há</label>
                       <CustomSelect pill value={String(filtroSemConsulta ?? '')} onChange={v => setFiltroSemConsulta(v ? Number(v) : null)} options={[{value:'',label:'Qualquer período'},{value:'30',label:'30 dias'},{value:'60',label:'60 dias'},{value:'90',label:'90 dias'},{value:'180',label:'6 meses'},{value:'365',label:'1 ano'}]} size="sm"/>
                   </div>
-                  <div>
+                  <div className="min-w-0 flex-1">
                       <label className="mb-1 block text-[10px] font-medium uppercase tracking-wide text-neutral-400">Procedimento pendente</label>
                       <input placeholder="Ex: canal" value={filtroProcedimento} onChange={e => setFiltroProcedimento(e.target.value)} className="h-10 w-full rounded-full border border-black/10 bg-[#f8f8f6] px-4 text-sm outline-none focus:border-neutral-400"/>
                   </div>
@@ -242,7 +242,7 @@ export default function Pacientes() {
                       type="button"
                       onClick={() => setFiltroDebito((atual) => !atual)}
                       aria-pressed={filtroDebito}
-                      className={`inline-flex h-10 items-center gap-2 rounded-full border px-4 text-sm font-medium transition-colors ${filtroDebito ? 'border-red-200 bg-red-50 text-neutral-900' : 'border-black/10 bg-[#f8f8f6] text-neutral-700 hover:bg-white'}`}
+                      className={`inline-flex h-10 shrink-0 items-center gap-2 rounded-full border px-3 text-sm font-medium transition-colors ${filtroDebito ? 'border-red-200 bg-red-50 text-neutral-900' : 'border-black/10 bg-[#f8f8f6] text-neutral-700 hover:bg-white'}`}
                   >
                       <span className={`flex h-4 w-4 items-center justify-center rounded-md border ${filtroDebito ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-300 bg-white'}`}>
                           {filtroDebito && <Check size={11} strokeWidth={3} />}
@@ -251,7 +251,7 @@ export default function Pacientes() {
                       Com débito
                   </button>
                   {filtrosAtivos && (
-                      <button onClick={() => { limparFiltros(); setFiltroClinica(clinicaAtivaId); }} className="inline-flex h-10 items-center gap-1 text-sm font-medium text-neutral-500 hover:text-neutral-900"><X size={14}/> Limpar filtros</button>
+                      <button onClick={() => { limparFiltros(); setFiltroClinica(clinicaAtivaId); }} className="inline-flex h-10 shrink-0 items-center gap-1 text-sm font-medium text-neutral-500 hover:text-neutral-900"><X size={14}/> Limpar</button>
                   )}
               </div>
           )}
@@ -309,7 +309,7 @@ export default function Pacientes() {
                     className="grid cursor-pointer grid-cols-1 items-center gap-2 border-t border-black/[0.05] px-4 py-3 transition-colors hover:bg-[#f8f8f6] md:grid-cols-[minmax(0,1.6fr)_minmax(8rem,0.7fr)_minmax(7rem,0.6fr)_9.5rem] md:px-5"
                   >
                     <div className="flex min-w-0 items-center gap-3">
-                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#f5f5f7] text-[11px] font-semibold text-[#6e6e73]">{iniciais}</span>
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#f5f5f7] text-[11px] font-semibold text-[#6e6e73]">{p.foto_url ? <img src={p.foto_url} alt="" className="h-full w-full object-cover" /> : iniciais}</span>
                       <div className="min-w-0">
                         <p className="truncate text-[14px] font-medium text-[#1d1d1f]">{p.nome}</p>
                         <p className="truncate text-[12px] text-[#aeaeb2]">Paciente · {telFmt}</p>
@@ -347,7 +347,7 @@ export default function Pacientes() {
             return (
             <div key={p.id} onClick={() => router.push(`/pacientes/${p.id}`)} className={`${card} cursor-pointer p-4 transition-colors hover:bg-[#f8f8f6] sm:p-5`}>
                 <div className="mb-4 flex items-center gap-3">
-                    <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#c8f053] text-sm font-semibold text-neutral-900">{iniciais}</span>
+                    <span className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-md bg-neutral-100 text-sm font-semibold text-neutral-900">{p.foto_url ? <img src={p.foto_url} alt="" className="h-full w-full object-cover" /> : iniciais}</span>
                     <div className="min-w-0 flex-1">
                         <h3 className="truncate text-base font-semibold text-neutral-900">{p.nome}</h3>
                         <p className="truncate text-xs font-medium text-neutral-500">{p.nome_clinica || 'Sem clínica'}</p>

@@ -168,7 +168,7 @@ export default function TabEvolucao({ id, form, evolucoes, setEvolucoes }: Props
 
         <div className="space-y-5">
             <div>
-                <h3 className="mb-3 text-sm font-semibold text-neutral-900">Evolução clínica</h3>
+                <h3 className="mb-3 text-base font-semibold text-neutral-900">Evolução clínica</h3>
                 <div className="grid gap-3">
                     <div className="max-w-xs">
                         <label className="mb-1.5 block text-xs font-medium text-neutral-500">Data do atendimento</label>
@@ -191,7 +191,7 @@ export default function TabEvolucao({ id, form, evolucoes, setEvolucoes }: Props
 
             <div className="border-t border-neutral-200 pt-4">
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-                    <h3 className="text-sm font-semibold text-neutral-900">Registros anteriores ({evolucoes.length})</h3>
+                    <h3 className="text-base font-semibold text-neutral-900">Registros anteriores ({evolucoes.length})</h3>
                     {evolucoes.length > 0 && (
                         <button onClick={imprimirProntuario} className="inline-flex h-8 items-center gap-1.5 rounded-md border border-neutral-200 px-2.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"><Printer size={12}/> PDF</button>
                     )}

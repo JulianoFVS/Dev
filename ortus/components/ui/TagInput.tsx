@@ -60,13 +60,13 @@ export default function TagInput({
   return (
     <div className={`relative ${className}`}>
       <div
-        className="flex flex-wrap gap-2 p-3 bg-slate-50 border border-slate-200 rounded-xl min-h-[48px] focus-within:ring-2 focus-within:ring-blue-200 focus-within:border-blue-300 transition-all cursor-text"
+        className="flex min-h-10 cursor-text flex-wrap gap-1.5 rounded-md border border-neutral-200 bg-white p-2 focus-within:border-neutral-900"
         onClick={() => inputRef.current?.focus()}
       >
         {value.map((tag, i) => (
           <span
             key={`${tag}-${i}`}
-            className="inline-flex items-center gap-1 px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-sm font-semibold text-slate-700"
+            className="inline-flex items-center gap-1 rounded-md border border-neutral-200 bg-neutral-50 px-2 py-0.5 text-xs font-medium text-neutral-800"
           >
             {tag}
             <button
@@ -94,16 +94,16 @@ export default function TagInput({
           onFocus={() => setShowSuggestions(true)}
           onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
           placeholder={value.length === 0 ? placeholder : ''}
-          className="flex-1 min-w-[120px] bg-transparent outline-none text-sm font-medium text-slate-700 placeholder:text-slate-400"
+          className="min-w-[120px] flex-1 bg-transparent text-sm text-neutral-900 outline-none placeholder:text-neutral-400"
         />
       </div>
       {showSuggestions && filteredSuggestions.length > 0 && (
-        <ul className="absolute z-20 left-0 right-0 mt-1 max-h-40 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-lg py-1">
+        <ul className="absolute left-0 right-0 z-20 mt-1 max-h-40 overflow-y-auto rounded-md border border-neutral-200 bg-white py-1">
           {filteredSuggestions.slice(0, 8).map((s) => (
             <li key={s}>
               <button
                 type="button"
-                className="w-full text-left px-3 py-2 text-sm font-medium text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition-colors"
+                className="w-full px-3 py-2 text-left text-sm text-neutral-800 hover:bg-neutral-50"
                 onMouseDown={(e) => {
                   e.preventDefault();
                   addTag(s);
