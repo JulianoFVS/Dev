@@ -33,7 +33,7 @@ import { carregarProntuario } from '@/lib/fichaPaciente';
 import { criarAnamnese, atualizarAnamnese, excluirAnamnese as excluirAnamneseDb, gerarLinkAnamnesePaciente as gerarLinkAnamnesePacienteApi } from '@/lib/db/anamneses';
 import { criarDocumento, excluirDocumento as excluirDocumentoDb } from '@/lib/db/documentos';
 import { salvarFichaClinica } from '@/lib/db/fichaClinica';
-import { guardarPrefillAgenda } from '@/lib/agendaPrefill';
+import ModalNovoAgendamento from '@/components/agenda/ModalNovoAgendamento';
 import { atualizarTratamento, criarTratamento, excluirTratamento as excluirTratamentoDb } from '@/lib/db/tratamentos';
 import type { TratamentoPaciente } from '@/lib/db/types';
 import { FACE_COLORS, FACE_LABELS, ODONTO_TOOLS } from '@/lib/odontogram/constants';
@@ -452,6 +452,7 @@ export default function PacienteDetalhe() {
   const [enviandoFoto, setEnviandoFoto] = useState<string | null>(null);
   const [hofModo, setHofModo] = useState<'visualizar' | 'alterar'>('visualizar');
   const [hofVista, setHofVista] = useState<'mapa' | 'demo' | 'frontal'>('mapa');
+  const [agendaHof, setAgendaHof] = useState<{ procedimento: string; observacoes: string; data?: string } | null>(null);
   const hofSurfaceRef = useRef<HTMLDivElement | null>(null);
 
   async function comprimirImagem(file: File, maxDim = 1200, qualidade = 0.8): Promise<Blob> {
@@ -1048,18 +1049,11 @@ export default function PacienteDetalhe() {
               return;
           }
           const agendar = await showConfirm(
-              'O mapa foi salvo como demonstração. Quer abrir a agenda com este procedimento já preenchido?',
+              'O procedimento foi salvo como demonstração. Quer agendar agora, sem sair desta tela?',
               { title: 'Agendar procedimento?', type: 'success', confirmLabel: 'Agendar', cancelLabel: 'Agora não' },
           );
           if (!agendar) return;
-          const resumo = resumoHofParaAgenda(marcas);
-          guardarPrefillAgenda({
-              pacienteId: String(id),
-              procedimento: resumo.procedimento,
-              observacoes: resumo.observacoes,
-              data: resumo.data,
-          });
-          router.push(`/agenda?paciente=${id}`);
+          setAgendaHof(resumoHofParaAgenda(marcas));
       } catch (error: any) {
           showAlert('Erro ao salvar HOF: ' + error.message, { type: 'error' });
           setSavingHof(false);
@@ -3225,6 +3219,17 @@ export default function PacienteDetalhe() {
                 </button>
             </div>
         </Modal>
+        <ModalNovoAgendamento
+            open={!!agendaHof}
+            onClose={() => setAgendaHof(null)}
+            pacienteId={String(id)}
+            pacienteNome={form.nome || ''}
+            clinicaId={form.clinica_id ? String(form.clinica_id) : ''}
+            procedimento={agendaHof?.procedimento || ''}
+            observacoes={agendaHof?.observacoes || ''}
+            data={agendaHof?.data}
+            onSaved={() => showAlert('Agendamento salvo na agenda.', { type: 'success' })}
+        />
         <Modal open={!!docAberto} onClose={fecharDocumento} maxWidth="4xl" hideCloseButton panelClassName="overflow-hidden rounded-xl border border-neutral-200 bg-white">
             <div className="flex items-center justify-between gap-3 border-b border-neutral-200 px-4 py-3">
                 <h3 className="min-w-0 truncate text-base font-semibold text-neutral-900">{docAberto?.nome}</h3>
