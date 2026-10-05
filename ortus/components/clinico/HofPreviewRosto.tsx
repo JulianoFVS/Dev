@@ -77,7 +77,7 @@ export default function HofPreviewRosto({ src, marks }: Props) {
 
       for (let y = 0; y < altura; y++) {
         for (let x = 0; x < largura; x++) {
-          const amostra = amostraDepois(x, y, efeitos, largura);
+          const amostra = amostraDepois(x, y, efeitos, largura, altura);
           const i = (y * largura + x) * 4;
           if (amostra.suave > 0.08) {
             const espalha = 0.8 + amostra.suave * 2.4;

@@ -414,15 +414,27 @@ export default function PacienteDetalhe() {
   const HOF_TIPOS = [
       { key: 'toxina',         label: 'Toxina Botulínica', color: '#ef4444', unidadePadrao: 'U',  ring: 'ring-red-300' },
       { key: 'preenchimento',  label: 'Preenchimento',     color: '#3b82f6', unidadePadrao: 'mL', ring: 'ring-blue-300' },
+      { key: 'labial',         label: 'Preenchimento labial', color: '#db2777', unidadePadrao: 'mL', ring: 'ring-pink-300' },
+      { key: 'rino',           label: 'Rinomodelação',     color: '#0891b2', unidadePadrao: 'mL', ring: 'ring-cyan-300' },
+      { key: 'olheira',        label: 'Olheiras',          color: '#4f46e5', unidadePadrao: 'mL', ring: 'ring-indigo-300' },
+      { key: 'mento',          label: 'Mentoplastia',      color: '#92400e', unidadePadrao: 'mL', ring: 'ring-amber-300' },
+      { key: 'mandibula',      label: 'Contorno mandibular', color: '#ca8a04', unidadePadrao: 'mL', ring: 'ring-yellow-300' },
+      { key: 'papada',         label: 'Lipo de papada',    color: '#ea580c', unidadePadrao: 'mL', ring: 'ring-orange-300' },
       { key: 'bioestimulador', label: 'Bioestimulador',    color: '#10b981', unidadePadrao: 'mL', ring: 'ring-emerald-300' },
       { key: 'fios',           label: 'Fios de PDO',       color: '#f59e0b', unidadePadrao: 'un', ring: 'ring-amber-300' },
-      { key: 'peeling',        label: 'Peeling / Skinbooster', color: '#8b5cf6', unidadePadrao: 'mL', ring: 'ring-violet-300' },
+      { key: 'skinbooster',    label: 'Skinbooster',       color: '#0f766e', unidadePadrao: 'mL', ring: 'ring-teal-300' },
+      { key: 'peeling',        label: 'Peeling',           color: '#8b5cf6', unidadePadrao: 'mL', ring: 'ring-violet-300' },
+      { key: 'microagulhamento', label: 'Microagulhamento', color: '#c026d3', unidadePadrao: 'sess', ring: 'ring-fuchsia-300' },
       { key: 'outro',          label: 'Outro',             color: '#64748b', unidadePadrao: '',   ring: 'ring-slate-300' },
   ];
   const HOF_RETORNO: Record<string, { meses: number; label: string }> = {
       toxina: { meses: 5, label: '4-6 meses' }, preenchimento: { meses: 14, label: '12-18 meses' },
+      labial: { meses: 12, label: '9-12 meses' }, rino: { meses: 12, label: '12 meses' },
+      olheira: { meses: 12, label: '12 meses' }, mento: { meses: 14, label: '12-18 meses' },
+      mandibula: { meses: 14, label: '12-18 meses' }, papada: { meses: 24, label: 'sessões' },
       bioestimulador: { meses: 18, label: '18-24 meses' }, fios: { meses: 12, label: '12 meses' },
-      peeling: { meses: 2, label: '1-3 meses' },
+      skinbooster: { meses: 6, label: '4-6 meses' }, peeling: { meses: 2, label: '1-3 meses' },
+      microagulhamento: { meses: 4, label: '3-6 meses' },
   };
   type HofFoto = { id: string; sessao: string; angulo: string; dataUrl: string; storagePath?: string; criado_em: string };
   const [marcacoesHof, setMarcacoesHof] = useState<HofMarcacao[]>([]);
@@ -1026,12 +1038,12 @@ export default function PacienteDetalhe() {
           { x: 56, y: 31, tipo: 'toxina', texto: 'Glabela (corrugador D)', dosagem: '5', produto: '' },
           { x: 32, y: 39, tipo: 'toxina', texto: 'Periorbital esquerdo (pés de galinha)', dosagem: '6', produto: '' },
           { x: 68, y: 39, tipo: 'toxina', texto: 'Periorbital direito (pés de galinha)', dosagem: '6', produto: '' },
-          { x: 50, y: 72, tipo: 'toxina', texto: 'Mentual (queixo)', dosagem: '4', produto: '' },
+          { x: 50, y: 79, tipo: 'toxina', texto: 'Mentual (queixo)', dosagem: '4', produto: '' },
       ]},
       { nome: 'Preenchimento Labial', pontos: [
-          { x: 46, y: 63, tipo: 'preenchimento', texto: 'Lábio superior (arco do cupido E)', dosagem: '0.3', produto: '' },
-          { x: 54, y: 63, tipo: 'preenchimento', texto: 'Lábio superior (arco do cupido D)', dosagem: '0.3', produto: '' },
-          { x: 50, y: 66, tipo: 'preenchimento', texto: 'Lábio inferior (corpo central)', dosagem: '0.4', produto: '' },
+          { x: 46, y: 67.5, tipo: 'labial', texto: 'Lábio superior (arco do cupido E)', dosagem: '0.3', produto: '' },
+          { x: 54, y: 67.5, tipo: 'labial', texto: 'Lábio superior (arco do cupido D)', dosagem: '0.3', produto: '' },
+          { x: 50, y: 72, tipo: 'labial', texto: 'Lábio inferior (corpo central)', dosagem: '0.4', produto: '' },
       ]},
       { nome: 'Preenchimento Malar', pontos: [
           { x: 34, y: 47, tipo: 'preenchimento', texto: 'Malar esquerdo (ponto de luz)', dosagem: '0.5', produto: '' },
