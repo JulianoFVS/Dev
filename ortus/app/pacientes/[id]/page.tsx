@@ -33,6 +33,7 @@ import { carregarProntuario } from '@/lib/fichaPaciente';
 import { criarAnamnese, atualizarAnamnese, excluirAnamnese as excluirAnamneseDb, gerarLinkAnamnesePaciente as gerarLinkAnamnesePacienteApi } from '@/lib/db/anamneses';
 import { criarDocumento, excluirDocumento as excluirDocumentoDb } from '@/lib/db/documentos';
 import { salvarFichaClinica } from '@/lib/db/fichaClinica';
+import { guardarPrefillAgenda } from '@/lib/agendaPrefill';
 import { atualizarTratamento, criarTratamento, excluirTratamento as excluirTratamentoDb } from '@/lib/db/tratamentos';
 import type { TratamentoPaciente } from '@/lib/db/types';
 import { FACE_COLORS, FACE_LABELS, ODONTO_TOOLS } from '@/lib/odontogram/constants';
@@ -1015,16 +1016,54 @@ export default function PacienteDetalhe() {
   }
   const hofAlertas = calcularAlertasHof();
 
+  function resumoHofParaAgenda(marcas: HofMarcacao[]) {
+      const labels = Array.from(new Set(marcas.map((m) => m.tipo))).map((tipo) => hofTipoInfo(tipo).label);
+      const procedimento = labels.length === 1 ? labels[0] : 'Harmonização orofacial';
+      const linhas = marcas.map((m) => {
+          const info = hofTipoInfo(m.tipo);
+          const dose = m.dosagem ? ` ${m.dosagem}${info.unidadePadrao ? ` ${info.unidadePadrao}` : ''}` : '';
+          const produto = m.produto ? ` · ${m.produto}` : '';
+          return `${info.label}${dose}${produto}${m.texto ? ` — ${m.texto}` : ''}`;
+      });
+      const sessao = hofSessaoAtiva
+          ? new Date(hofSessaoAtiva + 'T12:00:00').toLocaleDateString('pt-BR')
+          : '';
+      return {
+          procedimento,
+          observacoes: [`Demonstração HOF${sessao ? ` · sessão ${sessao}` : ''}`, ...linhas].join('\n'),
+          data: hofSessaoAtiva,
+      };
+  }
+
   async function salvarHof() {
       setSavingHof(true);
       try {
           const fichaAtualizada = await salvarFichaClinica(String(id), { marcacoes_hof: marcacoesHof, hof_fotos: fotosHofParaSalvar(hofFotos) }, ficha);
           setFicha({ ...ficha, ...fichaAtualizada });
-          showAlert('Mapa facial salvo com sucesso!', { type: 'success' });
+          const daSessao = marcacoesHof.filter((m) => (m.sessao || m.data) === hofSessaoAtiva);
+          const marcas = daSessao.length ? daSessao : marcacoesHof;
+          setSavingHof(false);
+          if (!marcas.length) {
+              showAlert('Procedimento HOF salvo.', { type: 'success' });
+              return;
+          }
+          const agendar = await showConfirm(
+              'O mapa foi salvo como demonstração. Quer abrir a agenda com este procedimento já preenchido?',
+              { title: 'Agendar procedimento?', type: 'success', confirmLabel: 'Agendar', cancelLabel: 'Agora não' },
+          );
+          if (!agendar) return;
+          const resumo = resumoHofParaAgenda(marcas);
+          guardarPrefillAgenda({
+              pacienteId: String(id),
+              procedimento: resumo.procedimento,
+              observacoes: resumo.observacoes,
+              data: resumo.data,
+          });
+          router.push(`/agenda?paciente=${id}`);
       } catch (error: any) {
           showAlert('Erro ao salvar HOF: ' + error.message, { type: 'error' });
+          setSavingHof(false);
       }
-      setSavingHof(false);
   }
 
   // ===== HOF Protocol Templates =====
@@ -2716,7 +2755,7 @@ export default function PacienteDetalhe() {
                                 <button type="button" onClick={() => setModalProtocolo(true)} className="inline-flex h-8 items-center gap-1 rounded-md px-2 text-xs font-medium text-neutral-500 hover:bg-neutral-50"><Zap size={12}/> Protocolos</button>
                                 <button type="button" onClick={gerarTermoConsentimentoHof} className="inline-flex h-8 items-center gap-1 rounded-md px-2 text-xs font-medium text-neutral-500 hover:bg-neutral-50"><ShieldCheck size={12}/> Termo</button>
                                 <button type="button" onClick={imprimirMapaHof} className="inline-flex h-8 items-center gap-1 rounded-md px-2 text-xs font-medium text-neutral-500 hover:bg-neutral-50"><Printer size={12}/> PDF</button>
-                                <button type="button" onClick={salvarHof} disabled={savingHof} className="ml-auto inline-flex h-8 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-xs font-medium text-white hover:bg-neutral-800 disabled:opacity-50">{savingHof ? <Loader2 size={12} className="animate-spin"/> : <Save size={12}/>} Salvar</button>
+                                <button type="button" onClick={salvarHof} disabled={savingHof} className="ml-auto inline-flex h-8 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-xs font-medium text-white hover:bg-neutral-800 disabled:opacity-50">{savingHof ? <Loader2 size={12} className="animate-spin"/> : <Save size={12}/>} {savingHof ? 'Salvando...' : 'Salvar procedimento HOF'}</button>
                             </div>
                         </aside>
                         </div>

@@ -27,6 +27,7 @@ import {
   marcarLembreteEnviado,
   type LembreteAgendamento,
 } from '@/lib/lembretesAgenda';
+import { lerPrefillAgenda, limparPrefillAgenda } from '@/lib/agendaPrefill';
 
 const OPCOES_HORA = Array.from({ length: 48 }, (_, i) => {
   const h = String(Math.floor(i / 2)).padStart(2, '0');
@@ -126,16 +127,36 @@ export default function Agenda() {
       }
   }
 
+  const prefillAplicado = useRef(false);
+
   useEffect(() => {
-      if (!pacientePreSelecionado || pacientes.length === 0) return;
+      if (prefillAplicado.current || !pacientePreSelecionado || pacientes.length === 0) return;
       const paciente = pacientes.find((p: any) => String(p.id) === String(pacientePreSelecionado));
       if (!paciente) return;
       const hoje = new Date().toISOString().split('T')[0];
+      const prefill = lerPrefillAgenda();
+      const mesmoPaciente = prefill && String(prefill.pacienteId) === String(paciente.id) ? prefill : null;
+      const dataSugerida = mesmoPaciente?.data && mesmoPaciente.data >= hoje ? mesmoPaciente.data : hoje;
       const preClinica = clinicaFiltro !== 'todas' ? clinicaFiltro : paciente.clinica_id || '';
       const preProfissional = (usuarioAtual?.nivel !== 'admin' && usuarioAtual?.profissional_id) ? usuarioAtual.profissional_id : '';
-      setFormData({ id: null, title: '', date: hoje, time: '08:00', theme: 'blue', paciente_id: paciente.id, valor: '0', desconto: '0', observacoes: '', status: 'agendado', clinica_id: preClinica, profissional_id: preProfissional });
+      setFormData({
+          id: null,
+          title: mesmoPaciente?.procedimento || '',
+          date: dataSugerida,
+          time: '08:00',
+          theme: 'blue',
+          paciente_id: paciente.id,
+          valor: '0',
+          desconto: '0',
+          observacoes: mesmoPaciente?.observacoes || '',
+          status: 'agendado',
+          clinica_id: preClinica,
+          profissional_id: preProfissional,
+      });
+      prefillAplicado.current = true;
+      limparPrefillAgenda();
       setOpenModal(true);
-  }, [pacientePreSelecionado, pacientes]);
+  }, [pacientePreSelecionado, pacientes, clinicaFiltro, usuarioAtual]);
 
   // Revalida quando o Action Hub criar/quitar agendamentos in-place
   useEffect(() => {
