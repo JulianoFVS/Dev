@@ -166,8 +166,8 @@ export default function TabEvolucao({ id, form, evolucoes, setEvolucoes }: Props
 
     return (
 
-        <div className="space-y-5">
-            <div>
+        <div className="space-y-4">
+            <section className="rounded-xl border border-neutral-200 bg-white p-4">
                 <h3 className="mb-3 text-base font-semibold text-neutral-900">Evolução clínica</h3>
                 <div className="grid gap-3">
                     <div className="max-w-xs">
@@ -185,11 +185,9 @@ export default function TabEvolucao({ id, form, evolucoes, setEvolucoes }: Props
                         </button>
                     </div>
                 </div>
-            </div>
+            </section>
 
-
-
-            <div className="border-t border-neutral-200 pt-4">
+            <section className="rounded-xl border border-neutral-200 bg-white p-4">
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                     <h3 className="text-base font-semibold text-neutral-900">Registros anteriores ({evolucoes.length})</h3>
                     {evolucoes.length > 0 && (
@@ -216,7 +214,7 @@ export default function TabEvolucao({ id, form, evolucoes, setEvolucoes }: Props
                     </div>
                 )}
 
-            </div>
+            </section>
 
         </div>
 

@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import { receberAgendamento } from '@/lib/recebimentoAgendamento';
+import { receberAgendamento, type ParteRecebimento } from '@/lib/recebimentoAgendamento';
 import type { TaxaMaquininha } from '@/lib/configDefaults';
 
 export type DebitoPaciente = {
@@ -94,6 +94,7 @@ export async function receberDebito(
   debito: DebitoPaciente & { clinica_id?: string | number },
   taxaId?: string,
   taxas?: TaxaMaquininha[],
+  partes?: ParteRecebimento[],
 ) {
   if (debito.origem === 'manual') {
     const { error } = await supabase
@@ -118,6 +119,7 @@ export async function receberDebito(
     },
     taxaId,
     taxas,
+    partes,
   );
 }
 

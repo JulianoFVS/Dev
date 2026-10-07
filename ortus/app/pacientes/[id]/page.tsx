@@ -3,7 +3,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import type { MouseEvent } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { User, Phone, Edit, ArrowLeft, Save, Loader2, FileText, Clock, Trash2, Calendar, CalendarPlus, Pill, AlertTriangle, Stethoscope, X, Check, Building2, Printer, Smile, Plus, Eraser, CheckCircle, ClipboardList, FolderOpen, AlertCircle, Upload, Download, Image as ImageIcon, DollarSign, Settings, Sparkles, Camera, Bell, ArrowLeftRight, ShieldCheck, Zap, Link2, Copy, ChevronDown, LayoutGrid, List, ArrowUpDown } from 'lucide-react';
+import { User, Phone, Edit, ArrowLeft, Save, Loader2, FileText, Clock, Trash2, Calendar, CalendarPlus, Pill, AlertTriangle, Stethoscope, X, Check, Building2, Printer, Smile, Plus, Eraser, CheckCircle, ClipboardList, FolderOpen, AlertCircle, Upload, Download, Image as ImageIcon, DollarSign, Settings, Sparkles, Camera, Bell, ArrowLeftRight, ShieldCheck, Zap, Link2, Copy, ChevronDown, LayoutGrid, List, ArrowUpDown, Search } from 'lucide-react';
 import Link from 'next/link';
 import { carregarModelos, formatarRespostaAnamnese, respostaInicial, type ModeloAnamnese, type RespostaAnamnese, type RespostaSimNaoTexto } from '@/lib/anamnese';
 // teeth-data lib no longer needed — using PNG images from /assets/dentes/
@@ -25,7 +25,7 @@ import { carregarConfig } from '@/lib/configClinica';
 import { buildDocumentoContexto, aplicarVariaveisDocumento } from '@/lib/documentVariables';
 import { printDocument, printQaBlock, printSignatureBlock, printTable, escapePrintHtml } from '@/lib/printDocument';
 import PatientContactButtons from '@/components/PatientContactButtons';
-import { carregarTaxasAtivas, receberAgendamento } from '@/lib/recebimentoAgendamento';
+import { carregarTaxasAtivas, type ParteRecebimento } from '@/lib/recebimentoAgendamento';
 import { criarDebitoManual, listarDebitosPaciente, listarOpcoesMarcarNaoPago, marcarAgendamentoNaoPago, receberDebito } from '@/lib/debitosPaciente';
 import { calcularValorLiquido, type TaxaMaquininha } from '@/lib/configDefaults';
 import { registrarComissaoTratamentoFinalizado } from '@/lib/comissao';
@@ -93,6 +93,23 @@ const LEGACY_CONDICOES = [
 function getCondicoesFromFicha(ficha: Record<string, unknown>): string[] {
   if (Array.isArray(ficha.condicoes)) return ficha.condicoes as string[];
   return LEGACY_CONDICOES.filter((k) => Boolean(ficha[k]));
+}
+
+function documentoEhImagem(d: { isImg?: boolean; tipo?: string; nome?: string }) {
+  if (d?.isImg) return true;
+  if (String(d?.tipo || '').startsWith('image/')) return true;
+  return /\.(jpe?g|png|webp|gif)$/i.test(String(d?.nome || ''));
+}
+
+function gruposDeFaces(faces: Array<{ face: OdontoFace; status: OdontoFaceStatus }>) {
+  const mapa = new Map<string, string[]>();
+  const rotulo: Record<string, string> = { carie: 'cárie', restaurado: 'restauração', tratado: 'tratado', higido: 'hígido' };
+  for (const face of faces) {
+    const status = rotulo[face.status] || face.status;
+    const nome = FACE_LABELS[face.face] || face.face;
+    mapa.set(status, [...(mapa.get(status) || []), nome]);
+  }
+  return [...mapa.entries()];
 }
 
 function getMedicamentosFromFicha(ficha: Record<string, unknown>): string[] {
@@ -330,10 +347,8 @@ export default function PacienteDetalhe() {
   const [ordemDocs, setOrdemDocs] = useState<{ campo: 'nome' | 'data' | 'tamanho'; dir: 'asc' | 'desc' }>({ campo: 'data', dir: 'desc' });
   const [docAberto, setDocAberto] = useState<{ nome: string; url: string; isImg: boolean; isPdf: boolean } | null>(null);
   const [historicoSel, setHistoricoSel] = useState<string | null>(null);
-  useEffect(() => {
-      if (!historicoSel) return;
-      document.getElementById(`hist-${historicoSel}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
-  }, [historicoSel]);
+  const [buscaHistorico, setBuscaHistorico] = useState('');
+  const previewsDocumento = useRef<string[]>([]);
   const odontogramaFromServer = useRef(true);
   const fichaFromServer = useRef(true);
   const prontuarioIdCarregado = useRef<string | null>(null);
@@ -362,7 +377,7 @@ export default function PacienteDetalhe() {
   const [formDebito, setFormDebito] = useState({ descricao: '', valor: '', agendamentosMarcados: [] as number[], tratamentosMarcados: [] as string[] });
   const [debitoOpcoes, setDebitoOpcoes] = useState<{ agendamentos: any[]; tratamentos: any[] }>({ agendamentos: [], tratamentos: [] });
   const [salvandoDebito, setSalvandoDebito] = useState(false);
-  const [taxaRecebimento, setTaxaRecebimento] = useState('');
+  const [partesPagamento, setPartesPagamento] = useState<Array<{ key: string; taxaId: string; valor: string }>>([]);
   const [taxasRecebimento, setTaxasRecebimento] = useState<TaxaMaquininha[]>([]);
   const [recebendo, setRecebendo] = useState(false);
   
@@ -408,6 +423,36 @@ export default function PacienteDetalhe() {
 
   // DOCUMENTOS
   const [documentos, setDocumentos] = useState<any[]>([]);
+  useEffect(() => {
+      let vivo = true;
+      const imagens = documentos.filter((d) => documentoEhImagem(d) && !d.previewUrl);
+      if (!imagens.length) return;
+      (async () => {
+          const porId = new Map<string, string>();
+          await Promise.all(imagens.map(async (d) => {
+              try {
+                  const blob = await blobDoDocumento(d);
+                  if (!vivo) return;
+                  const url = URL.createObjectURL(blob);
+                  previewsDocumento.current.push(url);
+                  porId.set(String(d.id), url);
+              } catch {
+                  /* preview opcional */
+              }
+          }));
+          if (!vivo || porId.size === 0) return;
+          setDocumentos((atual) => atual.map((d) => {
+              const url = porId.get(String(d.id));
+              return url ? { ...d, previewUrl: url, isImg: true } : d;
+          }));
+      })();
+      return () => { vivo = false; };
+      // blobDoDocumento é declaração no corpo do componente
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [documentos]);
+  useEffect(() => () => {
+      previewsDocumento.current.forEach((url) => URL.revokeObjectURL(url));
+  }, []);
   const [uploadingDoc, setUploadingDoc] = useState(false);
 
   // HARMONIZAÇÃO OROFACIAL (HOF)
@@ -1498,7 +1543,9 @@ export default function PacienteDetalhe() {
               storage_path: caminhoArquivo,
               meta: { isImg, isPdf, tamanho: blob.size },
           });
-          setDocumentos([...documentos, salvo]);
+          const previewUrl = isImg ? URL.createObjectURL(blob) : undefined;
+          if (previewUrl) previewsDocumento.current.push(previewUrl);
+          setDocumentos([...documentos, { ...salvo, isImg, isPdf, previewUrl }]);
       } catch (err: any) {
           showAlert('Erro ao processar arquivo: ' + (err?.message || err), { type: 'error' });
       }
@@ -1513,6 +1560,7 @@ export default function PacienteDetalhe() {
           const { storage_path } = await excluirDocumentoDb(did);
           const path = storage_path || doc?.storagePath;
           if (path) await supabase.storage.from('arquivos_ortus').remove([path]);
+          if (doc?.previewUrl) URL.revokeObjectURL(doc.previewUrl);
           setDocumentos(documentos.filter(d => d.id !== did));
       } catch (e: any) {
           await showAlert('Erro ao excluir: ' + (e.message || e), { type: 'error' });
@@ -1580,19 +1628,42 @@ export default function PacienteDetalhe() {
 
   async function abrirModalReceber(debito: any) {
       const taxas = form.clinica_id ? await carregarTaxasAtivas(form.clinica_id) : [];
+      const bruto = Number(debito?.valor_final ?? debito?.valor) || 0;
       setTaxasRecebimento(taxas);
-      setTaxaRecebimento(taxas[0]?.id || '');
+      setPartesPagamento([{ key: '1', taxaId: taxas[0]?.id || '', valor: bruto ? bruto.toFixed(2) : '' }]);
       setModalReceber(debito);
+  }
+
+  function atualizarPartePagamento(key: string, patch: Partial<{ taxaId: string; valor: string }>) {
+      setPartesPagamento((atual) => atual.map((parte) => parte.key === key ? { ...parte, ...patch } : parte));
+  }
+
+  function adicionarPartePagamento() {
+      const bruto = Number(modalReceber?.valor_final ?? modalReceber?.valor) || 0;
+      const usado = partesPagamento.reduce((soma, parte) => soma + (parseFloat(parte.valor.replace(',', '.')) || 0), 0);
+      const falta = Math.max(0, bruto - usado);
+      setPartesPagamento((atual) => [...atual, { key: String(Date.now()), taxaId: '', valor: falta ? falta.toFixed(2) : '' }]);
   }
 
   async function confirmarRecebimento() {
       if (!modalReceber) return;
+      const bruto = Number(modalReceber.valor_final ?? modalReceber.valor) || 0;
+      const partes: ParteRecebimento[] = partesPagamento.map((parte) => ({
+          taxaId: parte.taxaId || undefined,
+          valor: parseFloat(parte.valor.replace(',', '.')) || 0,
+      })).filter((parte) => parte.valor > 0);
+      const soma = partes.reduce((total, parte) => total + parte.valor, 0);
+      if (bruto > 0 && Math.abs(soma - bruto) > 0.009) {
+          showAlert(`A soma das formas (R$ ${soma.toFixed(2)}) precisa fechar o total de R$ ${bruto.toFixed(2)}.`, { type: 'warning' });
+          return;
+      }
       setRecebendo(true);
       try {
           const { comissaoLancamentos } = await receberDebito(
               { ...modalReceber, clinica_id: form.clinica_id },
-              taxaRecebimento || undefined,
+              partes[0]?.taxaId,
               taxasRecebimento,
+              partes,
           );
           const agId = modalReceber.agendamento_id ?? modalReceber.id;
           setDebitos((prev) => prev.filter((d) => d.id !== modalReceber.id));
@@ -1868,29 +1939,60 @@ export default function PacienteDetalhe() {
                 <div className="p-5">
                     <h3 className="text-base font-semibold text-neutral-900">Registrar recebimento</h3>
                     <p className="mt-1 text-sm text-neutral-500">{modalReceber?.procedimento}</p>
-                    <p className="mb-4 mt-2 text-base font-semibold text-neutral-900">R$ {(Number(modalReceber?.valor_final ?? modalReceber?.valor) || 0).toFixed(2)}</p>
-                    {taxasRecebimento.length > 0 && (
-                        <div className="mb-4">
-                            <label className={campoLabel}>Forma de pagamento</label>
-                            <CustomSelect
-                                value={taxaRecebimento}
-                                onChange={setTaxaRecebimento}
-                                options={[{ value: '', label: 'Sem taxa' }, ...taxasRecebimento.map(t => ({ value: t.id, label: `${t.nome} (${t.taxa_percentual}%)` }))]}
-                                size="lg"
-                                menuPortal
-                            />
-                            {taxaRecebimento && (() => {
-                                const taxa = taxasRecebimento.find(t => t.id === taxaRecebimento);
-                                const bruto = Number(modalReceber?.valor_final ?? modalReceber?.valor) || 0;
-                                if (!taxa) return null;
-                                return (
-                                    <p className="mt-2 text-xs font-medium text-neutral-600">
-                                        Líquido: R$ {calcularValorLiquido(bruto, taxa.taxa_percentual).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    {(() => {
+                        const bruto = Number(modalReceber?.valor_final ?? modalReceber?.valor) || 0;
+                        const soma = partesPagamento.reduce((total, parte) => total + (parseFloat(parte.valor.replace(',', '.')) || 0), 0);
+                        const liquido = partesPagamento.reduce((total, parte) => {
+                            const valor = parseFloat(parte.valor.replace(',', '.')) || 0;
+                            const taxa = taxasRecebimento.find((item) => item.id === parte.taxaId);
+                            return total + (taxa ? calcularValorLiquido(valor, taxa.taxa_percentual) : valor);
+                        }, 0);
+                        const diferenca = bruto - soma;
+                        return (
+                            <>
+                                <p className="mb-4 mt-2 text-base font-semibold text-neutral-900">R$ {bruto.toFixed(2)}</p>
+                                <div className="space-y-2">
+                                    <label className={campoLabel}>Formas de pagamento</label>
+                                    {partesPagamento.map((parte) => (
+                                        <div key={parte.key} className="grid grid-cols-[minmax(0,1fr)_7.5rem_auto] items-center gap-2">
+                                            <CustomSelect
+                                                value={parte.taxaId}
+                                                onChange={(valor) => atualizarPartePagamento(parte.key, { taxaId: valor })}
+                                                options={[{ value: '', label: 'Dinheiro' }, ...taxasRecebimento.map((taxa) => ({ value: taxa.id, label: `${taxa.nome} (${taxa.taxa_percentual}%)` }))]}
+                                                size="lg"
+                                                menuPortal
+                                            />
+                                            <input
+                                                inputMode="decimal"
+                                                value={parte.valor}
+                                                onChange={(evento) => atualizarPartePagamento(parte.key, { valor: evento.target.value })}
+                                                className="h-10 rounded-md border border-neutral-200 px-3 text-sm text-neutral-900 outline-none focus:border-neutral-900"
+                                                placeholder="0,00"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => setPartesPagamento((atual) => atual.length > 1 ? atual.filter((item) => item.key !== parte.key) : atual)}
+                                                className="inline-flex h-9 w-9 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-100 hover:text-neutral-900 disabled:opacity-30"
+                                                disabled={partesPagamento.length < 2}
+                                                aria-label="Remover forma"
+                                            >
+                                                <X size={14} />
+                                            </button>
+                                        </div>
+                                    ))}
+                                    <button type="button" onClick={adicionarPartePagamento} className="inline-flex h-8 items-center gap-1.5 text-xs font-medium text-neutral-600 hover:text-neutral-900">
+                                        <Plus size={12} /> Adicionar forma
+                                    </button>
+                                    <p className="text-xs font-medium text-neutral-600">
+                                        Líquido: R$ {liquido.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                        {Math.abs(diferenca) > 0.009 && (
+                                            <span className="ml-2 text-amber-700">{diferenca > 0 ? `Falta R$ ${diferenca.toFixed(2)}` : `Sobra R$ ${Math.abs(diferenca).toFixed(2)}`}</span>
+                                        )}
                                     </p>
-                                );
-                            })()}
-                        </div>
-                    )}
+                                </div>
+                            </>
+                        );
+                    })()}
                     <div className="mt-4 flex justify-end gap-2">
                         <button type="button" onClick={() => setModalReceber(null)} disabled={recebendo} className="h-9 rounded-md px-3 text-sm font-medium text-neutral-500 hover:bg-neutral-50">Cancelar</button>
                         <button type="button" onClick={confirmarRecebimento} disabled={recebendo} className="inline-flex h-9 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800">
@@ -2240,25 +2342,23 @@ export default function PacienteDetalhe() {
                         </section>
                             <section className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-neutral-200 p-3">
                                 <h3 className="text-base font-semibold text-neutral-900">Ficha médica</h3>
-                                <p className="mb-2 text-xs text-neutral-500">Digite a condição e pressione Enter.</p>
-                                <div className="min-h-0 flex-1 overflow-y-auto">
-                                    <TagInput
-                                        value={getCondicoesFromFicha(ficha)}
-                                        onChange={updateCondicoes}
-                                        placeholder="Ex: Diabetes, Hipertensão..."
-                                    />
-                                </div>
+                                <p className="mb-2 h-4 text-xs text-neutral-500">Digite a condição e pressione Enter.</p>
+                                <TagInput
+                                    value={getCondicoesFromFicha(ficha)}
+                                    onChange={updateCondicoes}
+                                    suggestions={LEGACY_CONDICOES}
+                                    placeholder="Ex: Diabetes, Hipertensão..."
+                                />
                             </section>
                             <section className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-neutral-200 p-3">
-                                <h3 className="mb-2 text-base font-semibold text-neutral-900">Medicamentos em uso</h3>
-                                <div className="min-h-0 flex-1 overflow-y-auto">
-                                    <TagInput
-                                        value={getMedicamentosFromFicha(ficha)}
-                                        onChange={updateMedicamentos}
-                                        suggestions={MEDICAMENTOS_CATALOGO}
-                                        placeholder="Digite o medicamento e pressione Enter..."
-                                    />
-                                </div>
+                                <h3 className="text-base font-semibold text-neutral-900">Medicamentos em uso</h3>
+                                <p className="mb-2 h-4 text-xs text-neutral-500">Digite o medicamento e pressione Enter.</p>
+                                <TagInput
+                                    value={getMedicamentosFromFicha(ficha)}
+                                    onChange={updateMedicamentos}
+                                    suggestions={MEDICAMENTOS_CATALOGO}
+                                    placeholder="Ex: Dipirona, Amoxicilina..."
+                                />
                             </section>
                         </div>
                         <section className="mt-3 flex h-44 shrink-0 flex-col overflow-hidden rounded-xl border border-neutral-200 p-3">
@@ -2278,8 +2378,7 @@ export default function PacienteDetalhe() {
                         {subAbaTratamentos === 'evolucoes' ? (
                             <div className="space-y-4">
                             <TabEvolucao id={id as string} form={form} ficha={ficha} setFicha={setFicha} evolucoes={evolucoes} setEvolucoes={setEvolucoes}/>
-                        {/* TRATAMENTOS REALIZADOS */}
-                        <div className="border-t border-neutral-200 pt-4">
+                        <div className="rounded-xl border border-neutral-200 bg-white p-4">
                             <div className="mb-3 flex items-center justify-between gap-3">
                                 <h3 className="text-base font-semibold text-neutral-900">Tratamentos realizados</h3>
                                 <button type="button" onClick={() => abrirNovoTratamento()} className="inline-flex h-8 items-center gap-1.5 rounded-md bg-neutral-900 px-2.5 text-xs font-medium text-white hover:bg-neutral-800"><Plus size={14}/> Novo</button>
@@ -2480,20 +2579,29 @@ export default function PacienteDetalhe() {
                                         )}
                                     </div>
                                 </div>
-                                <div className="flex flex-wrap gap-2">
-                                    {marcacoesOdonto.length === 0 && <span className="text-xs text-neutral-400">Nenhum.</span>}
+                                <div className="overflow-hidden rounded-xl border border-neutral-200">
+                                    {marcacoesOdonto.length === 0 && <p className="px-3 py-4 text-sm text-neutral-400">Nenhuma marcação.</p>}
                                     {marcacoesOdonto.map((m) => (
-                                        <div key={m.num} className={`flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] font-medium ${m.precisaTratamento ? 'border-amber-200 bg-amber-50' : 'border-neutral-200 bg-white'}`}>
+                                        <div key={m.num} className={`grid grid-cols-[3.5rem_minmax(0,1fr)_auto] items-start gap-3 border-b border-neutral-100 px-3 py-2.5 last:border-b-0 ${m.precisaTratamento ? 'bg-amber-50/70' : 'bg-white'}`}>
                                             <button
                                                 type="button"
                                                 onClick={() => abrirNovoTratamento([m.num])}
-                                                className="min-w-0 text-left"
+                                                className="text-left text-sm font-semibold text-neutral-900"
                                                 title="Abrir tratamento deste dente"
                                             >
-                                                <span className="text-neutral-900">#{m.num}</span>
-                                                <span className="ml-1 font-medium text-neutral-500">{m.resumo}</span>
+                                                #{m.num}
                                             </button>
-                                            <button type="button" onClick={() => limparDente(m.num)} className="text-rose-400 hover:text-rose-600" aria-label={`Limpar dente ${m.num}`}><X size={12}/></button>
+                                            <div className="flex min-w-0 flex-wrap gap-1.5">
+                                                {m.cond !== 'normal' && (
+                                                    <span className="rounded-md bg-neutral-900 px-2 py-0.5 text-xs font-medium text-white">{ODONTO_TOOLS.find((tool) => tool.key === m.cond)?.label || m.cond}</span>
+                                                )}
+                                                {gruposDeFaces(m.faces).map(([status, nomes]) => (
+                                                    <span key={status} className="rounded-md bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-700">
+                                                        {nomes.join(', ')} · {status}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                            <button type="button" onClick={() => limparDente(m.num)} className="inline-flex h-7 w-7 items-center justify-center rounded-md text-neutral-400 hover:bg-white hover:text-rose-600" aria-label={`Limpar dente ${m.num}`}><X size={14}/></button>
                                         </div>
                                     ))}
                                 </div>
@@ -2558,9 +2666,15 @@ export default function PacienteDetalhe() {
                                     <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
                                         {documentosOrdenados().map(d => (
                                             <div key={d.id} className="overflow-hidden rounded-xl border border-neutral-200">
-                                                <button type="button" onClick={() => abrirDocumento(d)} className="flex h-32 w-full flex-col items-center justify-center gap-2 bg-neutral-50 text-neutral-500">
-                                                    <FileText size={28} />
-                                                    <span className="text-xs font-medium">{d.isImg ? 'Imagem' : d.isPdf ? 'PDF' : 'Arquivo'}</span>
+                                                <button type="button" onClick={() => abrirDocumento(d)} className="flex h-32 w-full flex-col items-center justify-center gap-2 overflow-hidden bg-neutral-50 text-neutral-500">
+                                                    {d.previewUrl ? (
+                                                        <img src={d.previewUrl} alt="" className="h-full w-full object-cover" />
+                                                    ) : (
+                                                        <>
+                                                            <FileText size={28} />
+                                                            <span className="text-xs font-medium">{documentoEhImagem(d) ? 'Imagem' : d.isPdf ? 'PDF' : 'Arquivo'}</span>
+                                                        </>
+                                                    )}
                                                 </button>
                                                 <div className="flex items-center gap-2 border-t border-neutral-100 px-3 py-2">
                                                     <button type="button" onClick={() => abrirDocumento(d)} className="min-w-0 flex-1 truncate text-left text-xs font-medium text-neutral-800">{d.nome}</button>
@@ -2932,29 +3046,32 @@ export default function PacienteDetalhe() {
                     </div>
                 )}
 
-                {abaAtiva === 'historico' && (
-                    <div className="grid min-h-0 gap-6 lg:grid-cols-2">
+                {abaAtiva === 'historico' && (() => {
+                    const termo = buscaHistorico.trim().toLowerCase();
+                    const lista = historico.filter((h: any) => !termo || String(h.procedimento || '').toLowerCase().includes(termo));
+                    const selecionado = historico.find((h: any) => String(h.id) === String(historicoSel)) || null;
+                    return (
+                    <div className="grid min-h-0 gap-6 lg:grid-cols-[16rem_minmax(0,1fr)]">
                         <div className="min-w-0">
-                            <h3 className="mb-3 text-base font-semibold text-neutral-900">Histórico</h3>
-                            {historico.length === 0 ? (
-                                <p className="py-8 text-center text-sm text-neutral-400">Nenhum atendimento registrado.</p>
+                            <h3 className="text-base font-semibold text-neutral-900">Histórico</h3>
+                            <div className="relative mt-3 mb-3">
+                                <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
+                                <input
+                                    value={buscaHistorico}
+                                    onChange={(evento) => setBuscaHistorico(evento.target.value)}
+                                    placeholder="Buscar procedimento"
+                                    className="h-9 w-full rounded-md border border-neutral-200 bg-white pl-8 pr-3 text-sm text-neutral-900 outline-none focus:border-neutral-900"
+                                />
+                            </div>
+                            {lista.length === 0 ? (
+                                <p className="py-8 text-center text-sm text-neutral-400">{historico.length === 0 ? 'Nenhum atendimento registrado.' : 'Nenhum procedimento encontrado.'}</p>
                             ) : (
                                 <div className="overflow-hidden rounded-xl border border-neutral-200">
-                                    {historico.map((h: any) => {
-                                        const valor = Number(h.valor_final ?? h.valor ?? 0);
-                                        const emDebito = h.status === 'fiado';
-                                        const ativo = String(historicoSel || historico[0]?.id) === String(h.id);
+                                    {lista.map((h: any) => {
+                                        const ativo = selecionado && String(selecionado.id) === String(h.id);
                                         return (
-                                            <button key={h.id} type="button" onClick={() => setHistoricoSel(String(h.id))} className={`block w-full border-b border-neutral-100 px-4 py-3 text-left last:border-b-0 ${ativo ? 'bg-neutral-900 text-white' : 'bg-white hover:bg-neutral-50'}`}>
-                                                <div className="flex items-baseline justify-between gap-3">
-                                                    <span className="truncate text-sm font-semibold">{h.procedimento}</span>
-                                                    {valor > 0 && <span className="shrink-0 text-sm font-semibold">R$ {valor.toFixed(2)}</span>}
-                                                </div>
-                                                <p className={`mt-1 text-xs ${ativo ? 'text-white/70' : 'text-neutral-500'}`}>
-                                                    {new Date(h.data_hora).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                                                    {` · ${h.profissionais?.nome || 'Profissional'}`}
-                                                </p>
-                                                <span className={`mt-2 inline-flex h-6 items-center rounded-md px-2 text-[11px] font-medium ${ativo ? 'bg-white/15 text-white' : emDebito ? 'bg-neutral-900 text-white' : 'bg-neutral-100 text-neutral-700'}`}>{emDebito ? 'Em débito' : h.status}</span>
+                                            <button key={h.id} type="button" onClick={() => setHistoricoSel(String(h.id))} className={`block w-full border-b border-neutral-100 px-3 py-2.5 text-left text-sm font-medium last:border-b-0 ${ativo ? 'bg-neutral-900 text-white' : 'bg-white text-neutral-900 hover:bg-neutral-50'}`}>
+                                                <span className="block truncate">{h.procedimento || 'Atendimento'}</span>
                                             </button>
                                         );
                                     })}
@@ -2963,38 +3080,36 @@ export default function PacienteDetalhe() {
                         </div>
                         <div className="min-w-0">
                             <h3 className="mb-3 text-base font-semibold text-neutral-900">Linha do tempo</h3>
-                            {historico.length === 0 ? (
-                                <p className="py-8 text-center text-sm text-neutral-400">Selecione um atendimento.</p>
-                            ) : (
-                                <div className="relative max-h-[32rem] overflow-y-auto pl-4">
+                            {!selecionado ? (
+                                <p className="py-8 text-center text-sm text-neutral-400">Selecione um atendimento à esquerda.</p>
+                            ) : (() => {
+                                const valor = Number(selecionado.valor_final ?? selecionado.valor ?? 0);
+                                const emDebito = selecionado.status === 'fiado';
+                                return (
+                                <div className="relative pl-4">
                                     <div className="absolute bottom-2 left-[7px] top-2 w-px bg-neutral-200" />
-                                    {historico.map((h: any) => {
-                                        const valor = Number(h.valor_final ?? h.valor ?? 0);
-                                        const emDebito = h.status === 'fiado';
-                                        const ativo = String(historicoSel || historico[0]?.id) === String(h.id);
-                                        return (
-                                            <div key={h.id} id={`hist-${h.id}`} className="relative pb-5 pl-5">
-                                                <span className={`absolute left-0 top-1.5 h-3.5 w-3.5 rounded-full border-2 border-white ${ativo ? 'bg-neutral-900' : 'bg-neutral-300'}`} />
-                                                <div className={`rounded-xl border px-4 py-3 ${ativo ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-200 bg-white'}`}>
-                                                    <div className="flex items-baseline justify-between gap-3">
-                                                        <span className="text-sm font-semibold">{h.procedimento}</span>
-                                                        {valor > 0 && <span className="text-sm font-semibold">R$ {valor.toFixed(2)}</span>}
-                                                    </div>
-                                                    <p className={`mt-1 text-xs ${ativo ? 'text-white/70' : 'text-neutral-500'}`}>
-                                                        {new Date(h.data_hora).toLocaleString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                                                        {` · ${h.profissionais?.nome || 'Profissional'}`}
-                                                    </p>
-                                                    <p className={`mt-2 text-xs font-medium ${ativo ? 'text-white' : 'text-neutral-700'}`}>{emDebito ? 'Em débito' : h.status}{h.status === 'concluido' && h.data_pagamento ? ` · pago em ${new Date(h.data_pagamento).toLocaleDateString('pt-BR')}` : ''}{h.valor_liquido != null && h.status === 'concluido' ? ` · líq. R$ ${Number(h.valor_liquido).toFixed(2)}` : ''}</p>
-                                                    {h.observacoes && <p className={`mt-2 text-sm ${ativo ? 'text-white/90' : 'text-neutral-800'}`}>{h.observacoes}</p>}
-                                                </div>
+                                    <div className="relative pb-2 pl-5">
+                                        <span className="absolute left-0 top-1.5 h-3.5 w-3.5 rounded-full border-2 border-white bg-neutral-900" />
+                                        <div className="rounded-xl border border-neutral-900 bg-neutral-900 px-4 py-3 text-white">
+                                            <div className="flex items-baseline justify-between gap-3">
+                                                <span className="text-sm font-semibold">{selecionado.procedimento}</span>
+                                                {valor > 0 && <span className="text-sm font-semibold">R$ {valor.toFixed(2)}</span>}
                                             </div>
-                                        );
-                                    })}
+                                            <p className="mt-1 text-xs text-white/70">
+                                                {new Date(selecionado.data_hora).toLocaleString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                                {` · ${selecionado.profissionais?.nome || 'Profissional'}`}
+                                            </p>
+                                            <p className="mt-2 text-xs font-medium text-white">{emDebito ? 'Em débito' : selecionado.status}{selecionado.status === 'concluido' && selecionado.data_pagamento ? ` · pago em ${new Date(selecionado.data_pagamento).toLocaleDateString('pt-BR')}` : ''}{selecionado.valor_liquido != null && selecionado.status === 'concluido' ? ` · líq. R$ ${Number(selecionado.valor_liquido).toFixed(2)}` : ''}</p>
+                                            {selecionado.observacoes && <p className="mt-2 text-sm text-white/90">{selecionado.observacoes}</p>}
+                                        </div>
+                                    </div>
                                 </div>
-                            )}
+                                );
+                            })()}
                         </div>
                     </div>
-                )}
+                    );
+                })()}
 
             </div>
         </div>

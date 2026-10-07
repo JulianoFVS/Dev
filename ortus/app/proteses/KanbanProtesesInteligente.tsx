@@ -903,55 +903,55 @@ export default function KanbanProtesesInteligente() {
         )}
       </div>
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} maxWidth="2xl" zIndex={85} hideCloseButton panelClassName="flex max-h-[92vh] flex-col overflow-hidden rounded-[1.75rem] border border-black/10 bg-[#eceee9] shadow-[0_24px_80px_rgba(0,0,0,0.28)]">
-          <div className="flex shrink-0 items-start justify-between gap-4 border-b border-black/5 bg-white p-5">
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)} maxWidth="2xl" zIndex={85} hideCloseButton panelClassName="flex max-h-[92vh] flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white">
+          <div className="flex shrink-0 items-start justify-between gap-4 border-b border-neutral-200 bg-white p-5">
               <div>
-                <p className="text-[10px] font-black uppercase tracking-wider text-neutral-600">{editingCard ? 'Editar pedido' : 'Novo pedido'}</p>
-                <h2 className="text-xl font-semibold text-neutral-900">{editingCard ? 'Editar pedido' : 'Novo pedido'}</h2>
+                <p className="text-xs font-medium text-neutral-500">{editingCard ? 'Editar pedido' : 'Novo pedido'}</p>
+                <h2 className="text-base font-semibold text-neutral-900">{editingCard ? 'Editar pedido' : 'Novo pedido'}</h2>
               </div>
-              <button onClick={() => setModalOpen(false)} className="p-2 rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"><X size={20} /></button>
+              <button onClick={() => setModalOpen(false)} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-100" aria-label="Fechar"><X size={16} /></button>
             </div>
 
             <div className="flex-1 overflow-y-auto custom-scrollbar p-5 space-y-5">
-              <section className="rounded-[1.25rem] border border-black/5 bg-white p-4">
-                <div className="flex items-center gap-3 mb-3">
-                  <span className="w-7 h-7 rounded-xl bg-neutral-900 text-white flex items-center justify-center text-xs font-black">A</span>
-                  <h3 className="font-black text-slate-800">Selecionar paciente</h3>
+              <section className="rounded-xl border border-neutral-200 bg-[#f3f4f1] p-4">
+                <div className="mb-3 flex items-center gap-3">
+                  <span className="flex h-7 w-7 items-center justify-center rounded-md bg-neutral-900 text-xs font-medium text-white">A</span>
+                  <h3 className="text-sm font-semibold text-neutral-900">Selecionar paciente</h3>
                 </div>
                 <div className="relative">
-                  <Search size={16} className="absolute left-3 top-3.5 text-slate-400" />
-                  <input value={patientSearch} onChange={(event) => { const v = event.target.value; setPatientSearch(v); setForm((current) => ({ ...current, paciente_nome: v, paciente_id: current.paciente_nome === v ? current.paciente_id : null })); }} className="w-full pl-10 pr-3 py-3 rounded-2xl bg-slate-50 border border-slate-200 outline-none focus:border-neutral-400 focus:outline-none font-bold text-slate-700" placeholder="Buscar ou digitar nome do paciente" />
+                  <Search size={16} className="absolute left-3 top-2.5 text-neutral-400" />
+                  <input value={patientSearch} onChange={(event) => { const v = event.target.value; setPatientSearch(v); setForm((current) => ({ ...current, paciente_nome: v, paciente_id: current.paciente_nome === v ? current.paciente_id : null })); }} className="h-10 w-full rounded-md border border-neutral-200 bg-white pl-10 pr-3 text-sm font-medium text-neutral-900 outline-none focus:border-neutral-900" placeholder="Buscar ou digitar nome do paciente" />
                 </div>
                 {patientSearch.trim() && filteredPatients.length === 0 && !patients.some((p) => p.nome.toLowerCase() === patientSearch.trim().toLowerCase()) && (
                   <button
                     onClick={quickCreatePatient}
                     disabled={creatingPatient}
-                    className="mt-3 w-full p-3 rounded-2xl border-2 border-dashed border-black/10 bg-[#f3f4f1]/60 hover:bg-[#f3f4f1] hover:border-neutral-400 text-neutral-800 font-bold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-60 disabled:cursor-wait"
+                    className="mt-3 flex w-full items-center justify-center gap-2 rounded-md border border-dashed border-neutral-300 bg-white px-3 py-2.5 text-sm font-medium text-neutral-800 hover:border-neutral-900 disabled:cursor-wait disabled:opacity-60"
                     title="Cadastrar este paciente rapidamente"
                   >
                     {creatingPatient ? (
                       <><Loader2 size={16} className="animate-spin"/> Cadastrando...</>
                     ) : (
-                      <><Plus size={16}/> Cadastrar &quot;<span className="font-black">{patientSearch.trim()}</span>&quot; como novo paciente</>
+                      <><Plus size={16}/> Cadastrar &quot;<span className="font-semibold">{patientSearch.trim()}</span>&quot; como novo paciente</>
                     )}
                   </button>
                 )}
                 {patientSearch && filteredPatients.length > 0 && (
                   <div className="mt-3 grid sm:grid-cols-2 gap-2">
                     {filteredPatients.map((patient) => (
-                      <button key={patient.id} onClick={() => selectPatient(patient)} className={`text-left p-3 rounded-2xl border transition-all ${form.paciente_nome === patient.nome ? 'border-neutral-900 bg-[#f3f4f1] text-neutral-900' : 'border-slate-100 bg-white hover:border-black/10 hover:bg-[#f3f4f1]/40'}`}>
-                        <p className="text-sm font-black truncate">{patient.nome}</p>
-                        <p className="text-xs text-slate-400 font-bold truncate">{patient.telefone || 'Sem telefone'}</p>
+                      <button key={patient.id} onClick={() => selectPatient(patient)} className={`rounded-md border p-3 text-left ${form.paciente_nome === patient.nome ? 'border-neutral-900 bg-white text-neutral-900' : 'border-neutral-200 bg-white hover:bg-neutral-50'}`}>
+                        <p className="truncate text-sm font-semibold">{patient.nome}</p>
+                        <p className="truncate text-xs font-medium text-neutral-500">{patient.telefone || 'Sem telefone'}</p>
                       </button>
                     ))}
                   </div>
                 )}
               </section>
 
-              <section className="rounded-[1.25rem] border border-black/5 bg-white p-4 animate-in fade-in slide-in-from-bottom-2">
-                <div className="flex items-center gap-3 mb-3">
-                  <span className={`w-7 h-7 rounded-xl ${STATUS_TOKENS[form.status].dot} text-white flex items-center justify-center text-xs font-black`}>●</span>
-                  <h3 className="font-black text-slate-800">Status atual</h3>
+              <section className="rounded-xl border border-neutral-200 bg-white p-4">
+                <div className="mb-3 flex items-center gap-3">
+                  <span className="flex h-7 w-7 items-center justify-center rounded-md bg-neutral-900 text-xs font-medium text-white">●</span>
+                  <h3 className="text-sm font-semibold text-neutral-900">Status atual</h3>
                 </div>
                 <CustomSelect
                   value={form.status}
@@ -959,20 +959,20 @@ export default function KanbanProtesesInteligente() {
                   options={(['espera', 'lab', 'clinica', 'feito'] as StatusKey[]).map((key) => ({ value: key, label: STATUS_TOKENS[key].label }))}
                   size="lg"
                 />
-                <p className="text-[11px] text-slate-400 font-bold mt-2">O status acompanha o pedido independente do quadro onde ele esteja.</p>
+                <p className="mt-2 text-xs font-medium text-neutral-500">O status acompanha o pedido independente do quadro onde ele esteja.</p>
               </section>
 
               {form.paciente_nome && (
-                <section className="rounded-[1.25rem] border border-black/5 bg-white p-4 animate-in fade-in slide-in-from-bottom-2">
-                  <div className="flex items-center gap-3 mb-3">
-                    <span className="w-7 h-7 rounded-xl bg-neutral-900 text-white flex items-center justify-center text-xs font-black">B</span>
-                    <h3 className="font-black text-slate-800">Escolher categoria</h3>
+                <section className="rounded-xl border border-neutral-200 bg-white p-4">
+                  <div className="mb-3 flex items-center gap-3">
+                    <span className="flex h-7 w-7 items-center justify-center rounded-md bg-neutral-900 text-xs font-medium text-white">B</span>
+                    <h3 className="text-sm font-semibold text-neutral-900">Escolher categoria</h3>
                   </div>
                   <div className="grid sm:grid-cols-2 gap-3">
                     {(['Removível', 'Fixa'] as Category[]).map((category) => (
-                      <button key={category} onClick={() => selectCategory(category)} className={`p-5 rounded-3xl border-2 text-left transition-all ${form.categoria === category ? 'border-neutral-900 bg-[#f3f4f1] shadow-lg shadow-neutral-100' : 'border-slate-100 bg-slate-50 hover:border-black/10'}`}>
-                        <p className="font-black text-slate-900 text-lg">{category}</p>
-                        <p className="text-sm text-slate-500 font-medium mt-1">{category === 'Removível' ? 'PPR, PT e flexíveis' : 'Coroas, protocolo e adesivas'}</p>
+                      <button key={category} onClick={() => selectCategory(category)} className={`rounded-xl border p-4 text-left ${form.categoria === category ? 'border-neutral-900 bg-[#f3f4f1]' : 'border-neutral-200 bg-white hover:bg-neutral-50'}`}>
+                        <p className="text-base font-semibold text-neutral-900">{category}</p>
+                        <p className="mt-1 text-sm font-medium text-neutral-500">{category === 'Removível' ? 'PPR, PT e flexíveis' : 'Coroas, protocolo e adesivas'}</p>
                       </button>
                     ))}
                   </div>
@@ -980,14 +980,14 @@ export default function KanbanProtesesInteligente() {
               )}
 
               {form.categoria && (
-                <section className="rounded-[1.25rem] border border-black/5 bg-white p-4 animate-in fade-in slide-in-from-bottom-2">
-                  <div className="flex items-center gap-3 mb-3">
-                    <span className="w-7 h-7 rounded-xl bg-neutral-900 text-white flex items-center justify-center text-xs font-black">C</span>
-                    <h3 className="font-black text-slate-800">Escolher tipo</h3>
+                <section className="rounded-xl border border-neutral-200 bg-white p-4">
+                  <div className="mb-3 flex items-center gap-3">
+                    <span className="flex h-7 w-7 items-center justify-center rounded-md bg-neutral-900 text-xs font-medium text-white">C</span>
+                    <h3 className="text-sm font-semibold text-neutral-900">Escolher tipo</h3>
                   </div>
                   <div className="grid sm:grid-cols-2 gap-2">
                     {visibleTypes.map((type) => (
-                      <button key={type} onClick={() => setForm((current) => ({ ...current, tipo_protese: type }))} className={`p-3 rounded-2xl border text-sm font-black transition-all ${form.tipo_protese === type ? 'border-neutral-900 bg-[#f3f4f1] text-neutral-900' : 'border-slate-100 bg-white hover:border-black/10 hover:bg-[#f3f4f1]/40 text-slate-700'}`}>
+                      <button key={type} onClick={() => setForm((current) => ({ ...current, tipo_protese: type }))} className={`rounded-md border px-3 py-2.5 text-left text-sm font-medium ${form.tipo_protese === type ? 'border-neutral-900 bg-[#f3f4f1] text-neutral-900' : 'border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50'}`}>
                         {type}
                       </button>
                     ))}
@@ -996,28 +996,28 @@ export default function KanbanProtesesInteligente() {
               )}
 
               {form.tipo_protese && (
-                <section className="rounded-[1.25rem] border border-black/5 bg-white p-4 animate-in fade-in slide-in-from-bottom-2">
-                  <div className="flex items-center gap-3 mb-3">
-                    <span className="w-7 h-7 rounded-xl bg-neutral-900 text-white flex items-center justify-center text-xs font-black">D</span>
-                    <h3 className="font-black text-slate-800">Detalhamentos rápidos</h3>
+                <section className="rounded-xl border border-neutral-200 bg-white p-4">
+                  <div className="mb-3 flex items-center gap-3">
+                    <span className="flex h-7 w-7 items-center justify-center rounded-md bg-neutral-900 text-xs font-medium text-white">D</span>
+                    <h3 className="text-sm font-semibold text-neutral-900">Detalhamentos rápidos</h3>
                   </div>
                   <div className="grid sm:grid-cols-2 gap-3">
-                    <input value={form.cor_dente} onChange={(event) => setForm((current) => ({ ...current, cor_dente: event.target.value }))} className="p-3 rounded-2xl bg-slate-50 border border-slate-200 font-bold outline-none focus:border-neutral-400 focus:outline-none" placeholder="Cor do dente: A2, B1..." />
-                    <input value={form.cor_gengiva} onChange={(event) => setForm((current) => ({ ...current, cor_gengiva: event.target.value }))} className="p-3 rounded-2xl bg-slate-50 border border-slate-200 font-bold outline-none focus:border-neutral-400 focus:outline-none" placeholder="Cor da gengiva / STG" />
+                    <input value={form.cor_dente} onChange={(event) => setForm((current) => ({ ...current, cor_dente: event.target.value }))} className="h-10 rounded-md border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-900 outline-none focus:border-neutral-900" placeholder="Cor do dente: A2, B1..." />
+                    <input value={form.cor_gengiva} onChange={(event) => setForm((current) => ({ ...current, cor_gengiva: event.target.value }))} className="h-10 rounded-md border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-900 outline-none focus:border-neutral-900" placeholder="Cor da gengiva / STG" />
                   </div>
                   <div className="mt-3 grid grid-cols-3 gap-2">
                     {(['Superior', 'Inferior', 'Ambas'] as Position[]).map((position) => (
-                      <button key={position} onClick={() => setForm((current) => ({ ...current, posicao: position }))} className={`p-3 rounded-2xl border text-xs font-black transition-all ${form.posicao === position ? 'border-neutral-900 bg-[#f3f4f1] text-neutral-900' : 'border-slate-100 bg-white hover:border-black/10 text-slate-600'}`}>
+                      <button key={position} onClick={() => setForm((current) => ({ ...current, posicao: position }))} className={`rounded-md border px-3 py-2.5 text-xs font-medium ${form.posicao === position ? 'border-neutral-900 bg-[#f3f4f1] text-neutral-900' : 'border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50'}`}>
                         {position}
                       </button>
                     ))}
                   </div>
-                  <textarea value={form.descricao} onChange={(event) => setForm((current) => ({ ...current, descricao: event.target.value }))} rows={3} className="mt-3 w-full p-3 rounded-2xl bg-slate-50 border border-slate-200 font-medium outline-none focus:border-neutral-400 focus:outline-none" placeholder="Observações rápidas para laboratório" />
-                  <div className="mt-3 rounded-2xl bg-slate-50 border border-slate-100 p-3">
-                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2">Checklist que será criado</p>
+                  <textarea value={form.descricao} onChange={(event) => setForm((current) => ({ ...current, descricao: event.target.value }))} rows={3} className="mt-3 w-full resize-none rounded-md border border-neutral-200 bg-white p-3 text-sm font-medium text-neutral-900 outline-none focus:border-neutral-900" placeholder="Observações rápidas para laboratório" />
+                  <div className="mt-3 rounded-md border border-neutral-200 bg-[#f3f4f1] p-3">
+                    <p className="mb-2 text-xs font-medium text-neutral-500">Checklist que será criado</p>
                     <div className="space-y-1">
                       {buildChecklist(form.tipo_protese).map((item) => (
-                        <p key={item.tarefa} className="text-xs font-bold text-slate-600 flex items-center gap-2"><Check size={13} className="text-neutral-700" /> {item.tarefa}</p>
+                        <p key={item.tarefa} className="flex items-center gap-2 text-xs font-medium text-neutral-700"><Check size={13} className="text-neutral-700" /> {item.tarefa}</p>
                       ))}
                     </div>
                   </div>
@@ -1025,38 +1025,38 @@ export default function KanbanProtesesInteligente() {
               )}
             </div>
 
-            <div className="flex gap-3 border-t border-black/5 bg-white p-5">
-              <button type="button" onClick={() => setModalOpen(false)} className="rounded-full bg-[#f3f4f1] px-5 py-3 text-sm font-semibold text-neutral-600 transition-colors hover:bg-neutral-200">Cancelar</button>
-              <button type="button" onClick={createCard} disabled={saving || !form.paciente_nome || !form.categoria || !form.tipo_protese} className="flex flex-1 items-center justify-center gap-2 rounded-full bg-neutral-900 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-neutral-800 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400">
+            <div className="flex gap-2 border-t border-neutral-200 bg-white p-5">
+              <button type="button" onClick={() => setModalOpen(false)} className="h-9 rounded-md px-3 text-sm font-medium text-neutral-500 hover:bg-neutral-50">Cancelar</button>
+              <button type="button" onClick={createCard} disabled={saving || !form.paciente_nome || !form.categoria || !form.tipo_protese} className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400">
                 {saving ? <Loader2 className="animate-spin" size={18} /> : <Plus size={18} />} {editingCard ? 'Salvar Pedido' : 'Criar Pedido'}
               </button>
             </div>
       </Modal>
 
-      <Modal open={columnModalOpen} onClose={() => setColumnModalOpen(false)} maxWidth="md" zIndex={86} hideCloseButton panelClassName="flex max-h-[85vh] flex-col overflow-hidden rounded-[1.75rem] border border-black/10 bg-[#eceee9] shadow-[0_24px_80px_rgba(0,0,0,0.28)]">
-          <div className="p-5 border-b border-slate-100 flex items-start justify-between gap-4 shrink-0">
+      <Modal open={columnModalOpen} onClose={() => setColumnModalOpen(false)} maxWidth="md" zIndex={86} hideCloseButton panelClassName="flex max-h-[85vh] flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white">
+          <div className="flex shrink-0 items-start justify-between gap-4 border-b border-neutral-200 p-5">
               <div>
-                <p className="text-[10px] font-black uppercase tracking-wider text-neutral-600">{editingColumn ? 'Editar quadro' : 'Novo quadro'}</p>
-                <h2 className="text-xl font-semibold text-neutral-900">{editingColumn ? 'Configurar etapa' : 'Criar nova etapa'}</h2>
+                <p className="text-xs font-medium text-neutral-500">{editingColumn ? 'Editar quadro' : 'Novo quadro'}</p>
+                <h2 className="text-base font-semibold text-neutral-900">{editingColumn ? 'Configurar etapa' : 'Criar nova etapa'}</h2>
               </div>
-              <button onClick={() => setColumnModalOpen(false)} className="p-2 rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"><X size={20} /></button>
+              <button onClick={() => setColumnModalOpen(false)} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-100" aria-label="Fechar"><X size={16} /></button>
             </div>
 
-            <div className="flex-1 overflow-y-auto custom-scrollbar p-5 space-y-5">
+            <div className="flex-1 space-y-5 overflow-y-auto p-5">
               <div>
-                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Nome do quadro</label>
-                <input autoFocus value={columnTitle} onChange={(event) => setColumnTitle(event.target.value)} className="mt-2 w-full p-3 rounded-2xl bg-slate-50 border border-slate-200 font-bold outline-none focus:border-neutral-400 focus:outline-none" placeholder="Ex: Ajuste final, Polimento..." />
+                <label className="text-xs font-medium text-neutral-500">Nome do quadro</label>
+                <input autoFocus value={columnTitle} onChange={(event) => setColumnTitle(event.target.value)} className="mt-1.5 h-10 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-900 outline-none focus:border-neutral-900" placeholder="Ex: Ajuste final, Polimento..." />
               </div>
 
               <div>
-                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2 block">Ícone do quadro</label>
+                <label className="mb-2 block text-xs font-medium text-neutral-500">Ícone do quadro</label>
                 <div className="grid grid-cols-8 gap-1.5">
                   {ICON_PICKER_OPTIONS.map((slug) => (
                     <button
                       key={slug}
                       type="button"
                       onClick={() => setColumnIcon(slug)}
-                      className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${columnIcon === slug ? 'bg-neutral-900 text-white shadow-lg shadow-neutral-200 scale-110' : 'bg-slate-50 text-slate-500 hover:bg-[#f3f4f1] hover:text-neutral-600 border border-slate-100'}`}
+                      className={`flex h-9 w-9 items-center justify-center rounded-md ${columnIcon === slug ? 'bg-neutral-900 text-white' : 'border border-neutral-200 bg-white text-neutral-500 hover:bg-neutral-50'}`}
                       title={slug}
                     >
                       {ICON_MAP[slug]}
@@ -1065,24 +1065,25 @@ export default function KanbanProtesesInteligente() {
                 </div>
               </div>
 
-              <div className="flex items-center justify-between p-4 rounded-2xl border border-slate-200 bg-slate-50">
+              <div className="flex items-center justify-between rounded-xl border border-neutral-200 bg-[#f3f4f1] p-4">
                 <div>
-                  <p className="font-black text-sm text-slate-800">Checklist clínico</p>
-                  <p className="text-xs text-slate-500 font-medium mt-0.5">Exibir checklist nos cards desta coluna</p>
+                  <p className="text-sm font-semibold text-neutral-900">Checklist clínico</p>
+                  <p className="mt-0.5 text-xs font-medium text-neutral-500">Exibir checklist nos cards desta coluna</p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setColumnChecklist(!columnChecklist)}
-                  className={`relative w-11 h-6 rounded-full transition-colors ${columnChecklist ? 'bg-violet-600' : 'bg-slate-300'}`}
+                  className={`relative h-6 w-11 rounded-full ${columnChecklist ? 'bg-neutral-900' : 'bg-neutral-300'}`}
+                  aria-pressed={columnChecklist}
                 >
-                  <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${columnChecklist ? 'translate-x-5' : 'translate-x-0'}`} />
+                  <span className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${columnChecklist ? 'translate-x-5' : 'translate-x-0'}`} />
                 </button>
               </div>
             </div>
 
-            <div className="flex shrink-0 gap-3 border-t border-black/5 p-5">
-              <button type="button" onClick={() => setColumnModalOpen(false)} className="rounded-full bg-[#f3f4f1] px-5 py-3 text-sm font-semibold text-neutral-600 transition-colors hover:bg-neutral-200">Cancelar</button>
-              <button type="button" onClick={saveColumn} disabled={saving || !columnTitle.trim()} className="flex-1 rounded-full bg-neutral-900 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-neutral-800 disabled:bg-neutral-100 disabled:text-neutral-400">
+            <div className="flex shrink-0 gap-2 border-t border-neutral-200 p-5">
+              <button type="button" onClick={() => setColumnModalOpen(false)} className="h-9 rounded-md px-3 text-sm font-medium text-neutral-500 hover:bg-neutral-50">Cancelar</button>
+              <button type="button" onClick={saveColumn} disabled={saving || !columnTitle.trim()} className="h-9 flex-1 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:bg-neutral-100 disabled:text-neutral-400">
                 {editingColumn ? 'Salvar Quadro' : 'Criar Quadro'}
               </button>
             </div>
