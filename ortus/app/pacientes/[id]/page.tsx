@@ -1062,43 +1062,70 @@ export default function PacienteDetalhe() {
 
   // ===== HOF Protocol Templates =====
   const HOF_PROTOCOLOS = [
-      { nome: 'Full Face Toxina (Feminino)', pontos: [
-          { x: 50, y: 22, tipo: 'toxina', texto: 'Frontal (região central)', dosagem: '10', produto: '' },
-          { x: 38, y: 26, tipo: 'toxina', texto: 'Frontal (lateral esquerda)', dosagem: '5', produto: '' },
-          { x: 62, y: 26, tipo: 'toxina', texto: 'Frontal (lateral direita)', dosagem: '5', produto: '' },
-          { x: 44, y: 33, tipo: 'toxina', texto: 'Glabela (procerus)', dosagem: '5', produto: '' },
-          { x: 48, y: 31, tipo: 'toxina', texto: 'Glabela (corrugador E)', dosagem: '5', produto: '' },
-          { x: 56, y: 31, tipo: 'toxina', texto: 'Glabela (corrugador D)', dosagem: '5', produto: '' },
-          { x: 32, y: 39, tipo: 'toxina', texto: 'Periorbital esquerdo (pés de galinha)', dosagem: '6', produto: '' },
-          { x: 68, y: 39, tipo: 'toxina', texto: 'Periorbital direito (pés de galinha)', dosagem: '6', produto: '' },
-          { x: 50, y: 79, tipo: 'toxina', texto: 'Mentual (queixo)', dosagem: '4', produto: '' },
+      { nome: 'Full Face Toxina', pontos: [
+          { x: 50, y: 24, tipo: 'toxina', texto: 'Frontal (região central)', dosagem: '6', produto: '' },
+          { x: 38, y: 26, tipo: 'toxina', texto: 'Frontal (lateral esquerda)', dosagem: '4', produto: '' },
+          { x: 62, y: 26, tipo: 'toxina', texto: 'Frontal (lateral direita)', dosagem: '4', produto: '' },
+          { x: 50, y: 39, tipo: 'toxina', texto: 'Glabela (prócero)', dosagem: '6', produto: '' },
+          { x: 44, y: 37, tipo: 'toxina', texto: 'Glabela (corrugador E)', dosagem: '6', produto: '' },
+          { x: 56, y: 37, tipo: 'toxina', texto: 'Glabela (corrugador D)', dosagem: '6', produto: '' },
+          { x: 24, y: 44, tipo: 'toxina', texto: 'Periorbital esquerdo (pés de galinha)', dosagem: '8', produto: '' },
+          { x: 76, y: 44, tipo: 'toxina', texto: 'Periorbital direito (pés de galinha)', dosagem: '8', produto: '' },
       ]},
-      { nome: 'Preenchimento Labial', pontos: [
+      { nome: 'Preenchimento Labial (1 mL)', pontos: [
           { x: 46, y: 67.5, tipo: 'labial', texto: 'Lábio superior (arco do cupido E)', dosagem: '0.3', produto: '' },
           { x: 54, y: 67.5, tipo: 'labial', texto: 'Lábio superior (arco do cupido D)', dosagem: '0.3', produto: '' },
-          { x: 50, y: 72, tipo: 'labial', texto: 'Lábio inferior (corpo central)', dosagem: '0.4', produto: '' },
+          { x: 50, y: 71.5, tipo: 'labial', texto: 'Lábio inferior (corpo central)', dosagem: '0.4', produto: '' },
+      ]},
+      { nome: 'Lip Flip', pontos: [
+          { x: 46, y: 67, tipo: 'toxina', texto: 'Orbicular superior E', dosagem: '2', produto: '' },
+          { x: 54, y: 67, tipo: 'toxina', texto: 'Orbicular superior D', dosagem: '2', produto: '' },
       ]},
       { nome: 'Preenchimento Malar', pontos: [
-          { x: 34, y: 47, tipo: 'preenchimento', texto: 'Malar esquerdo (ponto de luz)', dosagem: '0.5', produto: '' },
-          { x: 66, y: 47, tipo: 'preenchimento', texto: 'Malar direito (ponto de luz)', dosagem: '0.5', produto: '' },
+          { x: 30, y: 51, tipo: 'preenchimento', texto: 'Malar esquerdo (ponto de luz)', dosagem: '0.5', produto: '' },
+          { x: 70, y: 51, tipo: 'preenchimento', texto: 'Malar direito (ponto de luz)', dosagem: '0.5', produto: '' },
       ]},
       { nome: 'Bigode Chinês (Nasogeniano)', pontos: [
-          { x: 40, y: 58, tipo: 'preenchimento', texto: 'Sulco nasolabial esquerdo', dosagem: '0.5', produto: '' },
-          { x: 60, y: 58, tipo: 'preenchimento', texto: 'Sulco nasolabial direito', dosagem: '0.5', produto: '' },
+          { x: 41, y: 63, tipo: 'preenchimento', texto: 'Sulco nasolabial esquerdo', dosagem: '0.5', produto: '' },
+          { x: 59, y: 63, tipo: 'preenchimento', texto: 'Sulco nasolabial direito', dosagem: '0.5', produto: '' },
+      ]},
+      { nome: 'Olheiras', pontos: [
+          { x: 38, y: 47, tipo: 'olheira', texto: 'Sulco lacrimal esquerdo', dosagem: '0.3', produto: '' },
+          { x: 62, y: 47, tipo: 'olheira', texto: 'Sulco lacrimal direito', dosagem: '0.3', produto: '' },
+      ]},
+      { nome: 'Rinomodelação', pontos: [
+          { x: 50, y: 49, tipo: 'rino', texto: 'Dorso nasal', dosagem: '0.2', produto: '' },
+          { x: 50, y: 57, tipo: 'rino', texto: 'Ponta nasal', dosagem: '0.1', produto: '' },
+      ]},
+      { nome: 'Mento e Mandíbula', pontos: [
+          { x: 50, y: 81, tipo: 'mento', texto: 'Pogônio (projeção do mento)', dosagem: '1', produto: '' },
+          { x: 26, y: 76, tipo: 'mandibula', texto: 'Ângulo e corpo mandibular E', dosagem: '1', produto: '' },
+          { x: 74, y: 76, tipo: 'mandibula', texto: 'Ângulo e corpo mandibular D', dosagem: '1', produto: '' },
+      ]},
+      { nome: 'Masseter (bruxismo / afinamento)', pontos: [
+          { x: 22, y: 70, tipo: 'toxina', texto: 'Masseter esquerdo', dosagem: '25', produto: '' },
+          { x: 78, y: 70, tipo: 'toxina', texto: 'Masseter direito', dosagem: '25', produto: '' },
+      ]},
+      { nome: 'Lipo de Papada', pontos: [
+          { x: 50, y: 89, tipo: 'papada', texto: 'Região submentual', dosagem: '2', produto: '' },
       ]},
       { nome: 'Bioestimulação Full Face', pontos: [
-          { x: 34, y: 35, tipo: 'bioestimulador', texto: 'Região temporal esquerda', dosagem: '1', produto: '' },
-          { x: 66, y: 35, tipo: 'bioestimulador', texto: 'Região temporal direita', dosagem: '1', produto: '' },
-          { x: 34, y: 47, tipo: 'bioestimulador', texto: 'Malar esquerdo', dosagem: '1', produto: '' },
-          { x: 66, y: 47, tipo: 'bioestimulador', texto: 'Malar direito', dosagem: '1', produto: '' },
-          { x: 38, y: 60, tipo: 'bioestimulador', texto: 'Mandibular esquerdo', dosagem: '1', produto: '' },
-          { x: 62, y: 60, tipo: 'bioestimulador', texto: 'Mandibular direito', dosagem: '1', produto: '' },
+          { x: 18, y: 34, tipo: 'bioestimulador', texto: 'Região temporal esquerda', dosagem: '1', produto: '' },
+          { x: 82, y: 34, tipo: 'bioestimulador', texto: 'Região temporal direita', dosagem: '1', produto: '' },
+          { x: 30, y: 52, tipo: 'bioestimulador', texto: 'Malar esquerdo', dosagem: '1', produto: '' },
+          { x: 70, y: 52, tipo: 'bioestimulador', texto: 'Malar direito', dosagem: '1', produto: '' },
+          { x: 26, y: 74, tipo: 'bioestimulador', texto: 'Mandibular esquerdo', dosagem: '1', produto: '' },
+          { x: 74, y: 74, tipo: 'bioestimulador', texto: 'Mandibular direito', dosagem: '1', produto: '' },
       ]},
       { nome: 'Fios de PDO – Terço Inferior', pontos: [
-          { x: 36, y: 55, tipo: 'fios', texto: 'Fio sustentação mandibular E', dosagem: '3', produto: '' },
-          { x: 64, y: 55, tipo: 'fios', texto: 'Fio sustentação mandibular D', dosagem: '3', produto: '' },
-          { x: 36, y: 60, tipo: 'fios', texto: 'Fio contorno jawline E', dosagem: '2', produto: '' },
-          { x: 64, y: 60, tipo: 'fios', texto: 'Fio contorno jawline D', dosagem: '2', produto: '' },
+          { x: 28, y: 63, tipo: 'fios', texto: 'Fio sustentação malar/jowl E', dosagem: '3', produto: '' },
+          { x: 72, y: 63, tipo: 'fios', texto: 'Fio sustentação malar/jowl D', dosagem: '3', produto: '' },
+          { x: 26, y: 73, tipo: 'fios', texto: 'Fio contorno mandibular E', dosagem: '2', produto: '' },
+          { x: 74, y: 73, tipo: 'fios', texto: 'Fio contorno mandibular D', dosagem: '2', produto: '' },
+      ]},
+      { nome: 'Skinbooster Full Face', pontos: [
+          { x: 32, y: 55, tipo: 'skinbooster', texto: 'Hemiface esquerda', dosagem: '1', produto: '' },
+          { x: 68, y: 55, tipo: 'skinbooster', texto: 'Hemiface direita', dosagem: '1', produto: '' },
       ]},
   ];
   const [modalProtocolo, setModalProtocolo] = useState(false);
@@ -2647,15 +2674,16 @@ export default function PacienteDetalhe() {
                                                 ? (faceHofAtiva === 'feminina' ? '/hof/imagem_feminina.png' : '/hof/imagem_masculina.png')
                                                 : (hofFotos.filter((f) => f.sessao === hofSessaoAtiva && f.angulo === 'Frontal' && f.dataUrl).slice(-1)[0]?.dataUrl || '')}
                                             marks={marcacoesHof.map((m) => ({ x: m.x, y: m.y, tipo: m.tipo, dosagem: m.dosagem }))}
+                                            referencia={faceHofAtiva}
                                         />
                                     )
                                 )}
                                 {hofVista === 'mapa' && (<>
                                 {/* Labels anatômicos sobre a imagem */}
-                                <span className="absolute top-[10%] left-1/2 -translate-x-1/2 text-[9px] font-black uppercase tracking-[0.2em] text-white/80 pointer-events-none" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.7), 0 0 8px rgba(0,0,0,0.4)' }}>Testa</span>
-                                <span className="absolute top-[38%] left-[8%] text-[8px] font-black uppercase tracking-[0.15em] text-white/80 pointer-events-none -rotate-90 origin-center" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.7), 0 0 8px rgba(0,0,0,0.4)' }}>Temporal</span>
-                                <span className="absolute top-[38%] right-[8%] text-[8px] font-black uppercase tracking-[0.15em] text-white/80 pointer-events-none rotate-90 origin-center" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.7), 0 0 8px rgba(0,0,0,0.4)' }}>Temporal</span>
-                                <span className="absolute bottom-[8%] left-1/2 -translate-x-1/2 text-[8px] font-black uppercase tracking-[0.2em] text-white/80 pointer-events-none" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.7), 0 0 8px rgba(0,0,0,0.4)' }}>Mento</span>
+                                <span className="absolute top-[22%] left-1/2 -translate-x-1/2 text-[9px] font-black uppercase tracking-[0.2em] text-white/80 pointer-events-none" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.7), 0 0 8px rgba(0,0,0,0.4)' }}>Testa</span>
+                                <span className="absolute top-[34%] left-[9%] text-[8px] font-black uppercase tracking-[0.15em] text-white/80 pointer-events-none -rotate-90 origin-center" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.7), 0 0 8px rgba(0,0,0,0.4)' }}>Temporal</span>
+                                <span className="absolute top-[34%] right-[9%] text-[8px] font-black uppercase tracking-[0.15em] text-white/80 pointer-events-none rotate-90 origin-center" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.7), 0 0 8px rgba(0,0,0,0.4)' }}>Temporal</span>
+                                <span className="absolute top-[81%] left-1/2 -translate-x-1/2 text-[8px] font-black uppercase tracking-[0.2em] text-white/80 pointer-events-none" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.7), 0 0 8px rgba(0,0,0,0.4)' }}>Mento</span>
 
                                 {/* Marcações renderizadas com cor do tipo */}
                                 {marcacoesHof.map(m => {
@@ -2688,7 +2716,13 @@ export default function PacienteDetalhe() {
 
                                 {/* Popover de inserção expandido */}
                                 {hofPopover.open && (
-                                    <div className="absolute z-40" style={{ left: `${Math.min(Math.max(hofPopover.x, 20), 80)}%`, top: `${Math.min(Math.max(hofPopover.y, 5), 65)}%`, transform: 'translate(-50%, 8px)' }} onClick={e => e.stopPropagation()}>
+                                    <div
+                                        className="absolute z-40"
+                                        style={hofPopover.y > 45
+                                            ? { left: `clamp(136px, ${hofPopover.x}%, calc(100% - 136px))`, top: `clamp(232px, ${hofPopover.y}%, calc(100% - 8px))`, transform: 'translate(-50%, calc(-100% - 10px))' }
+                                            : { left: `clamp(136px, ${hofPopover.x}%, calc(100% - 136px))`, top: `clamp(8px, ${hofPopover.y}%, calc(100% - 232px))`, transform: 'translate(-50%, 10px)' }}
+                                        onClick={e => e.stopPropagation()}
+                                    >
                                         <div className="w-64 rounded-xl border border-neutral-200 bg-white p-3">
                                             <div className="mb-2 flex items-center justify-between">
                                                 <div className="flex items-center gap-1.5">
@@ -2701,7 +2735,7 @@ export default function PacienteDetalhe() {
                                             <div className="mt-2 grid grid-cols-2 gap-2">
                                                 <div>
                                                     <label className={campoLabel}>Dosagem ({hofTipoInfo(hofTipoAtivo).unidadePadrao || '-'})</label>
-                                                    <input type="text" value={hofDosagem} onChange={e => setHofDosagem(e.target.value)} placeholder="Ex: 10" className="h-8 w-full rounded-md border border-neutral-200 px-2 text-xs outline-none focus:border-neutral-900"/>
+                                                    <input type="text" value={hofDosagem} onChange={e => setHofDosagem(e.target.value)} placeholder={({ U: 'Ex: 20', mL: 'Ex: 1', un: 'Ex: 4', sess: 'Ex: 1' } as Record<string, string>)[hofTipoInfo(hofTipoAtivo).unidadePadrao] || 'Ex: 1'} className="h-8 w-full rounded-md border border-neutral-200 px-2 text-xs outline-none focus:border-neutral-900"/>
                                                 </div>
                                                 <div>
                                                     <label className={campoLabel}>Produto</label>

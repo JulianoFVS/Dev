@@ -1,36 +1,13 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { amostraDepois, prepararEfeitos, type MarcacaoPreview } from '@/lib/hofPreview';
+import { renderizarDepois, type MarcacaoPreview, type Referencia } from '@/lib/hofPreview';
 
 type Props = {
   src: string;
   marks: MarcacaoPreview[];
+  referencia?: Referencia;
 };
-
-function lerPixel(dados: Uint8ClampedArray, largura: number, altura: number, x: number, y: number) {
-  const x0 = Math.max(0, Math.min(largura - 1, Math.floor(x)));
-  const y0 = Math.max(0, Math.min(altura - 1, Math.floor(y)));
-  const x1 = Math.min(largura - 1, x0 + 1);
-  const y1 = Math.min(altura - 1, y0 + 1);
-  const fx = limitar01(x - x0);
-  const fy = limitar01(y - y0);
-  const i00 = (y0 * largura + x0) * 4;
-  const i10 = (y0 * largura + x1) * 4;
-  const i01 = (y1 * largura + x0) * 4;
-  const i11 = (y1 * largura + x1) * 4;
-  const pixel = [0, 0, 0, 255];
-  for (let c = 0; c < 3; c++) {
-    const a = dados[i00 + c] * (1 - fx) + dados[i10 + c] * fx;
-    const b = dados[i01 + c] * (1 - fx) + dados[i11 + c] * fx;
-    pixel[c] = a * (1 - fy) + b * fy;
-  }
-  return pixel;
-}
-
-function limitar01(valor: number) {
-  return Math.min(1, Math.max(0, valor));
-}
 
 function desenharCover(ctx: CanvasRenderingContext2D, img: HTMLImageElement, largura: number, altura: number) {
   const escala = Math.max(largura / img.width, altura / img.height);
@@ -39,7 +16,7 @@ function desenharCover(ctx: CanvasRenderingContext2D, img: HTMLImageElement, lar
   ctx.drawImage(img, (largura - dw) / 2, (altura - dh) / 2, dw, dh);
 }
 
-export default function HofPreviewRosto({ src, marks }: Props) {
+export default function HofPreviewRosto({ src, marks, referencia = 'feminina' }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const marksRef = useRef(marks);
   marksRef.current = marks;
@@ -58,7 +35,7 @@ export default function HofPreviewRosto({ src, marks }: Props) {
       const caixa = canvas.getBoundingClientRect();
       const larguraCss = Math.max(2, Math.round(caixa.width || canvas.clientWidth || 360));
       const alturaCss = Math.max(2, Math.round(caixa.height || canvas.clientHeight || Math.round(larguraCss * 4 / 3)));
-      const escala = Math.min(1, 520 / larguraCss);
+      const escala = Math.min(1, 560 / larguraCss);
       const largura = Math.round(larguraCss * escala);
       const altura = Math.round(alturaCss * escala);
       canvas.width = largura;
@@ -68,50 +45,13 @@ export default function HofPreviewRosto({ src, marks }: Props) {
       ctx.clearRect(0, 0, largura, altura);
       desenharCover(ctx, img, largura, altura);
       if (!depois || marksAtuais.length === 0) return;
-
-      const origem = ctx.getImageData(0, 0, largura, altura);
-      const saida = ctx.createImageData(largura, altura);
-      const efeitos = prepararEfeitos(marksAtuais, largura, altura);
-      const dados = origem.data;
-      const destino = saida.data;
-
-      for (let y = 0; y < altura; y++) {
-        for (let x = 0; x < largura; x++) {
-          const amostra = amostraDepois(x, y, efeitos, largura, altura);
-          const i = (y * largura + x) * 4;
-          if (amostra.suave > 0.08) {
-            const espalha = 0.8 + amostra.suave * 2.4;
-            const taps = [[0, 0, 1], [espalha, 0, 0.45], [-espalha, 0, 0.45], [0, espalha, 0.45], [0, -espalha, 0.45]];
-            let peso = 0;
-            let r = 0;
-            let g = 0;
-            let b = 0;
-            for (const [dx, dy, p] of taps) {
-              const pixel = lerPixel(dados, largura, altura, amostra.x + dx, amostra.y + dy);
-              r += pixel[0] * p;
-              g += pixel[1] * p;
-              b += pixel[2] * p;
-              peso += p;
-            }
-            destino[i] = r / peso;
-            destino[i + 1] = g / peso;
-            destino[i + 2] = b / peso;
-          } else {
-            const pixel = lerPixel(dados, largura, altura, amostra.x, amostra.y);
-            destino[i] = pixel[0];
-            destino[i + 1] = pixel[1];
-            destino[i + 2] = pixel[2];
-          }
-          destino[i + 3] = 255;
-        }
-      }
-      ctx.putImageData(saida, 0, 0);
+      ctx.putImageData(renderizarDepois(ctx.getImageData(0, 0, largura, altura), marksAtuais, referencia), 0, 0);
     };
     img.src = src;
     return () => {
       cancelado = true;
     };
-  }, [src, chave, depois]);
+  }, [src, chave, depois, referencia]);
 
   return (
     <div className="relative h-full w-full">
