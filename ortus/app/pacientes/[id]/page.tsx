@@ -96,9 +96,37 @@ function getCondicoesFromFicha(ficha: Record<string, unknown>): string[] {
 }
 
 function documentoEhImagem(d: { isImg?: boolean; tipo?: string; nome?: string }) {
+  if (documentoEhPdf(d)) return false;
   if (d?.isImg) return true;
-  if (String(d?.tipo || '').startsWith('image/')) return true;
+  if (String(d?.tipo || '').startsWith('image/') && !String(d?.tipo || '').includes('svg')) return true;
   return /\.(jpe?g|png|webp|gif)$/i.test(String(d?.nome || ''));
+}
+
+function documentoEhPdf(d: { isPdf?: boolean; tipo?: string; nome?: string }) {
+  if (d?.isPdf) return true;
+  if (d?.tipo === 'application/pdf') return true;
+  return /\.pdf$/i.test(String(d?.nome || ''));
+}
+
+const EXTENSOES_DOCUMENTO = new Set(['jpg', 'jpeg', 'png', 'webp', 'gif', 'pdf', 'doc', 'docx', 'txt']);
+const EXTENSOES_BLOQUEADAS = new Set(['bat', 'cmd', 'com', 'exe', 'msi', 'dll', 'scr', 'ps1', 'vbs', 'js', 'jse', 'jar', 'sh', 'bash', 'apk', 'html', 'htm', 'svg', 'hta', 'reg', 'iso', 'zip', 'rar', '7z', 'gz', 'php', 'py']);
+const TAMANHO_MAX_DOCUMENTO = 8 * 1024 * 1024;
+
+function validarArquivoDocumento(file: File): string | null {
+  const partes = file.name.toLowerCase().split('.').filter(Boolean);
+  if (partes.length < 2) return 'Envie JPG, PNG, WEBP, GIF, PDF, DOC ou TXT.';
+  const extensao = partes[partes.length - 1];
+  if (EXTENSOES_BLOQUEADAS.has(extensao) || partes.slice(0, -1).some((parte) => EXTENSOES_BLOQUEADAS.has(parte))) {
+    return 'Esse tipo de arquivo não pode ser enviado.';
+  }
+  if (!EXTENSOES_DOCUMENTO.has(extensao)) return 'Envie JPG, PNG, WEBP, GIF, PDF, DOC ou TXT.';
+  const mime = file.type.toLowerCase();
+  if (mime && /html|javascript|x-msdownload|x-sh|x-bat|x-executable|x-dosexec|svg/.test(mime)) {
+    return 'Esse tipo de arquivo não pode ser enviado.';
+  }
+  if (file.size <= 0) return 'O arquivo está vazio.';
+  if (file.size > TAMANHO_MAX_DOCUMENTO) return 'Arquivo muito grande. O limite é 8 MB.';
+  return null;
 }
 
 function gruposDeFaces(faces: Array<{ face: OdontoFace; status: OdontoFaceStatus }>) {
@@ -110,6 +138,12 @@ function gruposDeFaces(faces: Array<{ face: OdontoFace; status: OdontoFaceStatus
     mapa.set(status, [...(mapa.get(status) || []), nome]);
   }
   return [...mapa.entries()];
+}
+
+function textoMarcacao(cond: string, faces: Array<{ face: OdontoFace; status: OdontoFaceStatus }>) {
+  const nomeCond = cond && cond !== 'normal' ? (ODONTO_TOOLS.find((tool) => tool.key === cond)?.label || cond) : '';
+  const facesTexto = gruposDeFaces(faces).map(([status, nomes]) => `${nomes.join(', ')} · ${status}`).join(' · ');
+  return [nomeCond, facesTexto].filter(Boolean).join(' · ') || 'Marcado';
 }
 
 function getMedicamentosFromFicha(ficha: Record<string, unknown>): string[] {
@@ -348,6 +382,10 @@ export default function PacienteDetalhe() {
   const [docAberto, setDocAberto] = useState<{ nome: string; url: string; isImg: boolean; isPdf: boolean } | null>(null);
   const [historicoSel, setHistoricoSel] = useState<string | null>(null);
   const [buscaHistorico, setBuscaHistorico] = useState('');
+  useEffect(() => {
+      if (!historicoSel) return;
+      document.getElementById(`linha-${historicoSel}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }, [historicoSel]);
   const previewsDocumento = useRef<string[]>([]);
   const odontogramaFromServer = useRef(true);
   const fichaFromServer = useRef(true);
@@ -423,13 +461,14 @@ export default function PacienteDetalhe() {
 
   // DOCUMENTOS
   const [documentos, setDocumentos] = useState<any[]>([]);
+  const [registrosDebito, setRegistrosDebito] = useState<any[]>([]);
   useEffect(() => {
       let vivo = true;
-      const imagens = documentos.filter((d) => documentoEhImagem(d) && !d.previewUrl);
-      if (!imagens.length) return;
+      const pendentes = documentos.filter((d) => (documentoEhImagem(d) || documentoEhPdf(d)) && !d.previewUrl);
+      if (!pendentes.length) return;
       (async () => {
           const porId = new Map<string, string>();
-          await Promise.all(imagens.map(async (d) => {
+          await Promise.all(pendentes.map(async (d) => {
               try {
                   const blob = await blobDoDocumento(d);
                   if (!vivo) return;
@@ -443,7 +482,7 @@ export default function PacienteDetalhe() {
           if (!vivo || porId.size === 0) return;
           setDocumentos((atual) => atual.map((d) => {
               const url = porId.get(String(d.id));
-              return url ? { ...d, previewUrl: url, isImg: true } : d;
+              return url ? { ...d, previewUrl: url } : d;
           }));
       })();
       return () => { vivo = false; };
@@ -619,12 +658,13 @@ export default function PacienteDetalhe() {
       fichaFromServer.current = true;
 
       // Todas as buscas independentes disparam em paralelo — sem cadeia sequencial
-      const [listaClinicas, pacienteRes, prontuario, histRes, debitosLista] = await Promise.all([
+      const [listaClinicas, pacienteRes, prontuario, histRes, debitosLista, debitosTodosRes] = await Promise.all([
           clinicasContexto.length > 0 ? Promise.resolve(clinicasContexto) : fetchUserClinicas(),
           supabase.from('pacientes').select('*').eq('id', id).single(),
           carregarProntuario(String(id)),
           supabase.from('agendamentos').select('*, profissionais(nome)').eq('paciente_id', id).order('data_hora', { ascending: false }),
           listarDebitosPaciente(id),
+          supabase.from('paciente_debitos').select('*').eq('paciente_id', id),
       ]);
 
       setClinicas(listaClinicas as any[]);
@@ -663,6 +703,7 @@ export default function PacienteDetalhe() {
       const historicoFiltrado = (histRes.data || []).filter((h: any) => h.tipo_registro !== 'debito_manual' && h.observacoes !== 'Débito manual');
       setHistorico(historicoFiltrado);
       setDebitos(debitosLista);
+      setRegistrosDebito(debitosTodosRes.data || []);
 
       setModelosAnamnese(carregarModelos());
       prontuarioIdCarregado.current = String(id);
@@ -1515,12 +1556,12 @@ export default function PacienteDetalhe() {
   async function uploadDocumento(e: any) {
       const file: File = e.target.files?.[0];
       if (!file) return;
-      const MAX = 10 * 1024 * 1024; // 10MB
-      if (file.size > MAX) { showAlert('Arquivo muito grande (máx. 10MB).', { type: 'warning' }); e.target.value = ''; return; }
+      const rejeicao = validarArquivoDocumento(file);
+      if (rejeicao) { showAlert(rejeicao, { type: 'warning' }); e.target.value = ''; return; }
       setUploadingDoc(true);
       try {
-          const isImg = file.type.startsWith('image/');
-          const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+          const isImg = documentoEhImagem({ tipo: file.type, nome: file.name });
+          const isPdf = documentoEhPdf({ tipo: file.type, nome: file.name });
           const ext = file.name.split('.').pop() || 'bin';
           const timestamp = Date.now();
           let blob: Blob = file;
@@ -1543,7 +1584,7 @@ export default function PacienteDetalhe() {
               storage_path: caminhoArquivo,
               meta: { isImg, isPdf, tamanho: blob.size },
           });
-          const previewUrl = isImg ? URL.createObjectURL(blob) : undefined;
+          const previewUrl = isImg || isPdf ? URL.createObjectURL(blob) : undefined;
           if (previewUrl) previewsDocumento.current.push(previewUrl);
           setDocumentos([...documentos, { ...salvo, isImg, isPdf, previewUrl }]);
       } catch (err: any) {
@@ -1639,6 +1680,7 @@ export default function PacienteDetalhe() {
   }
 
   function adicionarPartePagamento() {
+      if (partesPagamento.length >= 5) return;
       const bruto = Number(modalReceber?.valor_final ?? modalReceber?.valor) || 0;
       const usado = partesPagamento.reduce((soma, parte) => soma + (parseFloat(parte.valor.replace(',', '.')) || 0), 0);
       const falta = Math.max(0, bruto - usado);
@@ -1667,6 +1709,7 @@ export default function PacienteDetalhe() {
           );
           const agId = modalReceber.agendamento_id ?? modalReceber.id;
           setDebitos((prev) => prev.filter((d) => d.id !== modalReceber.id));
+          setRegistrosDebito((prev) => prev.map((d) => String(d.id) === String(modalReceber.id) ? { ...d, status: 'pago', data_pagamento: new Date().toISOString() } : d));
           if (modalReceber.origem === 'agendamento' || modalReceber.agendamento_id) {
               const pagoEm = new Date().toISOString();
               setHistorico((prev) => prev.map((h) => h.id === agId ? { ...h, status: 'concluido', data_pagamento: pagoEm } : h));
@@ -1728,6 +1771,8 @@ export default function PacienteDetalhe() {
           }
           const debitosLista = await listarDebitosPaciente(id);
           setDebitos(debitosLista);
+          const { data: registros } = await supabase.from('paciente_debitos').select('*').eq('paciente_id', id);
+          setRegistrosDebito(registros || []);
           const { data: hist } = await supabase.from('agendamentos').select('*, profissionais(nome)').eq('paciente_id', id).order('data_hora', { ascending: false });
           setHistorico((hist || []).filter((h: any) => h.tipo_registro !== 'debito_manual' && h.observacoes !== 'Débito manual'));
           setModalDebitoManual(false);
@@ -1972,17 +2017,19 @@ export default function PacienteDetalhe() {
                                             <button
                                                 type="button"
                                                 onClick={() => setPartesPagamento((atual) => atual.length > 1 ? atual.filter((item) => item.key !== parte.key) : atual)}
-                                                className="inline-flex h-9 w-9 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-100 hover:text-neutral-900 disabled:opacity-30"
+                                                className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-neutral-900 bg-white text-neutral-900 hover:bg-rose-50 hover:text-rose-600 disabled:border-neutral-200 disabled:text-neutral-300"
                                                 disabled={partesPagamento.length < 2}
                                                 aria-label="Remover forma"
                                             >
-                                                <X size={14} />
+                                                <X size={16} strokeWidth={2.5} />
                                             </button>
                                         </div>
                                     ))}
-                                    <button type="button" onClick={adicionarPartePagamento} className="inline-flex h-8 items-center gap-1.5 text-xs font-medium text-neutral-600 hover:text-neutral-900">
-                                        <Plus size={12} /> Adicionar forma
-                                    </button>
+                                    {partesPagamento.length < 5 && (
+                                        <button type="button" onClick={adicionarPartePagamento} className="inline-flex h-8 items-center gap-1.5 text-xs font-medium text-neutral-600 hover:text-neutral-900">
+                                            <Plus size={12} /> Adicionar forma
+                                        </button>
+                                    )}
                                     <p className="text-xs font-medium text-neutral-600">
                                         Líquido: R$ {liquido.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                         {Math.abs(diferenca) > 0.009 && (
@@ -2497,8 +2544,9 @@ export default function PacienteDetalhe() {
                                 </button>
                             </div>
 
-                            <div className={mostrar3D ? 'grid grid-cols-1 items-stretch gap-3 lg:grid-cols-[minmax(0,7fr)_minmax(0,3fr)]' : ''}>
-                            <div className="min-w-0 overflow-x-auto rounded-2xl border border-black/10 bg-white p-3 sm:p-5">
+                            <div className="grid items-start gap-3 lg:grid-cols-2">
+                            <div className="min-w-0">
+                            <div className="min-w-0 overflow-x-auto rounded-xl border border-neutral-200 bg-white p-2">
                                 <div className="flex w-max min-w-full justify-center">
                                     <div>
                                         {(() => {
@@ -2511,7 +2559,7 @@ export default function PacienteDetalhe() {
                                                         <div className="w-1 self-stretch border-l-2 border-dashed border-slate-300 mx-2"></div>
                                                         {quad.sup[1].map(n => <Tooth key={n} num={n} isUpper={true} esquematico={isEsq} state={odontograma[n] || { faces: {}, cond: 'normal' }} ferramenta={ferramenta} onApply={(f) => aplicarFerramenta(n, f)} />)}
                                                     </div>
-                                                    <div className="h-px bg-gradient-to-r from-transparent via-slate-400 to-transparent my-3"></div>
+                                                    <div className="my-1.5 h-px bg-neutral-200"></div>
                                                     <div className={`flex justify-center ${isEsq ? 'items-center' : 'items-start'}`}>
                                                         {quad.inf[0].map(n => <Tooth key={n} num={n} isUpper={false} esquematico={isEsq} state={odontograma[n] || { faces: {}, cond: 'normal' }} ferramenta={ferramenta} onApply={(f) => aplicarFerramenta(n, f)} />)}
                                                         <div className="w-1 self-stretch border-l-2 border-dashed border-slate-300 mx-2"></div>
@@ -2524,8 +2572,8 @@ export default function PacienteDetalhe() {
                                 </div>
                             </div>
 
-                            {mostrar3D && (
-                                <div className="flex h-[min(52vh,480px)] min-h-[280px] min-w-0 flex-col overflow-hidden rounded-2xl border border-black/10 bg-[#f8f8f6] p-2 sm:p-3 lg:h-full">
+                            {mostrar3D ? (
+                                <div className="mt-2 flex h-64 min-w-0 flex-col overflow-hidden rounded-xl border border-neutral-200 bg-[#f8f8f6] p-2">
                                     <div className="mb-2 flex items-center justify-between gap-2">
                                         <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-400">Vista 3D</span>
                                         <button
@@ -2545,23 +2593,18 @@ export default function PacienteDetalhe() {
                                         </p>
                                     )}
                                 </div>
+                            ) : (
+                                <button
+                                    type="button"
+                                    onClick={() => setMostrar3D(true)}
+                                    className="mt-2 inline-flex h-8 items-center justify-center rounded-md bg-neutral-900 px-3 text-xs font-medium text-white"
+                                >
+                                    Abrir vista 3D
+                                </button>
                             )}
                             </div>
 
-                            {!mostrar3D && (
-                                <div className="mt-3">
-                                    <button
-                                        type="button"
-                                        onClick={() => setMostrar3D(true)}
-                                        className="inline-flex h-8 items-center justify-center rounded-md bg-neutral-900 px-3 text-xs font-medium text-white"
-                                    >
-                                        Abrir vista 3D
-                                    </button>
-                                </div>
-                            )}
-
-                            {/* Resumo de dentes alterados */}
-                            <div className="mt-6 border-t border-black/5 pt-4">
+                            <div className="min-w-0">
                                 <div className="mb-2 flex flex-wrap items-center gap-3">
                                     {marcacoesPendentes.length > 0 && (
                                         <button
@@ -2609,6 +2652,7 @@ export default function PacienteDetalhe() {
                                     <p className="mt-2 text-[11px] text-neutral-500">Clique em um dente para abrir o tratamento só dele, ou em Tratar marcações para incluir todos.</p>
                                 )}
                             </div>
+                            </div>
                             </>
                             )}
                         </div>
@@ -2630,13 +2674,13 @@ export default function PacienteDetalhe() {
                                 <button type="button" onClick={() => setModalDoc(true)} className="inline-flex h-8 items-center gap-1.5 rounded-md border border-neutral-200 px-2.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"><Printer size={14}/> Emitir</button>
                                 <label className={`inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md bg-neutral-900 px-2.5 text-xs font-medium text-white hover:bg-neutral-800 ${uploadingDoc ? 'pointer-events-none opacity-50' : ''}`}>
                                     {uploadingDoc ? <Loader2 size={14} className="animate-spin"/> : <Upload size={14}/>} Enviar
-                                    <input type="file" className="hidden" onChange={uploadDocumento} disabled={uploadingDoc} accept="image/*,application/pdf,.doc,.docx,.txt"/>
+                                    <input type="file" className="hidden" onChange={uploadDocumento} disabled={uploadingDoc} accept=".jpg,.jpeg,.png,.webp,.gif,.pdf,.doc,.docx,.txt,image/jpeg,image/png,image/webp,image/gif,application/pdf"/>
                                 </label>
                             </div>
                         </div>
 
                         {documentos.length === 0 ? (
-                            <p className="py-8 text-center text-sm text-neutral-400">Nenhum documento. Imagens, PDF e DOC, até 10 MB.</p>
+                            <p className="py-8 text-center text-sm text-neutral-400">Nenhum documento. JPG, PNG, WEBP, GIF, PDF, DOC ou TXT, até 8 MB.</p>
                         ) : (
                             <div>
                                 <div className="grid grid-cols-[minmax(0,1.6fr)_7rem_6rem_5.5rem] items-center gap-3 pb-2 text-xs font-medium text-neutral-400">
@@ -2667,12 +2711,14 @@ export default function PacienteDetalhe() {
                                         {documentosOrdenados().map(d => (
                                             <div key={d.id} className="overflow-hidden rounded-xl border border-neutral-200">
                                                 <button type="button" onClick={() => abrirDocumento(d)} className="flex h-32 w-full flex-col items-center justify-center gap-2 overflow-hidden bg-neutral-50 text-neutral-500">
-                                                    {d.previewUrl ? (
+                                                    {d.previewUrl && documentoEhImagem(d) ? (
                                                         <img src={d.previewUrl} alt="" className="h-full w-full object-cover" />
+                                                    ) : d.previewUrl && documentoEhPdf(d) ? (
+                                                        <iframe src={`${d.previewUrl}#toolbar=0&navpanes=0&scrollbar=0&page=1&view=FitH`} title="" className="pointer-events-none h-full w-full bg-white" />
                                                     ) : (
                                                         <>
                                                             <FileText size={28} />
-                                                            <span className="text-xs font-medium">{documentoEhImagem(d) ? 'Imagem' : d.isPdf ? 'PDF' : 'Arquivo'}</span>
+                                                            <span className="text-xs font-medium">{documentoEhImagem(d) ? 'Imagem' : documentoEhPdf(d) ? 'PDF' : 'Arquivo'}</span>
                                                         </>
                                                     )}
                                                 </button>
@@ -3049,29 +3095,63 @@ export default function PacienteDetalhe() {
                 {abaAtiva === 'historico' && (() => {
                     const termo = buscaHistorico.trim().toLowerCase();
                     const lista = historico.filter((h: any) => !termo || String(h.procedimento || '').toLowerCase().includes(termo));
-                    const selecionado = historico.find((h: any) => String(h.id) === String(historicoSel)) || null;
+                    const rotuloStatus = (status: string) => status === 'fiado' ? 'Em débito' : status === 'concluido' ? 'Concluído' : status === 'agendado' ? 'Agendado' : status === 'cancelado' ? 'Cancelado' : (status || 'Registrado');
+                    const formatarQuando = (valor: string) => new Date(valor).toLocaleString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+                    const marcos: Array<{ id: string; ref: string; ancora?: string; quando: string; titulo: string; detalhe: string; valor?: number }> = [];
+                    historico.forEach((h: any) => {
+                        const valor = Number(h.valor_final ?? h.valor ?? 0);
+                        const nome = h.procedimento || 'Atendimento';
+                        marcos.push({
+                            id: `ag-${h.id}`,
+                            ref: String(h.id),
+                            ancora: String(h.id),
+                            quando: h.data_hora,
+                            titulo: nome,
+                            detalhe: `${h.profissionais?.nome || 'Profissional'} · ${rotuloStatus(h.status)}${h.observacoes ? ` · ${h.observacoes}` : ''}`,
+                            valor,
+                        });
+                        const inicio = new Date(h.data_hora).getTime();
+                        const pago = h.data_pagamento ? new Date(h.data_pagamento).getTime() : 0;
+                        const debitoPosterior = pago > 0 && pago - inicio > 2 * 60 * 1000;
+                        if (valor > 0 && (h.status === 'fiado' || debitoPosterior)) {
+                            marcos.push({ id: `add-${h.id}`, ref: String(h.id), quando: h.data_hora, titulo: 'Foi adicionado um débito', detalhe: `${nome} · R$ ${valor.toFixed(2)}`, valor });
+                        }
+                        if (valor > 0 && debitoPosterior) {
+                            marcos.push({ id: `out-${h.id}`, ref: String(h.id), quando: h.data_pagamento, titulo: 'Foi retirado um débito', detalhe: nome, valor });
+                        }
+                    });
+                    registrosDebito.forEach((d: any) => {
+                        if (d.agendamento_id) return;
+                        const valor = Number(d.valor) || 0;
+                        const nome = d.descricao || 'Débito manual';
+                        if (d.created_at) marcos.push({ id: `man-add-${d.id}`, ref: `deb-${d.id}`, quando: d.created_at, titulo: 'Foi adicionado um débito', detalhe: `${nome}${valor ? ` · R$ ${valor.toFixed(2)}` : ''}`, valor });
+                        if (d.status === 'pago' && d.data_pagamento) marcos.push({ id: `man-out-${d.id}`, ref: `deb-${d.id}`, quando: d.data_pagamento, titulo: 'Foi retirado um débito', detalhe: nome, valor });
+                    });
+                    marcos.sort((a, b) => String(b.quando || '').localeCompare(String(a.quando || '')));
                     return (
-                    <div className="grid min-h-0 gap-6 lg:grid-cols-[16rem_minmax(0,1fr)]">
+                    <div>
+                        <div className="relative mb-4">
+                            <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
+                            <input
+                                value={buscaHistorico}
+                                onChange={(evento) => setBuscaHistorico(evento.target.value)}
+                                placeholder="Buscar procedimento"
+                                className="h-9 w-full rounded-md border border-neutral-200 bg-white pl-8 pr-3 text-sm text-neutral-900 outline-none focus:border-neutral-900"
+                            />
+                        </div>
+                        <div className="grid min-h-0 items-start gap-4 lg:grid-cols-[2fr_3fr]">
                         <div className="min-w-0">
-                            <h3 className="text-base font-semibold text-neutral-900">Histórico</h3>
-                            <div className="relative mt-3 mb-3">
-                                <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
-                                <input
-                                    value={buscaHistorico}
-                                    onChange={(evento) => setBuscaHistorico(evento.target.value)}
-                                    placeholder="Buscar procedimento"
-                                    className="h-9 w-full rounded-md border border-neutral-200 bg-white pl-8 pr-3 text-sm text-neutral-900 outline-none focus:border-neutral-900"
-                                />
-                            </div>
+                            <h3 className="mb-3 text-base font-semibold text-neutral-900">Histórico</h3>
                             {lista.length === 0 ? (
                                 <p className="py-8 text-center text-sm text-neutral-400">{historico.length === 0 ? 'Nenhum atendimento registrado.' : 'Nenhum procedimento encontrado.'}</p>
                             ) : (
                                 <div className="overflow-hidden rounded-xl border border-neutral-200">
-                                    {lista.map((h: any) => {
-                                        const ativo = selecionado && String(selecionado.id) === String(h.id);
+                                    {lista.map((h: any, indice: number) => {
+                                        const ativo = String(historicoSel) === String(h.id);
                                         return (
-                                            <button key={h.id} type="button" onClick={() => setHistoricoSel(String(h.id))} className={`block w-full border-b border-neutral-100 px-3 py-2.5 text-left text-sm font-medium last:border-b-0 ${ativo ? 'bg-neutral-900 text-white' : 'bg-white text-neutral-900 hover:bg-neutral-50'}`}>
-                                                <span className="block truncate">{h.procedimento || 'Atendimento'}</span>
+                                            <button key={h.id} type="button" onClick={() => setHistoricoSel(ativo ? null : String(h.id))} className={`flex w-full items-center gap-3 border-b border-neutral-100 px-3 py-2.5 text-left last:border-b-0 ${ativo ? 'bg-neutral-900 text-white' : 'bg-white text-neutral-900 hover:bg-neutral-50'}`}>
+                                                <span className={`w-5 shrink-0 text-xs font-semibold tabular-nums ${ativo ? 'text-white/70' : 'text-neutral-400'}`}>{indice + 1}</span>
+                                                <span className="min-w-0 flex-1 truncate text-sm font-medium">{h.procedimento || 'Atendimento'}</span>
                                             </button>
                                         );
                                     })}
@@ -3080,32 +3160,30 @@ export default function PacienteDetalhe() {
                         </div>
                         <div className="min-w-0">
                             <h3 className="mb-3 text-base font-semibold text-neutral-900">Linha do tempo</h3>
-                            {!selecionado ? (
-                                <p className="py-8 text-center text-sm text-neutral-400">Selecione um atendimento à esquerda.</p>
-                            ) : (() => {
-                                const valor = Number(selecionado.valor_final ?? selecionado.valor ?? 0);
-                                const emDebito = selecionado.status === 'fiado';
-                                return (
-                                <div className="relative pl-4">
+                            {marcos.length === 0 ? (
+                                <p className="py-8 text-center text-sm text-neutral-400">Nenhum evento registrado.</p>
+                            ) : (
+                                <div className="relative max-h-[32rem] overflow-y-auto pl-4">
                                     <div className="absolute bottom-2 left-[7px] top-2 w-px bg-neutral-200" />
-                                    <div className="relative pb-2 pl-5">
-                                        <span className="absolute left-0 top-1.5 h-3.5 w-3.5 rounded-full border-2 border-white bg-neutral-900" />
-                                        <div className="rounded-xl border border-neutral-900 bg-neutral-900 px-4 py-3 text-white">
-                                            <div className="flex items-baseline justify-between gap-3">
-                                                <span className="text-sm font-semibold">{selecionado.procedimento}</span>
-                                                {valor > 0 && <span className="text-sm font-semibold">R$ {valor.toFixed(2)}</span>}
+                                    {marcos.map((marco) => {
+                                        const ativo = !!historicoSel && marco.ref === String(historicoSel);
+                                        return (
+                                            <div key={marco.id} id={marco.ancora ? `linha-${marco.ancora}` : undefined} className="relative pb-4 pl-5">
+                                                <span className={`absolute left-0 top-1.5 h-3.5 w-3.5 rounded-full border-2 border-white ${ativo ? 'bg-neutral-900' : 'bg-neutral-300'}`} />
+                                                <div className={`rounded-xl border px-4 py-3 ${ativo ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-200 bg-white'}`}>
+                                                    <div className="flex items-baseline justify-between gap-3">
+                                                        <span className="text-sm font-semibold">{marco.titulo}</span>
+                                                        {marco.valor ? <span className="shrink-0 text-sm font-semibold">R$ {marco.valor.toFixed(2)}</span> : null}
+                                                    </div>
+                                                    <p className={`mt-1 text-xs ${ativo ? 'text-white/70' : 'text-neutral-500'}`}>{marco.quando ? formatarQuando(marco.quando) : ''}</p>
+                                                    <p className={`mt-1 text-xs ${ativo ? 'text-white/90' : 'text-neutral-700'}`}>{marco.detalhe}</p>
+                                                </div>
                                             </div>
-                                            <p className="mt-1 text-xs text-white/70">
-                                                {new Date(selecionado.data_hora).toLocaleString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                                                {` · ${selecionado.profissionais?.nome || 'Profissional'}`}
-                                            </p>
-                                            <p className="mt-2 text-xs font-medium text-white">{emDebito ? 'Em débito' : selecionado.status}{selecionado.status === 'concluido' && selecionado.data_pagamento ? ` · pago em ${new Date(selecionado.data_pagamento).toLocaleDateString('pt-BR')}` : ''}{selecionado.valor_liquido != null && selecionado.status === 'concluido' ? ` · líq. R$ ${Number(selecionado.valor_liquido).toFixed(2)}` : ''}</p>
-                                            {selecionado.observacoes && <p className="mt-2 text-sm text-white/90">{selecionado.observacoes}</p>}
-                                        </div>
-                                    </div>
+                                        );
+                                    })}
                                 </div>
-                                );
-                            })()}
+                            )}
+                        </div>
                         </div>
                     </div>
                     );
@@ -3115,7 +3193,7 @@ export default function PacienteDetalhe() {
         </div>
 
         {/* MODAL TRATAMENTO */}
-        <Modal open={modalTrat} onClose={() => setModalTrat(false)} maxWidth="lg" hideCloseButton panelClassName="overflow-hidden rounded-xl border border-neutral-200 bg-white">
+        <Modal open={modalTrat} onClose={() => setModalTrat(false)} maxWidth="lg" hideCloseButton panelClassName="max-h-[90vh] overflow-y-auto rounded-xl border border-neutral-200 bg-white">
                 <div className="p-5">
                     <div className="mb-4 flex items-center justify-between">
                         <h3 className="text-base font-semibold text-neutral-900">{tratEdit.id ? 'Editar' : 'Novo'} tratamento</h3>
@@ -3123,9 +3201,9 @@ export default function PacienteDetalhe() {
                     </div>
                     <div className="space-y-3">
                         {!tratEdit.id && marcacoesOdonto.length > 0 && (
-                            <div className="rounded-2xl border border-black/5 bg-[#f8f8f6] p-3">
-                                <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Do odontograma</p>
-                                <div className="flex flex-wrap gap-1.5">
+                            <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white">
+                                <p className="border-b border-neutral-100 px-3 py-2 text-xs font-medium text-neutral-500">Do odontograma</p>
+                                <div className="max-h-44 overflow-y-auto">
                                     {marcacoesOdonto.map((m) => {
                                         const ativo = (tratEdit.dentesSelecionados || parseDentesCampo(tratEdit.dente).map(String)).includes(String(m.num));
                                         return (
@@ -3133,17 +3211,15 @@ export default function PacienteDetalhe() {
                                                 key={m.num}
                                                 type="button"
                                                 onClick={() => toggleDenteTratamento(String(m.num))}
-                                                className={`rounded-md px-2.5 py-1 text-left text-xs font-medium ${
-                                                    ativo ? 'bg-neutral-900 text-white' : 'border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50'
-                                                }`}
+                                                className={`flex w-full items-center gap-3 border-b border-neutral-100 px-3 py-2 text-left last:border-b-0 ${ativo ? 'bg-neutral-900 text-white' : 'bg-white hover:bg-neutral-50'}`}
                                             >
-                                                #{m.num}
-                                                <span className={`ml-1 font-medium ${ativo ? 'text-white/70' : 'text-neutral-400'}`}>{m.resumo}</span>
+                                                <span className="w-10 shrink-0 text-sm font-semibold">#{m.num}</span>
+                                                <span className={`min-w-0 flex-1 truncate text-xs font-medium ${ativo ? 'text-white/75' : 'text-neutral-500'}`}>{textoMarcacao(m.cond, m.faces)}</span>
                                             </button>
                                         );
                                     })}
                                 </div>
-                                <label className="mt-3 flex cursor-pointer items-start gap-2">
+                                <label className="flex cursor-pointer items-start gap-2 border-t border-neutral-100 px-3 py-2.5">
                                     <span className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-md border ${tratEdit.atualizarOdontograma ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-300 bg-white'}`}>
                                         {tratEdit.atualizarOdontograma && <Check size={11} strokeWidth={3} />}
                                     </span>

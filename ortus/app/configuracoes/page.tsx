@@ -26,9 +26,21 @@ import { DOCUMENTO_VARIAVEIS, inserirTokenVariavel, tokenVariavelLabel, aplicarV
 import { applyTheme, THEME_OPTIONS, type ThemeId } from '@/lib/themePresets';
 import { FUSO_HORARIO_OPTIONS, UF_OPTIONS } from '@/lib/formOptions';
 import { useClinica, getClinicLabel } from '@/app/context/ClinicaContext';
-import { bentoPill, bentoPrimaryBtn, bentoGhostBtn, bentoInput, bentoChip, bentoChipOutline, bentoToggleTrackOn, bentoToggleTrackOff, bentoModalPanel } from '@/lib/bentoUi';
+import { bentoPrimaryBtn, bentoGhostBtn, bentoInput, bentoChip, bentoChipOutline, bentoToggleTrackOn, bentoToggleTrackOff, bentoModalPanel } from '@/lib/bentoUi';
 
-const cardShell = 'rounded-[1.35rem] bg-white sm:rounded-[1.5rem]';
+const cardShell = 'rounded-xl bg-white';
+
+const CONFIG_NAVS = [
+  { key: 'geral', label: 'Geral', icon: SlidersHorizontal },
+  { key: 'clinicas', label: 'Clínicas', icon: Building2 },
+  { key: 'anamnese', label: 'Anamnese', icon: ClipboardList },
+  { key: 'documentos', label: 'Docs', icon: FileSignature },
+  { key: 'planos', label: 'Planos', icon: Layers3 },
+  { key: 'categorias', label: 'Categorias', icon: Tag },
+  { key: 'taxas', label: 'Taxas', icon: CreditCard },
+  { key: 'comunicacao', label: 'Comunicação', icon: MessageCircle },
+  { key: 'backup', label: 'Backup', icon: Database },
+];
 const sectionPad = 'p-4 sm:p-5 md:p-6';
 
 interface ModeloDocumento { id: string; tipo: 'contrato' | 'receita' | 'atestado' | 'outro'; nome: string; conteudo: string; }
@@ -278,7 +290,6 @@ export default function Configuracoes() {
   const totalBackups = backups.length;
   const kpiLoading = loading && !jaCarregou.current;
 
-  const configTabPill = (id: string) => bentoPill(abaAtiva === id);
 
   const taxasPorBandeira = useMemo(() => {
       const map = new Map<string, TaxaMaquininha[]>();
@@ -896,69 +907,39 @@ export default function Configuracoes() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-2.5 sm:gap-3 md:grid-cols-4">
-        <section className={`${cardShell} p-4 sm:p-5`}>
-          <div className="mb-2 flex items-center justify-between">
-            <span className="rounded-full bg-neutral-100 p-2 text-neutral-700"><Building2 size={18} /></span>
-            <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Rede</span>
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+        <section className={`${cardShell} border border-neutral-200 px-3 py-2`}>
+          <div className="flex items-center justify-between">
+            <span className="rounded-md bg-neutral-100 p-1 text-neutral-700"><Building2 size={14} /></span>
+            <span className="text-[10px] font-medium uppercase tracking-wide text-neutral-400">Rede</span>
           </div>
-          <p className="text-xs font-medium text-neutral-500">Unidades</p>
-          {kpiLoading ? (
-            <div className="mt-2 h-8 w-16 animate-pulse rounded-xl bg-neutral-100" />
-          ) : (
-            <p className="mt-1 text-xl font-semibold text-neutral-900 sm:text-2xl">{clinicas.length}</p>
-          )}
+          <p className="mt-1.5 text-[11px] font-medium text-neutral-500">Unidades</p>
+          <p className="text-lg font-semibold leading-tight text-neutral-900">{kpiLoading ? '—' : clinicas.length}</p>
         </section>
-        <section className={`${cardShell} p-4 sm:p-5`}>
-          <div className="mb-2 flex items-center justify-between">
-            <span className="rounded-full bg-emerald-100 p-2 text-emerald-700"><ClipboardList size={18} /></span>
-            <span className="text-[10px] font-semibold uppercase tracking-wide text-emerald-700">Anamnese</span>
+        <section className={`${cardShell} border border-neutral-200 px-3 py-2`}>
+          <div className="flex items-center justify-between">
+            <span className="rounded-md bg-neutral-100 p-1 text-neutral-700"><ClipboardList size={14} /></span>
+            <span className="text-[10px] font-medium uppercase tracking-wide text-neutral-400">Anamnese</span>
           </div>
-          <p className="text-xs font-medium text-neutral-500">Modelos</p>
-          {kpiLoading ? (
-            <div className="mt-2 h-8 w-16 animate-pulse rounded-xl bg-neutral-100" />
-          ) : (
-            <p className="mt-1 text-xl font-semibold text-neutral-900 sm:text-2xl">{totalModelosAnamnese}</p>
-          )}
+          <p className="mt-1.5 text-[11px] font-medium text-neutral-500">Modelos</p>
+          <p className="text-lg font-semibold leading-tight text-neutral-900">{kpiLoading ? '—' : totalModelosAnamnese}</p>
         </section>
-        <section className={`${cardShell} p-4 sm:p-5`}>
-          <div className="mb-2 flex items-center justify-between">
-            <span className="rounded-full bg-neutral-100 p-2 text-neutral-700"><Tag size={18} /></span>
-            <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Financeiro</span>
+        <section className={`${cardShell} border border-neutral-200 px-3 py-2`}>
+          <div className="flex items-center justify-between">
+            <span className="rounded-md bg-neutral-100 p-1 text-neutral-700"><Tag size={14} /></span>
+            <span className="text-[10px] font-medium uppercase tracking-wide text-neutral-400">Financeiro</span>
           </div>
-          <p className="text-xs font-medium text-neutral-500">Categorias ativas</p>
-          {kpiLoading ? (
-            <div className="mt-2 h-8 w-16 animate-pulse rounded-xl bg-neutral-100" />
-          ) : (
-            <p className="mt-1 text-xl font-semibold text-neutral-900 sm:text-2xl">{totalCatsAtivas}</p>
-          )}
+          <p className="mt-1.5 text-[11px] font-medium text-neutral-500">Categorias ativas</p>
+          <p className="text-lg font-semibold leading-tight text-neutral-900">{kpiLoading ? '—' : totalCatsAtivas}</p>
         </section>
-        <section className="rounded-[1.35rem] border border-neutral-800 bg-neutral-950 p-4 text-white sm:rounded-[1.5rem] sm:p-5">
-          <div className="mb-2 flex items-center justify-between">
-            <span className="rounded-full bg-white/10 p-2 text-[#c8f053]"><Database size={18} /></span>
-            <span className="text-[10px] font-semibold uppercase tracking-wide text-white/70">Backup</span>
+        <section className="rounded-xl border border-neutral-900 bg-neutral-950 px-3 py-2 text-white">
+          <div className="flex items-center justify-between">
+            <span className="rounded-md bg-white/10 p-1 text-[#c8f053]"><Database size={14} /></span>
+            <span className="text-[10px] font-medium uppercase tracking-wide text-white/60">Backup</span>
           </div>
-          <p className="text-xs font-medium text-white/60">Snapshots no servidor</p>
-          {kpiLoading ? (
-            <div className="mt-2 h-8 w-16 animate-pulse rounded-xl bg-white/10" />
-          ) : (
-            <p className="mt-1 text-xl font-semibold sm:text-2xl">{totalBackups}</p>
-          )}
+          <p className="mt-1.5 text-[11px] font-medium text-white/60">Snapshots no servidor</p>
+          <p className="text-lg font-semibold leading-tight">{kpiLoading ? '—' : totalBackups}</p>
         </section>
-      </div>
-
-      <div className={`${cardShell} p-2 sm:p-3`}>
-        <div className="-mx-0.5 flex gap-1.5 overflow-x-auto pb-0.5">
-          <button type="button" onClick={() => setAbaAtiva('geral')} className={`${configTabPill('geral')} flex items-center gap-1.5`}><SlidersHorizontal size={15}/> Geral</button>
-          <button type="button" onClick={() => setAbaAtiva('clinicas')} className={`${configTabPill('clinicas')} flex items-center gap-1.5`}><Building2 size={15}/> Clínicas</button>
-          <button type="button" onClick={() => setAbaAtiva('anamnese')} className={`${configTabPill('anamnese')} flex items-center gap-1.5`}><ClipboardList size={15}/> Anamnese</button>
-          <button type="button" onClick={() => setAbaAtiva('documentos')} className={`${configTabPill('documentos')} flex items-center gap-1.5`}><FileSignature size={15}/> Docs</button>
-          <button type="button" onClick={() => setAbaAtiva('planos')} className={`${configTabPill('planos')} flex items-center gap-1.5`}><Layers3 size={15}/> Planos</button>
-          <button type="button" onClick={() => setAbaAtiva('categorias')} className={`${configTabPill('categorias')} flex items-center gap-1.5`}><Tag size={15}/> Categorias</button>
-          <button type="button" onClick={() => setAbaAtiva('taxas')} className={`${configTabPill('taxas')} flex items-center gap-1.5`}><CreditCard size={15}/> Taxas</button>
-          <button type="button" onClick={() => setAbaAtiva('comunicacao')} className={`${configTabPill('comunicacao')} flex items-center gap-1.5`}><MessageCircle size={15}/> Comunicação</button>
-          <button type="button" onClick={() => setAbaAtiva('backup')} className={`${configTabPill('backup')} flex items-center gap-1.5`}><Database size={15}/> Backup</button>
-        </div>
       </div>
 
       {kpiLoading && clinicas.length === 0 ? (
@@ -968,7 +949,29 @@ export default function Configuracoes() {
           <div className="h-32 animate-pulse rounded-2xl bg-neutral-50" />
         </div>
       ) : (
-        <div className={`${cardShell} overflow-hidden`}>
+        <div className="flex min-h-[32rem] overflow-hidden rounded-xl border border-neutral-200 bg-white">
+          <nav aria-label="Seções de configuração" className="flex w-[12.75rem] shrink-0 flex-col border-r border-black/10 px-2 py-2 sm:w-56">
+            {CONFIG_NAVS.map((section) => {
+              const Icon = section.icon;
+              const active = abaAtiva === section.key;
+              const badge = section.key === 'clinicas' ? clinicas.length : section.key === 'anamnese' ? modelos.length : section.key === 'backup' ? totalBackups : null;
+              return (
+                <button
+                  key={section.key}
+                  type="button"
+                  onClick={() => setAbaAtiva(section.key)}
+                  className={`flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-sm leading-snug ${active ? 'bg-neutral-900 font-medium text-white' : 'font-medium text-neutral-600 hover:bg-[#f3f4f1]'}`}
+                >
+                  <Icon size={16} className="shrink-0" />
+                  <span className="min-w-0 flex-1">{section.label}</span>
+                  {badge != null && badge > 0 && (
+                    <span className={`text-[11px] font-medium tabular-nums ${active ? 'text-white/70' : 'text-neutral-400'}`}>{badge}</span>
+                  )}
+                </button>
+              );
+            })}
+          </nav>
+          <div className="min-w-0 flex-1">
             {/* ABA CLÍNICAS */}
             {abaAtiva === 'clinicas' && (
                 <section className={sectionPad}>
@@ -1373,6 +1376,7 @@ export default function Configuracoes() {
                     </section>
                 </div>
             )}
+          </div>
         </div>
       )}
     </div>
