@@ -2544,9 +2544,8 @@ export default function PacienteDetalhe() {
                                 </button>
                             </div>
 
-                            <div className="grid items-start gap-3 lg:grid-cols-2">
-                            <div className="min-w-0">
-                            <div className="min-w-0 overflow-x-auto rounded-xl border border-neutral-200 bg-white p-2">
+                            <div className={mostrar3D ? 'grid grid-cols-1 items-stretch gap-3 lg:grid-cols-[minmax(0,7fr)_minmax(0,3fr)]' : ''}>
+                            <div className="min-w-0 overflow-x-auto rounded-2xl border border-black/10 bg-white p-3 sm:p-5">
                                 <div className="flex w-max min-w-full justify-center">
                                     <div>
                                         {(() => {
@@ -2559,7 +2558,7 @@ export default function PacienteDetalhe() {
                                                         <div className="w-1 self-stretch border-l-2 border-dashed border-slate-300 mx-2"></div>
                                                         {quad.sup[1].map(n => <Tooth key={n} num={n} isUpper={true} esquematico={isEsq} state={odontograma[n] || { faces: {}, cond: 'normal' }} ferramenta={ferramenta} onApply={(f) => aplicarFerramenta(n, f)} />)}
                                                     </div>
-                                                    <div className="my-1.5 h-px bg-neutral-200"></div>
+                                                    <div className="h-px bg-gradient-to-r from-transparent via-slate-400 to-transparent my-3"></div>
                                                     <div className={`flex justify-center ${isEsq ? 'items-center' : 'items-start'}`}>
                                                         {quad.inf[0].map(n => <Tooth key={n} num={n} isUpper={false} esquematico={isEsq} state={odontograma[n] || { faces: {}, cond: 'normal' }} ferramenta={ferramenta} onApply={(f) => aplicarFerramenta(n, f)} />)}
                                                         <div className="w-1 self-stretch border-l-2 border-dashed border-slate-300 mx-2"></div>
@@ -2572,8 +2571,8 @@ export default function PacienteDetalhe() {
                                 </div>
                             </div>
 
-                            {mostrar3D ? (
-                                <div className="mt-2 flex h-64 min-w-0 flex-col overflow-hidden rounded-xl border border-neutral-200 bg-[#f8f8f6] p-2">
+                            {mostrar3D && (
+                                <div className="flex h-[min(52vh,480px)] min-h-[280px] min-w-0 flex-col overflow-hidden rounded-2xl border border-black/10 bg-[#f8f8f6] p-2 sm:p-3 lg:h-full">
                                     <div className="mb-2 flex items-center justify-between gap-2">
                                         <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-400">Vista 3D</span>
                                         <button
@@ -2593,18 +2592,22 @@ export default function PacienteDetalhe() {
                                         </p>
                                     )}
                                 </div>
-                            ) : (
-                                <button
-                                    type="button"
-                                    onClick={() => setMostrar3D(true)}
-                                    className="mt-2 inline-flex h-8 items-center justify-center rounded-md bg-neutral-900 px-3 text-xs font-medium text-white"
-                                >
-                                    Abrir vista 3D
-                                </button>
                             )}
                             </div>
 
-                            <div className="min-w-0">
+                            {!mostrar3D && (
+                                <div className="mt-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => setMostrar3D(true)}
+                                        className="inline-flex h-8 items-center justify-center rounded-md bg-neutral-900 px-3 text-xs font-medium text-white"
+                                    >
+                                        Abrir vista 3D
+                                    </button>
+                                </div>
+                            )}
+
+                            <div className="mt-6 border-t border-black/5 pt-4">
                                 <div className="mb-2 flex flex-wrap items-center gap-3">
                                     {marcacoesPendentes.length > 0 && (
                                         <button
@@ -2622,36 +2625,42 @@ export default function PacienteDetalhe() {
                                         )}
                                     </div>
                                 </div>
-                                <div className="overflow-hidden rounded-xl border border-neutral-200">
-                                    {marcacoesOdonto.length === 0 && <p className="px-3 py-4 text-sm text-neutral-400">Nenhuma marcação.</p>}
-                                    {marcacoesOdonto.map((m) => (
-                                        <div key={m.num} className={`grid grid-cols-[3.5rem_minmax(0,1fr)_auto] items-start gap-3 border-b border-neutral-100 px-3 py-2.5 last:border-b-0 ${m.precisaTratamento ? 'bg-amber-50/70' : 'bg-white'}`}>
-                                            <button
-                                                type="button"
-                                                onClick={() => abrirNovoTratamento([m.num])}
-                                                className="text-left text-sm font-semibold text-neutral-900"
-                                                title="Abrir tratamento deste dente"
-                                            >
-                                                #{m.num}
-                                            </button>
-                                            <div className="flex min-w-0 flex-wrap gap-1.5">
-                                                {m.cond !== 'normal' && (
-                                                    <span className="rounded-md bg-neutral-900 px-2 py-0.5 text-xs font-medium text-white">{ODONTO_TOOLS.find((tool) => tool.key === m.cond)?.label || m.cond}</span>
-                                                )}
-                                                {gruposDeFaces(m.faces).map(([status, nomes]) => (
-                                                    <span key={status} className="rounded-md bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-700">
-                                                        {nomes.join(', ')} · {status}
-                                                    </span>
+                                {marcacoesOdonto.length === 0 ? (
+                                    <p className="px-3 py-4 text-sm text-neutral-400">Nenhuma marcação.</p>
+                                ) : (
+                                    <div className="grid items-start gap-3 lg:grid-cols-2">
+                                        {[marcacoesOdonto.slice(0, Math.ceil(marcacoesOdonto.length / 2)), marcacoesOdonto.slice(Math.ceil(marcacoesOdonto.length / 2))].filter((fatia) => fatia.length > 0).map((fatia) => (
+                                            <div key={fatia[0].num} className="overflow-hidden rounded-xl border border-neutral-200">
+                                                {fatia.map((m) => (
+                                                    <div key={m.num} className={`grid grid-cols-[3.5rem_minmax(0,1fr)_auto] items-center gap-2 border-b border-neutral-100 px-3 py-2 last:border-b-0 ${m.precisaTratamento ? 'bg-amber-50/70' : 'bg-white'}`}>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => abrirNovoTratamento([m.num])}
+                                                            className="text-left text-sm font-semibold text-neutral-900"
+                                                            title="Abrir tratamento deste dente"
+                                                        >
+                                                            #{m.num}
+                                                        </button>
+                                                        <div className="flex min-w-0 flex-wrap gap-1.5">
+                                                            {m.cond !== 'normal' && (
+                                                                <span className="rounded-md bg-neutral-900 px-2 py-0.5 text-xs font-medium text-white">{ODONTO_TOOLS.find((tool) => tool.key === m.cond)?.label || m.cond}</span>
+                                                            )}
+                                                            {gruposDeFaces(m.faces).map(([status, nomes]) => (
+                                                                <span key={status} className="rounded-md bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-700">
+                                                                    {nomes.join(', ')} · {status}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                        <button type="button" onClick={() => limparDente(m.num)} className="inline-flex h-7 w-7 items-center justify-center rounded-md text-neutral-400 hover:bg-white hover:text-rose-600" aria-label={`Limpar dente ${m.num}`}><X size={14}/></button>
+                                                    </div>
                                                 ))}
                                             </div>
-                                            <button type="button" onClick={() => limparDente(m.num)} className="inline-flex h-7 w-7 items-center justify-center rounded-md text-neutral-400 hover:bg-white hover:text-rose-600" aria-label={`Limpar dente ${m.num}`}><X size={14}/></button>
-                                        </div>
-                                    ))}
-                                </div>
+                                        ))}
+                                    </div>
+                                )}
                                 {marcacoesPendentes.length > 0 && (
                                     <p className="mt-2 text-[11px] text-neutral-500">Clique em um dente para abrir o tratamento só dele, ou em Tratar marcações para incluir todos.</p>
                                 )}
-                            </div>
                             </div>
                             </>
                             )}
