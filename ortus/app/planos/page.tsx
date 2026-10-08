@@ -16,6 +16,7 @@ import {
     FileText,
     Pencil,
     Trash2,
+    X,
 } from 'lucide-react';
 import BentoPageShell from '@/components/bento/BentoPageShell';
 import { bentoCard, bentoChip, bentoChipOutline, bentoPrimaryBtn, bentoGhostBtn, bentoInput, bentoModalPanel } from '@/lib/bentoUi';
@@ -46,6 +47,7 @@ interface TratamentoBase {
     descricao: string | null;
     aceita_faces: boolean;
     valor_sugerido: number | null;
+    custo_padrao?: number | null;
     codigo_tuss_padrao: string | null;
     ativo: boolean;
 }
@@ -84,6 +86,14 @@ export function PlanosContent({ embedded = false }: { embedded?: boolean }) {
     const [criarPlanoVazio, setCriarPlanoVazio] = useState(false);
     const [criandoPlano, setCriandoPlano] = useState(false);
     const [editandoPlano, setEditandoPlano] = useState<Plano | null>(null);
+    const [modalEspAberto, setModalEspAberto] = useState(false);
+    const [espEditando, setEspEditando] = useState<Especialidade | null>(null);
+    const [espNome, setEspNome] = useState('');
+    const [salvandoEsp, setSalvandoEsp] = useState(false);
+    const [modalTratAberto, setModalTratAberto] = useState(false);
+    const [tratEditando, setTratEditando] = useState<TratamentoBase | null>(null);
+    const [tratForm, setTratForm] = useState({ nome: '', especialidade_id: '', valor: '', custo: '', tuss: '', aceita_faces: false });
+    const [salvandoTrat, setSalvandoTrat] = useState(false);
 
     function abrirModalNovoPlano() {
         setNovoPlanoNome('');
@@ -454,6 +464,111 @@ export function PlanosContent({ embedded = false }: { embedded?: boolean }) {
         }
     }
 
+    function abrirNovaEspecialidade() {
+        setEspEditando(null);
+        setEspNome('');
+        setModalEspAberto(true);
+    }
+
+    function abrirEditarEspecialidade(esp: Especialidade) {
+        setEspEditando(esp);
+        setEspNome(esp.nome);
+        setModalEspAberto(true);
+    }
+
+    async function salvarEspecialidade(e: FormEvent) {
+        e.preventDefault();
+        if (!clinicaId) return;
+        const nome = espNome.trim();
+        if (!nome) { showAlert('Informe o nome da especialidade.', { type: 'warning' }); return; }
+        setSalvandoEsp(true);
+        try {
+            if (espEditando) {
+                const { error } = await supabase.from('especialidades').update({ nome }).eq('id', espEditando.id).eq('clinica_id', clinicaId);
+                if (error) throw error;
+            } else {
+                const { error } = await supabase.from('especialidades').insert({ nome, clinica_id: clinicaId, ativo: true });
+                if (error) throw error;
+            }
+            setModalEspAberto(false);
+            await carregarEstrutura();
+        } catch (err: any) {
+            showAlert('Erro ao salvar a especialidade: ' + (err.message || err), { type: 'error' });
+        } finally {
+            setSalvandoEsp(false);
+        }
+    }
+
+    async function excluirEspecialidade(esp: Especialidade) {
+        if (!clinicaId) return;
+        if (!(await showConfirm(`Excluir a especialidade "${esp.nome}"?`, { title: 'Excluir', type: 'error', confirmLabel: 'Excluir' }))) return;
+        const { error } = await supabase.from('especialidades').delete().eq('id', esp.id).eq('clinica_id', clinicaId);
+        if (error) { showAlert('Não foi possível excluir: ' + error.message, { type: 'error' }); return; }
+        if (especialidadeAtiva === esp.id) setEspecialidadeAtiva('all');
+        await carregarEstrutura();
+    }
+
+    function abrirNovoTratamento() {
+        const espId = especialidadeAtiva && especialidadeAtiva !== 'all' ? especialidadeAtiva : (especialidades[0]?.id || '');
+        setTratEditando(null);
+        setTratForm({ nome: '', especialidade_id: espId, valor: '', custo: '', tuss: '', aceita_faces: false });
+        setModalTratAberto(true);
+    }
+
+    function abrirEditarTratamento(trat: TratamentoBase) {
+        setTratEditando(trat);
+        setTratForm({
+            nome: trat.nome,
+            especialidade_id: trat.especialidade_id || '',
+            valor: trat.valor_sugerido != null ? String(trat.valor_sugerido) : '',
+            custo: trat.custo_padrao != null ? String(trat.custo_padrao) : '',
+            tuss: trat.codigo_tuss_padrao || '',
+            aceita_faces: !!trat.aceita_faces,
+        });
+        setModalTratAberto(true);
+    }
+
+    async function salvarTratamento(e: FormEvent) {
+        e.preventDefault();
+        if (!clinicaId) return;
+        const nome = tratForm.nome.trim();
+        if (!nome || !tratForm.especialidade_id) { showAlert('Informe o nome e a especialidade.', { type: 'warning' }); return; }
+        const valor = tratForm.valor.trim() ? Number(tratForm.valor.replace(',', '.')) : null;
+        const custo = tratForm.custo.trim() ? Number(tratForm.custo.replace(',', '.')) : null;
+        setSalvandoTrat(true);
+        try {
+            const payload = {
+                nome,
+                especialidade_id: tratForm.especialidade_id,
+                valor_sugerido: Number.isFinite(valor as number) ? valor : null,
+                custo_padrao: Number.isFinite(custo as number) ? custo : null,
+                codigo_tuss_padrao: tratForm.tuss.trim() || null,
+                aceita_faces: tratForm.aceita_faces,
+            };
+            if (tratEditando) {
+                const { error } = await supabase.from('tratamentos_base').update(payload).eq('id', tratEditando.id).eq('clinica_id', clinicaId);
+                if (error) throw error;
+            } else {
+                const { error } = await supabase.from('tratamentos_base').insert({ ...payload, clinica_id: clinicaId, ativo: true });
+                if (error) throw error;
+            }
+            setModalTratAberto(false);
+            await carregarEstrutura();
+        } catch (err: any) {
+            showAlert('Erro ao salvar o tratamento: ' + (err.message || err), { type: 'error' });
+        } finally {
+            setSalvandoTrat(false);
+        }
+    }
+
+    async function excluirTratamento(trat: TratamentoBase) {
+        if (!clinicaId) return;
+        if (!(await showConfirm(`Excluir o tratamento "${trat.nome}"?`, { title: 'Excluir', type: 'error', confirmLabel: 'Excluir' }))) return;
+        const { error } = await supabase.from('tratamentos_base').delete().eq('id', trat.id).eq('clinica_id', clinicaId);
+        if (error) { showAlert('Não foi possível excluir: ' + error.message, { type: 'error' }); return; }
+        await carregarEstrutura();
+    }
+
     async function excluirPlano(plano: Plano) {
         if (plano.tipo === 'particular') {
             showAlert('O plano Particular não pode ser excluído.', { type: 'warning' });
@@ -522,7 +637,7 @@ export function PlanosContent({ embedded = false }: { embedded?: boolean }) {
                 </div>
             ) : (
                 <div className="flex shrink-0 items-center gap-2">
-                    <div className="min-w-0 max-w-sm flex-1">
+                    <div className="w-64 shrink-0">
                         <CustomSelect value={selectedPlanoId || ''} onChange={setSelectedPlanoId} options={planos.map((plano) => ({ value: plano.id, label: plano.nome }))} size="md" />
                     </div>
                     {(() => {
@@ -530,12 +645,12 @@ export function PlanosContent({ embedded = false }: { embedded?: boolean }) {
                         if (!planoSel || planoSel.tipo === 'particular') return null;
                         return (
                             <>
-                                <button type="button" onClick={() => abrirModalEditarPlano(planoSel)} className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-neutral-200 text-neutral-600 hover:bg-neutral-50" title="Editar"><Pencil size={15}/></button>
-                                <button type="button" onClick={() => excluirPlano(planoSel)} className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-neutral-200 text-neutral-400 hover:text-rose-600" title="Excluir"><Trash2 size={15}/></button>
+                                <button type="button" onClick={() => abrirModalEditarPlano(planoSel)} className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-neutral-200 text-neutral-600 hover:bg-neutral-50" title="Editar plano"><Pencil size={15}/></button>
+                                <button type="button" onClick={() => excluirPlano(planoSel)} className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-neutral-200 text-neutral-400 hover:text-rose-600" title="Excluir plano"><Trash2 size={15}/></button>
                             </>
                         );
                     })()}
-                    <button type="button" onClick={abrirModalNovoPlano} className="inline-flex h-10 shrink-0 items-center gap-1 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white"><Plus size={14}/> Novo</button>
+                    <button type="button" onClick={abrirModalNovoPlano} className="ml-auto inline-flex h-10 shrink-0 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800"><Plus size={14}/> Novo</button>
                 </div>
             )}
 
@@ -547,8 +662,13 @@ export function PlanosContent({ embedded = false }: { embedded?: boolean }) {
             )}
 
             {!carregando && planos.length > 0 && (
-                <div className="grid min-h-0 flex-1 grid-cols-1 gap-2 overflow-hidden md:grid-cols-[11rem_minmax(0,1fr)]">
-                    <aside className="min-h-0 overflow-y-auto rounded-xl border border-neutral-200 bg-white p-1.5">
+                <div className="grid min-h-0 flex-1 grid-cols-1 gap-2 overflow-hidden md:grid-cols-[minmax(16rem,22rem)_minmax(0,1fr)]">
+                    <aside className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white">
+                        <div className="flex items-center justify-between border-b border-black/5 px-3 py-2.5">
+                            <h3 className="text-sm font-semibold text-neutral-900">Especialidades</h3>
+                            <button type="button" onClick={abrirNovaEspecialidade} className="inline-flex h-8 items-center gap-1 rounded-md bg-neutral-900 px-2.5 text-xs font-medium text-white hover:bg-neutral-800"><Plus size={13}/> Novo</button>
+                        </div>
+                        <div className="min-h-0 flex-1 overflow-y-auto p-1.5">
                         <button
                             onClick={() => setEspecialidadeAtiva('all')}
                             className={`mb-1 flex w-full items-center justify-between rounded-md px-2.5 py-2 text-left text-sm font-medium ${especialidadeAtiva === 'all' ? 'bg-neutral-900 text-white' : 'text-neutral-700 hover:bg-neutral-50'}`}
@@ -557,30 +677,37 @@ export function PlanosContent({ embedded = false }: { embedded?: boolean }) {
                             <span className={especialidadeAtiva === 'all' ? 'text-white/70' : 'text-neutral-400'}>{tratamentosBase.length}</span>
                         </button>
                         {especialidadesComTotal.map((esp) => (
-                            <button
-                                key={esp.id}
-                                onClick={() => setEspecialidadeAtiva(esp.id)}
-                                className={`mb-1 flex w-full items-center justify-between rounded-md px-2.5 py-2 text-left text-sm font-medium ${especialidadeAtiva === esp.id ? 'bg-neutral-900 text-white' : 'text-neutral-700 hover:bg-neutral-50'}`}
-                            >
-                                <span className="truncate">{esp.nome}</span>
-                                <span className={especialidadeAtiva === esp.id ? 'text-white/70' : 'text-neutral-400'}>{esp.total}</span>
-                            </button>
+                            <div key={esp.id} className={`mb-1 flex items-center gap-1 rounded-md px-2 py-1.5 ${especialidadeAtiva === esp.id ? 'bg-neutral-900 text-white' : 'text-neutral-700 hover:bg-neutral-50'}`}>
+                                <button type="button" onClick={() => setEspecialidadeAtiva(esp.id)} className="flex min-w-0 flex-1 items-center justify-between text-left text-sm font-medium">
+                                    <span className="truncate">{esp.nome}</span>
+                                    <span className={`ml-2 ${especialidadeAtiva === esp.id ? 'text-white/70' : 'text-neutral-400'}`}>{esp.total}</span>
+                                </button>
+                                <button type="button" onClick={() => abrirEditarEspecialidade(esp)} className={`inline-flex h-7 w-7 items-center justify-center rounded-md ${especialidadeAtiva === esp.id ? 'text-white/80 hover:bg-white/10' : 'text-neutral-400 hover:bg-white'}`} title="Editar"><Pencil size={13}/></button>
+                                <button type="button" onClick={() => excluirEspecialidade(esp)} className={`inline-flex h-7 w-7 items-center justify-center rounded-md ${especialidadeAtiva === esp.id ? 'text-white/80 hover:bg-white/10' : 'text-neutral-400 hover:bg-white hover:text-rose-600'}`} title="Excluir"><Trash2 size={13}/></button>
+                            </div>
                         ))}
+                        </div>
                     </aside>
                     <section className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white">
+                        <div className="flex items-center justify-between border-b border-black/5 px-3 py-2.5">
+                            <h3 className="text-sm font-semibold text-neutral-900">Tratamentos</h3>
+                            <button type="button" onClick={abrirNovoTratamento} className="inline-flex h-8 items-center gap-1 rounded-md bg-neutral-900 px-2.5 text-xs font-medium text-white hover:bg-neutral-800"><Plus size={13}/> Novo</button>
+                        </div>
                         {tratamentosFiltrados.length === 0 ? (
                             <div className="p-8 text-center text-sm text-neutral-500">
                                 Nenhum tratamento cadastrado para esta especialidade.
                             </div>
                         ) : (
                             <>
-                                <div className="hidden shrink-0 sm:grid sm:grid-cols-[minmax(0,1.4fr)_88px_72px_72px_52px_52px_36px] gap-1 border-b border-neutral-100 bg-neutral-50 px-2 py-1.5 text-[11px] font-medium text-neutral-500">
+                                <div className="hidden shrink-0 sm:grid sm:grid-cols-[minmax(0,1.4fr)_88px_72px_72px_52px_52px_28px_28px_28px] gap-1 border-b border-neutral-100 bg-neutral-50 px-2 py-1.5 text-[11px] font-medium text-neutral-500">
                                     <span>Tratamento</span>
                                     <span>Valor</span>
                                     <span>Custo</span>
                                     <span>TUSS</span>
                                     <span className="text-center">Faces</span>
                                     <span className="text-center">Ativo</span>
+                                    <span />
+                                    <span />
                                     <span />
                                 </div>
                                 <div className="min-h-0 flex-1 divide-y divide-neutral-100 overflow-y-auto">
@@ -589,7 +716,7 @@ export function PlanosContent({ embedded = false }: { embedded?: boolean }) {
                                 const dirty = dirtyTratamentos[tratamento.id];
                                 const salvando = salvandoTratamentoId === tratamento.id;
                                 return (
-                                    <div key={tratamento.id} className={`grid grid-cols-1 items-center gap-1 px-2 py-1.5 sm:grid-cols-[minmax(0,1.4fr)_88px_72px_72px_52px_52px_36px] ${dirty ? 'bg-amber-50/70' : 'hover:bg-neutral-50'}`}>
+                                    <div key={tratamento.id} className={`grid grid-cols-1 items-center gap-1 px-2 py-1.5 sm:grid-cols-[minmax(0,1.4fr)_88px_72px_72px_52px_52px_28px_28px_28px] ${dirty ? 'bg-amber-50/70' : 'hover:bg-neutral-50'}`}>
                                         <div className="min-w-0 pr-1">
                                             <p className="truncate text-sm font-medium text-neutral-900">{tratamento.nome}</p>
                                         </div>
@@ -637,11 +764,13 @@ export function PlanosContent({ embedded = false }: { embedded?: boolean }) {
                                             type="button"
                                             disabled={!dirty || salvando}
                                             onClick={() => salvarPlanoTratamento(tratamento.id)}
-                                            className="flex items-center justify-center rounded-lg bg-neutral-900 p-1 text-white disabled:bg-neutral-200 disabled:text-neutral-400"
-                                            title="Salvar"
+                                            className="flex h-8 w-7 items-center justify-center rounded-md bg-neutral-900 text-white disabled:bg-neutral-200 disabled:text-neutral-400"
+                                            title="Salvar valor"
                                         >
                                             {salvando ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
                                         </button>
+                                        <button type="button" onClick={() => abrirEditarTratamento(tratamento)} className="inline-flex h-8 w-7 items-center justify-center rounded-md border border-neutral-200 text-neutral-500 hover:bg-neutral-50" title="Editar"><Pencil size={13}/></button>
+                                        <button type="button" onClick={() => excluirTratamento(tratamento)} className="inline-flex h-8 w-7 items-center justify-center rounded-md border border-neutral-200 text-neutral-400 hover:text-rose-600" title="Excluir"><Trash2 size={13}/></button>
                                     </div>
                                 );
                             })}
@@ -652,51 +781,93 @@ export function PlanosContent({ embedded = false }: { embedded?: boolean }) {
                 </div>
             )}
 
-            <Modal open={modalPlanoAberto} onClose={() => setModalPlanoAberto(false)} maxWidth="lg" hideCloseButton panelClassName="overflow-hidden rounded-xl border border-neutral-200 bg-white">
-                <div>
-                    <div className="border-b border-neutral-200 px-5 py-4">
-                        <h2 className="text-base font-semibold text-neutral-900">{editandoPlano ? 'Editar plano' : 'Novo plano'}</h2>
-                        <p className="mt-1 text-xs text-neutral-500">{editandoPlano ? 'Altere nome e observações do plano.' : 'Por padrão, todos os tratamentos entram ativos no plano.'}</p>
+            <Modal open={modalPlanoAberto} onClose={() => setModalPlanoAberto(false)} maxWidth="lg" hideCloseButton panelClassName="overflow-visible rounded-xl border border-neutral-200 bg-white">
+                <form onSubmit={handleCriarPlano} className="px-5 py-4 sm:px-6 sm:py-5">
+                    <div className="mb-5 flex items-start justify-between gap-3 border-b border-black/5 pb-4">
+                        <div>
+                            <h2 className="text-lg font-semibold text-neutral-900">{editandoPlano ? 'Editar plano' : 'Novo plano'}</h2>
+                            <p className="mt-0.5 text-xs font-medium text-neutral-400">{editandoPlano ? 'Nome e observações do plano.' : 'Os tratamentos entram ativos, salvo se o plano nascer vazio.'}</p>
+                        </div>
+                        <button type="button" onClick={() => { setModalPlanoAberto(false); setEditandoPlano(null); }} className="rounded-full p-2 text-neutral-400 hover:bg-neutral-100" aria-label="Fechar"><X size={18}/></button>
                     </div>
-                    <form onSubmit={handleCriarPlano} className="space-y-3 p-5">
-                        <div>
-                            <label className="mb-1 block text-xs font-medium text-neutral-500">Nome do plano</label>
-                            <input
-                                value={novoPlanoNome}
-                                onChange={(e) => setNovoPlanoNome(e.target.value)}
-                                className="h-9 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-900 outline-none focus:border-neutral-900"
-                                placeholder="Ex.: Amil Dental, SulAmérica, Uniodonto..."
-                            />
-                        </div>
-                        <div>
-                            <label className="mb-1 block text-xs font-medium text-neutral-500">Observações</label>
-                            <textarea
-                                value={novoPlanoObservacoes}
-                                onChange={(e) => setNovoPlanoObservacoes(e.target.value)}
-                                rows={2}
-                                className="w-full resize-none rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 outline-none focus:border-neutral-900"
-                                placeholder="Notas sobre cobertura, TUSS, glosas..."
-                            />
-                        </div>
+                    <div className="grid grid-cols-1 gap-x-3 gap-y-2.5">
+                        <label>
+                            <span className="mb-1.5 block text-xs font-medium text-neutral-500">Nome</span>
+                            <input value={novoPlanoNome} onChange={(e) => setNovoPlanoNome(e.target.value)} className="box-border h-10 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm text-neutral-900 outline-none placeholder:text-neutral-400 focus:border-neutral-900" placeholder="Amil Dental, SulAmérica, Uniodonto"/>
+                        </label>
+                        <label>
+                            <span className="mb-1.5 block text-xs font-medium text-neutral-500">Observações</span>
+                            <textarea value={novoPlanoObservacoes} onChange={(e) => setNovoPlanoObservacoes(e.target.value)} rows={2} className="w-full resize-none rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 outline-none placeholder:text-neutral-400 focus:border-neutral-900" placeholder="Cobertura, TUSS, glosas"/>
+                        </label>
                         {!editandoPlano && (
-                            <label className="flex cursor-pointer items-center gap-2 rounded-md border border-neutral-200 px-3 py-2">
-                                <input type="checkbox" checked={criarPlanoVazio} onChange={(e) => setCriarPlanoVazio(e.target.checked)} className="rounded text-neutral-900"/>
-                                <span className="text-sm font-medium text-neutral-700">Criar plano vazio</span>
-                            </label>
-                        )}
-                        <div className="flex items-center justify-end gap-2 pt-1">
-                            <button type="button" onClick={() => { setModalPlanoAberto(false); setEditandoPlano(null); }} className="h-9 rounded-md px-3 text-sm font-medium text-neutral-500 hover:bg-neutral-50">Cancelar</button>
-                            <button
-                                type="submit"
-                                disabled={criandoPlano || !novoPlanoNome.trim()}
-                                className="inline-flex h-9 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50"
-                            >
-                                {criandoPlano ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
-                                {editandoPlano ? 'Salvar alterações' : criarPlanoVazio ? 'Criar plano vazio' : 'Criar plano'}
+                            <button type="button" onClick={() => setCriarPlanoVazio((v) => !v)} className={`flex h-10 items-center justify-between rounded-md border px-3 text-sm font-medium ${criarPlanoVazio ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-200 text-neutral-700'}`}>
+                                Criar plano vazio
+                                <span className={`h-5 w-9 rounded-full p-0.5 ${criarPlanoVazio ? 'bg-white/30' : 'bg-neutral-200'}`}><span className={`block h-4 w-4 rounded-full bg-white ${criarPlanoVazio ? 'ml-auto' : ''}`} /></span>
                             </button>
-                        </div>
-                    </form>
-                </div>
+                        )}
+                    </div>
+                    <div className="mt-5 flex justify-end border-t border-black/5 pt-4">
+                        <button type="submit" disabled={criandoPlano || !novoPlanoNome.trim()} className="inline-flex h-10 items-center gap-2 rounded-full bg-neutral-900 px-5 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-40">
+                            {criandoPlano ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}
+                            {editandoPlano ? 'Salvar' : 'Cadastrar'}
+                        </button>
+                    </div>
+                </form>
+            </Modal>
+            <Modal open={modalEspAberto} onClose={() => setModalEspAberto(false)} maxWidth="md" hideCloseButton panelClassName="overflow-visible rounded-xl border border-neutral-200 bg-white">
+                <form onSubmit={salvarEspecialidade} className="px-5 py-4 sm:px-6 sm:py-5">
+                    <div className="mb-5 flex items-start justify-between gap-3 border-b border-black/5 pb-4">
+                        <h2 className="text-lg font-semibold text-neutral-900">{espEditando ? 'Editar especialidade' : 'Nova especialidade'}</h2>
+                        <button type="button" onClick={() => setModalEspAberto(false)} className="rounded-full p-2 text-neutral-400 hover:bg-neutral-100" aria-label="Fechar"><X size={18}/></button>
+                    </div>
+                    <label>
+                        <span className="mb-1.5 block text-xs font-medium text-neutral-500">Nome</span>
+                        <input value={espNome} onChange={(e) => setEspNome(e.target.value)} className="box-border h-10 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm text-neutral-900 outline-none placeholder:text-neutral-400 focus:border-neutral-900" placeholder="Ortodontia, Endodontia"/>
+                    </label>
+                    <div className="mt-5 flex justify-end border-t border-black/5 pt-4">
+                        <button type="submit" disabled={salvandoEsp || !espNome.trim()} className="inline-flex h-10 items-center gap-2 rounded-full bg-neutral-900 px-5 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-40">
+                            {salvandoEsp ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />} Salvar
+                        </button>
+                    </div>
+                </form>
+            </Modal>
+            <Modal open={modalTratAberto} onClose={() => setModalTratAberto(false)} maxWidth="lg" hideCloseButton panelClassName="overflow-visible rounded-xl border border-neutral-200 bg-white">
+                <form onSubmit={salvarTratamento} className="px-5 py-4 sm:px-6 sm:py-5">
+                    <div className="mb-5 flex items-start justify-between gap-3 border-b border-black/5 pb-4">
+                        <h2 className="text-lg font-semibold text-neutral-900">{tratEditando ? 'Editar tratamento' : 'Novo tratamento'}</h2>
+                        <button type="button" onClick={() => setModalTratAberto(false)} className="rounded-full p-2 text-neutral-400 hover:bg-neutral-100" aria-label="Fechar"><X size={18}/></button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-2.5">
+                        <label className="col-span-2">
+                            <span className="mb-1.5 block text-xs font-medium text-neutral-500">Nome</span>
+                            <input value={tratForm.nome} onChange={(e) => setTratForm({ ...tratForm, nome: e.target.value })} className="box-border h-10 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm text-neutral-900 outline-none focus:border-neutral-900" placeholder="Nome do tratamento"/>
+                        </label>
+                        <label className="col-span-2">
+                            <span className="mb-1.5 block text-xs font-medium text-neutral-500">Especialidade</span>
+                            <CustomSelect value={tratForm.especialidade_id} onChange={(v) => setTratForm({ ...tratForm, especialidade_id: v })} options={especialidades.map((esp) => ({ value: esp.id, label: esp.nome }))} size="md" placeholder="Selecione"/>
+                        </label>
+                        <label>
+                            <span className="mb-1.5 block text-xs font-medium text-neutral-500">Valor</span>
+                            <input value={tratForm.valor} onChange={(e) => setTratForm({ ...tratForm, valor: e.target.value })} className="box-border h-10 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm text-neutral-900 outline-none focus:border-neutral-900" placeholder="0"/>
+                        </label>
+                        <label>
+                            <span className="mb-1.5 block text-xs font-medium text-neutral-500">Custo</span>
+                            <input value={tratForm.custo} onChange={(e) => setTratForm({ ...tratForm, custo: e.target.value })} className="box-border h-10 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm text-neutral-900 outline-none focus:border-neutral-900" placeholder="0"/>
+                        </label>
+                        <label>
+                            <span className="mb-1.5 block text-xs font-medium text-neutral-500">TUSS</span>
+                            <input value={tratForm.tuss} onChange={(e) => setTratForm({ ...tratForm, tuss: e.target.value })} className="box-border h-10 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm text-neutral-900 outline-none focus:border-neutral-900"/>
+                        </label>
+                        <button type="button" onClick={() => setTratForm({ ...tratForm, aceita_faces: !tratForm.aceita_faces })} className={`mt-5 h-10 rounded-md border text-sm font-medium ${tratForm.aceita_faces ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-200 text-neutral-600'}`}>
+                            {tratForm.aceita_faces ? 'Aceita faces' : 'Sem faces'}
+                        </button>
+                    </div>
+                    <div className="mt-5 flex justify-end border-t border-black/5 pt-4">
+                        <button type="submit" disabled={salvandoTrat || !tratForm.nome.trim()} className="inline-flex h-10 items-center gap-2 rounded-full bg-neutral-900 px-5 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-40">
+                            {salvandoTrat ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />} Salvar
+                        </button>
+                    </div>
+                </form>
             </Modal>
         </div>
     );

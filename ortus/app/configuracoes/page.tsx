@@ -158,7 +158,6 @@ export default function Configuracoes() {
   const [corCatAberta, setCorCatAberta] = useState(false);
   const [docsBusca, setDocsBusca] = useState('');
   const [docsTipo, setDocsTipo] = useState('todos');
-  const [docsFiltrosAbertos, setDocsFiltrosAbertos] = useState(false);
   const [docsVisualizacao, setDocsVisualizacao] = useState<'lista' | 'grade'>('grade');
   const [modalCatFin, setModalCatFin] = useState(false);
   const [catFinEdit, setCatFinEdit] = useState<CategoriaFinanceira | null>(null);
@@ -1138,26 +1137,14 @@ export default function Configuracoes() {
                                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" size={16}/>
                                     <input value={docsBusca} onChange={e => setDocsBusca(e.target.value)} placeholder="Buscar modelo" className="h-10 w-full rounded-full border border-black/10 bg-[#f8f8f6] py-2 pl-9 pr-3 text-sm outline-none placeholder:text-neutral-400 focus:border-neutral-400"/>
                                 </div>
-                                <button type="button" onClick={() => setDocsFiltrosAbertos(v => !v)} className={`inline-flex h-10 items-center gap-2 rounded-full border px-4 text-sm font-medium ${docsFiltrosAbertos || docsTipo !== 'todos' ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-black/10 text-neutral-700 hover:bg-neutral-50'}`}>
-                                    <Filter size={15}/> Filtros
-                                    {docsTipo !== 'todos' && <span className="h-1.5 w-1.5 rounded-full bg-[#c8f053]"></span>}
-                                </button>
+                                <div className="w-40 shrink-0">
+                                    <CustomSelect pill value={docsTipo} onChange={setDocsTipo} options={[{value:'todos',label:'Tipo'},{value:'contrato',label:'Contrato'},{value:'receita',label:'Receita'},{value:'atestado',label:'Atestado'},{value:'outro',label:'Outro'}]} size="sm"/>
+                                </div>
                                 <div className="flex rounded-full border border-black/10 bg-[#f3f4f1] p-0.5">
                                     <button type="button" onClick={() => setDocsVisualizacao('lista')} className={`rounded-full p-2 ${docsVisualizacao === 'lista' ? 'bg-neutral-900 text-white' : 'text-neutral-500'}`} aria-label="Lista"><List size={16}/></button>
                                     <button type="button" onClick={() => setDocsVisualizacao('grade')} className={`rounded-full p-2 ${docsVisualizacao === 'grade' ? 'bg-neutral-900 text-white' : 'text-neutral-500'}`} aria-label="Grade"><LayoutGrid size={16}/></button>
                                 </div>
                             </div>
-                            {docsFiltrosAbertos && (
-                                <div className="flex items-end gap-2 border-t border-black/5 pt-3">
-                                    <div className="min-w-0 max-w-xs flex-1">
-                                        <label className="mb-1 block text-[10px] font-medium uppercase tracking-wide text-neutral-400">Tipo</label>
-                                        <CustomSelect pill value={docsTipo} onChange={setDocsTipo} options={[{value:'todos',label:'Todos'},{value:'contrato',label:'Contrato'},{value:'receita',label:'Receita'},{value:'atestado',label:'Atestado'},{value:'outro',label:'Outro'}]} size="sm"/>
-                                    </div>
-                                    {(docsTipo !== 'todos' || docsBusca.trim()) && (
-                                        <button type="button" onClick={() => { setDocsTipo('todos'); setDocsBusca(''); }} className="inline-flex h-10 items-center gap-1 text-sm font-medium text-neutral-500 hover:text-neutral-900"><X size={14}/> Limpar</button>
-                                    )}
-                                </div>
-                            )}
                         </div>
 
                         {(() => {
@@ -1293,7 +1280,7 @@ export default function Configuracoes() {
                     salvarTaxas(lista);
                 };
                 const linha = (nome: string, amostra: TaxaMaquininha, grupo: TaxaMaquininha[]) => (
-                    <div key={nome} className={`grid grid-cols-[minmax(0,1fr)_4.5rem_3.25rem_2rem] items-center gap-2 px-1 py-1 ${amostra.ativo ? '' : 'opacity-45'}`}>
+                    <div key={nome} className={`grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_4.5rem_3.25rem_2rem] items-center gap-2 px-1 ${amostra.ativo ? '' : 'opacity-45'}`}>
                         <p className="truncate text-sm font-medium text-neutral-900">{nome}</p>
                         <input type="number" step="0.01" min="0" max="100" value={amostra.taxa_percentual} onChange={e => aplicarGrupo(grupo, 'taxa_percentual', parseFloat(e.target.value) || 0)} className="h-8 w-full rounded-md border border-neutral-200 bg-white px-2 text-xs font-medium text-neutral-900 outline-none focus:border-neutral-900" aria-label="Taxa" />
                         <input type="number" min="0" value={amostra.prazo_recebimento_dias} onChange={e => aplicarGrupo(grupo, 'prazo_recebimento_dias', parseInt(e.target.value) || 0)} className="h-8 w-full rounded-md border border-neutral-200 bg-white px-2 text-xs font-medium text-neutral-900 outline-none focus:border-neutral-900" aria-label="Prazo" />
@@ -1301,18 +1288,18 @@ export default function Configuracoes() {
                     </div>
                 );
                 const coluna = (titulo: string, linhas: React.ReactNode) => (
-                    <section className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white">
+                    <section className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white">
                         <div className="border-b border-black/5 px-3 py-2.5">
                             <h3 className="text-sm font-semibold text-neutral-900">{titulo}</h3>
                         </div>
-                        <div className="p-2">
-                            <div className="grid grid-cols-[minmax(0,1fr)_4.5rem_3.25rem_2rem] gap-2 px-1 pb-1">
-                                <span />
+                        <div className="flex min-h-0 flex-1 flex-col p-2">
+                            <div className="grid shrink-0 grid-cols-[minmax(0,1fr)_4.5rem_3.25rem_2rem] gap-2 px-1 pb-1">
+                                <span className="text-[11px] font-medium text-neutral-500">Pagamento</span>
                                 <span className="text-[11px] font-medium text-neutral-500">Taxa</span>
                                 <span className="text-[11px] font-medium text-neutral-500">Prazo</span>
                                 <span />
                             </div>
-                            {linhas}
+                            <div className="flex min-h-0 flex-1 flex-col">{linhas}</div>
                         </div>
                     </section>
                 );
@@ -1531,9 +1518,9 @@ export default function Configuracoes() {
       </Modal>
 
       {/* MODAL CATEGORIA FINANCEIRA */}
-      <Modal open={modalCatFin && !!catFinEdit} onClose={() => { setModalCatFin(false); setCatFinEdit(null); }} maxWidth="md" hideCloseButton>
+      <Modal open={modalCatFin && !!catFinEdit} onClose={() => { setModalCatFin(false); setCatFinEdit(null); setCorCatAberta(false); }} maxWidth="md" hideCloseButton panelClassName="!overflow-visible">
           {catFinEdit && (
-          <div className="w-full overflow-hidden rounded-xl border border-neutral-200 bg-white">
+          <div className="w-full rounded-xl border border-neutral-200 bg-white">
               <div className="flex items-center justify-between border-b border-neutral-200 px-4 py-3">
                   <h3 className="text-base font-semibold text-neutral-900">{catsFin.find(c => c.id === catFinEdit.id) ? 'Editar categoria' : 'Nova categoria'}</h3>
                   <button onClick={() => { setModalCatFin(false); setCatFinEdit(null); }} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-50"><X size={16}/></button>
@@ -1560,7 +1547,7 @@ export default function Configuracoes() {
                           <ChevronDown size={16} className={`text-neutral-400 ${corCatAberta ? 'rotate-180' : ''}`} />
                       </button>
                       {corCatAberta && (
-                          <div className="absolute left-0 right-0 z-20 mt-1 rounded-xl border border-neutral-200 bg-white p-3 shadow-[0_8px_24px_rgba(0,0,0,0.08)]">
+                          <div className="mt-2 rounded-xl border border-neutral-200 bg-[#f8f8f6] p-3">
                               <p className="mb-2 text-xs font-medium text-neutral-500">Predefinidas</p>
                               <div className="grid grid-cols-6 gap-1.5">
                                   {CORES_CATEGORIA.map((cor) => (
