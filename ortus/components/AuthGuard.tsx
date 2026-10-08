@@ -22,6 +22,7 @@ import {
   mergeProfilFromSession,
   PROFILE_PATCH_EVENT,
   readProfileSession,
+  writeProfileSession,
   type ProfileSessionSnapshot,
 } from '@/lib/profileSession';
 
@@ -34,12 +35,14 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<any>(null);
   const [perfil, setPerfil] = useState<any>(() => {
     const boot = readProfileSession();
-    if (!boot?.foto_url && !boot?.nome) return null;
+    const saas = boot?.is_super_admin === true || readSuperAdminCache();
+    if (!boot?.foto_url && !boot?.nome && !saas) return null;
     return {
-      foto_url: boot.foto_url ?? null,
-      nome: boot.nome ?? null,
-      cargo: boot.cargo ?? null,
-      nivel_acesso: boot.nivel_acesso ?? null,
+      foto_url: boot?.foto_url ?? null,
+      nome: boot?.nome ?? null,
+      cargo: boot?.cargo ?? null,
+      nivel_acesso: boot?.nivel_acesso ?? null,
+      is_super_admin: saas,
     };
   });
   // Se já existe cookie de auth, renderiza a casca imediatamente (sem spinner)
@@ -60,10 +63,6 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     validarSessao();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  useEffect(() => {
-    if (perfil) writeSuperAdminCache(!!perfil.is_super_admin);
-  }, [perfil?.is_super_admin]);
 
   useEffect(() => {
     if (!sessaoPronta.current || !session || !perfil) return;
@@ -174,8 +173,16 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
 
     const { data: prof } = await supabase.from('profissionais').select('*').eq('user_id', sess.user.id).single();
     if (prof) {
-      setPerfil(mergeProfilFromSession(prof));
-      writeSuperAdminCache(!!prof.is_super_admin);
+      const saas = prof.is_super_admin === true || (prof.is_super_admin == null && (readSuperAdminCache() || readProfileSession()?.is_super_admin === true));
+      if (prof.is_super_admin != null) writeSuperAdminCache(saas);
+      writeProfileSession({
+        foto_url: prof.foto_url ?? null,
+        nome: prof.nome,
+        cargo: prof.cargo,
+        nivel_acesso: prof.nivel_acesso,
+        is_super_admin: saas,
+      });
+      setPerfil(mergeProfilFromSession({ ...prof, is_super_admin: saas }));
       if (prof.precisa_trocar_senha && pathname !== '/primeiro-acesso') {
         router.replace('/primeiro-acesso');
         setLoading(false);
@@ -258,7 +265,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
               showTarefas: !permissoesResolvidas || canAccessModule('agenda'),
               showEquipe: !permissoesResolvidas || canAccessModule('configuracoes'),
               showTratamentosBase: !permissoesResolvidas || canAccessModule('configuracoes'),
-              showPainelSaas: !!perfil?.is_super_admin || (!perfil && readSuperAdminCache()),
+              showPainelSaas: perfil?.is_super_admin === true || readSuperAdminCache(),
               tarefasBadge: tarefasPendentes,
               profilePhotoUrl: perfil?.foto_url ?? null,
               profileName: perfil?.nome ?? null,

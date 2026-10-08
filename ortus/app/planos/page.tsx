@@ -502,7 +502,7 @@ export function PlanosContent({ embedded = false }: { embedded?: boolean }) {
     const carregando = planosLoading || estruturaLoading || (selectedPlanoId !== null && planoTratamentosLoading);
 
     const content = (
-        <div className="space-y-5">
+        <div className="flex h-full min-h-0 flex-1 flex-col gap-2 overflow-hidden">
 
             {planosLoading && planos.length === 0 ? (
                 <div className="space-y-3">
@@ -520,29 +520,24 @@ export function PlanosContent({ embedded = false }: { embedded?: boolean }) {
                     </button>
                 </div>
             ) : (
-                <div className="flex flex-wrap gap-2">
+                <div className="flex shrink-0 items-center gap-2 overflow-x-auto">
                     {planos.map((plano) => {
                         const ativo = plano.id === selectedPlanoId;
                         return (
-                            <div key={plano.id} className={`inline-flex items-center gap-1 rounded-xl transition-all ${bentoChipOutline(!!ativo)} ${ativo ? 'shadow-sm' : ''}`}>
-                                <button
-                                    onClick={() => setSelectedPlanoId(plano.id)}
-                                    className={`touch-target inline-flex items-center gap-2 px-3 py-2 text-sm ${ativo ? '' : 'text-neutral-600'}`}
-                                >
-                                    <span className="font-bold">{plano.nome}</span>
-                                    <span className={`text-[9px] uppercase font-black tracking-wider px-1.5 py-0.5 rounded ${ativo ? 'bg-neutral-200 text-neutral-700' : 'bg-neutral-100 text-neutral-400'}`}>
-                                        {plano.tipo === 'particular' ? 'Padrão' : 'Plano'}
-                                    </span>
+                            <div key={plano.id} className={`inline-flex h-9 shrink-0 items-center gap-1 rounded-md border px-1 ${ativo ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-200 bg-white text-neutral-800'}`}>
+                                <button type="button" onClick={() => setSelectedPlanoId(plano.id)} className="px-2 text-sm font-medium">
+                                    {plano.nome}
                                 </button>
                                 {plano.tipo !== 'particular' && (
                                     <>
-                                        <button type="button" onClick={() => abrirModalEditarPlano(plano)} className="p-1.5 text-neutral-400 hover:text-neutral-900" title="Editar"><Pencil size={14}/></button>
-                                        <button type="button" onClick={() => excluirPlano(plano)} className="p-1.5 pr-2 text-neutral-400 hover:text-rose-600" title="Excluir"><Trash2 size={14}/></button>
+                                        <button type="button" onClick={() => abrirModalEditarPlano(plano)} className={`rounded-md p-1 ${ativo ? 'text-white/70 hover:text-white' : 'text-neutral-400 hover:text-neutral-900'}`} title="Editar"><Pencil size={13}/></button>
+                                        <button type="button" onClick={() => excluirPlano(plano)} className={`rounded-md p-1 ${ativo ? 'text-white/70 hover:text-white' : 'text-neutral-400 hover:text-rose-600'}`} title="Excluir"><Trash2 size={13}/></button>
                                     </>
                                 )}
                             </div>
                         );
                     })}
+                    <button type="button" onClick={abrirModalNovoPlano} className="inline-flex h-9 shrink-0 items-center gap-1 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white"><Plus size={14}/> Novo</button>
                 </div>
             )}
 
@@ -554,35 +549,34 @@ export function PlanosContent({ embedded = false }: { embedded?: boolean }) {
             )}
 
             {!carregando && planos.length > 0 && (
-                <div className="grid grid-cols-1 md:grid-cols-[220px,1fr] gap-4">
-                    <aside className={`${bentoCard} border border-black/10 p-3`}>
-                        <p className="text-[10px] font-black uppercase tracking-wider text-neutral-400 mb-2 px-1">Especialidades</p>
+                <div className="grid min-h-0 flex-1 grid-cols-1 gap-2 overflow-hidden md:grid-cols-[11rem_minmax(0,1fr)]">
+                    <aside className="min-h-0 overflow-y-auto rounded-xl border border-neutral-200 bg-white p-1.5">
                         <button
                             onClick={() => setEspecialidadeAtiva('all')}
-                            className={`touch-target mb-1 flex w-full items-center justify-between rounded-xl px-3 py-2 text-xs font-bold ${bentoChipOutline(especialidadeAtiva === 'all')}`}
+                            className={`mb-1 flex w-full items-center justify-between rounded-md px-2.5 py-2 text-left text-sm font-medium ${especialidadeAtiva === 'all' ? 'bg-neutral-900 text-white' : 'text-neutral-700 hover:bg-neutral-50'}`}
                         >
                             <span>Todas</span>
-                            <span className="text-[10px] font-black text-neutral-400">{tratamentosBase.length}</span>
+                            <span className={especialidadeAtiva === 'all' ? 'text-white/70' : 'text-neutral-400'}>{tratamentosBase.length}</span>
                         </button>
                         {especialidadesComTotal.map((esp) => (
                             <button
                                 key={esp.id}
                                 onClick={() => setEspecialidadeAtiva(esp.id)}
-                                className={`touch-target mb-1 flex w-full items-center justify-between rounded-xl px-3 py-2 text-xs font-bold ${bentoChipOutline(especialidadeAtiva === esp.id)}`}
+                                className={`mb-1 flex w-full items-center justify-between rounded-md px-2.5 py-2 text-left text-sm font-medium ${especialidadeAtiva === esp.id ? 'bg-neutral-900 text-white' : 'text-neutral-700 hover:bg-neutral-50'}`}
                             >
                                 <span className="truncate">{esp.nome}</span>
-                                <span className="text-[10px] font-black text-neutral-400">{esp.total}</span>
+                                <span className={especialidadeAtiva === esp.id ? 'text-white/70' : 'text-neutral-400'}>{esp.total}</span>
                             </button>
                         ))}
                     </aside>
-                    <section className={`${bentoCard} overflow-hidden border border-black/10`}>
+                    <section className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white">
                         {tratamentosFiltrados.length === 0 ? (
                             <div className="p-8 text-center text-sm text-neutral-500">
                                 Nenhum tratamento cadastrado para esta especialidade.
                             </div>
                         ) : (
                             <>
-                                <div className="hidden sm:grid sm:grid-cols-[minmax(0,1.4fr)_88px_72px_72px_52px_52px_36px] gap-1 px-2 py-1.5 bg-neutral-50 border-b border-neutral-100 text-[9px] font-black uppercase tracking-wider text-neutral-400">
+                                <div className="hidden shrink-0 sm:grid sm:grid-cols-[minmax(0,1.4fr)_88px_72px_72px_52px_52px_36px] gap-1 border-b border-neutral-100 bg-neutral-50 px-2 py-1.5 text-[11px] font-medium text-neutral-500">
                                     <span>Tratamento</span>
                                     <span>Valor</span>
                                     <span>Custo</span>
@@ -591,15 +585,15 @@ export function PlanosContent({ embedded = false }: { embedded?: boolean }) {
                                     <span className="text-center">Ativo</span>
                                     <span />
                                 </div>
-                                <div className="divide-y divide-neutral-100 max-h-[calc(100vh-320px)] overflow-y-auto">
+                                <div className="min-h-0 flex-1 divide-y divide-neutral-100 overflow-y-auto">
                                 {tratamentosFiltrados.map((tratamento) => {
                                 const form = tratamentoForms[tratamento.id] || buildDefaultForm(tratamento);
                                 const dirty = dirtyTratamentos[tratamento.id];
                                 const salvando = salvandoTratamentoId === tratamento.id;
                                 return (
-                                    <div key={tratamento.id} className={`grid grid-cols-1 sm:grid-cols-[minmax(0,1.4fr)_88px_72px_72px_52px_52px_36px] gap-1 sm:gap-1 items-center px-2 py-1.5 ${dirty ? 'bg-amber-50/40' : 'hover:bg-neutral-50/80'}`}>
+                                    <div key={tratamento.id} className={`grid grid-cols-1 items-center gap-1 px-2 py-1.5 sm:grid-cols-[minmax(0,1.4fr)_88px_72px_72px_52px_52px_36px] ${dirty ? 'bg-amber-50/70' : 'hover:bg-neutral-50'}`}>
                                         <div className="min-w-0 pr-1">
-                                            <p className="text-xs font-bold text-neutral-800 truncate">{tratamento.nome}</p>
+                                            <p className="truncate text-sm font-medium text-neutral-900">{tratamento.nome}</p>
                                         </div>
                                         <div className="relative">
                                             <input
@@ -608,7 +602,7 @@ export function PlanosContent({ embedded = false }: { embedded?: boolean }) {
                                                 step="0.01"
                                                 value={form.valor}
                                                 onChange={(e) => updateTratamentoForm(tratamento.id, 'valor', e.target.value)}
-                                                className="w-full px-1.5 py-1 rounded-lg border border-neutral-200 bg-neutral-50 text-[11px] font-bold text-neutral-700 focus:bg-white focus:border-neutral-400"
+                                                className="h-8 w-full rounded-md border border-neutral-200 bg-white px-1.5 text-xs font-medium text-neutral-900 outline-none focus:border-neutral-900"
                                                 placeholder="0"
                                             />
                                         </div>
@@ -618,26 +612,26 @@ export function PlanosContent({ embedded = false }: { embedded?: boolean }) {
                                             step="0.01"
                                             value={form.custo}
                                             onChange={(e) => updateTratamentoForm(tratamento.id, 'custo', e.target.value)}
-                                            className="w-full px-1.5 py-1 rounded-lg border border-neutral-200 bg-neutral-50 text-[11px] font-bold text-neutral-700 focus:bg-white focus:border-neutral-400"
+                                            className="h-8 w-full rounded-md border border-neutral-200 bg-white px-1.5 text-xs font-medium text-neutral-900 outline-none focus:border-neutral-900"
                                             placeholder="0"
                                         />
                                         <input
                                             value={form.codigo_tuss}
                                             onChange={(e) => updateTratamentoForm(tratamento.id, 'codigo_tuss', e.target.value)}
-                                            className="w-full px-1.5 py-1 rounded-lg border border-neutral-200 bg-neutral-50 text-[11px] font-bold text-neutral-700 focus:bg-white focus:border-neutral-400"
+                                            className="h-8 w-full rounded-md border border-neutral-200 bg-white px-1.5 text-xs font-medium text-neutral-900 outline-none focus:border-neutral-900"
                                             placeholder="—"
                                         />
                                         <button
                                             type="button"
                                             onClick={() => updateTratamentoForm(tratamento.id, 'aceita_faces', !form.aceita_faces)}
-                                            className={`py-1 rounded-lg text-[9px] font-black uppercase border ${form.aceita_faces ? 'bg-neutral-800 text-white border-neutral-800' : 'bg-white border-neutral-200 text-neutral-400'}`}
+                                            className={`h-8 rounded-md border text-[11px] font-medium ${form.aceita_faces ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-200 bg-white text-neutral-500'}`}
                                         >
                                             {form.aceita_faces ? 'Sim' : 'Não'}
                                         </button>
                                         <button
                                             type="button"
                                             onClick={() => updateTratamentoForm(tratamento.id, 'ativo', !form.ativo)}
-                                            className={`py-1 rounded-lg text-[9px] font-black uppercase border ${form.ativo ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-white border-neutral-200 text-neutral-400'}`}
+                                            className={`h-8 rounded-md border text-[11px] font-medium ${form.ativo ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-200 bg-white text-neutral-500'}`}
                                         >
                                             {form.ativo ? 'Sim' : 'Não'}
                                         </button>
@@ -660,44 +654,44 @@ export function PlanosContent({ embedded = false }: { embedded?: boolean }) {
                 </div>
             )}
 
-            <Modal open={modalPlanoAberto} onClose={() => setModalPlanoAberto(false)} maxWidth="lg" hideCloseButton>
-                <div className={bentoModalPanel}>
-                    <div className="px-6 py-4 border-b border-neutral-100">
-                        <h2 className="text-lg font-bold text-neutral-800">{editandoPlano ? 'Editar plano' : 'Novo plano'}</h2>
-                        <p className="text-xs text-neutral-500">{editandoPlano ? 'Altere nome e observações do plano.' : 'Por padrão, todos os tratamentos entram ativos no plano.'}</p>
+            <Modal open={modalPlanoAberto} onClose={() => setModalPlanoAberto(false)} maxWidth="lg" hideCloseButton panelClassName="overflow-hidden rounded-xl border border-neutral-200 bg-white">
+                <div>
+                    <div className="border-b border-neutral-200 px-5 py-4">
+                        <h2 className="text-base font-semibold text-neutral-900">{editandoPlano ? 'Editar plano' : 'Novo plano'}</h2>
+                        <p className="mt-1 text-xs text-neutral-500">{editandoPlano ? 'Altere nome e observações do plano.' : 'Por padrão, todos os tratamentos entram ativos no plano.'}</p>
                     </div>
-                    <form onSubmit={handleCriarPlano} className="p-6 space-y-4">
+                    <form onSubmit={handleCriarPlano} className="space-y-3 p-5">
                         <div>
-                            <label className="text-[10px] font-black uppercase tracking-wider text-neutral-400">Nome do plano</label>
+                            <label className="mb-1 block text-xs font-medium text-neutral-500">Nome do plano</label>
                             <input
                                 value={novoPlanoNome}
                                 onChange={(e) => setNovoPlanoNome(e.target.value)}
-                                className="w-full mt-1 px-3 py-2.5 rounded-2xl border border-neutral-200 bg-neutral-50 text-sm font-bold text-neutral-700 focus:bg-white focus:border-neutral-400 focus:border-neutral-400"
+                                className="h-9 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-900 outline-none focus:border-neutral-900"
                                 placeholder="Ex.: Amil Dental, SulAmérica, Uniodonto..."
                             />
                         </div>
                         <div>
-                            <label className="text-[10px] font-black uppercase tracking-wider text-neutral-400 flex items-center gap-1"><FileText size={12}/> Observações</label>
+                            <label className="mb-1 block text-xs font-medium text-neutral-500">Observações</label>
                             <textarea
                                 value={novoPlanoObservacoes}
                                 onChange={(e) => setNovoPlanoObservacoes(e.target.value)}
                                 rows={2}
-                                className="w-full mt-1 px-3 py-2.5 rounded-2xl border border-neutral-200 bg-neutral-50 text-sm text-neutral-700 focus:bg-white focus:border-neutral-400 focus:border-neutral-400 resize-none"
+                                className="w-full resize-none rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 outline-none focus:border-neutral-900"
                                 placeholder="Notas sobre cobertura, TUSS, glosas..."
                             />
                         </div>
                         {!editandoPlano && (
-                            <label className="flex items-center gap-2 p-3 rounded-xl border border-neutral-200 bg-neutral-50 cursor-pointer">
+                            <label className="flex cursor-pointer items-center gap-2 rounded-md border border-neutral-200 px-3 py-2">
                                 <input type="checkbox" checked={criarPlanoVazio} onChange={(e) => setCriarPlanoVazio(e.target.checked)} className="rounded text-neutral-900"/>
-                                <span className="text-xs font-bold text-neutral-600">Criar plano vazio (sem tratamentos ativos)</span>
+                                <span className="text-sm font-medium text-neutral-700">Criar plano vazio</span>
                             </label>
                         )}
-                        <div className="flex items-center justify-end gap-2 pt-2">
-                            <button type="button" onClick={() => { setModalPlanoAberto(false); setEditandoPlano(null); }} className="px-4 py-2 rounded-xl text-sm font-bold text-neutral-500 hover:bg-neutral-50">Cancelar</button>
+                        <div className="flex items-center justify-end gap-2 pt-1">
+                            <button type="button" onClick={() => { setModalPlanoAberto(false); setEditandoPlano(null); }} className="h-9 rounded-md px-3 text-sm font-medium text-neutral-500 hover:bg-neutral-50">Cancelar</button>
                             <button
                                 type="submit"
                                 disabled={criandoPlano || !novoPlanoNome.trim()}
-                                className={`${bentoPrimaryBtn} px-5 py-2 text-sm disabled:opacity-50`}
+                                className="inline-flex h-9 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50"
                             >
                                 {criandoPlano ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
                                 {editandoPlano ? 'Salvar alterações' : criarPlanoVazio ? 'Criar plano vazio' : 'Criar plano'}

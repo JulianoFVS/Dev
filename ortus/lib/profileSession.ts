@@ -8,6 +8,7 @@ export type ProfileSessionSnapshot = {
   nome?: string;
   cargo?: string;
   nivel_acesso?: string;
+  is_super_admin?: boolean;
 };
 
 function readRaw(): ProfileSessionSnapshot | null {
