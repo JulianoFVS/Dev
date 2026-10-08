@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { useClinica } from '@/app/context/ClinicaContext';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
 import Modal from '@/components/ui/Modal';
+import CustomSelect from '@/components/ui/CustomSelect';
 import {
     Loader2,
     Plus,
@@ -520,24 +521,21 @@ export function PlanosContent({ embedded = false }: { embedded?: boolean }) {
                     </button>
                 </div>
             ) : (
-                <div className="flex shrink-0 items-center gap-2 overflow-x-auto">
-                    {planos.map((plano) => {
-                        const ativo = plano.id === selectedPlanoId;
+                <div className="flex shrink-0 items-center gap-2">
+                    <div className="min-w-0 max-w-sm flex-1">
+                        <CustomSelect value={selectedPlanoId || ''} onChange={setSelectedPlanoId} options={planos.map((plano) => ({ value: plano.id, label: plano.nome }))} size="md" />
+                    </div>
+                    {(() => {
+                        const planoSel = planos.find((plano) => plano.id === selectedPlanoId);
+                        if (!planoSel || planoSel.tipo === 'particular') return null;
                         return (
-                            <div key={plano.id} className={`inline-flex h-9 shrink-0 items-center gap-1 rounded-md border px-1 ${ativo ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-200 bg-white text-neutral-800'}`}>
-                                <button type="button" onClick={() => setSelectedPlanoId(plano.id)} className="px-2 text-sm font-medium">
-                                    {plano.nome}
-                                </button>
-                                {plano.tipo !== 'particular' && (
-                                    <>
-                                        <button type="button" onClick={() => abrirModalEditarPlano(plano)} className={`rounded-md p-1 ${ativo ? 'text-white/70 hover:text-white' : 'text-neutral-400 hover:text-neutral-900'}`} title="Editar"><Pencil size={13}/></button>
-                                        <button type="button" onClick={() => excluirPlano(plano)} className={`rounded-md p-1 ${ativo ? 'text-white/70 hover:text-white' : 'text-neutral-400 hover:text-rose-600'}`} title="Excluir"><Trash2 size={13}/></button>
-                                    </>
-                                )}
-                            </div>
+                            <>
+                                <button type="button" onClick={() => abrirModalEditarPlano(planoSel)} className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-neutral-200 text-neutral-600 hover:bg-neutral-50" title="Editar"><Pencil size={15}/></button>
+                                <button type="button" onClick={() => excluirPlano(planoSel)} className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-neutral-200 text-neutral-400 hover:text-rose-600" title="Excluir"><Trash2 size={15}/></button>
+                            </>
                         );
-                    })}
-                    <button type="button" onClick={abrirModalNovoPlano} className="inline-flex h-9 shrink-0 items-center gap-1 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white"><Plus size={14}/> Novo</button>
+                    })()}
+                    <button type="button" onClick={abrirModalNovoPlano} className="inline-flex h-10 shrink-0 items-center gap-1 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white"><Plus size={14}/> Novo</button>
                 </div>
             )}
 

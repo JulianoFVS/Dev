@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import { Building2, Users, Plus, Trash2, MapPin, Check, X, Loader2, Edit, UserPlus, Shield, User, FileText, Phone, Mail, Save, Lock, ClipboardList, HelpCircle, FileSignature, Tag, SlidersHorizontal, Database, Download, Upload, Bell, Palette, RotateCcw, AlertTriangle, Clock, DollarSign, Layers3, MessageCircle, CreditCard, Eye } from 'lucide-react';
+import { Building2, Users, Plus, Trash2, MapPin, Check, X, Loader2, Edit, UserPlus, Shield, User, FileText, Phone, Mail, Save, Lock, ClipboardList, HelpCircle, FileSignature, Tag, SlidersHorizontal, Database, Download, Upload, Bell, Palette, RotateCcw, AlertTriangle, Clock, DollarSign, Layers3, MessageCircle, CreditCard, Eye, Search, Filter, LayoutGrid, List, ChevronDown, Camera } from 'lucide-react';
 import { PlanosContent } from '@/app/planos/page';
 import { carregarModelos, carregarModelosAsync, salvarModelos, salvarModelosAsync, novoIdModelo, novoIdPergunta, type ModeloAnamnese, type PerguntaAnamnese, type TipoPergunta } from '@/lib/anamnese';
 import { listarBackups, criarBackupAgora, baixarBackupComoJson, excluirBackup as deletarBackupServer, restaurarBackup } from '@/lib/backup';
@@ -44,6 +44,25 @@ const CONFIG_NAVS = [
 const sectionPad = 'flex h-full min-h-0 flex-col overflow-hidden p-3';
 const campoLabel = 'mb-1 block text-xs font-medium text-neutral-500';
 const campoInput = 'h-9 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-900 outline-none focus:border-neutral-900';
+const campoModal = 'box-border h-10 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm text-neutral-900 outline-none placeholder:text-neutral-400 focus:border-neutral-900';
+const labelModal = 'mb-1.5 block text-xs font-medium text-neutral-500';
+const CORES_CATEGORIA = ['#171717', '#3b82f6', '#0ea5e9', '#10b981', '#84cc16', '#eab308', '#f59e0b', '#ef4444', '#ec4899', '#8b5cf6', '#64748b', '#c8f053'];
+const CORES_RECENTES_KEY = 'ortus:cores-categoria';
+
+function lerCoresRecentes(): string[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = JSON.parse(localStorage.getItem(CORES_RECENTES_KEY) || '[]');
+    return Array.isArray(raw) ? raw.filter((c) => typeof c === 'string').slice(0, 8) : [];
+  } catch {
+    return [];
+  }
+}
+
+function guardarCorRecente(cor: string) {
+  const atuais = lerCoresRecentes().filter((c) => c.toLowerCase() !== cor.toLowerCase());
+  localStorage.setItem(CORES_RECENTES_KEY, JSON.stringify([cor, ...atuais].slice(0, 8)));
+}
 
 interface ModeloDocumento { id: string; tipo: 'contrato' | 'receita' | 'atestado' | 'outro'; nome: string; conteudo: string; }
 
@@ -104,6 +123,8 @@ export default function Configuracoes() {
   });
   const [buscandoCepClinica, setBuscandoCepClinica] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [logoArquivo, setLogoArquivo] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState('');
 
   // MODAL PROFISSIONAL
   const [modalProf, setModalProf] = useState(false);
@@ -134,6 +155,11 @@ export default function Configuracoes() {
   // CATEGORIAS FINANCEIRAS
   const [catsFin, setCatsFin] = useState<CategoriaFinanceira[]>(CATEGORIAS_FINANCEIRAS_PADRAO);
   const [buscaCatFin, setBuscaCatFin] = useState('');
+  const [corCatAberta, setCorCatAberta] = useState(false);
+  const [docsBusca, setDocsBusca] = useState('');
+  const [docsTipo, setDocsTipo] = useState('todos');
+  const [docsFiltrosAbertos, setDocsFiltrosAbertos] = useState(false);
+  const [docsVisualizacao, setDocsVisualizacao] = useState<'lista' | 'grade'>('grade');
   const [modalCatFin, setModalCatFin] = useState(false);
   const [catFinEdit, setCatFinEdit] = useState<CategoriaFinanceira | null>(null);
 
@@ -251,11 +277,13 @@ export default function Configuracoes() {
   }
 
   function abrirNovaCatFin() {
+      setCorCatAberta(false);
       setCatFinEdit({ id: `cat_${Date.now()}`, nome: '', tipo: 'despesa', cor: '#64748b', ativo: true });
       setModalCatFin(true);
   }
 
   function abrirEditarCatFin(cat: CategoriaFinanceira) {
+      setCorCatAberta(false);
       setCatFinEdit({ ...cat });
       setModalCatFin(true);
   }
@@ -620,9 +648,18 @@ export default function Configuracoes() {
       return null;
   }
 
+  function limparLogoLocal() {
+      setLogoArquivo(null);
+      setLogoPreview((atual) => {
+          if (atual.startsWith('blob:')) URL.revokeObjectURL(atual);
+          return '';
+      });
+  }
+
   function abrirNovaClinica() {
       setClinicaEditando(null);
       setClinicaForm({ ...CLINICA_FORM_VAZIO });
+      limparLogoLocal();
       setModalClinicaCompleto(true);
   }
 
@@ -656,6 +693,7 @@ export default function Configuracoes() {
       };
 
       try {
+          let clinicaId: string | number | null = clinicaEditando?.id ?? null;
           if (clinicaEditando?.id) {
               const { error } = await supabase.from('clinicas').update(payload).eq('id', clinicaEditando.id);
               if (error) throw error;
@@ -697,6 +735,7 @@ export default function Configuracoes() {
                   .select('id')
                   .single();
               if (error || !novaC) throw error || new Error('Falha ao criar clínica');
+              clinicaId = novaC.id;
 
               const { error: vincErr } = await supabase
                   .from('profissionais_clinicas')
@@ -708,8 +747,17 @@ export default function Configuracoes() {
               }
           }
 
+          if (clinicaId && logoArquivo) {
+              try {
+                  await publicarLogo(clinicaId, logoArquivo);
+              } catch (err: any) {
+                  showAlert('A clínica foi salva, mas a logo não foi enviada: ' + (err?.message || err), { type: 'warning' });
+              }
+          }
+
           setModalClinicaCompleto(false);
           setClinicaEditando(null);
+          limparLogoLocal();
           carregarDados({ silent: true });
       } catch (e: any) {
           showAlert('Erro ao salvar: ' + (e?.message || e), { type: 'error' });
@@ -753,14 +801,15 @@ export default function Configuracoes() {
           cidade: c.cidade || '',
           uf: c.uf || ''
       });
+      limparLogoLocal();
+      setLogoPreview(c.logo_url || '');
       setModalClinicaCompleto(true);
   }
 
-  // Upload de logo
-  async function uploadLogo(e: React.ChangeEvent<HTMLInputElement>) {
+  function escolherLogo(e: React.ChangeEvent<HTMLInputElement>) {
       const file = e.target.files?.[0];
-      if (!file || !clinicaEditando?.id) return;
-
+      e.target.value = '';
+      if (!file) return;
       if (!file.type.startsWith('image/')) {
           showAlert('Selecione uma imagem válida', { type: 'warning' });
           return;
@@ -769,27 +818,24 @@ export default function Configuracoes() {
           showAlert('Imagem deve ter no máximo 2MB', { type: 'warning' });
           return;
       }
+      setLogoArquivo(file);
+      setLogoPreview((atual) => {
+          if (atual.startsWith('blob:')) URL.revokeObjectURL(atual);
+          return URL.createObjectURL(file);
+      });
+  }
 
+  async function publicarLogo(clinicaId: string | number, file: File) {
       setUploadingLogo(true);
       try {
-          const fileExt = file.name.split('.').pop();
-          const fileName = `clinica-${clinicaEditando.id}-${Date.now()}.${fileExt}`;
-          const filePath = `${fileName}`;
-
-          const { error: uploadError } = await supabase.storage
-              .from('clinicas-logos')
-              .upload(filePath, file, { upsert: true });
-
+          const fileExt = file.name.split('.').pop() || 'png';
+          const filePath = `clinica-${clinicaId}-${Date.now()}.${fileExt}`;
+          const { error: uploadError } = await supabase.storage.from('clinicas-logos').upload(filePath, file, { upsert: true });
           if (uploadError) throw uploadError;
-
-          const { data: { publicUrl } } = supabase.storage
-              .from('clinicas-logos')
-              .getPublicUrl(filePath);
-
-          setClinicaForm(prev => ({ ...prev, logo_url: publicUrl }));
-          showAlert('Logo enviada com sucesso!', { type: 'success' });
-      } catch (err: any) {
-          showAlert('Erro ao enviar logo: ' + err.message, { type: 'error' });
+          const { data: { publicUrl } } = supabase.storage.from('clinicas-logos').getPublicUrl(filePath);
+          const { error } = await supabase.from('clinicas').update({ logo_url: publicUrl }).eq('id', clinicaId);
+          if (error) throw error;
+          setClinicaForm((prev) => ({ ...prev, logo_url: publicUrl }));
       } finally {
           setUploadingLogo(false);
       }
@@ -983,10 +1029,10 @@ export default function Configuracoes() {
             {/* ABA ANAMNESE */}
             {abaAtiva === 'anamnese' && (
                 <section className={sectionPad}>
-                        <div className="mb-2 flex shrink-0 items-center justify-between gap-3">
+                        <div className="mb-5 flex shrink-0 items-center justify-between gap-3">
                             <div>
                                 <h3 className="text-base font-semibold text-neutral-900">Modelos de anamnese</h3>
-                                <p className="text-xs text-neutral-500">Perguntas usadas na ficha do paciente.</p>
+                                <p className="mt-1 text-xs text-neutral-500">Perguntas usadas na ficha do paciente.</p>
                             </div>
                             <button type="button" onClick={abrirNovoModelo} className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800"><Plus size={14}/> Novo modelo</button>
                         </div>
@@ -1079,16 +1125,65 @@ export default function Configuracoes() {
             {/* ABA CONTRATOS & DOCUMENTOS */}
             {abaAtiva === 'documentos' && (
                 <section className={sectionPad}>
-                        <div className="mb-2 flex shrink-0 items-center justify-between gap-3">
-                            <div className="min-w-0">
-                                <h3 className="text-base font-semibold text-neutral-900">Modelos de documentos</h3>
-                                <p className="text-xs text-neutral-500">Contratos, receitas e termos.</p>
+                        <div className="mb-3 flex shrink-0 flex-col gap-2">
+                            <div className="flex items-center justify-between gap-3">
+                                <div className="min-w-0">
+                                    <h3 className="text-base font-semibold text-neutral-900">Modelos de documentos</h3>
+                                    <p className="mt-1 text-xs text-neutral-500">Contratos, receitas e termos.</p>
+                                </div>
+                                <button type="button" onClick={abrirNovoDoc} className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800"><Plus size={14}/> Novo modelo</button>
                             </div>
-                            <button type="button" onClick={abrirNovoDoc} className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800"><Plus size={14}/> Novo modelo</button>
+                            <div className="flex items-center gap-2">
+                                <div className="relative min-w-0 flex-1">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" size={16}/>
+                                    <input value={docsBusca} onChange={e => setDocsBusca(e.target.value)} placeholder="Buscar modelo" className="h-10 w-full rounded-full border border-black/10 bg-[#f8f8f6] py-2 pl-9 pr-3 text-sm outline-none placeholder:text-neutral-400 focus:border-neutral-400"/>
+                                </div>
+                                <button type="button" onClick={() => setDocsFiltrosAbertos(v => !v)} className={`inline-flex h-10 items-center gap-2 rounded-full border px-4 text-sm font-medium ${docsFiltrosAbertos || docsTipo !== 'todos' ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-black/10 text-neutral-700 hover:bg-neutral-50'}`}>
+                                    <Filter size={15}/> Filtros
+                                    {docsTipo !== 'todos' && <span className="h-1.5 w-1.5 rounded-full bg-[#c8f053]"></span>}
+                                </button>
+                                <div className="flex rounded-full border border-black/10 bg-[#f3f4f1] p-0.5">
+                                    <button type="button" onClick={() => setDocsVisualizacao('lista')} className={`rounded-full p-2 ${docsVisualizacao === 'lista' ? 'bg-neutral-900 text-white' : 'text-neutral-500'}`} aria-label="Lista"><List size={16}/></button>
+                                    <button type="button" onClick={() => setDocsVisualizacao('grade')} className={`rounded-full p-2 ${docsVisualizacao === 'grade' ? 'bg-neutral-900 text-white' : 'text-neutral-500'}`} aria-label="Grade"><LayoutGrid size={16}/></button>
+                                </div>
+                            </div>
+                            {docsFiltrosAbertos && (
+                                <div className="flex items-end gap-2 border-t border-black/5 pt-3">
+                                    <div className="min-w-0 max-w-xs flex-1">
+                                        <label className="mb-1 block text-[10px] font-medium uppercase tracking-wide text-neutral-400">Tipo</label>
+                                        <CustomSelect pill value={docsTipo} onChange={setDocsTipo} options={[{value:'todos',label:'Todos'},{value:'contrato',label:'Contrato'},{value:'receita',label:'Receita'},{value:'atestado',label:'Atestado'},{value:'outro',label:'Outro'}]} size="sm"/>
+                                    </div>
+                                    {(docsTipo !== 'todos' || docsBusca.trim()) && (
+                                        <button type="button" onClick={() => { setDocsTipo('todos'); setDocsBusca(''); }} className="inline-flex h-10 items-center gap-1 text-sm font-medium text-neutral-500 hover:text-neutral-900"><X size={14}/> Limpar</button>
+                                    )}
+                                </div>
+                            )}
                         </div>
 
+                        {(() => {
+                            const q = docsBusca.trim().toLowerCase();
+                            const lista = docs.filter((d) => (docsTipo === 'todos' || d.tipo === docsTipo) && (!q || d.nome.toLowerCase().includes(q) || d.conteudo.toLowerCase().includes(q)));
+                            if (lista.length === 0) return <div className="rounded-xl border border-dashed border-neutral-200 py-8 text-center text-sm text-neutral-500">Nenhum modelo encontrado.</div>;
+                            if (docsVisualizacao === 'lista') {
+                                return (
+                                    <div className="min-h-0 flex-1 overflow-y-auto rounded-xl border border-neutral-200">
+                                        {lista.map((d) => (
+                                            <div key={d.id} className="flex items-center gap-3 border-b border-black/5 px-3 py-2.5 last:border-0">
+                                                <span className="w-20 shrink-0 rounded-md bg-neutral-100 px-1.5 py-0.5 text-center text-[10px] font-medium text-neutral-600">{d.tipo}</span>
+                                                <div className="min-w-0 flex-1">
+                                                    <p className="truncate text-sm font-medium text-neutral-900">{d.nome}</p>
+                                                    <p className="truncate text-xs text-neutral-500">{d.conteudo}</p>
+                                                </div>
+                                                <button onClick={() => abrirEditarDoc(d)} className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-neutral-200 text-neutral-600 hover:bg-neutral-50"><Edit size={14}/></button>
+                                                <button onClick={() => excluirDoc(d.id)} className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-neutral-200 text-neutral-400 hover:text-rose-600"><Trash2 size={14}/></button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                );
+                            }
+                            return (
                         <div className="grid min-h-0 flex-1 grid-cols-1 content-start gap-2 overflow-y-auto md:grid-cols-2">
-                            {docs.map(d => (
+                            {lista.map(d => (
                                 <div key={d.id} className="rounded-xl border border-neutral-200 bg-white p-3">
                                     <div className="mb-1.5 flex items-center gap-2">
                                         <span className="rounded-md bg-neutral-100 px-1.5 py-0.5 text-[10px] font-medium text-neutral-600">{d.tipo}</span>
@@ -1101,12 +1196,9 @@ export default function Configuracoes() {
                                     </div>
                                 </div>
                             ))}
-                            {docs.length === 0 && (
-                                <div className="rounded-xl border border-dashed border-neutral-200 py-8 text-center text-sm text-neutral-500 md:col-span-2">
-                                    Nenhum modelo cadastrado.
-                                </div>
-                            )}
                         </div>
+                            );
+                        })()}
                 </section>
             )}
 
@@ -1179,47 +1271,66 @@ export default function Configuracoes() {
             )}
 
             {abaAtiva === 'taxas' && (() => {
-                const pixEDebito = taxasMaquininha.filter((t) => t.tipo === 'pix' || (t.tipo === 'debito' && t.bandeira === 'Visa/Master'));
-                const eloOutros = taxasMaquininha.filter((t) => t.tipo === 'debito' && t.bandeira !== 'Visa/Master');
-                const porParcela = (a: TaxaMaquininha, b: TaxaMaquininha) => (a.parcela || 0) - (b.parcela || 0);
-                const creditoVisa = taxasMaquininha.filter((t) => t.bandeira === 'Visa/Master' && t.tipo !== 'debito' && t.tipo !== 'pix').sort(porParcela);
-                const creditoOutros = taxasMaquininha.filter((t) => t.bandeira !== 'Visa/Master' && t.bandeira !== 'PIX' && t.tipo !== 'debito' && t.tipo !== 'pix');
-                const bandeirasOutros = [...new Set(creditoOutros.map((t) => t.bandeira))];
-                const linhaTaxa = (t: TaxaMaquininha) => (
-                    <div key={t.id} className={`mb-1.5 flex items-center gap-2 rounded-xl border border-black/5 bg-[#f8f8f6] px-2.5 py-2 ${t.ativo ? '' : 'opacity-45'}`}>
-                        <div className="min-w-0 flex-1">
-                            <p className="truncate text-sm font-medium text-neutral-900">{t.tipo === 'debito' ? `${t.nome} ${t.bandeira}` : t.parcela === 1 ? 'À vista' : t.parcela ? `${t.parcela}x` : t.nome}</p>
-                            <p className="truncate text-xs text-neutral-500">{t.bandeira}</p>
-                        </div>
-                        <input type="number" step="0.01" min="0" max="100" value={t.taxa_percentual} onChange={e => atualizarTaxa(t.id, 'taxa_percentual', parseFloat(e.target.value) || 0)} className="h-8 w-16 rounded-md border border-neutral-200 bg-white px-2 text-xs font-medium text-neutral-900 outline-none focus:border-neutral-900" aria-label="Taxa" />
-                        <input type="number" min="0" value={t.prazo_recebimento_dias} onChange={e => atualizarTaxa(t.id, 'prazo_recebimento_dias', parseInt(e.target.value) || 0)} className="h-8 w-12 rounded-md border border-neutral-200 bg-white px-2 text-xs font-medium text-neutral-900 outline-none focus:border-neutral-900" aria-label="Prazo em dias" />
-                        <button type="button" onClick={() => atualizarTaxa(t.id, 'ativo', !t.ativo)} className={`inline-flex h-8 w-8 items-center justify-center rounded-md ${t.ativo ? 'bg-neutral-900 text-white' : 'border border-neutral-200 text-neutral-400'}`} aria-label={t.ativo ? 'Desativar' : 'Ativar'}><Check size={14}/></button>
+                const achar = (pred: (t: TaxaMaquininha) => boolean) => taxasMaquininha.find(pred) || TAXAS_MAQUININHA_PADRAO.find(pred);
+                const pix = achar((t) => t.tipo === 'pix');
+                const debVisa = achar((t) => t.tipo === 'debito' && t.bandeira === 'Visa/Master');
+                const debitosOutrosSalvos = taxasMaquininha.filter((t) => t.tipo === 'debito' && t.bandeira !== 'Visa/Master');
+                const debitosOutros = debitosOutrosSalvos.length > 0 ? debitosOutrosSalvos : TAXAS_MAQUININHA_PADRAO.filter((t) => t.tipo === 'debito' && t.bandeira !== 'Visa/Master');
+                const parcelasDe = (bandeira: string) => {
+                    const salvas = taxasMaquininha.filter((t) => t.bandeira === bandeira && t.parcela != null && t.tipo !== 'debito' && t.tipo !== 'pix');
+                    const base = TAXAS_MAQUININHA_PADRAO.filter((t) => t.bandeira === bandeira && t.parcela != null);
+                    return base.map((p) => salvas.find((s) => s.parcela === p.parcela) || p).sort((a, b) => (a.parcela || 0) - (b.parcela || 0));
+                };
+                const creditoVisa = parcelasDe('Visa/Master');
+                const creditoElo = parcelasDe('Elo');
+                const aplicarGrupo = (itens: TaxaMaquininha[], campo: keyof TaxaMaquininha, valor: string | number | boolean) => {
+                    let lista = [...taxasMaquininha];
+                    itens.forEach((item) => {
+                        const idx = lista.findIndex((t) => t.id === item.id);
+                        if (idx >= 0) lista[idx] = { ...lista[idx], [campo]: valor };
+                        else lista.push({ ...item, [campo]: valor });
+                    });
+                    salvarTaxas(lista);
+                };
+                const linha = (nome: string, amostra: TaxaMaquininha, grupo: TaxaMaquininha[]) => (
+                    <div key={nome} className={`grid grid-cols-[minmax(0,1fr)_4.5rem_3.25rem_2rem] items-center gap-2 px-1 py-1 ${amostra.ativo ? '' : 'opacity-45'}`}>
+                        <p className="truncate text-sm font-medium text-neutral-900">{nome}</p>
+                        <input type="number" step="0.01" min="0" max="100" value={amostra.taxa_percentual} onChange={e => aplicarGrupo(grupo, 'taxa_percentual', parseFloat(e.target.value) || 0)} className="h-8 w-full rounded-md border border-neutral-200 bg-white px-2 text-xs font-medium text-neutral-900 outline-none focus:border-neutral-900" aria-label="Taxa" />
+                        <input type="number" min="0" value={amostra.prazo_recebimento_dias} onChange={e => aplicarGrupo(grupo, 'prazo_recebimento_dias', parseInt(e.target.value) || 0)} className="h-8 w-full rounded-md border border-neutral-200 bg-white px-2 text-xs font-medium text-neutral-900 outline-none focus:border-neutral-900" aria-label="Prazo" />
+                        <button type="button" onClick={() => aplicarGrupo(grupo, 'ativo', !amostra.ativo)} className={`inline-flex h-8 w-8 items-center justify-center rounded-md ${amostra.ativo ? 'bg-neutral-900 text-white' : 'border border-neutral-200 text-neutral-400'}`} aria-label={amostra.ativo ? 'Desativar' : 'Ativar'}><Check size={14}/></button>
                     </div>
                 );
-                const coluna = (titulo: string, grupos: Array<{ titulo: string; itens: TaxaMaquininha[] }>) => (
+                const coluna = (titulo: string, linhas: React.ReactNode) => (
                     <section className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white">
-                        <div className="flex items-center justify-between border-b border-black/5 px-3 py-2.5">
+                        <div className="border-b border-black/5 px-3 py-2.5">
                             <h3 className="text-sm font-semibold text-neutral-900">{titulo}</h3>
                         </div>
-                        <div className="min-h-0 flex-1 overflow-y-auto p-2">
-                            {grupos.map((grupo) => (
-                                <div key={grupo.titulo} className="mb-2">
-                                    <p className="mb-1 px-1 text-xs font-medium text-neutral-500">{grupo.titulo}</p>
-                                    {grupo.itens.map(linhaTaxa)}
-                                </div>
-                            ))}
+                        <div className="p-2">
+                            <div className="grid grid-cols-[minmax(0,1fr)_4.5rem_3.25rem_2rem] gap-2 px-1 pb-1">
+                                <span />
+                                <span className="text-[11px] font-medium text-neutral-500">Taxa</span>
+                                <span className="text-[11px] font-medium text-neutral-500">Prazo</span>
+                                <span />
+                            </div>
+                            {linhas}
                         </div>
                     </section>
                 );
+                const nomeParcela = (t: TaxaMaquininha) => t.parcela === 1 ? 'À vista' : `${t.parcela}x`;
+                const grupoParcela = (parcela: number, bandeiras: string[]) => {
+                    const salvas = taxasMaquininha.filter((t) => t.parcela === parcela && bandeiras.includes(t.bandeira));
+                    if (salvas.length) return salvas;
+                    return TAXAS_MAQUININHA_PADRAO.filter((t) => t.parcela === parcela && bandeiras.includes(t.bandeira));
+                };
                 return (
                 <div className="grid h-full min-h-0 grid-cols-1 gap-2 overflow-hidden p-3 lg:grid-cols-3">
-                    {coluna('PIX e débito', [
-                        { titulo: 'PIX', itens: pixEDebito.filter((t) => t.tipo === 'pix') },
-                        { titulo: 'Débito Visa/Master', itens: pixEDebito.filter((t) => t.tipo === 'debito') },
-                        { titulo: 'Elo e outros', itens: eloOutros },
-                    ])}
-                    {coluna('Crédito Visa/Master', [{ titulo: 'Parcelas', itens: creditoVisa }])}
-                    {coluna('Crédito e outros', bandeirasOutros.map((bandeira) => ({ titulo: bandeira, itens: creditoOutros.filter((t) => t.bandeira === bandeira).sort(porParcela) })))}
+                    {pix && debVisa && coluna('PIX e débito', <>
+                        {linha('PIX', pix, [pix])}
+                        {linha('Débito Visa/Master', debVisa, [debVisa])}
+                        {debitosOutros[0] && linha('Elo/outros', debitosOutros[0], debitosOutros)}
+                    </>)}
+                    {coluna('Crédito Visa/Master', creditoVisa.map((t) => linha(nomeParcela(t), t, grupoParcela(t.parcela || 1, ['Visa/Master']))))}
+                    {coluna('Crédito Elo/Outros', creditoElo.map((t) => linha(nomeParcela(t), t, grupoParcela(t.parcela || 1, ['Elo', 'Amex', 'Hipercard']))))}
                 </div>
                 );
             })()}
@@ -1432,15 +1543,46 @@ export default function Configuracoes() {
                       <label className={campoLabel}>Nome</label>
                       <input value={catFinEdit.nome} onChange={e => setCatFinEdit({ ...catFinEdit, nome: e.target.value })} className={campoInput}/>
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
-                      <div>
-                          <label className={campoLabel}>Tipo</label>
-                          <CustomSelect value={catFinEdit.tipo} onChange={v => setCatFinEdit({ ...catFinEdit, tipo: v as 'receita' | 'despesa', cor: v === 'receita' ? '#10b981' : catFinEdit.cor })} options={[{ value: 'receita', label: 'Receita' }, { value: 'despesa', label: 'Despesa' }]} size="md"/>
+                  <div>
+                      <label className={campoLabel}>Tipo</label>
+                      <div className="grid h-10 grid-cols-2 rounded-md border border-neutral-200 p-0.5">
+                          <button type="button" onClick={() => setCatFinEdit({ ...catFinEdit, tipo: 'receita' })} className={`rounded-[5px] text-sm font-medium ${catFinEdit.tipo === 'receita' ? 'bg-neutral-900 text-white' : 'text-neutral-600'}`}>Receita</button>
+                          <button type="button" onClick={() => setCatFinEdit({ ...catFinEdit, tipo: 'despesa' })} className={`rounded-[5px] text-sm font-medium ${catFinEdit.tipo === 'despesa' ? 'bg-neutral-900 text-white' : 'text-neutral-600'}`}>Despesa</button>
                       </div>
-                      <div>
-                          <label className={campoLabel}>Cor</label>
-                          <input type="color" value={catFinEdit.cor} onChange={e => setCatFinEdit({ ...catFinEdit, cor: e.target.value })} className="h-9 w-full cursor-pointer rounded-md border border-neutral-200 bg-white"/>
-                      </div>
+                  </div>
+                  <div className="relative">
+                      <label className={campoLabel}>Cor</label>
+                      <button type="button" onClick={() => setCorCatAberta(v => !v)} className="flex h-10 w-full items-center justify-between rounded-md border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-900">
+                          <span className="flex items-center gap-2">
+                              <span className="h-5 w-5 rounded-md border border-black/10" style={{ backgroundColor: catFinEdit.cor }} />
+                              {catFinEdit.cor}
+                          </span>
+                          <ChevronDown size={16} className={`text-neutral-400 ${corCatAberta ? 'rotate-180' : ''}`} />
+                      </button>
+                      {corCatAberta && (
+                          <div className="absolute left-0 right-0 z-20 mt-1 rounded-xl border border-neutral-200 bg-white p-3 shadow-[0_8px_24px_rgba(0,0,0,0.08)]">
+                              <p className="mb-2 text-xs font-medium text-neutral-500">Predefinidas</p>
+                              <div className="grid grid-cols-6 gap-1.5">
+                                  {CORES_CATEGORIA.map((cor) => (
+                                      <button key={cor} type="button" onClick={() => { guardarCorRecente(cor); setCatFinEdit({ ...catFinEdit, cor }); setCorCatAberta(false); }} className={`h-8 rounded-md border ${catFinEdit.cor.toLowerCase() === cor ? 'border-neutral-900' : 'border-black/10'}`} style={{ backgroundColor: cor }} aria-label={cor} />
+                                  ))}
+                              </div>
+                              {lerCoresRecentes().length > 0 && (
+                                  <>
+                                      <p className="mb-2 mt-3 text-xs font-medium text-neutral-500">Últimas usadas</p>
+                                      <div className="flex flex-wrap gap-1.5">
+                                          {lerCoresRecentes().map((cor) => (
+                                              <button key={cor} type="button" onClick={() => { guardarCorRecente(cor); setCatFinEdit({ ...catFinEdit, cor }); setCorCatAberta(false); }} className="h-8 w-8 rounded-md border border-black/10" style={{ backgroundColor: cor }} aria-label={cor} />
+                                          ))}
+                                      </div>
+                                  </>
+                              )}
+                              <label className="mt-3 flex items-center gap-2 text-xs font-medium text-neutral-600">
+                                  Personalizar
+                                  <input type="color" value={catFinEdit.cor} onChange={e => { guardarCorRecente(e.target.value); setCatFinEdit({ ...catFinEdit, cor: e.target.value }); }} className="h-8 w-10 cursor-pointer rounded-md border border-neutral-200 bg-white" />
+                              </label>
+                          </div>
+                      )}
                   </div>
               </div>
               <div className="flex gap-2 border-t border-neutral-200 px-4 py-3">
@@ -1559,169 +1701,70 @@ export default function Configuracoes() {
       </Modal>
 
       {/* MODAL EDIÇÃO COMPLETA CLÍNICA */}
-      <Modal open={modalClinicaCompleto} onClose={() => { setModalClinicaCompleto(false); setClinicaEditando(null); }} maxWidth="2xl" hideCloseButton>
-          <div className="flex max-h-[85vh] w-full flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white">
-                  <div className="flex items-center justify-between border-b border-neutral-200 px-4 py-3">
-                      <div>
-                          <h3 className="text-base font-semibold text-neutral-900">{clinicaEditando ? 'Editar clínica' : 'Nova clínica'}</h3>
-                          <p className="text-xs text-neutral-500">{clinicaEditando ? 'Atualize os dados da unidade.' : 'Cadastre a unidade.'}</p>
-                      </div>
-                      <button onClick={() => { setModalClinicaCompleto(false); setClinicaEditando(null); }} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-50"><X size={16}/></button>
-                  </div>
-                  
-                  <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
-                      {clinicaEditando ? (
-                      <div className="flex items-center gap-6">
-                          <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-md border border-dashed border-neutral-300 bg-[#f8f8f6]">
-                              {clinicaForm.logo_url ? (
-                                  <img src={clinicaForm.logo_url} alt="Logo" className="w-full h-full object-cover"/>
-                              ) : (
-                                  <Building2 size={40} className="text-neutral-300"/>
-                              )}
-                          </div>
-                          <div className="flex-1">
-                              <label className={campoLabel}>Logomarca</label>
-                              <input type="file" accept="image/*" onChange={uploadLogo} className="hidden" id="logo-upload"/>
-                              <label htmlFor="logo-upload" className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-md border border-neutral-200 px-3 text-sm font-medium text-neutral-800 hover:bg-neutral-50">
-                                  {uploadingLogo ? <Loader2 size={16} className="animate-spin"/> : <Upload size={16}/>}
-                                  {uploadingLogo ? 'Enviando...' : 'Selecionar Imagem'}
-                              </label>
-                              <p className="text-xs text-neutral-400 mt-1">Max. 2MB • PNG, JPG</p>
-                          </div>
-                      </div>
-                      ) : (
-                          <div className="rounded-md border border-neutral-200 bg-[#f8f8f6] px-3 py-2 text-sm text-neutral-700">
-                              Após salvar, você poderá enviar a logomarca editando a clínica.
-                          </div>
-                      )}
-
-                      {/* Dados Básicos */}
-                      <div className="space-y-2">
-                          <h4 className="text-sm font-semibold text-neutral-900">Dados da clínica</h4>
-                          <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-                              <div className="md:col-span-2">
-                                  <label className="mb-1 block text-xs font-medium text-neutral-500">Nome da Clínica *</label>
-                                  <input value={clinicaForm.nome} onChange={e => setClinicaForm({...clinicaForm, nome: e.target.value})} className="h-9 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-900 outline-none focus:border-neutral-900" placeholder="Ex: Clínica Ortus Centro"/>
-                              </div>
-                              <div>
-                                  <label className="mb-1 block text-xs font-medium text-neutral-500">CNPJ</label>
-                                  <input value={clinicaForm.cnpj} onChange={e => setClinicaForm({...clinicaForm, cnpj: e.target.value})} className="h-9 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-900 outline-none focus:border-neutral-900" placeholder="00.000.000/0000-00"/>
-                              </div>
-                              <div>
-                                  <label className="mb-1 block text-xs font-medium text-neutral-500">Responsável</label>
-                                  <input value={clinicaForm.responsavel_nome} onChange={e => setClinicaForm({...clinicaForm, responsavel_nome: e.target.value})} className="h-9 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-900 outline-none focus:border-neutral-900" placeholder="Nome do responsável técnico"/>
-                              </div>
-                              <div>
-                                  <label className="mb-1 block text-xs font-medium text-neutral-500">E-mail</label>
-                                  <input value={clinicaForm.email} onChange={e => setClinicaForm({...clinicaForm, email: e.target.value})} className="h-9 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-900 outline-none focus:border-neutral-900" placeholder="clinica@email.com"/>
-                              </div>
-                              <div>
-                                  <label className="mb-1 block text-xs font-medium text-neutral-500">Telefone</label>
-                                  <input value={clinicaForm.telefone} onChange={e => setClinicaForm({...clinicaForm, telefone: e.target.value})} className="h-9 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-900 outline-none focus:border-neutral-900" placeholder="(00) 0000-0000"/>
-                              </div>
-                          </div>
-                      </div>
-
-                      {/* Horários */}
-                      <div className="space-y-2">
-                          <h4 className="text-sm font-semibold text-neutral-900">Horário</h4>
-                          <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
-                              <div>
-                                  <label className="mb-1 block text-xs font-medium text-neutral-500">Início</label>
-                                  <input type="time" value={clinicaForm.horario_inicio} onChange={e => setClinicaForm({...clinicaForm, horario_inicio: e.target.value})} className="h-9 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-900 outline-none focus:border-neutral-900"/>
-                              </div>
-                              <div>
-                                  <label className="mb-1 block text-xs font-medium text-neutral-500">Término</label>
-                                  <input type="time" value={clinicaForm.horario_fim} onChange={e => setClinicaForm({...clinicaForm, horario_fim: e.target.value})} className="h-9 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-900 outline-none focus:border-neutral-900"/>
-                              </div>
-                              <div>
-                                  <label className="mb-1 block text-xs font-medium text-neutral-500">Fuso Horário</label>
-                                  <CustomSelect value={clinicaForm.fuso_horario} onChange={v => setClinicaForm({...clinicaForm, fuso_horario: v})} options={FUSO_HORARIO_OPTIONS} size="md"/>
-                              </div>
-                          </div>
-                      </div>
-
-                      {/* Fiscal */}
-                      <div className="rounded-xl border border-neutral-200 p-3">
-                          <h4 className="mb-2 text-sm font-semibold text-neutral-900">Notas fiscais</h4>
-                          <div>
-                              <label className="mb-1 block text-xs font-medium text-neutral-500">Emitir notas fiscais em nome de:</label>
-                              <div className="flex gap-4 mt-2">
-                                  <label className="flex items-center gap-2 cursor-pointer">
-                                      <input type="radio" name="emitir_notas" checked={clinicaForm.emitir_notas_em_nome === 'clinica'} onChange={() => setClinicaForm({...clinicaForm, emitir_notas_em_nome: 'clinica'})} className="w-4 h-4 text-neutral-700"/>
-                                      <span className="text-sm font-medium text-neutral-700">Clínica (CNPJ da clínica)</span>
-                                  </label>
-                                  <label className="flex items-center gap-2 cursor-pointer">
-                                      <input type="radio" name="emitir_notas" checked={clinicaForm.emitir_notas_em_nome === 'profissional'} onChange={() => setClinicaForm({...clinicaForm, emitir_notas_em_nome: 'profissional'})} className="w-4 h-4 text-neutral-700"/>
-                                      <span className="text-sm font-medium text-neutral-700">Profissional (CPF do dentista)</span>
-                                  </label>
-                              </div>
-                          </div>
-                      </div>
-
-                      {/* Endereço com ViaCEP */}
-                      <div className="space-y-2">
-                          <h4 className="text-sm font-semibold text-neutral-900">Endereço</h4>
-                          <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
-                              <div className="relative">
-                                  <label className="mb-1 block text-xs font-medium text-neutral-500">CEP</label>
-                                  <div className="flex gap-2">
-                                      <input 
-                                          value={clinicaForm.cep} 
-                                          onChange={e => {
-                                              setClinicaForm({...clinicaForm, cep: e.target.value});
-                                              if (e.target.value.replace(/\D/g, '').length === 8) {
-                                                  buscarCepClinica(e.target.value);
-                                              }
-                                          }}
-                                          onBlur={() => buscarCepClinica(clinicaForm.cep)}
-                                          className="h-9 flex-1 rounded-md border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-900 outline-none focus:border-neutral-900" 
-                                          placeholder="00000-000"
-                                      />
-                                      {buscandoCepClinica && <Loader2 size={20} className="animate-spin text-neutral-600 absolute right-3 top-10"/>}
-                                  </div>
-                              </div>
-                              <div className="md:col-span-2">
-                                  <label className="mb-1 block text-xs font-medium text-neutral-500">Rua / Avenida</label>
-                                  <input value={clinicaForm.rua} onChange={e => setClinicaForm({...clinicaForm, rua: e.target.value})} className="h-9 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-900 outline-none focus:border-neutral-900" placeholder="Logradouro"/>
-                              </div>
-                          </div>
-                          <div className="grid grid-cols-1 gap-2 md:grid-cols-4">
-                              <div>
-                                  <label className="mb-1 block text-xs font-medium text-neutral-500">Número</label>
-                                  <input value={clinicaForm.numero} onChange={e => setClinicaForm({...clinicaForm, numero: e.target.value})} className="h-9 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-900 outline-none focus:border-neutral-900" placeholder="123"/>
-                              </div>
-                              <div className="md:col-span-3">
-                                  <label className="mb-1 block text-xs font-medium text-neutral-500">Complemento</label>
-                                  <input value={clinicaForm.complemento} onChange={e => setClinicaForm({...clinicaForm, complemento: e.target.value})} className="h-9 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-900 outline-none focus:border-neutral-900" placeholder="Sala, Bloco, Andar..."/>
-                              </div>
-                          </div>
-                          <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
-                              <div>
-                                  <label className="mb-1 block text-xs font-medium text-neutral-500">Bairro</label>
-                                  <input value={clinicaForm.bairro} onChange={e => setClinicaForm({...clinicaForm, bairro: e.target.value})} className="h-9 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-900 outline-none focus:border-neutral-900" placeholder="Bairro"/>
-                              </div>
-                              <div>
-                                  <label className="mb-1 block text-xs font-medium text-neutral-500">Cidade</label>
-                                  <input value={clinicaForm.cidade} onChange={e => setClinicaForm({...clinicaForm, cidade: e.target.value})} className="h-9 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-900 outline-none focus:border-neutral-900" placeholder="Cidade"/>
-                              </div>
-                              <div>
-                                  <label className="mb-1 block text-xs font-medium text-neutral-500">UF</label>
-                                  <CustomSelect value={clinicaForm.uf || ''} onChange={v => setClinicaForm({...clinicaForm, uf: v})} options={UF_OPTIONS} size="md"/>
-                              </div>
-                          </div>
+      <Modal open={modalClinicaCompleto} onClose={() => { setModalClinicaCompleto(false); setClinicaEditando(null); limparLogoLocal(); }} maxWidth="4xl" hideCloseButton panelClassName="overflow-visible rounded-xl border border-neutral-200 bg-white">
+          <div className="px-5 py-4 sm:px-6 sm:py-5">
+              <div className="mb-5 flex items-center justify-between gap-4 border-b border-black/5 pb-4">
+                  <div className="flex min-w-0 items-center gap-3.5">
+                      <label className="relative h-16 w-16 shrink-0 cursor-pointer">
+                          <input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={escolherLogo} />
+                          <span className={`flex h-16 w-16 items-center justify-center overflow-hidden rounded-full border bg-[#f8f8f6] text-neutral-500 ${logoPreview ? 'border-neutral-900' : 'border-black/10'}`}>
+                              {logoPreview ? <img src={logoPreview} alt="" className="h-full w-full object-cover" /> : <Building2 size={22} />}
+                          </span>
+                          <span className="absolute -bottom-0.5 -right-0.5 flex h-6 w-6 items-center justify-center rounded-full bg-neutral-900 text-white">
+                              {uploadingLogo ? <Loader2 size={12} className="animate-spin" /> : <Camera size={12} />}
+                          </span>
+                      </label>
+                      <div className="min-w-0">
+                          <h3 className="text-lg font-semibold text-neutral-900">{clinicaEditando ? 'Editar clínica' : 'Nova clínica'}</h3>
+                          <p className="mt-0.5 text-xs font-medium text-neutral-400">Logo opcional. JPG, PNG ou WebP, até 2 MB.</p>
                       </div>
                   </div>
-                  
-                  <div className="flex gap-2 border-t border-neutral-200 px-4 py-3">
-                      <button onClick={() => { setModalClinicaCompleto(false); setClinicaEditando(null); }} className="h-9 flex-1 rounded-md text-sm font-medium text-neutral-600 hover:bg-neutral-50">
-                          Cancelar
-                      </button>
-                      <button onClick={salvarClinicaCompleta} className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-md bg-neutral-900 text-sm font-medium text-white hover:bg-neutral-800">
-                          <Save size={14}/> {clinicaEditando ? 'Salvar' : 'Cadastrar'}
-                      </button>
-                  </div>
+                  <button type="button" onClick={() => { setModalClinicaCompleto(false); setClinicaEditando(null); limparLogoLocal(); }} className="rounded-full p-2 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-800" aria-label="Fechar"><X size={18}/></button>
               </div>
+
+              <section>
+                  <h4 className="mb-3 text-sm font-semibold text-neutral-900">Identificação</h4>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-2.5 lg:grid-cols-4">
+                      <label className="min-w-0 lg:col-span-2"><span className={labelModal}>Nome <span className="text-red-500">*</span></span><input value={clinicaForm.nome} onChange={e => setClinicaForm({...clinicaForm, nome: e.target.value})} className={campoModal} placeholder="Nome da clínica"/></label>
+                      <label className="min-w-0"><span className={labelModal}>CNPJ</span><input value={clinicaForm.cnpj} onChange={e => setClinicaForm({...clinicaForm, cnpj: e.target.value})} className={campoModal} placeholder="00.000.000/0000-00"/></label>
+                      <label className="min-w-0"><span className={labelModal}>Responsável</span><input value={clinicaForm.responsavel_nome} onChange={e => setClinicaForm({...clinicaForm, responsavel_nome: e.target.value})} className={campoModal} placeholder="Responsável técnico"/></label>
+                      <label className="min-w-0"><span className={labelModal}>E-mail</span><input value={clinicaForm.email} onChange={e => setClinicaForm({...clinicaForm, email: e.target.value})} className={campoModal} placeholder="clinica@email.com"/></label>
+                      <label className="min-w-0"><span className={labelModal}>Telefone</span><input value={clinicaForm.telefone} onChange={e => setClinicaForm({...clinicaForm, telefone: e.target.value})} className={campoModal} placeholder="(00) 0000-0000"/></label>
+                      <label className="min-w-0"><span className={labelModal}>Início</span><input type="time" value={clinicaForm.horario_inicio} onChange={e => setClinicaForm({...clinicaForm, horario_inicio: e.target.value})} className={campoModal}/></label>
+                      <label className="min-w-0"><span className={labelModal}>Término</span><input type="time" value={clinicaForm.horario_fim} onChange={e => setClinicaForm({...clinicaForm, horario_fim: e.target.value})} className={campoModal}/></label>
+                      <label className="min-w-0"><span className={labelModal}>Fuso</span><CustomSelect value={clinicaForm.fuso_horario} onChange={v => setClinicaForm({...clinicaForm, fuso_horario: v})} options={FUSO_HORARIO_OPTIONS} size="md"/></label>
+                      <div className="min-w-0 lg:col-span-2">
+                          <span className={labelModal}>Notas fiscais em nome de</span>
+                          <div className="grid h-10 grid-cols-2 rounded-md border border-neutral-200 p-0.5">
+                              <button type="button" onClick={() => setClinicaForm({...clinicaForm, emitir_notas_em_nome: 'clinica'})} className={`rounded-[5px] text-sm font-medium ${clinicaForm.emitir_notas_em_nome === 'clinica' ? 'bg-neutral-900 text-white' : 'text-neutral-600'}`}>Clínica</button>
+                              <button type="button" onClick={() => setClinicaForm({...clinicaForm, emitir_notas_em_nome: 'profissional'})} className={`rounded-[5px] text-sm font-medium ${clinicaForm.emitir_notas_em_nome === 'profissional' ? 'bg-neutral-900 text-white' : 'text-neutral-600'}`}>Profissional</button>
+                          </div>
+                      </div>
+                  </div>
+              </section>
+
+              <section className="mt-5 border-t border-black/5 pt-4">
+                  <h4 className="mb-3 text-sm font-semibold text-neutral-900">Endereço</h4>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-2.5 lg:grid-cols-4">
+                      <label className="min-w-0">
+                          <span className={labelModal}>CEP {buscandoCepClinica && <Loader2 size={12} className="ml-1 inline animate-spin" />}</span>
+                          <input value={clinicaForm.cep} onChange={e => { setClinicaForm({...clinicaForm, cep: e.target.value}); if (e.target.value.replace(/\D/g, '').length === 8) buscarCepClinica(e.target.value); }} onBlur={() => buscarCepClinica(clinicaForm.cep)} className={campoModal} placeholder="00000-000"/>
+                      </label>
+                      <label className="min-w-0"><span className={labelModal}>Rua / avenida</span><input value={clinicaForm.rua} onChange={e => setClinicaForm({...clinicaForm, rua: e.target.value})} className={campoModal} placeholder="Rua / Avenida"/></label>
+                      <label className="min-w-0"><span className={labelModal}>Número</span><input value={clinicaForm.numero} onChange={e => setClinicaForm({...clinicaForm, numero: e.target.value})} className={campoModal} placeholder="Nº"/></label>
+                      <label className="min-w-0"><span className={labelModal}>Complemento</span><input value={clinicaForm.complemento} onChange={e => setClinicaForm({...clinicaForm, complemento: e.target.value})} className={campoModal} placeholder="Apto, bloco, sala"/></label>
+                      <label className="min-w-0"><span className={labelModal}>Bairro</span><input value={clinicaForm.bairro} onChange={e => setClinicaForm({...clinicaForm, bairro: e.target.value})} className={campoModal} placeholder="Bairro"/></label>
+                      <label className="min-w-0"><span className={labelModal}>Cidade</span><input value={clinicaForm.cidade} onChange={e => setClinicaForm({...clinicaForm, cidade: e.target.value})} className={campoModal} placeholder="Cidade"/></label>
+                      <label className="min-w-0"><span className={labelModal}>UF</span><CustomSelect value={clinicaForm.uf || ''} onChange={v => setClinicaForm({...clinicaForm, uf: v})} options={UF_OPTIONS} size="md"/></label>
+                  </div>
+              </section>
+
+              <div className="mt-5 flex justify-end border-t border-black/5 pt-4">
+                  <button type="button" onClick={salvarClinicaCompleta} className="inline-flex h-10 items-center gap-2 rounded-full bg-neutral-900 px-5 text-sm font-medium text-white hover:bg-neutral-800">
+                      <Save size={15}/> {clinicaEditando ? 'Salvar' : 'Cadastrar'}
+                  </button>
+              </div>
+          </div>
       </Modal>
 
     </>
