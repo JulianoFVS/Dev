@@ -240,7 +240,7 @@ export default function Pacientes() {
           </div>
 
           {showFiltros && (
-              <div className="flex items-end gap-2 border-t border-black/5 pt-3">
+              <div className="flex flex-wrap items-end gap-2 border-t border-black/5 pt-3">
                   <div className="min-w-0 flex-1">
                       <label className="mb-1 block text-[10px] font-medium uppercase tracking-wide text-neutral-400">Clínica</label>
                       <CustomSelect pill value={filtroClinica} onChange={setFiltroClinica} options={[{value:'todas',label:'Todas as clínicas'}, ...clinicas.map((c:any) => ({value:String(c.id),label:c.nome}))]} size="sm"/>

@@ -42,7 +42,7 @@ export default function LandingNavbar() {
         <div className="flex items-center gap-4">
           <Link
             href="/login"
-            className="hidden font-poppins text-[15px] font-normal text-neutral-800 transition-colors hover:text-neutral-950 sm:inline"
+            className="font-poppins text-[15px] font-normal text-neutral-800 transition-colors hover:text-neutral-950"
           >
             Login
           </Link>

@@ -303,8 +303,8 @@ export default function Login() {
 
   return (
     <div className="flex min-h-[100dvh] w-full flex-col font-poppins lg:flex-row">
-      {/* Painel escuro — mobile (topo) */}
-      <div className="h-[36vh] min-h-[210px] shrink-0 bg-white pt-3 sm:pt-4 lg:hidden">
+      {/* Painel escuro — mobile (faixa curta para o Entrar caber na primeira tela) */}
+      <div className="h-[22svh] max-h-[9.5rem] min-h-[5.5rem] shrink-0 bg-white pt-2 lg:hidden">
         <LoginBrandPanel className="h-full !p-0 px-3 pb-0 sm:px-4" />
       </div>
 
@@ -318,9 +318,9 @@ export default function Login() {
           Voltar
         </Link>
 
-        <div className="flex flex-1 flex-col items-center justify-center px-6 py-12 sm:px-10 sm:py-14">
-          <div className="-mt-6 w-full max-w-[400px] rounded-t-[1.75rem] bg-white pt-6 lg:mt-0 lg:rounded-none lg:pt-0">
-            <Link href="/" className="mb-6 flex justify-center">
+        <div className="flex flex-1 flex-col items-center justify-start px-6 py-4 sm:px-10 sm:justify-center sm:py-14">
+          <div className="w-full max-w-[400px] bg-white pt-2 lg:rounded-none lg:pt-0">
+            <Link href="/" className="mb-4 flex justify-center sm:mb-6">
               <img
                 src="/landing/ortus-wordmark.svg"
                 alt="Ortus"
@@ -328,7 +328,7 @@ export default function Login() {
               />
             </Link>
 
-            <div className="mb-8 text-center">
+            <div className="mb-5 text-center sm:mb-8">
               <h1 className="text-[1.5rem] font-bold leading-tight tracking-tight text-neutral-900 sm:text-[1.65rem]">
                 Bem-vindo de volta
               </h1>

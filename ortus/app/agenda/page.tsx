@@ -471,7 +471,7 @@ export default function Agenda() {
     'w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm font-medium text-neutral-800 outline-none focus:border-neutral-400';
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden px-2.5 py-2.5 font-poppins sm:px-3 sm:py-3 md:px-4 md:py-3.5">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden px-2.5 py-2.5 font-poppins sm:px-3 sm:py-3 md:px-4 md:py-3.5 max-sm:overflow-y-auto">
       <header className="mb-3 shrink-0 space-y-3">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
@@ -563,7 +563,7 @@ export default function Agenda() {
       </header>
 
       <div className={`${cardShell} bento-calendar min-h-0 flex-1 overflow-hidden p-2 sm:p-4`}>
-        <div className="hidden h-full min-h-[320px] sm:block">
+        <div className="hidden h-full min-h-[320px] lg:block">
           <FullCalendar
             ref={calendarRef}
             {...fcProps}
@@ -571,7 +571,7 @@ export default function Agenda() {
             headerToolbar={{ left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,timeGridDay,listWeek' }}
           />
         </div>
-        <div className="h-full min-h-[360px] sm:hidden">
+        <div className="h-full min-h-[360px] lg:hidden">
           <FullCalendar
             ref={calendarRef}
             {...fcProps}

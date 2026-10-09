@@ -663,7 +663,7 @@ export function PlanosContent({ embedded = false }: { embedded?: boolean }) {
 
             {!carregando && planos.length > 0 && (
                 <div className="grid min-h-0 flex-1 grid-cols-1 gap-2 overflow-hidden md:grid-cols-[minmax(16rem,22rem)_minmax(0,1fr)]">
-                    <aside className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white">
+                    <aside className="flex min-h-[12rem] flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white md:min-h-0">
                         <div className="flex items-center justify-between border-b border-black/5 px-3 py-2.5">
                             <h3 className="text-sm font-semibold text-neutral-900">Especialidades</h3>
                             <button type="button" onClick={abrirNovaEspecialidade} className="inline-flex h-8 items-center gap-1 rounded-md bg-neutral-900 px-2.5 text-xs font-medium text-white hover:bg-neutral-800"><Plus size={13}/> Novo</button>

@@ -474,19 +474,22 @@ export default function Dashboard() {
   const ratioCaixa = totalCaixa > 0 ? financeiro.recebido / totalCaixa : 0;
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden px-2.5 py-2.5 sm:px-3 sm:py-3 md:px-4 md:py-3.5">
+    <div className="flex h-full min-h-0 flex-col overflow-x-hidden overflow-y-auto px-2.5 py-2.5 sm:px-3 sm:py-3 md:px-4 md:py-3.5 lg:overflow-y-hidden">
       <header className="relative z-20 mb-3 shrink-0">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0">
-            <h1 className="max-w-3xl text-[1.65rem] font-semibold leading-[1.12] tracking-tight text-neutral-900 sm:text-[1.85rem] md:text-[2.05rem] lg:text-[2.15rem]">
-              Gerenciando sua clínica
-              <span className="text-neutral-400"> e o fluxo do dia</span>
+            <h1 className="max-w-3xl text-2xl font-semibold leading-[1.12] tracking-tight text-neutral-900 lg:text-[2.15rem]">
+              <span className="lg:hidden">Hoje</span>
+              <span className="hidden lg:inline">
+                Gerenciando sua clínica
+                <span className="text-neutral-400"> e o fluxo do dia</span>
+              </span>
             </h1>
             <p className="mt-1 truncate text-sm capitalize text-neutral-500 sm:text-base">
               {dataTitulo} · {clinicaNome}
             </p>
           </div>
-          <div className="flex shrink-0 items-center gap-2 self-start">
+          <div className="hidden shrink-0 items-center gap-2 self-start lg:flex">
             <button
               type="button"
               onClick={abrirBusca}
@@ -527,8 +530,7 @@ export default function Dashboard() {
               className="inline-flex h-11 items-center gap-2 rounded-full bg-neutral-900 px-5 text-sm font-medium text-white hover:bg-neutral-800 sm:text-base"
             >
               <Plus size={18} />
-              <span className="hidden sm:inline">Novo agendamento</span>
-              <span className="sm:hidden">Novo</span>
+              Novo agendamento
             </Link>
           </div>
         </div>
@@ -536,7 +538,7 @@ export default function Dashboard() {
       </header>
 
       {/* Renderiza sempre — skeletons inline enquanto carrega */}
-      <div className="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)] gap-2.5 overflow-hidden sm:gap-3">
+      <div className="grid min-h-0 gap-2.5 sm:gap-3 lg:min-h-0 lg:flex-1 lg:grid-rows-[auto_minmax(0,1fr)] lg:overflow-hidden">
           <div className="grid shrink-0 grid-cols-1 gap-2.5 sm:gap-3 lg:grid-cols-3">
             <section className={`${bentoAgenda} relative flex min-h-[10rem] flex-col justify-between overflow-hidden p-4 sm:min-h-[11rem] sm:p-5`}>
               <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_100%_0%,rgba(200,240,83,0.18),transparent_50%)]" />
@@ -641,7 +643,7 @@ export default function Dashboard() {
             </section>
           </div>
 
-          <div className="grid min-h-0 grid-cols-1 gap-2.5 overflow-hidden lg:grid-cols-[minmax(0,1.55fr)_minmax(260px,1fr)] sm:gap-3">
+          <div className="grid min-h-0 grid-cols-1 gap-2.5 sm:gap-3 lg:overflow-hidden lg:grid-cols-[minmax(0,1.55fr)_minmax(260px,1fr)]">
             <section className={`${bento} flex min-h-0 flex-col p-4 sm:p-5`}>
               <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
                 <div>
@@ -679,7 +681,7 @@ export default function Dashboard() {
                 </span>
               </div>
 
-              <div key={periodo} className="relative mt-3 flex min-h-0 flex-1 items-end justify-between gap-1 sm:gap-2">
+              <div key={periodo} className="relative mt-3 flex min-h-[8.5rem] items-end justify-between gap-1 sm:gap-2 lg:min-h-0 lg:flex-1">
                 <div className="pointer-events-none absolute inset-x-0 bottom-8 top-2 flex flex-col justify-between">
                   {[0, 1, 2, 3, 4].map((i) => (
                     <div key={i} className="h-px w-full bg-neutral-100" />
@@ -735,14 +737,14 @@ export default function Dashboard() {
               )}
             </section>
 
-            <aside className="flex min-h-0 flex-col gap-2 overflow-hidden">
+            <aside className="flex min-h-[18rem] flex-col gap-2 lg:min-h-0 lg:overflow-hidden">
               <div className="grid min-h-0 flex-1 grid-cols-1 gap-2 md:grid-cols-2">
               <section className={`${bento} flex min-h-0 flex-col overflow-hidden`}>
                 <div className="flex items-center justify-between border-b border-black/5 px-4 py-3">
                   <h3 className="text-base font-semibold text-neutral-900 sm:text-lg">Fila do dia</h3>
                   <span className="text-sm text-neutral-400">{agendaHoje.length}</span>
                 </div>
-                <ul className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-2">
+                <ul className="min-h-[8rem] flex-1 overflow-y-auto overscroll-contain p-2 lg:min-h-0">
                   {fila.length === 0 ? (
                     <li className="p-3 text-sm text-neutral-400 sm:text-base">Nenhuma consulta hoje.</li>
                   ) : (
@@ -791,7 +793,7 @@ export default function Dashboard() {
                     Ver
                   </Link>
                 </div>
-                <ul className="min-h-0 flex-1 overflow-y-auto p-2">
+                <ul className="min-h-[8rem] flex-1 overflow-y-auto p-2 lg:min-h-0">
                   {pendencias.length === 0 ? (
                     <li className="p-3 text-sm text-neutral-400 sm:text-base">Nada travando o dia.</li>
                   ) : (

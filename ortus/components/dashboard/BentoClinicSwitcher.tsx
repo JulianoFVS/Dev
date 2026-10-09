@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Building2, Check, ChevronsUpDown, Globe } from 'lucide-react';
 import { getClinicLabel, useClinica } from '@/app/context/ClinicaContext';
 import BentoSidebarTooltip from '@/components/bento/BentoSidebarTooltip';
@@ -21,12 +22,15 @@ export default function BentoClinicSwitcher({
   const [open, setOpen] = useState(false);
   const [panelPos, setPanelPos] = useState<{ top: number; left: number } | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!open) return;
     function onPointerDown(e: MouseEvent) {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+      const alvo = e.target as Node;
+      if (rootRef.current?.contains(alvo) || panelRef.current?.contains(alvo)) return;
+      setOpen(false);
     }
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') setOpen(false);
@@ -42,12 +46,28 @@ export default function BentoClinicSwitcher({
   const isSidebar = variant === 'sidebar';
 
   useEffect(() => {
-    if (!open || !(isSidebar && collapsed) || !triggerRef.current) {
+    if (!open || !triggerRef.current) {
       setPanelPos(null);
       return;
     }
-    const rect = triggerRef.current.getBoundingClientRect();
-    setPanelPos({ top: rect.top, left: rect.right + 8 });
+    const posicionar = () => {
+      const rect = triggerRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      if (isSidebar && collapsed) {
+        setPanelPos({ top: rect.top, left: rect.right + 8 });
+        return;
+      }
+      const largura = Math.min(288, window.innerWidth - 24);
+      const left = Math.max(12, Math.min(rect.left, window.innerWidth - largura - 12));
+      setPanelPos({ top: rect.bottom + 6, left });
+    };
+    posicionar();
+    window.addEventListener('resize', posicionar);
+    window.addEventListener('scroll', posicionar, true);
+    return () => {
+      window.removeEventListener('resize', posicionar);
+      window.removeEventListener('scroll', posicionar, true);
+    };
   }, [open, isSidebar, collapsed]);
 
   const fullLabel = activeClinic ? getClinicLabel(activeClinic) : loading ? 'Carregando…' : 'Selecionar unidade';
@@ -76,7 +96,6 @@ export default function BentoClinicSwitcher({
   const iconClass = isSidebar ? 'shrink-0 text-white/70' : 'shrink-0 text-neutral-500';
   const chevronClass = isSidebar ? 'shrink-0 text-white/45' : 'shrink-0 text-neutral-400';
 
-  const panelFixed = isSidebar && collapsed;
   const panelClass =
     'z-[200] max-h-[min(70vh,22rem)] w-[min(100vw-1.5rem,18rem)] overflow-hidden overflow-y-auto rounded-[1.15rem] border border-black/8 bg-white shadow-[0_12px_40px_rgba(0,0,0,0.12)] sm:rounded-[1.25rem]';
 
@@ -114,11 +133,12 @@ export default function BentoClinicSwitcher({
         trigger
       )}
 
-      {open && (
+      {open && panelPos && typeof document !== 'undefined' && createPortal(
         <div
+          ref={panelRef}
           role="listbox"
-          className={`${panelClass} ${panelFixed ? 'fixed' : 'absolute left-0 top-[calc(100%+0.35rem)]'}`}
-          style={panelFixed && panelPos ? { top: panelPos.top, left: panelPos.left } : undefined}
+          className={`${panelClass} fixed`}
+          style={{ top: panelPos.top, left: panelPos.left }}
         >
           <p className="sticky top-0 border-b border-black/6 bg-[#f3f4f1] px-4 py-2 text-[10px] font-semibold uppercase tracking-wider text-neutral-500">
             Trocar unidade
@@ -160,7 +180,8 @@ export default function BentoClinicSwitcher({
               </button>
             );
           })}
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

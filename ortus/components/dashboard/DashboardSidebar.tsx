@@ -141,46 +141,6 @@ function NavItem({
   );
 }
 
-export function DashboardMobileNav({
-  showTarefas = true,
-  showEquipe = true,
-  showTratamentosBase = true,
-  showPainelSaas = false,
-}: DashboardSidebarNavOptions = {}) {
-  const pathname = usePathname();
-  const mid = [
-    showTarefas ? { href: '/tarefas', label: 'Tarefas', icon: CheckSquare } : null,
-    showEquipe ? { href: '/ajustes/equipe', label: 'Equipe', icon: ShieldCheck } : null,
-    showTratamentosBase ? { href: '/ajustes/tratamentos', label: 'Tratamentos base', icon: ClipboardList } : null,
-  ].filter(Boolean) as { href: string; label: string; icon: typeof LayoutDashboard }[];
-  const footer = showPainelSaas
-    ? [{ href: '/super-admin', label: 'Painel SaaS', icon: ShieldAlert }]
-    : [];
-
-  const all = [...LINKS, ...mid, ...footer];
-
-  return (
-    <>
-      {all.map((item) => {
-        const active = isNavActive(pathname, item.href);
-        const Icon = item.icon;
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            title={item.label}
-            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border ${
-              active ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-black/10 bg-white text-neutral-600'
-            }`}
-          >
-            <Icon size={16} strokeWidth={1.75} />
-          </Link>
-        );
-      })}
-    </>
-  );
-}
-
 export default function DashboardSidebar({
   showTarefas = true,
   showEquipe = true,
@@ -237,7 +197,7 @@ export default function DashboardSidebar({
 
   return (
     <aside
-      className={`flex h-[calc(100vh-0.75rem)] shrink-0 flex-col overflow-visible rounded-[1.75rem] bg-neutral-950 py-3 transition-[width] duration-200 ease-out sm:h-[calc(100vh-1rem)] sm:rounded-[2rem] md:rounded-[2.25rem] ${widthClass}`}
+      className={`flex h-full shrink-0 flex-col overflow-visible rounded-[1.75rem] bg-neutral-950 py-3 transition-[width] duration-200 ease-out sm:rounded-[2rem] md:rounded-[2.25rem] ${widthClass}`}
     >
       <div className={`mb-2 ${collapsed ? 'flex justify-center px-2' : 'px-3'}`}>
         <BentoSidebarTooltip label="Visão geral" show={collapsed}>

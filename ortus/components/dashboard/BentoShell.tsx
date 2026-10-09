@@ -1,11 +1,35 @@
 'use client';
 
-import Link from 'next/link';
-import DashboardSidebar, {
-  DashboardMobileNav,
-  type DashboardSidebarNavOptions,
-} from '@/components/dashboard/DashboardSidebar';
-import BentoClinicSwitcher from '@/components/dashboard/BentoClinicSwitcher';
+import { useEffect, useState } from 'react';
+import DashboardSidebar, { type DashboardSidebarNavOptions } from '@/components/dashboard/DashboardSidebar';
+import MobileAppChrome from '@/components/dashboard/MobileAppChrome';
+
+/**
+ * Altura em que o layout do computador cabe inteiro.
+ * Só vale para monitor e notebook. Celular não reduz essa tela: ele tem o próprio app.
+ */
+const ALTURA_DESENHO = 800;
+const LARGURA_COMPUTADOR = 1024;
+
+function useEscalaTela() {
+  const [zoom, setZoom] = useState(1);
+
+  useEffect(() => {
+    const aplicar = () => {
+      if (window.innerWidth < LARGURA_COMPUTADOR) {
+        setZoom(1);
+        return;
+      }
+      const proximo = Math.min(1, window.innerHeight / ALTURA_DESENHO);
+      setZoom(Number(proximo.toFixed(3)));
+    };
+    aplicar();
+    window.addEventListener('resize', aplicar);
+    return () => window.removeEventListener('resize', aplicar);
+  }, []);
+
+  return zoom;
+}
 
 export default function BentoShell({
   children,
@@ -14,26 +38,30 @@ export default function BentoShell({
   children: React.ReactNode;
   sidebarNav?: DashboardSidebarNavOptions;
 }) {
-  return (
-    <div className="flex h-screen w-full gap-1.5 overflow-x-visible overflow-y-hidden bg-[#dfe5df] p-1.5 font-poppins sm:gap-2 sm:p-2">
-      <div className="hidden shrink-0 overflow-visible sm:block">
-        <DashboardSidebar {...sidebarNav} />
-      </div>
+  const zoom = useEscalaTela();
+  const reduzir = zoom < 0.999;
 
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-[1.75rem] bg-[#f3f4f1] shadow-[0_1px_0_rgba(0,0,0,0.04)] sm:rounded-[2rem] md:rounded-[2.25rem]">
-        <div className="flex shrink-0 items-center justify-between gap-2 border-b border-black/5 bg-[#f3f4f1] px-3 py-2.5 sm:hidden">
-          <img src="/landing/ortus-wordmark.svg" alt="ortus" className="h-5 w-auto" />
-          <div className="flex shrink-0 items-center gap-2">
-            <BentoClinicSwitcher collapsed className="shrink-0" />
-            <Link href="/agenda" className="rounded-full bg-neutral-900 px-3 py-1.5 text-[11px] font-medium text-white">
-              + Agendar
-            </Link>
-          </div>
+  return (
+    <div className="h-[100dvh] w-full overflow-hidden bg-[#f3f4f1] lg:bg-[#dfe5df]">
+      <div
+        className="flex h-full w-full flex-col bg-[#f3f4f1] lg:flex-row lg:gap-2 lg:bg-[#dfe5df] lg:p-2"
+        style={
+          reduzir
+            ? {
+                zoom,
+                width: `calc(100vw / ${zoom})`,
+                height: `calc(100vh / ${zoom})`,
+              }
+            : undefined
+        }
+      >
+        <div className="hidden h-full shrink-0 overflow-visible lg:block">
+          <DashboardSidebar {...sidebarNav} />
         </div>
-        <div className="flex shrink-0 gap-1.5 overflow-x-auto border-b border-black/5 bg-[#f3f4f1] px-3 py-2 sm:hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <DashboardMobileNav {...sidebarNav} />
+
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[#f3f4f1] lg:rounded-[2.25rem] lg:shadow-[0_1px_0_rgba(0,0,0,0.04)]">
+          <MobileAppChrome {...sidebarNav}>{children}</MobileAppChrome>
         </div>
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</div>
       </div>
     </div>
   );

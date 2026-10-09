@@ -1889,7 +1889,7 @@ export default function PacienteDetalhe() {
 
   return (
     <div className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden bg-white font-poppins">
-        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-black/10 px-4 py-2.5">
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-black/10 px-3 py-2.5 sm:gap-3 sm:px-4">
             <div className="flex min-w-0 items-center gap-2.5">
                 <Link href="/pacientes" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-black/10 bg-[#f8f8f6] text-neutral-600 transition-colors hover:bg-white"><ArrowLeft size={16}/></Link>
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-neutral-900 text-[11px] font-semibold text-white">
@@ -2049,8 +2049,8 @@ export default function PacienteDetalhe() {
                 </div>
         </Modal>
 
-        <div className="flex min-h-0 flex-1">
-            <nav aria-label="Seções do prontuário" className="flex w-[12.75rem] shrink-0 flex-col border-r border-black/10 px-2 py-2 sm:w-56">
+        <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+            <nav aria-label="Seções do prontuário" className="flex shrink-0 gap-1 overflow-x-auto border-b border-black/10 px-2 py-2 lg:w-56 lg:flex-col lg:overflow-visible lg:border-b-0 lg:border-r">
                 {PATIENT_NAV_SECTIONS.map((section) => {
                     const Icon = section.icon;
                     const active = abaAtiva === section.key;
@@ -2065,10 +2065,10 @@ export default function PacienteDetalhe() {
                             key={section.key}
                             type="button"
                             onClick={() => setAbaAtiva(section.key)}
-                            className={`flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-sm leading-snug ${active ? 'bg-neutral-900 font-medium text-white' : 'font-medium text-neutral-600 hover:bg-[#f3f4f1]'}`}
+                            className={`flex shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-left text-sm leading-snug lg:w-full lg:gap-2.5 lg:py-2.5 ${active ? 'bg-neutral-900 font-medium text-white' : 'font-medium text-neutral-600 hover:bg-[#f3f4f1]'}`}
                         >
                             <Icon size={16} className="shrink-0" />
-                            <span className="min-w-0 flex-1">{section.label}</span>
+                            <span className="whitespace-nowrap lg:min-w-0 lg:flex-1 lg:whitespace-normal">{section.label}</span>
                             {badge != null && (
                                 <span className={`text-[11px] font-medium tabular-nums ${active ? 'text-white/70' : 'text-neutral-400'}`}>{badge}</span>
                             )}
@@ -2077,7 +2077,7 @@ export default function PacienteDetalhe() {
                 })}
             </nav>
 
-            <div className={abaAtiva === 'dados' || abaAtiva === 'anamnese' ? 'flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden' : 'min-h-0 min-w-0 flex-1 overflow-y-auto px-5 py-4'}>
+            <div className={abaAtiva === 'dados' || abaAtiva === 'anamnese' ? 'flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden' : 'min-h-0 min-w-0 flex-1 overflow-y-auto px-3 py-3 sm:px-5 sm:py-4'}>
                 {abaAtiva === 'dados' && (
                     <div className="flex h-full min-h-0 flex-col overflow-y-auto px-4 py-3">
                         <div className="mb-3 flex shrink-0 items-center justify-between gap-2">
@@ -2097,17 +2097,17 @@ export default function PacienteDetalhe() {
                         <div className="space-y-5">
                             <section>
                                 <h4 className="mb-2 text-sm font-semibold text-neutral-900">Identificação</h4>
-                                <div className="flex items-start gap-4">
-                                <label className="group relative h-36 w-36 shrink-0 cursor-pointer">
+                                <div className="flex flex-col items-start gap-4 sm:flex-row">
+                                <label className="group relative h-28 w-28 shrink-0 cursor-pointer sm:h-36 sm:w-36">
                                     <input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={(e) => { const arquivo = e.target.files?.[0]; e.target.value = ''; trocarFotoPaciente(arquivo); }} />
-                                    <span className="flex h-36 w-36 items-center justify-center overflow-hidden rounded-md border border-neutral-200 bg-neutral-50 text-2xl font-semibold text-neutral-700">
+                                    <span className="flex h-28 w-28 items-center justify-center overflow-hidden rounded-md border border-neutral-200 bg-neutral-50 text-2xl font-semibold text-neutral-700 sm:h-36 sm:w-36">
                                         {form.foto_url ? <img src={form.foto_url} alt="" className="h-full w-full object-cover" /> : (form.nome || 'P').trim().split(/\s+/).slice(0, 2).map((parte: string) => parte[0] || '').join('').toUpperCase()}
                                     </span>
                                     <span className="absolute bottom-1.5 right-1.5 flex h-7 w-7 items-center justify-center rounded-md bg-neutral-900 text-white">
                                         {enviandoFotoPerfil ? <Loader2 size={14} className="animate-spin" /> : <Camera size={14} />}
                                     </span>
                                 </label>
-                                <div className="grid min-w-0 flex-1 grid-cols-2 gap-x-3 gap-y-2.5 lg:grid-cols-4">
+                                <div className="grid min-w-0 flex-1 grid-cols-1 gap-x-3 gap-y-2.5 sm:grid-cols-2 lg:grid-cols-4">
                                     <label className="min-w-0">
                                         <span className={campoLabel}>Nome completo</span>
                                         <input disabled={!modoEdicao} className={campoClass(modoEdicao)} value={form.nome || ''} onChange={e => setForm({...form, nome: e.target.value})} />
@@ -2147,7 +2147,7 @@ export default function PacienteDetalhe() {
 
                             <section className="border-t border-black/5 pt-4">
                                 <h4 className="mb-3 text-sm font-semibold text-neutral-900">Endereço</h4>
-                                <div className="grid grid-cols-2 gap-x-3 gap-y-2.5 lg:grid-cols-4">
+                                <div className="grid grid-cols-1 gap-x-3 gap-y-2.5 sm:grid-cols-2 lg:grid-cols-4">
                                     <label className="min-w-0">
                                         <span className="mb-1.5 flex items-center justify-between gap-2 text-xs font-medium text-neutral-500">
                                             <span>CEP <span className="text-red-500">*</span></span>
@@ -2213,7 +2213,7 @@ export default function PacienteDetalhe() {
                                     Responsável
                                     {menorDeIdade && <span className="text-xs font-medium text-red-500">obrigatório para menor de 18 anos</span>}
                                 </button>
-                                {responsavelAberto && <div className="grid grid-cols-2 gap-x-3 gap-y-2.5 lg:grid-cols-4">
+                                {responsavelAberto && <div className="grid grid-cols-1 gap-x-3 gap-y-2.5 sm:grid-cols-2 lg:grid-cols-4">
                                     <label className="min-w-0">
                                         <span className={campoLabel}>Nome</span>
                                         <input disabled={!modoEdicao} className={campoClass(modoEdicao)} value={form.responsavel_nome || ''} onChange={e => setForm({...form, responsavel_nome: e.target.value})} />
@@ -2236,8 +2236,8 @@ export default function PacienteDetalhe() {
                 )}
 
                 {abaAtiva === 'anamnese' && (
-                    <div className="flex h-full min-h-0 flex-col overflow-hidden px-5 py-4">
-                        <div className="mb-3 flex shrink-0 items-center justify-between gap-3">
+                    <div className="flex h-full min-h-0 flex-col overflow-y-auto px-3 py-3 sm:px-5 sm:py-4 md:overflow-hidden">
+                        <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-2">
                             <h3 className="text-base font-semibold text-neutral-900">Anamnese</h3>
                             <div className="flex items-center gap-2">
                                 <Link href="/configuracoes?aba=anamnese" className="inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-xs font-medium text-neutral-500 hover:bg-neutral-50 hover:text-neutral-900"><Settings size={14}/> Modelos</Link>
@@ -2510,7 +2510,7 @@ export default function PacienteDetalhe() {
                                 </div>
                             ) : (
                             <>
-                            <div className="mb-3 flex items-center gap-2">
+                            <div className="mb-3 flex flex-wrap items-center gap-2">
                                 <div className="w-40 shrink-0">
                                     <CustomSelect
                                         value={tipoArcada}

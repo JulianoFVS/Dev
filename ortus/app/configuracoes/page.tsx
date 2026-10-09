@@ -958,8 +958,8 @@ export default function Configuracoes() {
           <div className="h-32 animate-pulse rounded-2xl bg-neutral-50" />
         </div>
       ) : (
-        <div className="flex min-h-0 flex-1 overflow-hidden rounded-xl border border-neutral-200 bg-white">
-          <nav aria-label="Seções de configuração" className="flex w-[12.75rem] shrink-0 flex-col border-r border-black/10 px-2 py-2 sm:w-56">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white lg:flex-row">
+          <nav aria-label="Seções de configuração" className="flex shrink-0 gap-1 overflow-x-auto border-b border-black/10 px-2 py-2 lg:w-56 lg:flex-col lg:overflow-visible lg:border-b-0 lg:border-r">
             {CONFIG_NAVS.map((section) => {
               const Icon = section.icon;
               const active = abaAtiva === section.key;
@@ -969,10 +969,10 @@ export default function Configuracoes() {
                   key={section.key}
                   type="button"
                   onClick={() => setAbaAtiva(section.key)}
-                  className={`flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-sm leading-snug ${active ? 'bg-neutral-900 font-medium text-white' : 'font-medium text-neutral-600 hover:bg-[#f3f4f1]'}`}
+                  className={`flex shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-left text-sm leading-snug lg:w-full lg:gap-2.5 lg:py-2.5 ${active ? 'bg-neutral-900 font-medium text-white' : 'font-medium text-neutral-600 hover:bg-[#f3f4f1]'}`}
                 >
                   <Icon size={16} className="shrink-0" />
-                  <span className="min-w-0 flex-1">{section.label}</span>
+                  <span className="whitespace-nowrap lg:min-w-0 lg:flex-1 lg:whitespace-normal">{section.label}</span>
                   {badge != null && badge > 0 && (
                     <span className={`text-[11px] font-medium tabular-nums ${active ? 'text-white/70' : 'text-neutral-400'}`}>{badge}</span>
                   )}
@@ -980,7 +980,7 @@ export default function Configuracoes() {
               );
             })}
           </nav>
-          <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
+          <div className="min-h-0 min-w-0 flex-1 overflow-y-auto lg:overflow-hidden">
             {/* ABA CLÍNICAS */}
             {abaAtiva === 'clinicas' && (
                 <section className={sectionPad}>
@@ -1073,7 +1073,7 @@ export default function Configuracoes() {
 
             {/* ABA GERAL / PREFERÊNCIAS */}
             {abaAtiva === 'geral' && (
-                <div className="grid h-full min-h-0 grid-cols-1 gap-3 overflow-hidden p-3 lg:grid-cols-2">
+                <div className="grid min-h-0 grid-cols-1 gap-3 overflow-visible p-3 md:h-full md:overflow-hidden lg:grid-cols-2">
                     <section className="min-h-0 space-y-2 overflow-hidden">
                         <h3 className="text-base font-semibold text-neutral-900">Preferências gerais</h3>
                         <div className="grid grid-cols-2 gap-2">
@@ -1086,7 +1086,7 @@ export default function Configuracoes() {
                     </section>
                     <section className="min-h-0 space-y-3 overflow-hidden">
                         <h3 className="text-base font-semibold text-neutral-900">Horário de atendimento</h3>
-                        <div className="grid grid-cols-3 gap-2">
+                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                             <div><label className={campoLabel}>Abertura</label><input type="time" value={prefs.horario_abertura} onChange={e => atualizarPref('horario_abertura', e.target.value)} className={campoInput}/></div>
                             <div><label className={campoLabel}>Fechamento</label><input type="time" value={prefs.horario_fechamento} onChange={e => atualizarPref('horario_fechamento', e.target.value)} className={campoInput}/></div>
                             <div><label className={campoLabel}>Consulta (min)</label><input type="number" value={prefs.duracao_consulta_padrao} onChange={e => atualizarPref('duracao_consulta_padrao', parseInt(e.target.value)||60)} className={campoInput}/></div>
@@ -1359,7 +1359,7 @@ export default function Configuracoes() {
                             );
                         })}
                     </div>
-                    <div className="mt-2 grid shrink-0 grid-cols-3 gap-2">
+                    <div className="mt-2 grid shrink-0 grid-cols-1 gap-2 sm:grid-cols-3">
                         <button type="button" onClick={exportarPacientes} className="h-9 rounded-md border border-neutral-200 text-xs font-medium text-neutral-800 hover:bg-neutral-50">Exportar pacientes</button>
                         <button type="button" onClick={exportarTudo} className="h-9 rounded-md border border-neutral-200 text-xs font-medium text-neutral-800 hover:bg-neutral-50">Exportar configurações</button>
                         <label className="inline-flex h-9 cursor-pointer items-center justify-center rounded-md border border-neutral-200 text-xs font-medium text-neutral-800 hover:bg-neutral-50">
@@ -1658,7 +1658,7 @@ export default function Configuracoes() {
                               <div><label className="mb-1 block text-xs font-medium text-neutral-500">Cargo</label><input value={profForm.cargo} onChange={e => setProfForm({...profForm, cargo: e.target.value})} className="h-9 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-900 outline-none focus:border-neutral-900" placeholder="Ex: Ortodontista"/></div>
                           </div>
                           <div className="md:col-span-2"><label className="mb-1 block text-xs font-medium text-neutral-500">Endereço</label><input value={profForm.endereco} onChange={e => setProfForm({...profForm, endereco: e.target.value})} className="h-9 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-900 outline-none focus:border-neutral-900" placeholder="Rua, Número, Bairro..."/></div>
-                          <div className="grid grid-cols-3 gap-3 bg-neutral-50 p-3 rounded-xl border border-neutral-100"><div className="col-span-1"><label className="text-[10px] font-bold text-neutral-400 uppercase ml-1">Conselho</label><CustomSelect value={profForm.conselho} onChange={v => setProfForm({...profForm, conselho: v})} options={[{value:'CRO',label:'CRO'},{value:'CRM',label:'CRM'},{value:'Outro',label:'Outro'}]} size="sm"/></div><div className="col-span-1"><label className="text-[10px] font-bold text-neutral-400 uppercase ml-1">UF</label><input value={profForm.uf} onChange={e => setProfForm({...profForm, uf: e.target.value})} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg outline-none text-sm font-medium" placeholder="UF"/></div><div className="col-span-1"><label className="text-[10px] font-bold text-neutral-400 uppercase ml-1">Nº Conselho</label><input value={profForm.cro} onChange={e => setProfForm({...profForm, cro: e.target.value})} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg outline-none text-sm font-medium" placeholder="12345"/></div></div>
+                          <div className="grid grid-cols-1 gap-3 bg-neutral-50 p-3 rounded-xl border border-neutral-100 sm:grid-cols-3"><div className="col-span-1"><label className="text-[10px] font-bold text-neutral-400 uppercase ml-1">Conselho</label><CustomSelect value={profForm.conselho} onChange={v => setProfForm({...profForm, conselho: v})} options={[{value:'CRO',label:'CRO'},{value:'CRM',label:'CRM'},{value:'Outro',label:'Outro'}]} size="sm"/></div><div className="col-span-1"><label className="text-[10px] font-bold text-neutral-400 uppercase ml-1">UF</label><input value={profForm.uf} onChange={e => setProfForm({...profForm, uf: e.target.value})} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg outline-none text-sm font-medium" placeholder="UF"/></div><div className="col-span-1"><label className="text-[10px] font-bold text-neutral-400 uppercase ml-1">Nº Conselho</label><input value={profForm.cro} onChange={e => setProfForm({...profForm, cro: e.target.value})} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg outline-none text-sm font-medium" placeholder="12345"/></div></div>
                       </div>
                       <div className="bg-neutral-50 p-4 rounded-2xl border border-neutral-100 flex flex-col md:flex-row justify-between items-center gap-4">
                           <div className="flex items-center gap-3"><div className={`p-3 rounded-xl ${profForm.nivel_acesso === 'admin' ? 'bg-purple-100 text-purple-600' : 'bg-white border border-neutral-200 text-neutral-400'}`}><Shield size={24}/></div><div><h4 className="font-bold text-neutral-800 text-sm">Nível de Permissão</h4><p className="text-xs text-neutral-500">Admins podem editar financeiro e ajustes.</p></div></div>

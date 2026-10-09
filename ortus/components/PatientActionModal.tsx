@@ -531,7 +531,7 @@ export function PatientActionModalProvider({ children }: { children: React.React
 
                 <section>
                   <h3 className={qcSection}>Identificação</h3>
-                  <div className="grid grid-cols-2 gap-x-3 gap-y-2.5 lg:grid-cols-4">
+                  <div className="grid grid-cols-1 gap-x-3 gap-y-2.5 sm:grid-cols-2 lg:grid-cols-4">
                   <label className="min-w-0">
                     <span className={qcLabel}>Nome <span className="text-red-500">*</span></span>
                     <input autoFocus type="text" value={qcNome} onChange={(event) => setQcNome(event.target.value)} placeholder="Nome completo do paciente" className={qcInput} />
@@ -587,7 +587,7 @@ export function PatientActionModalProvider({ children }: { children: React.React
 
                 <section className="mt-5 border-t border-black/5 pt-4">
                   <h3 className={qcSection}>Endereço</h3>
-                  <div className="grid grid-cols-2 gap-x-3 gap-y-2.5 lg:grid-cols-4">
+                  <div className="grid grid-cols-1 gap-x-3 gap-y-2.5 sm:grid-cols-2 lg:grid-cols-4">
                   <label className="min-w-0">
                     <span className={qcLabel}>CEP</span>
                     <input
@@ -632,7 +632,7 @@ export function PatientActionModalProvider({ children }: { children: React.React
 
                 <section className="mt-5 border-t border-black/5 pt-4">
                   <h3 className={qcSection}>Responsável {isMenorDeIdade(qcDataNascimento) && <span className="text-xs font-medium text-red-500">obrigatório para menor de 18 anos</span>}</h3>
-                  <div className="grid grid-cols-2 gap-x-3 gap-y-2.5 lg:grid-cols-4">
+                  <div className="grid grid-cols-1 gap-x-3 gap-y-2.5 sm:grid-cols-2 lg:grid-cols-4">
                   <label className="min-w-0">
                     <span className={qcLabel}>Nome</span>
                     <input type="text" value={qcResponsavelNome} onChange={(e) => setQcResponsavelNome(e.target.value)} placeholder="Nome do responsável" className={qcInput} />
