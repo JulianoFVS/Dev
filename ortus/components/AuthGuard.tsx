@@ -1,5 +1,5 @@
 ﻿'use client';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { verificarBackupAutomatico } from '@/lib/backup';
 import { useRouter, usePathname } from 'next/navigation';
@@ -19,12 +19,13 @@ import {
   writeSuperAdminCache,
 } from '@/lib/authCookies';
 import {
-  mergeProfilFromSession,
   PROFILE_PATCH_EVENT,
   readProfileSession,
   writeProfileSession,
   type ProfileSessionSnapshot,
 } from '@/lib/profileSession';
+
+const ROTAS_PUBLICAS = ['/login', '/', '/site', '/termos', '/checkout', '/cadastro', '/teste-3d'];
 
 function hasAuthCookie(): boolean {
   if (typeof document === 'undefined') return false;
@@ -33,20 +34,8 @@ function hasAuthCookie(): boolean {
 
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<any>(null);
-  const [perfil, setPerfil] = useState<any>(() => {
-    const boot = readProfileSession();
-    const saas = boot?.is_super_admin === true || readSuperAdminCache();
-    if (!boot?.foto_url && !boot?.nome && !saas) return null;
-    return {
-      foto_url: boot?.foto_url ?? null,
-      nome: boot?.nome ?? null,
-      cargo: boot?.cargo ?? null,
-      nivel_acesso: boot?.nivel_acesso ?? null,
-      is_super_admin: saas,
-    };
-  });
-  // Se já existe cookie de auth, renderiza a casca imediatamente (sem spinner)
-  const [loading, setLoading] = useState(() => !hasAuthCookie());
+  const [perfil, setPerfil] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
   
   const [tarefasPendentes, setTarefasPendentes] = useState(0);
   const [moduleAccess, setModuleAccess] = useState<Record<ModuleName, boolean>>(() => readModuleAccessMapFromCookie(false));
@@ -58,11 +47,11 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   // Header switcher (consome o ClinicaProvider global multi-tenant)
   const { clinics: ctxClinics, activeClinic: ctxActive, activeClinicId: ctxActiveId, loading: clinicLoading } = useClinica();
   const sessaoPronta = useRef(false);
-
-  useEffect(() => {
-    validarSessao();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const perfilRef = useRef<any>(null);
+  perfilRef.current = perfil;
+  const pathnameRef = useRef(pathname);
+  pathnameRef.current = pathname;
+  const cargaRef = useRef(0);
 
   useEffect(() => {
     if (!sessaoPronta.current || !session || !perfil) return;
@@ -144,13 +133,42 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
       if (session) verificarBackupAutomatico().catch(() => {});
   }, [session]);
 
-  async function validarSessao() {
-    const rotasPublicas = ['/login', '/', '/site', '/termos', '/checkout', '/cadastro', '/teste-3d'];
-    if (rotasPublicas.includes(pathname)) { setLoading(false); return; }
+  const carregarPerfil = useCallback(async () => {
+    const path = pathnameRef.current;
+    if (ROTAS_PUBLICAS.includes(path)) {
+      setLoading(false);
+      return;
+    }
 
+    const boot = readProfileSession();
+    const saasCache = boot?.is_super_admin === true || readSuperAdminCache();
+    if (boot?.foto_url || boot?.nome || saasCache) {
+      setPerfil((atual: any) => {
+        if (atual?.id) return atual;
+        return {
+          ...atual,
+          foto_url: boot?.foto_url ?? atual?.foto_url ?? null,
+          nome: boot?.nome ?? atual?.nome ?? null,
+          cargo: boot?.cargo ?? atual?.cargo ?? null,
+          nivel_acesso: boot?.nivel_acesso ?? atual?.nivel_acesso ?? null,
+          is_super_admin: saasCache,
+        };
+      });
+    }
+
+    if (hasAuthCookie()) setLoading(false);
+
+    if (sessaoPronta.current && perfilRef.current?.id) {
+      setLoading(false);
+      return;
+    }
+
+    const carga = ++cargaRef.current;
     const { data: { session: sess } } = await supabase.auth.getSession();
+    if (carga !== cargaRef.current) return;
+
     if (!sess) {
-      if (sessaoPronta.current && session) {
+      if (hasAuthCookie()) {
         setLoading(false);
         return;
       }
@@ -161,34 +179,40 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     setSession(sess);
     setAuthMarkerCookie();
 
-    if (sessaoPronta.current && perfil) {
-      if (perfil.precisa_trocar_senha && pathname !== '/primeiro-acesso') {
-        router.replace('/primeiro-acesso');
-      } else if (pathname.startsWith('/super-admin') && !perfil.is_super_admin) {
-        router.replace('/dashboard');
-      }
+    const { data: prof, error } = await supabase
+      .from('profissionais')
+      .select('*')
+      .eq('user_id', sess.user.id)
+      .maybeSingle();
+    if (carga !== cargaRef.current) return;
+    if (error) {
+      console.error('[AuthGuard] profissionais:', error);
       setLoading(false);
       return;
     }
 
-    const { data: prof } = await supabase.from('profissionais').select('*').eq('user_id', sess.user.id).single();
     if (prof) {
       const saas = prof.is_super_admin === true || (prof.is_super_admin == null && (readSuperAdminCache() || readProfileSession()?.is_super_admin === true));
       if (prof.is_super_admin != null) writeSuperAdminCache(saas);
+      const foto = prof.foto_url || readProfileSession()?.foto_url || null;
+      const proximo = { ...prof, is_super_admin: saas, foto_url: foto };
       writeProfileSession({
-        foto_url: prof.foto_url ?? null,
+        foto_url: foto,
         nome: prof.nome,
         cargo: prof.cargo,
         nivel_acesso: prof.nivel_acesso,
         is_super_admin: saas,
       });
-      setPerfil(mergeProfilFromSession({ ...prof, is_super_admin: saas }));
-      if (prof.precisa_trocar_senha && pathname !== '/primeiro-acesso') {
+      perfilRef.current = proximo;
+      setPerfil(proximo);
+      sessaoPronta.current = true;
+
+      if (prof.precisa_trocar_senha && path !== '/primeiro-acesso') {
         router.replace('/primeiro-acesso');
         setLoading(false);
         return;
       }
-      if (pathname.startsWith('/super-admin') && !prof.is_super_admin) {
+      if (path.startsWith('/super-admin') && !saas) {
         router.replace('/dashboard');
         setLoading(false);
         return;
@@ -197,7 +221,44 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
 
     sessaoPronta.current = true;
     setLoading(false);
-  }
+  }, [router]);
+
+  useEffect(() => {
+    void carregarPerfil();
+  }, [pathname, carregarPerfil]);
+
+  useEffect(() => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event, sess) => {
+      if (event === 'SIGNED_OUT') {
+        sessaoPronta.current = false;
+        perfilRef.current = null;
+        setPerfil(null);
+        setSession(null);
+        return;
+      }
+      if (event === 'INITIAL_SESSION' && !sess) {
+        if (!ROTAS_PUBLICAS.includes(pathnameRef.current)) {
+          setTimeout(() => router.push('/login'), 0);
+        }
+        return;
+      }
+      if (event === 'SIGNED_IN') sessaoPronta.current = false;
+      if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
+        setTimeout(() => { void carregarPerfil(); }, 0);
+      }
+    });
+    return () => sub.subscription.unsubscribe();
+  }, [carregarPerfil, router]);
+
+  useEffect(() => {
+    const onShow = (e: PageTransitionEvent) => {
+      if (!e.persisted) return;
+      sessaoPronta.current = false;
+      void carregarPerfil();
+    };
+    window.addEventListener('pageshow', onShow);
+    return () => window.removeEventListener('pageshow', onShow);
+  }, [carregarPerfil]);
 
   async function atualizarBadgeTarefas(clinicasIds: (string | number)[]) {
       if (!clinicasIds || clinicasIds.length === 0) {
@@ -231,7 +292,11 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const onPatch = (ev: Event) => {
       const detail = (ev as CustomEvent<ProfileSessionSnapshot>).detail;
-      setPerfil((p: typeof perfil) => (p ? { ...p, ...detail } : p));
+      setPerfil((p: any) => ({
+        ...(p || {}),
+        ...detail,
+        is_super_admin: detail.is_super_admin ?? p?.is_super_admin,
+      }));
     };
     window.addEventListener(PROFILE_PATCH_EVENT, onPatch);
     return () => window.removeEventListener(PROFILE_PATCH_EVENT, onPatch);

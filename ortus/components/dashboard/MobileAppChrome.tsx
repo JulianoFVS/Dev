@@ -51,6 +51,8 @@ export default function MobileAppChrome({
   showEquipe = true,
   showTratamentosBase = true,
   showPainelSaas = false,
+  profilePhotoUrl = null,
+  profileName = null,
 }: DashboardSidebarNavOptions & { children: ReactNode }) {
   const pathname = usePathname();
   const [maisAberto, setMaisAberto] = useState(false);
@@ -118,7 +120,11 @@ export default function MobileAppChrome({
                           on ? 'bg-neutral-900 text-white' : 'text-neutral-800 active:bg-neutral-100'
                         }`}
                       >
-                        <Icon size={20} strokeWidth={1.75} />
+                        {item.href === '/perfil' && profilePhotoUrl ? (
+                          <img src={profilePhotoUrl} alt="" className="h-5 w-5 rounded-full object-cover" />
+                        ) : (
+                          <Icon size={20} strokeWidth={1.75} />
+                        )}
                         {item.label}
                       </Link>
                     </li>
@@ -135,7 +141,18 @@ export default function MobileAppChrome({
     <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       <header className="flex shrink-0 items-center gap-3 border-b border-black/5 bg-[#f3f4f1] px-4 pb-2.5 pt-[max(0.75rem,env(safe-area-inset-top))] lg:hidden">
         <img src="/landing/ortus-wordmark.svg" alt="ortus" className="h-5 w-auto shrink-0" />
-        <BentoClinicSwitcher className="ml-auto min-w-0 max-w-[62%]" />
+        <BentoClinicSwitcher className="ml-auto min-w-0 max-w-[58%]" />
+        <Link
+          href="/perfil"
+          aria-label={profileName ? `Perfil de ${profileName}` : 'Meu perfil'}
+          className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#c8f053] text-neutral-900"
+        >
+          {profilePhotoUrl ? (
+            <img src={profilePhotoUrl} alt="" className="h-full w-full object-cover" />
+          ) : (
+            <User size={18} strokeWidth={1.75} />
+          )}
+        </Link>
       </header>
 
       <div className="flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto overscroll-contain lg:overflow-y-hidden">
