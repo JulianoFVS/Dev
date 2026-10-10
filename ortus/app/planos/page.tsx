@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useClinica } from '@/app/context/ClinicaContext';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
@@ -90,6 +90,7 @@ export function PlanosContent({ embedded = false }: { embedded?: boolean }) {
     const [espEditando, setEspEditando] = useState<Especialidade | null>(null);
     const [espNome, setEspNome] = useState('');
     const [salvandoEsp, setSalvandoEsp] = useState(false);
+    const espSaveLock = useRef(false);
     const [modalTratAberto, setModalTratAberto] = useState(false);
     const [tratEditando, setTratEditando] = useState<TratamentoBase | null>(null);
     const [tratForm, setTratForm] = useState({ nome: '', especialidade_id: '', valor: '', custo: '', tuss: '', aceita_faces: false });
@@ -471,9 +472,28 @@ export function PlanosContent({ embedded = false }: { embedded?: boolean }) {
     }
 
     function abrirEditarEspecialidade(esp: Especialidade) {
+        espSaveLock.current = false;
         setEspEditando(esp);
         setEspNome(esp.nome);
-        setModalEspAberto(true);
+    }
+
+    async function confirmarEdicaoEspecialidade() {
+        if (espSaveLock.current || !espEditando || !clinicaId) return;
+        const atual = espEditando;
+        const nome = espNome.trim();
+        espSaveLock.current = true;
+        setEspEditando(null);
+        if (!nome || nome === atual.nome) return;
+        setSalvandoEsp(true);
+        try {
+            const { error } = await supabase.from('especialidades').update({ nome }).eq('id', atual.id).eq('clinica_id', clinicaId);
+            if (error) throw error;
+            await carregarEstrutura();
+        } catch (err: any) {
+            showAlert('Erro ao salvar a especialidade: ' + (err.message || err), { type: 'error' });
+        } finally {
+            setSalvandoEsp(false);
+        }
     }
 
     async function salvarEspecialidade(e: FormEvent) {
@@ -640,6 +660,7 @@ export function PlanosContent({ embedded = false }: { embedded?: boolean }) {
                     <div className="w-64 shrink-0">
                         <CustomSelect value={selectedPlanoId || ''} onChange={setSelectedPlanoId} options={planos.map((plano) => ({ value: plano.id, label: plano.nome }))} size="md" />
                     </div>
+                    <button type="button" onClick={abrirModalNovoPlano} className="inline-flex h-10 w-8 shrink-0 items-center justify-center text-sm font-medium text-neutral-500 hover:text-neutral-900" title="Novo plano" aria-label="Novo plano"><Plus size={16}/></button>
                     {(() => {
                         const planoSel = planos.find((plano) => plano.id === selectedPlanoId);
                         if (!planoSel || planoSel.tipo === 'particular') return null;
@@ -650,7 +671,6 @@ export function PlanosContent({ embedded = false }: { embedded?: boolean }) {
                             </>
                         );
                     })()}
-                    <button type="button" onClick={abrirModalNovoPlano} className="ml-auto inline-flex h-10 shrink-0 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800"><Plus size={14}/> Novo</button>
                 </div>
             )}
 
@@ -666,7 +686,7 @@ export function PlanosContent({ embedded = false }: { embedded?: boolean }) {
                     <aside className="flex min-h-[12rem] flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white md:min-h-0">
                         <div className="flex items-center justify-between border-b border-black/5 px-3 py-2.5">
                             <h3 className="text-sm font-semibold text-neutral-900">Especialidades</h3>
-                            <button type="button" onClick={abrirNovaEspecialidade} className="inline-flex h-8 items-center gap-1 rounded-md bg-neutral-900 px-2.5 text-xs font-medium text-white hover:bg-neutral-800"><Plus size={13}/> Novo</button>
+                            <button type="button" onClick={abrirNovaEspecialidade} className="text-sm font-medium text-neutral-500 hover:text-neutral-900">Novo</button>
                         </div>
                         <div className="min-h-0 flex-1 overflow-y-auto p-1.5">
                         <button
@@ -678,10 +698,31 @@ export function PlanosContent({ embedded = false }: { embedded?: boolean }) {
                         </button>
                         {especialidadesComTotal.map((esp) => (
                             <div key={esp.id} className={`mb-1 flex items-center gap-1 rounded-md px-2 py-1.5 ${especialidadeAtiva === esp.id ? 'bg-neutral-900 text-white' : 'text-neutral-700 hover:bg-neutral-50'}`}>
-                                <button type="button" onClick={() => setEspecialidadeAtiva(esp.id)} className="flex min-w-0 flex-1 items-center justify-between text-left text-sm font-medium">
-                                    <span className="truncate">{esp.nome}</span>
-                                    <span className={`ml-2 ${especialidadeAtiva === esp.id ? 'text-white/70' : 'text-neutral-400'}`}>{esp.total}</span>
-                                </button>
+                                {espEditando?.id === esp.id ? (
+                                    <input
+                                        autoFocus
+                                        value={espNome}
+                                        onChange={(e) => setEspNome(e.target.value)}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                                e.preventDefault();
+                                                (e.target as HTMLInputElement).blur();
+                                            }
+                                            if (e.key === 'Escape') {
+                                                espSaveLock.current = true;
+                                                setEspEditando(null);
+                                            }
+                                        }}
+                                        onBlur={() => { void confirmarEdicaoEspecialidade(); }}
+                                        className="h-7 min-w-0 flex-1 rounded-md border border-neutral-200 bg-white px-2 text-sm font-medium text-neutral-900 outline-none focus:border-neutral-900"
+                                        aria-label="Nome da especialidade"
+                                    />
+                                ) : (
+                                    <button type="button" onClick={() => setEspecialidadeAtiva(esp.id)} className="flex min-w-0 flex-1 items-center text-left text-sm font-medium">
+                                        <span className="truncate">{esp.nome}</span>
+                                    </button>
+                                )}
+                                <span className={`ml-2 shrink-0 text-sm ${especialidadeAtiva === esp.id ? 'text-white/70' : 'text-neutral-400'}`}>{esp.total}</span>
                                 <button type="button" onClick={() => abrirEditarEspecialidade(esp)} className={`inline-flex h-7 w-7 items-center justify-center rounded-md ${especialidadeAtiva === esp.id ? 'text-white/80 hover:bg-white/10' : 'text-neutral-400 hover:bg-white'}`} title="Editar"><Pencil size={13}/></button>
                                 <button type="button" onClick={() => excluirEspecialidade(esp)} className={`inline-flex h-7 w-7 items-center justify-center rounded-md ${especialidadeAtiva === esp.id ? 'text-white/80 hover:bg-white/10' : 'text-neutral-400 hover:bg-white hover:text-rose-600'}`} title="Excluir"><Trash2 size={13}/></button>
                             </div>
@@ -691,7 +732,7 @@ export function PlanosContent({ embedded = false }: { embedded?: boolean }) {
                     <section className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white">
                         <div className="flex items-center justify-between border-b border-black/5 px-3 py-2.5">
                             <h3 className="text-sm font-semibold text-neutral-900">Tratamentos</h3>
-                            <button type="button" onClick={abrirNovoTratamento} className="inline-flex h-8 items-center gap-1 rounded-md bg-neutral-900 px-2.5 text-xs font-medium text-white hover:bg-neutral-800"><Plus size={13}/> Novo</button>
+                            <button type="button" onClick={abrirNovoTratamento} className="text-sm font-medium text-neutral-500 hover:text-neutral-900">Novo</button>
                         </div>
                         {tratamentosFiltrados.length === 0 ? (
                             <div className="p-8 text-center text-sm text-neutral-500">

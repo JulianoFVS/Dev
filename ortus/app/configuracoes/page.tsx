@@ -1280,9 +1280,9 @@ export default function Configuracoes() {
                     salvarTaxas(lista);
                 };
                 const linha = (nome: string, amostra: TaxaMaquininha, grupo: TaxaMaquininha[]) => (
-                    <div key={nome} className={`grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_4.5rem_3.25rem_2rem] items-center gap-2 px-1 ${amostra.ativo ? '' : 'opacity-45'}`}>
+                    <div key={nome} className={`grid grid-cols-[minmax(0,1fr)_4.5rem_3.25rem_2rem] items-center gap-2 px-1 py-1 ${amostra.ativo ? '' : 'opacity-45'}`}>
                         <p className="truncate text-sm font-medium text-neutral-900">{nome}</p>
-                        <input type="number" step="0.01" min="0" max="100" value={amostra.taxa_percentual} onChange={e => aplicarGrupo(grupo, 'taxa_percentual', parseFloat(e.target.value) || 0)} className="h-8 w-full rounded-md border border-neutral-200 bg-white px-2 text-xs font-medium text-neutral-900 outline-none focus:border-neutral-900" aria-label="Taxa" />
+                        <input type="number" step="1" min="0" max="100" value={amostra.taxa_percentual} onChange={e => aplicarGrupo(grupo, 'taxa_percentual', parseFloat(e.target.value) || 0)} className="h-8 w-full rounded-md border border-neutral-200 bg-white px-2 text-xs font-medium text-neutral-900 outline-none focus:border-neutral-900" aria-label="Taxa" />
                         <input type="number" min="0" value={amostra.prazo_recebimento_dias} onChange={e => aplicarGrupo(grupo, 'prazo_recebimento_dias', parseInt(e.target.value) || 0)} className="h-8 w-full rounded-md border border-neutral-200 bg-white px-2 text-xs font-medium text-neutral-900 outline-none focus:border-neutral-900" aria-label="Prazo" />
                         <button type="button" onClick={() => aplicarGrupo(grupo, 'ativo', !amostra.ativo)} className={`inline-flex h-8 w-8 items-center justify-center rounded-md ${amostra.ativo ? 'bg-neutral-900 text-white' : 'border border-neutral-200 text-neutral-400'}`} aria-label={amostra.ativo ? 'Desativar' : 'Ativar'}><Check size={14}/></button>
                     </div>
@@ -1299,7 +1299,7 @@ export default function Configuracoes() {
                                 <span className="text-[11px] font-medium text-neutral-500">Prazo</span>
                                 <span />
                             </div>
-                            <div className="flex min-h-0 flex-1 flex-col">{linhas}</div>
+                            <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">{linhas}</div>
                         </div>
                     </section>
                 );
@@ -1488,12 +1488,12 @@ export default function Configuracoes() {
                       <button onClick={() => setModalTemplateCom(false)} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-50"><X size={16}/></button>
                   </div>
                   <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
-                      <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-                          <div>
+                      <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2">
+                          <div className="min-w-0">
                               <label className={campoLabel}>Nome</label>
-                              <input value={templateComEdit.nome} onChange={e => setTemplateComEdit({ ...templateComEdit, nome: e.target.value })} className={campoInput}/>
+                              <input value={templateComEdit.nome} onChange={e => setTemplateComEdit({ ...templateComEdit, nome: e.target.value })} className="box-border h-10 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-900 outline-none focus:border-neutral-900"/>
                           </div>
-                          <div>
+                          <div className="min-w-0">
                               <label className={campoLabel}>Canal</label>
                               <CustomSelect value={templateComEdit.canal} onChange={v => setTemplateComEdit({ ...templateComEdit, canal: v as TemplateComunicacao['canal'] })} options={[{ value: 'whatsapp', label: 'WhatsApp' }, { value: 'email', label: 'E-mail' }, { value: 'sms', label: 'SMS' }]} size="md"/>
                           </div>
@@ -1501,12 +1501,12 @@ export default function Configuracoes() {
                       {templateComEdit.canal === 'email' && (
                           <div>
                               <label className={campoLabel}>Assunto</label>
-                              <input value={templateComEdit.assunto || ''} onChange={e => setTemplateComEdit({ ...templateComEdit, assunto: e.target.value })} className={campoInput}/>
+                              <input value={templateComEdit.assunto || ''} onChange={e => setTemplateComEdit({ ...templateComEdit, assunto: e.target.value })} className="box-border h-10 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-900 outline-none focus:border-neutral-900"/>
                           </div>
                       )}
                       <div>
                           <label className={campoLabel}>Mensagem</label>
-                          <textarea value={templateComEdit.corpo} onChange={e => setTemplateComEdit({ ...templateComEdit, corpo: e.target.value })} rows={6} className="w-full resize-none rounded-md border border-neutral-200 bg-white p-3 text-sm text-neutral-900 outline-none focus:border-neutral-900"/>
+                          <textarea value={templateComEdit.corpo} onChange={e => setTemplateComEdit({ ...templateComEdit, corpo: e.target.value })} rows={6} className="box-border w-full resize-none rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-900 outline-none focus:border-neutral-900"/>
                       </div>
                   </div>
                   <div className="flex gap-2 border-t border-neutral-200 px-4 py-3">
