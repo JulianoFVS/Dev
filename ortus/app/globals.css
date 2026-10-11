@@ -477,6 +477,21 @@ input[type="time"] {
   border: 1px solid rgba(0, 0, 0, 0.06);
   overflow: hidden;
 }
+.bento-calendar .fc .fc-button-group {
+  display: inline-flex;
+  gap: 6px;
+}
+.bento-calendar .fc .fc-button-group > .fc-button {
+  margin: 0 !important;
+  border-radius: 9999px !important;
+}
+.bento-calendar .fc-scrollgrid-section-header .fc-scroller {
+  overflow: hidden !important;
+}
+.bento-calendar .fc-scrollgrid-section-body .fc-scroller {
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+}
 .bento-calendar .fc-col-header-cell {
   background: #f3f4f1;
   padding: 8px 0;

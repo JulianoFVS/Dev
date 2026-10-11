@@ -4,11 +4,9 @@ import { readRouteCache, writeRouteCache } from '@/lib/routeListCache';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import {
-    Loader2, Plus, Network, Building2, Users as UsersIcon, ShieldAlert,
-    X, Mail, User, Building, Copy, Check, AlertTriangle,
+    Loader2, Plus, X, Copy, Check, AlertTriangle, ArrowUpDown,
 } from 'lucide-react';
-import BentoPageShell from '@/components/bento/BentoPageShell';
-import { bentoCard, bentoPrimaryBtn, bentoGhostBtn } from '@/lib/bentoUi';
+import Modal from '@/components/ui/Modal';
 
 type Rede = { id: string | number; nome: string; created_at?: string | null };
 
@@ -41,6 +39,7 @@ export default function SuperAdminPage() {
 
     const [credenciais, setCredenciais] = useState<Credenciais | null>(null);
     const [copiado, setCopiado] = useState<'email' | 'senha' | 'tudo' | null>(null);
+    const [ordem, setOrdem] = useState<{ campo: 'nome' | 'criada'; dir: 'asc' | 'desc' }>({ campo: 'nome', dir: 'asc' });
 
     useEffect(() => { validar(); }, []);
 
@@ -152,216 +151,177 @@ export default function SuperAdminPage() {
         catch { return '—'; }
     }, []);
 
+    const redesOrdenadas = useMemo(() => [...redes].sort((a, b) => {
+        const cmp = ordem.campo === 'criada'
+            ? (a.created_at || '').localeCompare(b.created_at || '')
+            : (a.nome || '').localeCompare(b.nome || '', 'pt-BR', { sensitivity: 'base' });
+        return ordem.dir === 'asc' ? cmp : -cmp;
+    }), [redes, ordem]);
+
+    function alternarOrdem(campo: 'nome' | 'criada') {
+        setOrdem((prev) => prev.campo === campo ? { campo, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { campo, dir: 'asc' });
+    }
+
+    const campo = 'box-border h-10 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm text-neutral-900 outline-none placeholder:text-neutral-400 focus:border-neutral-900';
+    const rotulo = 'mb-1.5 block text-xs font-medium text-neutral-500';
+    const carregandoLista = autorizado === null || (carregando && redes.length === 0);
+
     if (autorizado === false) return null;
 
     return (
-        <BentoPageShell
-            title="Painel SaaS"
-            subtitle="Onboarding de redes e visão global da plataforma"
-            eyebrow="Super admin"
-            maxWidthClass="max-w-5xl"
-            actions={
-                <button type="button" onClick={abrirModal} className={bentoPrimaryBtn}>
-                    <Plus size={16} /> Novo cliente
-                </button>
-            }
-        >
-            {(autorizado === null || (carregando && redes.length === 0)) ? (
-                <div className="space-y-3 py-8">
-                    <div className="h-24 animate-pulse rounded-[1.35rem] bg-neutral-200" />
-                    <div className="h-64 animate-pulse rounded-[1.35rem] bg-neutral-100" />
+        <div className="flex h-full min-h-0 flex-col overflow-hidden px-3 py-3 font-poppins">
+            <div className="mb-3 shrink-0">
+                <div className="min-w-0">
+                    <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 md:text-[2rem]">Painel SaaS</h1>
+                    <p className="mt-1 text-sm text-neutral-500">Redes, clínicas e usuários da plataforma.</p>
                 </div>
-            ) : (
-              <>
-                <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
-                    <Card label="Total de Redes" value={metricas.redes} icon={<Network size={20} />} accent="from-neutral-800 to-neutral-950" />
-                    <Card label="Total de Clínicas" value={metricas.clinicas} icon={<Building2 size={20} />} accent="from-neutral-700 to-neutral-900" />
-                    <Card label="Usuários Ativos" value={metricas.usuarios} icon={<UsersIcon size={20} />} accent="from-neutral-600 to-neutral-800" />
+                <div className="mt-3 flex items-center justify-between gap-3">
+                    <div className="flex min-w-0 flex-wrap gap-x-6 gap-y-1">
+                        <p className="text-sm text-neutral-500"><span className="font-medium tabular-nums text-neutral-900">{carregandoLista ? '—' : metricas.redes}</span> {metricas.redes === 1 ? 'rede' : 'redes'}</p>
+                        <p className="text-sm text-neutral-500"><span className="font-medium tabular-nums text-neutral-900">{carregandoLista ? '—' : metricas.clinicas}</span> {metricas.clinicas === 1 ? 'clínica' : 'clínicas'}</p>
+                        <p className="text-sm text-neutral-500"><span className="font-medium tabular-nums text-neutral-900">{carregandoLista ? '—' : metricas.usuarios}</span> {metricas.usuarios === 1 ? 'usuário' : 'usuários'}</p>
+                    </div>
+                    <button type="button" onClick={abrirModal} className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800">
+                        <Plus size={14} /> Novo cliente
+                    </button>
                 </div>
+            </div>
 
-                <div className={`${bentoCard} overflow-hidden border border-black/5`}>
-                    <table className="w-full">
-                        <thead className="bg-neutral-50">
-                            <tr className="text-[10px] font-black uppercase tracking-wider text-neutral-400">
-                                <th className="text-left px-5 py-3">Rede</th>
-                                <th className="text-left px-5 py-3">Criada em</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {redes.length === 0 && (
-                                <tr><td colSpan={2} className="px-5 py-10 text-center text-sm text-neutral-400 italic">Nenhuma rede cadastrada ainda.</td></tr>
-                            )}
-                            {redes.map((r, idx) => (
-                                <tr key={`${r.id}-${idx}`} className="border-t border-neutral-50 hover:bg-neutral-50 transition-colors">
-                                    <td className="px-5 py-4">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-neutral-700 to-neutral-900 text-white flex items-center justify-center font-bold text-xs shadow-sm">
-                                                {r.nome.split(' ').map((n) => n[0]).slice(0, 2).join('').toUpperCase()}
-                                            </div>
-                                            <div>
-                                                <p className="font-bold text-neutral-700 text-sm">{r.nome}</p>
-                                                <p className="text-[10px] text-neutral-400 font-mono">#{r.id}</p>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td className="px-5 py-4 text-sm font-bold text-neutral-600">{fmtData(r.created_at)}</td>
+            <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white">
+                <div className="shrink-0 px-3 pt-3">
+                    <h2 className="text-base font-semibold text-neutral-900">Redes</h2>
+                </div>
+                {carregandoLista ? (
+                    <div className="space-y-2 p-3">
+                        {Array.from({ length: 6 }).map((_, i) => (
+                            <div key={i} className="h-10 animate-pulse rounded-md bg-neutral-50" />
+                        ))}
+                    </div>
+                ) : (
+                    <div className="min-h-0 flex-1 overflow-y-auto">
+                        <table className="w-full min-w-[420px] text-sm">
+                            <thead>
+                                <tr className="border-b border-black/5">
+                                    {([
+                                        ['nome', 'Rede'],
+                                        ['criada', 'Criada em'],
+                                    ] as const).map(([campoOrdem, label]) => (
+                                        <th key={campoOrdem} className="px-4 py-2 text-left sm:px-5">
+                                            <button type="button" onClick={() => alternarOrdem(campoOrdem)} className="inline-flex items-center gap-1 text-xs font-medium text-neutral-400 hover:text-neutral-900">
+                                                {label}
+                                                <ArrowUpDown size={12} className={ordem.campo === campoOrdem ? 'text-neutral-900' : 'text-neutral-300'} />
+                                            </button>
+                                        </th>
+                                    ))}
                                 </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-              </>
-            )}
+                            </thead>
+                            <tbody>
+                                {redesOrdenadas.length === 0 && (
+                                    <tr><td colSpan={2} className="px-4 py-10 text-center text-sm text-neutral-400">Nenhuma rede cadastrada.</td></tr>
+                                )}
+                                {redesOrdenadas.map((r) => (
+                                    <tr key={String(r.id)} className="border-b border-black/5 last:border-0 hover:bg-neutral-50/60">
+                                        <td className="px-4 py-2.5 sm:px-5">
+                                            <div className="flex items-center gap-3">
+                                                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#f3f4f1] text-[11px] font-medium text-neutral-500">
+                                                    {r.nome.split(' ').map((n) => n[0]).slice(0, 2).join('').toUpperCase()}
+                                                </span>
+                                                <span className="font-medium text-neutral-900">{r.nome}</span>
+                                            </div>
+                                        </td>
+                                        <td className="px-4 py-2.5 text-neutral-600 sm:px-5">{fmtData(r.created_at)}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </section>
 
-            {/* Modal de onboarding */}
-            {modalOpen && (
-                <div className="fixed inset-0 bg-black/25 backdrop-blur-md z-50 flex items-center justify-center p-4">
-                    <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl border border-neutral-100 overflow-hidden animate-in zoom-in-95 duration-200">
-                        <div className="bg-neutral-900 text-white px-6 py-4 flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                                <ShieldAlert size={16} className="text-neutral-300"/>
-                                <h2 className="font-bold">Onboarding de cliente</h2>
-                            </div>
-                            <button onClick={() => setModalOpen(false)} className="p-1 rounded-lg hover:bg-neutral-800 text-neutral-400 hover:text-white"><X size={18} /></button>
+            <Modal open={modalOpen} onClose={() => setModalOpen(false)} maxWidth="lg" hideCloseButton panelClassName="overflow-visible rounded-xl border border-neutral-200 bg-white">
+                <form onSubmit={salvar} className="px-5 py-4 sm:px-6 sm:py-5">
+                    <div className="mb-5 flex items-start justify-between gap-3 border-b border-black/5 pb-4">
+                        <div>
+                            <h2 className="text-lg font-semibold text-neutral-900">Novo cliente</h2>
+                            <p className="mt-0.5 text-xs font-medium text-neutral-400">Rede, clínica inicial e acesso do dono.</p>
                         </div>
-                        <form onSubmit={salvar} className="p-6 space-y-4">
-                            {erro && (
-                                <div className="bg-red-50 border border-red-200 text-red-700 text-xs font-bold px-3 py-2 rounded-lg flex items-center gap-2">
-                                    <AlertTriangle size={14}/> {erro}
-                                </div>
-                            )}
-                            <Field label="Nome da Rede" icon={<Network size={12}/>}>
-                                <input
-                                    value={form.nomeRede}
-                                    onChange={(e) => setForm({ ...form, nomeRede: e.target.value })}
-                                    className="w-full px-3 py-2.5 bg-neutral-50 border border-neutral-200 rounded-lg text-sm font-medium text-neutral-700 focus:bg-white focus:border-neutral-400 focus:ring-2 focus:ring-neutral-200 outline-none"
-                                    placeholder="Ex.: Clínica Sorrir"
-                                    required
-                                />
-                            </Field>
-                            <Field label="Nome da Matriz (clínica inicial)" icon={<Building size={12}/>}>
-                                <input
-                                    value={form.nomeMatriz}
-                                    onChange={(e) => setForm({ ...form, nomeMatriz: e.target.value })}
-                                    className="w-full px-3 py-2.5 bg-neutral-50 border border-neutral-200 rounded-lg text-sm font-medium text-neutral-700 focus:bg-white focus:border-neutral-400 focus:ring-2 focus:ring-neutral-200 outline-none"
-                                    placeholder="Ex.: Sorrir Centro"
-                                    required
-                                />
-                            </Field>
-                            <Field label="Nome do Dono" icon={<User size={12}/>}>
-                                <input
-                                    value={form.nomeDono}
-                                    onChange={(e) => setForm({ ...form, nomeDono: e.target.value })}
-                                    className="w-full px-3 py-2.5 bg-neutral-50 border border-neutral-200 rounded-lg text-sm font-medium text-neutral-700 focus:bg-white focus:border-neutral-400 focus:ring-2 focus:ring-neutral-200 outline-none"
-                                    placeholder="Ex.: Dr. João Silva"
-                                    required
-                                />
-                            </Field>
-                            <Field label="E-mail do Dono" icon={<Mail size={12}/>}>
-                                <input
-                                    type="email"
-                                    value={form.emailDono}
-                                    onChange={(e) => setForm({ ...form, emailDono: e.target.value })}
-                                    className="w-full px-3 py-2.5 bg-neutral-50 border border-neutral-200 rounded-lg text-sm font-medium text-neutral-700 focus:bg-white focus:border-neutral-400 focus:ring-2 focus:ring-neutral-200 outline-none"
-                                    placeholder="dono@clinica.com"
-                                    required
-                                />
-                            </Field>
+                        <button type="button" onClick={() => setModalOpen(false)} className="rounded-full p-2 text-neutral-400 hover:bg-neutral-100" aria-label="Fechar"><X size={18}/></button>
+                    </div>
+                    {erro && (
+                        <p className="mb-3 flex items-center gap-2 text-xs font-medium text-rose-600">
+                            <AlertTriangle size={14} /> {erro}
+                        </p>
+                    )}
+                    <div className="grid grid-cols-1 gap-x-3 gap-y-2.5 sm:grid-cols-2">
+                        <label className="sm:col-span-2">
+                            <span className={rotulo}>Nome da rede <span className="text-red-500">*</span></span>
+                            <input value={form.nomeRede} onChange={(e) => setForm({ ...form, nomeRede: e.target.value })} className={campo} placeholder="Ex.: Clínica Sorrir" required />
+                        </label>
+                        <label className="sm:col-span-2">
+                            <span className={rotulo}>Clínica inicial <span className="text-red-500">*</span></span>
+                            <input value={form.nomeMatriz} onChange={(e) => setForm({ ...form, nomeMatriz: e.target.value })} className={campo} placeholder="Ex.: Sorrir Centro" required />
+                        </label>
+                        <label>
+                            <span className={rotulo}>Nome do dono <span className="text-red-500">*</span></span>
+                            <input value={form.nomeDono} onChange={(e) => setForm({ ...form, nomeDono: e.target.value })} className={campo} placeholder="Ex.: Dr. João Silva" required />
+                        </label>
+                        <label>
+                            <span className={rotulo}>E-mail do dono <span className="text-red-500">*</span></span>
+                            <input type="email" value={form.emailDono} onChange={(e) => setForm({ ...form, emailDono: e.target.value })} className={campo} placeholder="dono@clinica.com" required />
+                        </label>
+                    </div>
+                    <div className="mt-5 flex justify-end border-t border-black/5 pt-4">
+                        <button type="submit" disabled={salvando} className="inline-flex h-9 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-40">
+                            {salvando ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />}
+                            Criar
+                        </button>
+                    </div>
+                </form>
+            </Modal>
 
-                            <div className="flex items-center justify-end gap-2 pt-3 border-t border-neutral-50">
-                                <button type="button" onClick={() => setModalOpen(false)} className="px-4 py-2 text-sm font-bold text-neutral-500 hover:bg-neutral-50 rounded-lg">Cancelar</button>
-                                <button type="submit" disabled={salvando} className="px-5 py-2 bg-neutral-900 hover:bg-neutral-800 disabled:opacity-50 text-white text-sm font-bold rounded-lg flex items-center gap-2 shadow-md">
-                                    {salvando ? <Loader2 size={14} className="animate-spin"/> : <Plus size={14}/>}
-                                    Criar tenant
+            <Modal open={!!credenciais} onClose={() => setCredenciais(null)} maxWidth="md" hideCloseButton panelClassName="overflow-hidden rounded-xl border border-neutral-200 bg-white">
+                {credenciais && (
+                    <div className="px-5 py-4 sm:px-6 sm:py-5">
+                        <div className="mb-5 flex items-start justify-between gap-3 border-b border-black/5 pb-4">
+                            <div>
+                                <h2 className="text-lg font-semibold text-neutral-900">Cliente criado</h2>
+                                <p className="mt-0.5 text-xs font-medium text-neutral-400">{credenciais.rede}. Envie o acesso ao dono.</p>
+                            </div>
+                            <button type="button" onClick={() => setCredenciais(null)} className="rounded-full p-2 text-neutral-400 hover:bg-neutral-100" aria-label="Fechar"><X size={18}/></button>
+                        </div>
+                        <div className="space-y-2.5">
+                            <div className="flex items-center justify-between gap-3 rounded-md border border-neutral-200 px-3 py-2">
+                                <div className="min-w-0">
+                                    <p className="text-xs font-medium text-neutral-500">E-mail</p>
+                                    <p className="truncate text-sm text-neutral-900">{credenciais.email}</p>
+                                </div>
+                                <button type="button" onClick={() => copiar('email')} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-neutral-500 hover:bg-neutral-50" aria-label="Copiar e-mail">
+                                    {copiado === 'email' ? <Check size={14} /> : <Copy size={14} />}
                                 </button>
                             </div>
-                        </form>
-                    </div>
-                </div>
-            )}
-
-            {/* Modal de credenciais */}
-            {credenciais && (
-                <div className="fixed inset-0 bg-black/25 backdrop-blur-md z-50 flex items-center justify-center p-4">
-                    <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-neutral-100 overflow-hidden animate-in zoom-in-95 duration-200">
-                        <div className="bg-neutral-900 px-6 py-5 text-white">
-                            <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-white/15">
-                                <Check size={24} />
+                            <div className="flex items-center justify-between gap-3 rounded-md border border-neutral-200 px-3 py-2">
+                                <div>
+                                    <p className="text-xs font-medium text-neutral-500">Senha temporária</p>
+                                    <p className="font-mono text-sm text-neutral-900">{credenciais.senha}</p>
+                                </div>
+                                <button type="button" onClick={() => copiar('senha')} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-neutral-500 hover:bg-neutral-50" aria-label="Copiar senha">
+                                    {copiado === 'senha' ? <Check size={14} /> : <Copy size={14} />}
+                                </button>
                             </div>
-                            <h2 className="text-lg font-semibold">Tenant criado com sucesso!</h2>
-                            <p className="mt-0.5 text-xs text-neutral-300">Envie estes dados ao dono via WhatsApp.</p>
+                            <p className="text-xs text-neutral-500">No primeiro acesso o dono troca a senha.</p>
                         </div>
-                        <div className="p-6 space-y-3">
-                            <div className="bg-neutral-900 text-white border border-neutral-800 rounded-xl p-3">
-                                <p className="text-[9px] font-black uppercase tracking-wider text-neutral-300 mb-0.5">Rede</p>
-                                <p className="text-sm font-bold">{credenciais.rede}</p>
-                            </div>
-                            <div className="bg-neutral-50 border border-neutral-100 rounded-xl p-3">
-                                <div className="flex items-center justify-between">
-                                    <div className="min-w-0">
-                                        <p className="text-[9px] font-black uppercase tracking-wider text-neutral-400 mb-0.5">E-mail</p>
-                                        <p className="text-sm font-bold text-neutral-700 font-mono break-all">{credenciais.email}</p>
-                                    </div>
-                                    <button onClick={() => copiar('email')} className="ml-2 p-2 rounded-lg hover:bg-white text-neutral-400 hover:text-neutral-900">
-                                        {copiado === 'email' ? <Check size={16} className="text-emerald-600"/> : <Copy size={16}/>}
-                                    </button>
-                                </div>
-                            </div>
-                            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
-                                <div className="flex items-center justify-between">
-                                    <div>
-                                        <p className="text-[9px] font-black uppercase tracking-wider text-amber-700 mb-0.5">Senha temporária</p>
-                                        <p className="text-xl font-bold text-amber-900 font-mono tracking-widest">{credenciais.senha}</p>
-                                    </div>
-                                    <button onClick={() => copiar('senha')} className="ml-2 p-2 rounded-lg hover:bg-white text-amber-600 hover:text-amber-700">
-                                        {copiado === 'senha' ? <Check size={16} className="text-emerald-600"/> : <Copy size={16}/>}
-                                    </button>
-                                </div>
-                                <p className="text-[10px] text-amber-700 mt-2 font-medium">
-                                    O dono será obrigado a trocar a senha no primeiro acesso.
-                                </p>
-                            </div>
-                            <button
-                                onClick={() => copiar('tudo')}
-                                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 text-sm font-bold rounded-lg"
-                            >
-                                {copiado === 'tudo' ? <><Check size={14} className="text-emerald-600"/> Copiado!</> : <><Copy size={14}/> Copiar mensagem para WhatsApp</>}
+                        <div className="mt-5 flex items-center justify-between gap-2 border-t border-black/5 pt-4">
+                            <button type="button" onClick={() => copiar('tudo')} className="inline-flex h-9 items-center gap-1.5 rounded-md border border-neutral-200 px-3 text-sm font-medium text-neutral-700 hover:bg-neutral-50">
+                                {copiado === 'tudo' ? <Check size={14} /> : <Copy size={14} />}
+                                {copiado === 'tudo' ? 'Copiado' : 'Copiar mensagem'}
                             </button>
-                            <button
-                                onClick={() => setCredenciais(null)}
-                                className="w-full px-4 py-3 bg-neutral-900 hover:bg-neutral-800 text-white text-sm font-bold rounded-lg shadow-md"
-                            >
+                            <button type="button" onClick={() => setCredenciais(null)} className="inline-flex h-9 items-center rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800">
                                 Concluir
                             </button>
                         </div>
                     </div>
-                </div>
-            )}
-        </BentoPageShell>
-    );
-}
-
-function Card({ label, value, icon, accent }: { label: string; value: number; icon: React.ReactNode; accent: string }) {
-    return (
-        <div className={`${bentoCard} flex items-center justify-between border border-black/5 p-5`}>
-            <div>
-                <p className="text-[10px] font-black uppercase tracking-wider text-neutral-400 mb-1">{label}</p>
-                <p className="text-3xl font-extrabold text-neutral-800">{value.toLocaleString('pt-BR')}</p>
-            </div>
-            <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${accent} text-white flex items-center justify-center shadow-md`}>
-                {icon}
-            </div>
-        </div>
-    );
-}
-
-function Field({ label, icon, children }: { label: string; icon?: React.ReactNode; children: React.ReactNode }) {
-    return (
-        <div>
-            <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider ml-1 flex items-center gap-1 mb-1">
-                {icon} {label}
-            </label>
-            {children}
+                )}
+            </Modal>
         </div>
     );
 }

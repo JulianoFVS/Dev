@@ -3,18 +3,15 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { clinicScope, readRouteCache, writeRouteCache } from '@/lib/routeListCache';
 import {
-    Plus, Search, Calendar, AlertCircle, CheckCircle,
-    User, Loader2, X, Save, Trash2, CheckSquare,
-    Clock, ChevronUp, ChevronDown, Building2, MoreVertical, ListTodo,
+    Plus, Search, Calendar,
+    User, Loader2, X, Trash2,
+    ChevronLeft, ChevronRight, Pencil,
 } from 'lucide-react';
 import { useClinica, getClinicLabel } from '@/app/context/ClinicaContext';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
 import Modal from '@/components/ui/Modal';
 import CustomSelect from '@/components/ui/CustomSelect';
 import { TAREFA_PRIORIDADE_OPTIONS, TAREFA_STATUS_OPTIONS } from '@/lib/formOptions';
-import Link from 'next/link';
-
-const cardShell = 'rounded-[1.35rem] bg-white sm:rounded-[1.5rem]';
 
 interface Tarefa {
     id: string;
@@ -233,16 +230,9 @@ export default function Tarefas() {
         }
     }
 
-    async function confirmarMover(t: Tarefa, direcao: 'avancar' | 'voltar') {
-        const novoStatus: Tarefa['status'] = direcao === 'avancar'
-            ? (t.status === 'a_fazer' ? 'em_andamento' : 'concluido')
-            : (t.status === 'concluido' ? 'em_andamento' : 'a_fazer');
-        const ok = await showConfirm(`Alterar "${t.titulo}" para ${getStatusLabel(novoStatus)}?`, {
-            title: 'Confirmar status',
-            confirmLabel: 'Alterar',
-        });
-        if (!ok) return;
-        moverStatus(t.id, novoStatus);
+    function proximoStatus(t: Tarefa, direcao: 'avancar' | 'voltar'): Tarefa['status'] {
+        if (direcao === 'avancar') return t.status === 'a_fazer' ? 'em_andamento' : 'concluido';
+        return t.status === 'concluido' ? 'em_andamento' : 'a_fazer';
     }
 
     async function moverStatus(id: string, novoStatus: 'a_fazer' | 'em_andamento' | 'concluido') {
@@ -279,70 +269,41 @@ export default function Tarefas() {
         proximas: tarefas.filter(t => t.alerta_data === 'proxima' && t.status !== 'concluido').length
     };
 
-    function getPrioridadeCor(p: string) {
-        switch (p) {
-            case 'alta': return 'bg-red-100 text-red-700 border-red-200';
-            case 'media': return 'bg-amber-100 text-amber-700 border-amber-200';
-            case 'baixa': return 'bg-neutral-100 text-neutral-800 border-black/10';
-            default: return 'bg-neutral-100 text-neutral-600';
-        }
+    function prioridadeDe(p: string) {
+        if (p === 'alta') return { label: 'Alta', dot: 'bg-red-500', text: 'text-red-700' };
+        if (p === 'media') return { label: 'Média', dot: 'bg-amber-500', text: 'text-amber-700' };
+        return { label: 'Baixa', dot: 'bg-neutral-400', text: 'text-neutral-500' };
     }
 
-    function getStatusLabel(s: string) {
-        switch (s) {
-            case 'a_fazer': return 'A Fazer';
-            case 'em_andamento': return 'Em Andamento';
-            case 'concluido': return 'Concluído';
-            default: return s;
-        }
-    }
-
-    function getStatusCor(status: string) {
-        switch (status) {
-            case 'a_fazer':
-                return 'bg-neutral-100 text-neutral-700 border-neutral-200';
-            case 'em_andamento':
-                return 'bg-neutral-50 text-neutral-800 border-black/10';
-            case 'concluido':
-                return 'bg-emerald-50 text-emerald-700 border-emerald-200';
-            default:
-                return 'bg-neutral-100 text-neutral-600 border-neutral-200';
-        }
-    }
-
-    function renderTarefaCard(t: Tarefa, compact = false) {
+    function renderTarefaCard(t: Tarefa) {
         return (
-            <div
-                key={t.id}
-                className={`rounded-[1rem] border border-black/10 bg-white p-3.5 transition-colors hover:border-black/15 sm:p-4 ${
-                    t.alerta_data === 'atrasada' && t.status !== 'concluido'
-                        ? 'border-red-200/80 bg-red-50/40'
-                        : t.alerta_data === 'proxima' && t.status !== 'concluido'
-                            ? 'border-amber-200/80 bg-amber-50/30'
-                            : ''
-                }`}
-            >
-                <div className="flex items-start justify-between gap-2 mb-2">
-                    <h3 className={`font-bold text-neutral-800 text-sm ${t.status === 'concluido' ? 'line-through text-neutral-400' : ''}`}>
+            <div key={t.id} className="rounded-md border border-neutral-200 bg-white px-3 py-2.5">
+                <div className="flex items-start justify-between gap-2">
+                    <h3 className={`text-sm font-medium text-neutral-900 ${t.status === 'concluido' ? 'text-neutral-400 line-through' : ''}`}>
                         {t.titulo}
                     </h3>
-                    <button onClick={() => abrirEditarTarefa(t)} className="p-1.5 text-neutral-400 hover:text-neutral-900 hover:bg-neutral-50 rounded-lg">
-                        <MoreVertical size={14}/>
+                    <button type="button" onClick={() => abrirEditarTarefa(t)} className="rounded-md p-1 text-neutral-400 hover:bg-neutral-50 hover:text-neutral-900" aria-label="Editar tarefa">
+                        <Pencil size={14}/>
                     </button>
                 </div>
-                {!compact && t.descricao && <p className="text-xs text-neutral-500 mb-2 line-clamp-2">{t.descricao}</p>}
-                <div className="flex flex-wrap items-center gap-2 text-[11px]">
-                    <span className={`font-black uppercase px-2 py-0.5 rounded-full border ${getPrioridadeCor(t.prioridade)}`}>{t.prioridade}</span>
-                    {t.responsavel_nome && <span className="flex items-center gap-1 text-neutral-600"><User size={11}/>{t.responsavel_nome}</span>}
-                    {t.data_limite && (
-                        <span className={`flex items-center gap-1 ${t.alerta_data === 'atrasada' && t.status !== 'concluido' ? 'text-red-600 font-bold' : 'text-neutral-500'}`}>
-                            <Calendar size={11}/>{new Date(t.data_limite).toLocaleDateString('pt-BR')}
+                {t.descricao && <p className="mt-1 line-clamp-1 text-xs text-neutral-400">{t.descricao}</p>}
+                <div className="mt-2 flex items-center justify-between gap-2">
+                    <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-neutral-500">
+                        <span className={`inline-flex items-center gap-1.5 ${prioridadeDe(t.prioridade).text}`}>
+                            <span className={`h-1.5 w-1.5 rounded-full ${prioridadeDe(t.prioridade).dot}`} />
+                            {prioridadeDe(t.prioridade).label}
                         </span>
-                    )}
-                </div>
-                <div className="mt-3 flex justify-end gap-1">
-                    <button type="button" disabled={t.status === 'a_fazer'} onClick={() => confirmarMover(t, 'voltar')} className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-black/10 text-neutral-700 hover:bg-neutral-50 disabled:opacity-30" title="Voltar status"><ChevronDown size={16} /></button>
-                    <button type="button" disabled={t.status === 'concluido'} onClick={() => confirmarMover(t, 'avancar')} className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-black/10 text-neutral-700 hover:bg-neutral-50 disabled:opacity-30" title="Avançar status"><ChevronUp size={16} /></button>
+                        {t.responsavel_nome && <span className="inline-flex items-center gap-1"><User size={11}/>{t.responsavel_nome}</span>}
+                        {t.data_limite && (
+                            <span className={`inline-flex items-center gap-1 ${t.alerta_data === 'atrasada' && t.status !== 'concluido' ? 'text-red-600' : ''}`}>
+                                <Calendar size={11}/>{new Date(t.data_limite).toLocaleDateString('pt-BR')}
+                            </span>
+                        )}
+                    </div>
+                    <div className="flex shrink-0 gap-0.5">
+                        <button type="button" disabled={t.status === 'a_fazer'} onClick={() => moverStatus(t.id, proximoStatus(t, 'voltar'))} className="inline-flex h-7 w-7 items-center justify-center rounded-md text-neutral-500 hover:bg-neutral-50 disabled:opacity-30" title="Voltar status"><ChevronLeft size={16} /></button>
+                        <button type="button" disabled={t.status === 'concluido'} onClick={() => moverStatus(t.id, proximoStatus(t, 'avancar'))} className="inline-flex h-7 w-7 items-center justify-center rounded-md text-neutral-500 hover:bg-neutral-50 disabled:opacity-30" title="Avançar status"><ChevronRight size={16} /></button>
+                    </div>
                 </div>
             </div>
         );
@@ -355,36 +316,40 @@ export default function Tarefas() {
     ];
 
     const kpiLoading = loading && !jaCarregou.current;
-    const totalAbertas = contagemTarefas.a_fazer + contagemTarefas.em_andamento;
 
     return (
-        <div className="w-full space-y-3 px-2.5 py-2.5 pb-12 font-poppins sm:px-3 sm:py-3 md:px-4 md:py-3.5">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-                <div>
-                    <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 md:text-[2rem]">Tarefas</h1>
-                    <p className="mt-1 text-sm text-neutral-500 sm:text-base">
-                        {activeClinic ? getClinicLabel(activeClinic) : 'Todas as clínicas'} · atividades internas da equipe
-                    </p>
-                </div>
-                <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
+        <div className="flex h-full min-h-0 flex-col overflow-hidden px-3 py-3 font-poppins">
+            <div className="mb-3 shrink-0">
+                <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                        <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 md:text-[2rem]">Tarefas</h1>
+                        <p className="mt-1 text-sm text-neutral-500">
+                            {activeClinic ? getClinicLabel(activeClinic) : 'Todas as clínicas'}
+                        </p>
+                    </div>
                     <button
                         type="button"
                         onClick={abrirNovaTarefa}
-                        className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-full bg-neutral-900 px-4 text-sm font-medium text-white hover:bg-neutral-800 sm:flex-none"
+                        className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800"
                     >
-                        <Plus size={16} /> Nova tarefa
+                        <Plus size={14} /> Nova tarefa
                     </button>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1">
+                    <p className="text-sm text-neutral-500"><span className="font-medium tabular-nums text-neutral-900">{kpiLoading ? '—' : contagemTarefas.a_fazer}</span> a fazer</p>
+                    <p className="text-sm text-neutral-500"><span className="font-medium tabular-nums text-neutral-900">{kpiLoading ? '—' : contagemTarefas.em_andamento}</span> em andamento</p>
+                    <p className="text-sm text-neutral-500"><span className="font-medium tabular-nums text-neutral-900">{kpiLoading ? '—' : contagemTarefas.atrasadas}</span> atrasadas</p>
+                    <p className="text-sm text-neutral-500"><span className="font-medium tabular-nums text-neutral-900">{kpiLoading ? '—' : contagemTarefas.concluido}</span> concluídas</p>
                 </div>
             </div>
 
-            <div className={`${cardShell} flex flex-col gap-3 p-3 sm:p-4`}>
-                <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
+            <div className="mb-3 flex shrink-0 flex-col gap-2 lg:flex-row lg:items-center">
                 <div className="relative min-w-0 flex-1">
-                    <Search className="pointer-events-none absolute left-3 top-1/2 size-[18px] -translate-y-1/2 text-neutral-400" aria-hidden />
+                    <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-neutral-400" aria-hidden />
                     <input
                         type="text"
                         placeholder="Buscar tarefas..."
-                        className="h-10 w-full rounded-full border border-black/10 bg-[#f8f8f6] pl-10 pr-4 text-sm font-medium text-neutral-800 outline-none focus:border-neutral-400"
+                        className="box-border h-10 w-full rounded-md border border-neutral-200 bg-white pl-9 pr-3 text-sm text-neutral-900 outline-none focus:border-neutral-900"
                         value={filtroBusca}
                         onChange={(e) => setFiltroBusca(e.target.value)}
                     />
@@ -394,213 +359,130 @@ export default function Tarefas() {
                         value={filtroStatus}
                         onChange={setFiltroStatus}
                         options={[{ value: 'todos', label: 'Todos os status' }, ...TAREFA_STATUS_OPTIONS]}
-                        size="sm"
+                        size="md"
                     />
                     <CustomSelect
                         value={filtroPrioridade}
                         onChange={setFiltroPrioridade}
                         options={[{ value: 'todos', label: 'Todas as prioridades' }, ...TAREFA_PRIORIDADE_OPTIONS]}
-                        size="sm"
+                        size="md"
                     />
-                </div>
                 </div>
                 {(filtroStatus !== 'todos' || filtroPrioridade !== 'todos') && (
                     <button
                         type="button"
                         onClick={() => { setFiltroStatus('todos'); setFiltroPrioridade('todos'); }}
-                        className="self-start text-xs font-medium text-neutral-500 hover:text-neutral-900"
+                        className="h-10 shrink-0 text-sm font-medium text-neutral-500 hover:text-neutral-900"
                     >
-                        Limpar filtros
+                        Limpar
                     </button>
                 )}
             </div>
 
-            <div className="grid grid-cols-2 gap-2.5 sm:gap-3 md:grid-cols-4">
-                <section className={`${cardShell} p-4 sm:p-5`}>
-                    <div className="mb-2 flex items-center justify-between">
-                        <span className="rounded-full bg-neutral-100 p-2 text-neutral-700"><ListTodo size={18} /></span>
-                        <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Backlog</span>
-                    </div>
-                    <p className="text-xs font-medium text-neutral-500">A fazer</p>
-                    {kpiLoading ? (
-                        <div className="mt-2 h-8 w-16 animate-pulse rounded-xl bg-neutral-100" />
-                    ) : (
-                        <p className="mt-1 text-xl font-semibold text-neutral-900 sm:text-2xl">{contagemTarefas.a_fazer}</p>
-                    )}
-                </section>
-                <section className={`${cardShell} border border-amber-200/80 p-4 sm:p-5`}>
-                    <div className="mb-2 flex items-center justify-between">
-                        <span className="rounded-full bg-amber-100 p-2 text-amber-700"><Clock size={18} /></span>
-                        <span className="text-[10px] font-semibold uppercase tracking-wide text-amber-700">Ativas</span>
-                    </div>
-                    <p className="text-xs font-medium text-neutral-500">Em andamento</p>
-                    {kpiLoading ? (
-                        <div className="mt-2 h-8 w-16 animate-pulse rounded-xl bg-neutral-100" />
-                    ) : (
-                        <p className="mt-1 text-xl font-semibold text-amber-900 sm:text-2xl">{contagemTarefas.em_andamento}</p>
-                    )}
-                </section>
-                <section className={`${cardShell} border border-red-200/70 p-4 sm:p-5`}>
-                    <div className="mb-2 flex items-center justify-between">
-                        <span className="rounded-full bg-red-100 p-2 text-red-600"><AlertCircle size={18} /></span>
-                        <span className="text-[10px] font-semibold uppercase tracking-wide text-red-600">Prazo</span>
-                    </div>
-                    <p className="text-xs font-medium text-neutral-500">Atrasadas</p>
-                    {kpiLoading ? (
-                        <div className="mt-2 h-8 w-16 animate-pulse rounded-xl bg-neutral-100" />
-                    ) : (
-                        <>
-                            <p className="mt-1 text-xl font-semibold text-red-700 sm:text-2xl">{contagemTarefas.atrasadas}</p>
-                            {contagemTarefas.proximas > 0 && (
-                                <p className="mt-1 text-[11px] text-neutral-500">{contagemTarefas.proximas} vencem em breve</p>
-                            )}
-                        </>
-                    )}
-                </section>
-                <section className="rounded-[1.35rem] border border-neutral-800 bg-neutral-950 p-4 text-white sm:rounded-[1.5rem] sm:p-5">
-                    <div className="mb-2 flex items-center justify-between">
-                        <span className="rounded-full bg-white/10 p-2 text-[#c8f053]"><CheckCircle size={18} /></span>
-                        <span className="text-[10px] font-semibold uppercase tracking-wide text-white/70">Resultado</span>
-                    </div>
-                    <p className="text-xs font-medium text-white/60">Concluídas</p>
-                    {kpiLoading ? (
-                        <div className="mt-2 h-8 w-16 animate-pulse rounded-xl bg-white/10" />
-                    ) : (
-                        <>
-                            <p className="mt-1 text-xl font-semibold sm:text-2xl">{contagemTarefas.concluido}</p>
-                            <p className="mt-1 text-[11px] text-white/50">{totalAbertas} em aberto</p>
-                        </>
-                    )}
-                </section>
-            </div>
-
-            <div className={`${cardShell} overflow-hidden`}>
-                <div className="flex flex-col gap-3 border-b border-black/5 p-4 sm:flex-row sm:items-center sm:justify-between md:p-5">
-                    <div className="flex items-center gap-2">
-                        <span className="rounded-full bg-[#f3f4f1] p-2 text-neutral-700"><CheckSquare size={18} /></span>
-                        <h3 className="text-base font-semibold text-neutral-900 sm:text-lg">Tarefas</h3>
-                    </div>
-                </div>
-
+            <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white">
                 {kpiLoading ? (
-                    <div className="space-y-2 p-4">
+                    <div className="space-y-2 p-3">
                         {Array.from({ length: 6 }).map((_, i) => (
-                            <div key={i} className="flex h-16 animate-pulse items-center gap-3 rounded-2xl bg-neutral-50 px-3" />
+                            <div key={i} className="h-12 animate-pulse rounded-md bg-neutral-50" />
                         ))}
                     </div>
                 ) : tarefasFiltradas.length === 0 ? (
-                    <div className="p-12 text-center text-sm text-neutral-400">
-                        <CheckCircle size={40} className="mx-auto mb-3 opacity-40" aria-hidden />
-                        <p className="font-medium text-neutral-600">Nenhuma tarefa encontrada</p>
-                        <p className="mt-1 text-xs">Crie uma nova tarefa para começar</p>
-                    </div>
+                    <p className="p-8 text-center text-sm text-neutral-400">Nenhuma tarefa encontrada.</p>
                 ) : (
-                    <div className="grid min-h-[52vh] grid-cols-1 md:grid-cols-3 md:divide-x md:divide-black/5">
+                    <div className="grid min-h-0 flex-1 grid-cols-1 overflow-y-auto md:grid-cols-3 md:divide-x md:divide-neutral-200 md:overflow-hidden">
                         {colunasKanban.map((col) => {
                             const items = tarefasFiltradas.filter((t) => t.status === col.id);
                             return (
-                                <div key={col.id} className="flex min-h-[280px] flex-col bg-[#fafaf8] p-4 md:min-h-0 md:flex-1 md:p-5">
-                                    <div className="mb-4 flex items-center justify-between">
-                                        <h4 className="text-sm font-semibold text-neutral-800">{col.label}</h4>
-                                        <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold text-neutral-600 shadow-sm">{items.length}</span>
+                                <div key={col.id} className="flex flex-col md:min-h-0">
+                                    <div className="flex shrink-0 items-center justify-between px-3 py-2.5">
+                                        <h2 className="text-sm font-semibold text-neutral-900">{col.label}</h2>
+                                        <span className="text-xs tabular-nums text-neutral-400">{items.length}</span>
                                     </div>
-                                    <div className="space-y-2.5">
-                                        {items.map((t) => renderTarefaCard(t, true))}
+                                    <div className="space-y-2 px-3 pb-3 md:min-h-0 md:flex-1 md:overflow-y-auto">
+                                        {items.map((t) => renderTarefaCard(t))}
                                         {items.length === 0 && (
-                                            <p className="py-8 text-center text-xs text-neutral-400">Nenhuma tarefa</p>
+                                            <p className="py-6 text-center text-xs text-neutral-400">Nenhuma tarefa</p>
                                         )}
                                     </div>
                                 </div>
                             );
                         })}
                     </div>
-                                )}
-            </div>
+                )}
+            </section>
 
                         {/* Modal Criar/Editar */}
-            <Modal open={modalOpen} onClose={() => setModalOpen(false)} maxWidth="lg" hideCloseButton panelClassName="bg-white rounded-[1.35rem] shadow-2xl flex flex-col max-h-[90vh] border border-black/10">
-                        <div className="p-6 border-b border-black/10 flex justify-between items-center bg-neutral-50 rounded-t-[1.35rem] shrink-0">
-                            <h3 className="font-black text-xl text-neutral-800">
-                                {tarefaEditando ? 'Editar Tarefa' : 'Nova Tarefa'}
-                            </h3>
-                            <button onClick={() => setModalOpen(false)} className="touch-target p-2 text-neutral-400 hover:bg-neutral-100 rounded-xl transition-colors">
-                                <X size={20}/>
+            <Modal open={modalOpen} onClose={() => setModalOpen(false)} maxWidth="lg" hideCloseButton panelClassName="flex max-h-[85vh] flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white">
+                        <div className="flex shrink-0 items-start justify-between gap-3 border-b border-black/5 px-5 py-4 sm:px-6">
+                            <div>
+                                <h2 className="text-lg font-semibold text-neutral-900">{tarefaEditando ? 'Editar tarefa' : 'Nova tarefa'}</h2>
+                                <p className="mt-0.5 text-xs font-medium text-neutral-400">Título, prazo e responsável.</p>
+                            </div>
+                            <button type="button" onClick={() => setModalOpen(false)} className="rounded-full p-2 text-neutral-400 hover:bg-neutral-100" aria-label="Fechar">
+                                <X size={18}/>
                             </button>
                         </div>
                         
-                        <div className="p-6 overflow-y-auto space-y-4">
-                            <div>
-                                <label className="text-xs font-bold text-neutral-400 uppercase ml-1">Título *</label>
+                        <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto px-5 py-4 sm:px-6">
+                            <label>
+                                <span className="mb-1.5 block text-xs font-medium text-neutral-500">Título <span className="text-red-500">*</span></span>
                                 <input 
                                     value={form.titulo}
                                     onChange={e => setForm({...form, titulo: e.target.value})}
-                                    className="w-full px-4 py-3 bg-neutral-50 border border-neutral-200 rounded-xl outline-none focus:ring-2 focus:ring-neutral-500 font-bold text-neutral-700"
+                                    className="box-border h-10 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm text-neutral-900 outline-none focus:border-neutral-900"
                                     placeholder="Nome da tarefa"
                                 />
-                            </div>
+                            </label>
                             
-                            <div>
-                                <label className="text-xs font-bold text-neutral-400 uppercase ml-1">Descrição</label>
+                            <label>
+                                <span className="mb-1.5 block text-xs font-medium text-neutral-500">Descrição</span>
                                 <textarea 
                                     value={form.descricao}
                                     onChange={e => setForm({...form, descricao: e.target.value})}
-                                    rows={3}
-                                    className="w-full px-4 py-3 bg-neutral-50 border border-neutral-200 rounded-xl outline-none focus:ring-2 focus:ring-neutral-500 font-medium text-neutral-700 resize-none"
-                                    placeholder="Detalhes da tarefa..."
+                                    rows={2}
+                                    className="w-full resize-none rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 outline-none focus:border-neutral-900"
+                                    placeholder="Detalhes da tarefa"
                                 />
-                            </div>
+                            </label>
 
-                            <div className="grid grid-cols-2 gap-3">
-                                <div>
-                                    <label className="text-xs font-bold text-neutral-400 uppercase ml-1">Responsável</label>
-                                    <CustomSelect value={form.responsavel_id} onChange={v => setForm({...form, responsavel_id: v})} options={[{ value: '', label: 'Sem responsável' }, ...profissionais.map(p => ({ value: String(p.id), label: p.nome }))]} size="lg" />
-                                </div>
-                                <div>
-                                    <label className="text-xs font-bold text-neutral-400 uppercase ml-1">Data Limite</label>
+                            <div className="grid grid-cols-2 gap-x-3 gap-y-2.5">
+                                <label>
+                                    <span className="mb-1.5 block text-xs font-medium text-neutral-500">Responsável</span>
+                                    <CustomSelect value={form.responsavel_id} onChange={v => setForm({...form, responsavel_id: v})} options={[{ value: '', label: 'Sem responsável' }, ...profissionais.map(p => ({ value: String(p.id), label: p.nome }))]} size="md" />
+                                </label>
+                                <label>
+                                    <span className="mb-1.5 block text-xs font-medium text-neutral-500">Data limite</span>
                                     <input 
                                         type="date"
                                         value={form.data_limite}
                                         onChange={e => setForm({...form, data_limite: e.target.value})}
-                                        className="w-full px-4 py-3 bg-neutral-50 border border-neutral-200 rounded-xl outline-none focus:ring-2 focus:ring-neutral-500 font-medium text-neutral-700"
+                                        className="box-border h-10 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm text-neutral-900 outline-none focus:border-neutral-900"
                                     />
-                                </div>
+                                </label>
+                                <label>
+                                    <span className="mb-1.5 block text-xs font-medium text-neutral-500">Prioridade</span>
+                                    <CustomSelect value={form.prioridade} onChange={v => setForm({...form, prioridade: v as 'baixa' | 'media' | 'alta'})} options={TAREFA_PRIORIDADE_OPTIONS} size="md" />
+                                </label>
+                                <label>
+                                    <span className="mb-1.5 block text-xs font-medium text-neutral-500">Status</span>
+                                    <CustomSelect value={form.status} onChange={v => setForm({...form, status: v as 'a_fazer' | 'em_andamento' | 'concluido'})} options={TAREFA_STATUS_OPTIONS} size="md" />
+                                </label>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-3">
-                                <div>
-                                    <label className="text-xs font-bold text-neutral-400 uppercase ml-1">Prioridade</label>
-                                    <CustomSelect value={form.prioridade} onChange={v => setForm({...form, prioridade: v as 'baixa' | 'media' | 'alta'})} options={TAREFA_PRIORIDADE_OPTIONS} size="lg" />
-                                </div>
-                                <div>
-                                    <label className="text-xs font-bold text-neutral-400 uppercase ml-1">Status</label>
-                                    <CustomSelect value={form.status} onChange={v => setForm({...form, status: v as 'a_fazer' | 'em_andamento' | 'concluido'})} options={TAREFA_STATUS_OPTIONS} size="lg" />
-                                </div>
-                            </div>
-
-                            <div>
-                                <label className="text-xs font-bold text-neutral-400 uppercase ml-1">Vincular Paciente (opcional)</label>
-                                <CustomSelect value={form.paciente_id} onChange={v => setForm({...form, paciente_id: v})} options={[{ value: '', label: 'Nenhum paciente' }, ...pacientes.map(p => ({ value: p.id, label: p.nome }))]} size="lg" searchable />
-                            </div>
+                            <label>
+                                <span className="mb-1.5 block text-xs font-medium text-neutral-500">Paciente</span>
+                                <CustomSelect value={form.paciente_id} onChange={v => setForm({...form, paciente_id: v})} options={[{ value: '', label: 'Nenhum paciente' }, ...pacientes.map(p => ({ value: p.id, label: p.nome }))]} size="md" searchable />
+                            </label>
                         </div>
                         
-                        <div className="p-6 border-t border-neutral-100 bg-neutral-50 flex flex-col sm:flex-row gap-3 rounded-b-3xl">
-                            {tarefaEditando && (
-                                <button 
-                                    onClick={() => excluirTarefa(tarefaEditando.id)}
-                                    className="touch-target px-4 py-3 text-red-600 font-bold hover:bg-red-50 rounded-xl transition-colors flex items-center gap-2"
-                                >
-                                    <Trash2 size={18}/> Excluir
+                        <div className="flex shrink-0 items-center justify-between gap-2 border-t border-black/5 px-5 py-4 sm:px-6">
+                            {tarefaEditando ? (
+                                <button type="button" onClick={() => excluirTarefa(tarefaEditando.id)} className="inline-flex h-9 items-center gap-1.5 rounded-md px-3 text-sm font-medium text-rose-600 hover:bg-rose-50">
+                                    <Trash2 size={14}/> Excluir
                                 </button>
-                            )}
-                            <button onClick={() => setModalOpen(false)} className="touch-target flex-1 py-3 text-neutral-500 font-bold hover:bg-neutral-200 rounded-xl transition-colors">
-                                Cancelar
-                            </button>
-                            <button 
-                                onClick={salvarTarefa}
-                                disabled={salvando}
-                                className="touch-target flex-1 py-3 bg-neutral-900 text-white font-bold rounded-xl hover:bg-neutral-800 shadow-lg shadow-black/10 transition-all flex items-center justify-center gap-2"
-                            >
-                                {salvando ? <Loader2 className="animate-spin"/> : <><Save size={18}/> Salvar</>}
+                            ) : <span />}
+                            <button type="button" onClick={salvarTarefa} disabled={salvando} className="inline-flex h-9 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-40">
+                                {salvando ? <Loader2 size={14} className="animate-spin"/> : null} Salvar
                             </button>
                         </div>
             </Modal>

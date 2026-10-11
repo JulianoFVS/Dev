@@ -90,20 +90,20 @@ export default function ProcedureCombobox({
             onFocus={() => setOpen(true)}
             disabled={disabled || !clinicaId}
             placeholder={clinicaId ? 'Buscar ou digitar procedimento...' : 'Selecione a clínica primeiro'}
-            className="flex-1 p-2.5 border border-slate-200 rounded-lg text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500"
+            className="box-border h-10 min-w-0 flex-1 rounded-md border border-neutral-200 bg-white px-3 text-sm text-neutral-900 outline-none focus:border-neutral-900"
           />
           <button
             type="button"
             disabled={disabled || !clinicaId}
             onClick={() => setOpen((v) => !v)}
-            className="px-3 border border-slate-200 rounded-lg bg-slate-50 hover:bg-blue-50 text-slate-500 hover:text-blue-600 transition-colors disabled:opacity-50"
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-neutral-200 text-neutral-500 hover:bg-neutral-50 disabled:opacity-50"
             aria-label="Abrir lista de procedimentos"
           >
             <ChevronDown size={18} className={open ? 'rotate-180 transition-transform' : 'transition-transform'} />
           </button>
         </div>
         {open && clinicaId && (
-          <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-48 overflow-y-auto custom-scrollbar">
+          <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-48 overflow-y-auto rounded-md border border-neutral-200 bg-white">
             {filtrados.length === 0 ? (
               <p className="p-3 text-xs text-slate-400 italic">Nenhum procedimento encontrado — use texto livre.</p>
             ) : (

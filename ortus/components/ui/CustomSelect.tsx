@@ -75,14 +75,26 @@ export default function CustomSelect({
 
     const updatePosition = () => {
       if (!ref.current) return;
-      const rect = ref.current.getBoundingClientRect();
+      const raw = ref.current.getBoundingClientRect();
+      const zoomEl = ref.current.closest('[style*="zoom"]') as HTMLElement | null;
+      const zoom = zoomEl ? Number(getComputedStyle(zoomEl).zoom) || 1 : 1;
+      const unscaled = zoom !== 1 && zoomEl!.getBoundingClientRect().width > window.innerWidth * 1.05;
+      const scale = unscaled ? zoom : 1;
+      const rect = {
+        top: raw.top * scale,
+        bottom: raw.bottom * scale,
+        left: raw.left * scale,
+        width: raw.width * scale,
+      };
       const gap = 6;
-      const needed = Math.min(filtered.length * 36 + (searchable ? 52 : 8), 360);
+      const contentH = filtered.length * 36 + (searchable ? 52 : 10);
+      const curto = !searchable && filtered.length <= 6;
+      const needed = curto ? contentH : Math.min(contentH, 360);
       const spaceBelow = window.innerHeight - rect.bottom - gap;
       const spaceAbove = rect.top - gap;
-      const openUp = needed > spaceBelow && spaceAbove > spaceBelow;
-      const available = Math.max(8, openUp ? spaceAbove : spaceBelow);
-      const maxH = Math.min(needed, available);
+      const openUp = !curto && needed > spaceBelow && spaceAbove > spaceBelow;
+      const available = Math.max(contentH, openUp ? spaceAbove : spaceBelow);
+      const maxH = curto ? contentH : Math.min(needed, available);
 
       setMenuStyle({
         position: 'fixed',
@@ -114,7 +126,7 @@ export default function CustomSelect({
   const menuContent = (
     <div
       ref={menuRef}
-      className={`${menuPortal ? 'flex min-h-0 flex-col' : 'absolute z-50 mt-1.5 flex max-h-72 w-full min-h-0 flex-col'} overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-[0_8px_24px_rgba(0,0,0,0.08)]`}
+      className={`${menuPortal ? 'flex flex-col' : 'absolute z-50 mt-1.5 flex max-h-72 w-full flex-col'} overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-[0_8px_24px_rgba(0,0,0,0.08)]`}
       style={menuPortal ? menuStyle : undefined}
     >
       {searchable && (
@@ -131,7 +143,14 @@ export default function CustomSelect({
           </div>
         </div>
       )}
-      <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto py-1">
+      <div
+        className={`py-1 ${!searchable && filtered.length <= 6 ? 'overflow-hidden' : 'custom-scrollbar overflow-y-auto'}`}
+        style={!searchable && filtered.length <= 6 ? undefined : {
+          maxHeight: menuPortal && typeof menuStyle.maxHeight === 'number'
+            ? Math.max(120, Number(menuStyle.maxHeight) - (searchable ? 52 : 0))
+            : 288,
+        }}
+      >
         {filtered.length === 0 ? (
           <div className="px-3 py-4 text-center text-xs font-medium text-neutral-400">
             Nenhuma opção encontrada

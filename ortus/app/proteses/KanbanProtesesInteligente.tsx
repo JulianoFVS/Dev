@@ -652,79 +652,117 @@ export default function KanbanProtesesInteligente() {
       )}
 
       <div className={`${cardShell} flex shrink-0 flex-col gap-2 p-3 sm:flex-row sm:items-center sm:p-4`}>
-        <div className="relative min-w-0 flex-1 max-w-md">
-          <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Buscar paciente, tipo, cor…"
-            className="h-10 w-full rounded-full border border-black/10 bg-[#f8f8f6] py-2 pl-10 pr-9 text-sm font-medium text-neutral-800 outline-none placeholder:text-neutral-400 focus:border-neutral-400"
-          />
-          {searchQuery && (
-            <button
-              onClick={() => setSearchQuery('')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700"
-              title="Limpar busca"
-            >
-              <X size={14} />
-            </button>
-          )}
-        </div>
+        <div className="flex min-w-0 flex-1 flex-col gap-2 lg:flex-row lg:items-center">
+          <div className="relative min-w-0 flex-1 lg:max-w-md">
+            <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Buscar paciente, tipo, cor…"
+              className="h-10 w-full rounded-full border border-black/10 bg-[#f8f8f6] py-2 pl-10 pr-9 text-sm font-medium text-neutral-800 outline-none placeholder:text-neutral-400 focus:border-neutral-400"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700"
+                title="Limpar busca"
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
 
-        <div className="relative shrink-0">
-          <button
-            type="button"
-            onClick={() => setFiltersOpen(!filtersOpen)}
-            className={`inline-flex h-10 items-center gap-2 rounded-full px-3 text-sm font-medium transition-colors ${filtersOpen || filtersActive ? 'bg-neutral-900 text-white' : 'border border-black/10 text-neutral-700 hover:bg-neutral-50'}`}
-          >
-            <Filter size={16} />
-            Filtros
-            {filtersActive && <span className="h-1.5 w-1.5 rounded-full bg-[#c8f053]" />}
-            <ChevronDown size={13} className={`transition-transform ${filtersOpen ? 'rotate-180' : ''}`} />
-          </button>
-          {filtersOpen && (
-            <>
-              <button type="button" aria-label="Fechar filtros" className="fixed inset-0 z-40" onClick={() => setFiltersOpen(false)} />
-              <div className="absolute top-full right-0 z-50 mt-2 min-w-[260px] space-y-3 rounded-[1.25rem] border border-black/10 bg-white p-4 shadow-xl">
-                <div>
-                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-neutral-400">Período</label>
-                  <CustomSelect
-                    value={periodFilter}
-                    onChange={(v) => setPeriodFilter(v as typeof periodFilter)}
-                    options={[
-                      { value: 'all', label: 'Todos os períodos' },
-                      { value: '7d', label: 'Últimos 7 dias' },
-                      { value: '30d', label: 'Últimos 30 dias' },
-                      { value: '90d', label: 'Últimos 90 dias' },
-                    ]}
-                    size="sm"
-                  />
+          <div className="hidden min-w-0 shrink-0 gap-2 lg:flex lg:w-[26rem]">
+            <CustomSelect
+              pill
+              value={periodFilter}
+              onChange={(v) => setPeriodFilter(v as typeof periodFilter)}
+              options={[
+                { value: 'all', label: 'Todos os períodos' },
+                { value: '7d', label: 'Últimos 7 dias' },
+                { value: '30d', label: 'Últimos 30 dias' },
+                { value: '90d', label: 'Últimos 90 dias' },
+              ]}
+              size="sm"
+              className="min-w-0 flex-1"
+            />
+            <CustomSelect
+              pill
+              value={statusFilter}
+              onChange={(v) => setStatusFilter(v as StatusKey | 'all')}
+              options={[
+                { value: 'all', label: 'Todos os status' },
+                ...(['espera', 'lab', 'clinica', 'feito'] as StatusKey[]).map(k => ({ value: k, label: STATUS_TOKENS[k].label })),
+              ]}
+              size="sm"
+              className="min-w-0 flex-1"
+            />
+            {filtersActive && (
+              <button
+                type="button"
+                onClick={() => { setPeriodFilter('all'); setStatusFilter('all'); }}
+                className="inline-flex h-10 shrink-0 items-center gap-1 px-1 text-sm font-medium text-neutral-500 hover:text-neutral-900"
+              >
+                <X size={14} /> Limpar
+              </button>
+            )}
+          </div>
+
+          <div className="relative shrink-0 lg:hidden">
+            <button
+              type="button"
+              onClick={() => setFiltersOpen(!filtersOpen)}
+              className={`inline-flex h-10 items-center gap-2 rounded-full px-3 text-sm font-medium transition-colors ${filtersOpen || filtersActive ? 'bg-neutral-900 text-white' : 'border border-black/10 text-neutral-700 hover:bg-neutral-50'}`}
+            >
+              <Filter size={16} />
+              Filtros
+              {filtersActive && <span className="h-1.5 w-1.5 rounded-full bg-[#c8f053]" />}
+              <ChevronDown size={13} className={`transition-transform ${filtersOpen ? 'rotate-180' : ''}`} />
+            </button>
+            {filtersOpen && (
+              <>
+                <button type="button" aria-label="Fechar filtros" className="fixed inset-0 z-40" onClick={() => setFiltersOpen(false)} />
+                <div className="absolute top-full left-0 z-50 mt-2 min-w-[260px] space-y-3 rounded-[1.25rem] border border-black/10 bg-white p-4 shadow-xl">
+                  <div>
+                    <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-neutral-400">Período</label>
+                    <CustomSelect
+                      value={periodFilter}
+                      onChange={(v) => setPeriodFilter(v as typeof periodFilter)}
+                      options={[
+                        { value: 'all', label: 'Todos os períodos' },
+                        { value: '7d', label: 'Últimos 7 dias' },
+                        { value: '30d', label: 'Últimos 30 dias' },
+                        { value: '90d', label: 'Últimos 90 dias' },
+                      ]}
+                      size="sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-neutral-400">Status</label>
+                    <CustomSelect
+                      value={statusFilter}
+                      onChange={(v) => setStatusFilter(v as StatusKey | 'all')}
+                      options={[
+                        { value: 'all', label: 'Todos os status' },
+                        ...(['espera', 'lab', 'clinica', 'feito'] as StatusKey[]).map(k => ({ value: k, label: STATUS_TOKENS[k].label })),
+                      ]}
+                      size="sm"
+                    />
+                  </div>
+                  {filtersActive && (
+                    <button
+                      type="button"
+                      onClick={() => { setPeriodFilter('all'); setStatusFilter('all'); }}
+                      className="flex w-full items-center justify-center gap-1 pt-1 text-xs font-bold text-slate-400 hover:text-neutral-600"
+                    >
+                      <X size={13} /> Limpar filtros
+                    </button>
+                  )}
                 </div>
-                <div>
-                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-neutral-400">Status</label>
-                  <CustomSelect
-                    value={statusFilter}
-                    onChange={(v) => setStatusFilter(v as StatusKey | 'all')}
-                    options={[
-                      { value: 'all', label: 'Todos os status' },
-                      ...(['espera', 'lab', 'clinica', 'feito'] as StatusKey[]).map(k => ({ value: k, label: STATUS_TOKENS[k].label })),
-                    ]}
-                    size="sm"
-                  />
-                </div>
-                {filtersActive && (
-                  <button
-                    type="button"
-                    onClick={() => { setPeriodFilter('all'); setStatusFilter('all'); }}
-                    className="w-full text-xs font-bold text-slate-400 hover:text-neutral-600 flex items-center justify-center gap-1 pt-1"
-                  >
-                    <X size={13} /> Limpar filtros
-                  </button>
-                )}
-              </div>
-            </>
-          )}
+              </>
+            )}
+          </div>
         </div>
 
         <div className="ml-auto w-36 shrink-0 text-right text-xs font-medium tabular-nums text-neutral-400 sm:text-sm">

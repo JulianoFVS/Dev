@@ -114,7 +114,7 @@ function NavItem({
       href={href}
       title={collapsed ? undefined : label}
       className={`relative flex shrink-0 items-center transition-colors ${
-        collapsed ? 'h-11 w-11 justify-center rounded-2xl' : 'h-10 w-full gap-3 rounded-2xl px-3'
+        collapsed ? 'h-10 w-10 justify-center rounded-2xl' : 'h-10 w-full gap-3 rounded-2xl px-3'
       } ${active ? 'bg-white/15 text-white' : 'text-white/80 hover:bg-white/10 hover:text-white'}`}
     >
       <Icon size={20} strokeWidth={1.65} className="shrink-0" />
@@ -199,7 +199,7 @@ export default function DashboardSidebar({
     <aside
       className={`flex h-full shrink-0 flex-col overflow-visible rounded-[1.75rem] bg-neutral-950 py-3 transition-[width] duration-200 ease-out sm:rounded-[2rem] md:rounded-[2.25rem] ${widthClass}`}
     >
-      <div className={`mb-2 ${collapsed ? 'flex justify-center px-2' : 'px-3'}`}>
+      <div className={`mb-2 shrink-0 ${collapsed ? 'flex justify-center px-2' : 'px-3'}`}>
         <BentoSidebarTooltip label="Visão geral" show={collapsed}>
           <Link
             href="/dashboard"
@@ -219,12 +219,12 @@ export default function DashboardSidebar({
         </BentoSidebarTooltip>
       </div>
 
-      <div className={`mb-3 ${collapsed ? 'flex justify-center px-2' : 'px-2.5'}`}>
+      <div className={`mb-3 shrink-0 ${collapsed ? 'flex justify-center px-2' : 'px-2.5'}`}>
         <BentoClinicSwitcher variant="sidebar" collapsed={collapsed} className={collapsed ? '' : 'w-full'} />
       </div>
 
       <nav
-        className={`flex min-h-0 flex-1 flex-col gap-1 ${collapsed ? 'items-center overflow-visible px-2' : 'overflow-x-hidden overflow-y-auto px-2.5'}`}
+        className={`flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${collapsed ? 'items-center gap-1 px-2' : 'gap-1 px-2.5'}`}
       >
         {LINKS.map((item) => (
           <NavItem key={item.href} href={item.href} label={item.label} Icon={item.icon} collapsed={collapsed} />
@@ -246,7 +246,7 @@ export default function DashboardSidebar({
         )}
       </nav>
 
-      <div className={`mt-auto flex flex-col gap-1.5 ${collapsed ? 'items-center px-2' : 'px-2.5'}`}>
+      <div className={`mt-auto flex shrink-0 flex-col gap-1.5 pt-4 ${collapsed ? 'items-center px-2' : 'px-2.5'}`}>
         {showPainelSaas && (
           <NavItem href="/super-admin" label="Painel SaaS" Icon={ShieldAlert} collapsed={collapsed} />
         )}

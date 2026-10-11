@@ -468,7 +468,7 @@ export default function Agenda() {
   };
 
   const inputClass =
-    'w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm font-medium text-neutral-800 outline-none focus:border-neutral-400';
+    'box-border h-10 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm text-neutral-900 outline-none focus:border-neutral-900';
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden px-2.5 py-2.5 font-poppins sm:px-3 sm:py-3 md:px-4 md:py-3.5 max-sm:overflow-y-auto">
@@ -481,9 +481,9 @@ export default function Agenda() {
           <button
             type="button"
             onClick={abrirNovoAgendamento}
-            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-full bg-neutral-900 px-5 text-sm font-medium text-white hover:bg-neutral-800 sm:w-auto"
+            className="inline-flex h-9 w-full shrink-0 items-center justify-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 sm:w-auto"
           >
-            <Plus size={18} />
+            <Plus size={14} />
             Novo agendamento
           </button>
         </div>
@@ -587,99 +587,100 @@ export default function Agenda() {
         onClose={() => setOpenModal(false)}
         maxWidth="lg"
         hideCloseButton
-        panelClassName="flex max-h-[95vh] flex-col overflow-hidden rounded-[1.35rem] border border-black/8 bg-white shadow-xl sm:rounded-[1.5rem]"
+        panelClassName="flex max-h-[85vh] flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white"
       >
-                  <div className="flex shrink-0 items-center justify-between border-b border-black/6 px-5 py-4">
-                      <h3 className="text-lg font-semibold text-neutral-900">{formData.id ? 'Editar agendamento' : 'Novo agendamento'}</h3>
-                      <button type="button" onClick={() => setOpenModal(false)} className="rounded-full p-2 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-800"><X size={20}/></button>
+                  <div className="flex shrink-0 items-start justify-between gap-3 border-b border-black/5 px-5 py-4 sm:px-6">
+                      <div>
+                          <h2 className="text-lg font-semibold text-neutral-900">{formData.id ? 'Editar agendamento' : 'Novo agendamento'}</h2>
+                          <p className="mt-0.5 text-xs font-medium text-neutral-400">Paciente, horário e procedimento.</p>
+                      </div>
+                      <button type="button" onClick={() => setOpenModal(false)} className="rounded-full p-2 text-neutral-400 hover:bg-neutral-100" aria-label="Fechar"><X size={18}/></button>
                   </div>
-                  <div className="flex-1 space-y-5 overflow-y-auto p-5 sm:p-6">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                          <div>
-                              <label className="text-xs font-bold text-slate-500 uppercase mb-1 flex items-center gap-1">
-                                  Clínica
-                                  {clinicaFiltro !== 'todas' && <span className="text-[9px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded normal-case">Travada no filtro</span>}
-                              </label>
+                  <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto px-5 py-4 sm:px-6">
+                      <div className="grid grid-cols-1 gap-x-3 gap-y-2.5 sm:grid-cols-2">
+                          <label>
+                              <span className="mb-1.5 block text-xs font-medium text-neutral-500">Clínica</span>
                               <CustomSelect
                                   value={formData.clinica_id}
                                   onChange={v => setFormData({...formData, clinica_id: v})}
                                   disabled={clinicaFiltro !== 'todas'}
                                   options={clinicas.map((c:any) => ({ value: String(c.id), label: c.nome }))}
                                   placeholder="Selecione..."
+                                  size="md"
                               />
-                              {clinicaFiltro !== 'todas' && <p className="mt-1 text-[11px] text-neutral-400">Unidade definida no menu lateral. Selecione &quot;Todas&quot; lá para agendar em outra clínica.</p>}
-                          </div>
-                          <div><label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-neutral-500">Profissional</label><CustomSelect value={formData.profissional_id} onChange={v => setFormData({...formData,profissional_id: v})} disabled={usuarioAtual?.nivel !== 'admin'} options={profissionaisFiltrados.map((p:any) => ({ value: String(p.id), label: p.nome }))} placeholder="Qualquer um..."/></div>
-                      </div>
-                      <div>
-                          <div className="mb-1 flex items-center justify-between">
-                              <label className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Paciente</label>
-                              <button type="button" onClick={abrirCadastroPaciente} className="flex items-center gap-1 text-[11px] font-semibold text-neutral-700 hover:underline"><UserPlus size={12}/> Novo paciente</button>
-                          </div>
-                          <CustomSelect value={formData.paciente_id} onChange={v => setFormData({...formData, paciente_id: v})} options={pacientes.filter((p:any) => !formData.clinica_id || p.clinica_id == formData.clinica_id).map((p:any) => ({ value: String(p.id), label: p.nome }))} placeholder="Selecione..." searchable/>
-                      </div>
-                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                          <div>
-                              <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-neutral-500">Data</label>
+                          </label>
+                          <label>
+                              <span className="mb-1.5 block text-xs font-medium text-neutral-500">Profissional</span>
+                              <CustomSelect value={formData.profissional_id} onChange={v => setFormData({...formData,profissional_id: v})} disabled={usuarioAtual?.nivel !== 'admin'} options={profissionaisFiltrados.map((p:any) => ({ value: String(p.id), label: p.nome }))} placeholder="Qualquer um..." size="md"/>
+                          </label>
+                          <label className="sm:col-span-2">
+                              <span className="mb-1.5 flex items-center justify-between text-xs font-medium text-neutral-500">
+                                  Paciente
+                                  <button type="button" onClick={abrirCadastroPaciente} className="inline-flex items-center gap-1 font-medium text-neutral-700 hover:text-neutral-900"><UserPlus size={12}/> Novo</button>
+                              </span>
+                              <CustomSelect value={formData.paciente_id} onChange={v => setFormData({...formData, paciente_id: v})} options={pacientes.filter((p:any) => !formData.clinica_id || p.clinica_id == formData.clinica_id).map((p:any) => ({ value: String(p.id), label: p.nome }))} placeholder="Selecione..." searchable size="md"/>
+                          </label>
+                          <label>
+                              <span className="mb-1.5 block text-xs font-medium text-neutral-500">Data</span>
                               <CustomSelect
                                   value={formData.date}
                                   onChange={v => setFormData({...formData, date: v})}
                                   options={opcoesDataAgenda(formData.date)}
                                   placeholder="Selecione a data"
                                   searchable
+                                  size="md"
                               />
-                          </div>
-                          <div>
-                              <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-neutral-500">Hora</label>
+                          </label>
+                          <label>
+                              <span className="mb-1.5 block text-xs font-medium text-neutral-500">Hora</span>
                               <CustomSelect
                                   value={formData.time}
                                   onChange={v => setFormData({...formData, time: v})}
                                   options={OPCOES_HORA}
                                   placeholder="Selecione a hora"
                                   searchable
+                                  size="md"
                               />
-                          </div>
-                      </div>
-                      <div>
-                          <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Procedimento</label>
-                          <ProcedureCombobox
-                              clinicaId={formData.clinica_id}
-                              especialidades={especialidades}
-                              tratamentos={tratamentosBase}
-                              value={formData.title}
-                              onChange={(nome, t) => {
-                                  setFormData((p) => ({
-                                      ...p,
-                                      title: nome,
-                                      valor: t ? String(t.valor_sugerido ?? p.valor) : p.valor,
-                                  }));
-                              }}
-                              disabled={!formData.clinica_id}
-                          />
-                      </div>
-                      <div className="grid grid-cols-1 gap-4 rounded-xl border border-black/6 bg-[#f3f4f1] p-4 sm:grid-cols-3">
-                          <div>
-                              <label className="mb-1 block text-[10px] font-semibold uppercase text-neutral-500">Valor (R$)</label>
+                          </label>
+                          <label className="sm:col-span-2">
+                              <span className="mb-1.5 block text-xs font-medium text-neutral-500">Procedimento</span>
+                              <ProcedureCombobox
+                                  clinicaId={formData.clinica_id}
+                                  especialidades={especialidades}
+                                  tratamentos={tratamentosBase}
+                                  value={formData.title}
+                                  onChange={(nome, t) => {
+                                      setFormData((p) => ({
+                                          ...p,
+                                          title: nome,
+                                          valor: t ? String(t.valor_sugerido ?? p.valor) : p.valor,
+                                      }));
+                                  }}
+                                  disabled={!formData.clinica_id}
+                              />
+                          </label>
+                          <label>
+                              <span className="mb-1.5 block text-xs font-medium text-neutral-500">Valor (R$)</span>
                               <input type="number" step="0.01" value={formData.valor} onChange={e => setFormData({...formData, valor: e.target.value})} className={inputClass} placeholder="0,00" />
-                          </div>
-                          <div>
-                              <label className="mb-1 block text-[10px] font-semibold uppercase text-neutral-500">Desconto (R$)</label>
+                          </label>
+                          <label>
+                              <span className="mb-1.5 block text-xs font-medium text-neutral-500">Desconto (R$)</span>
                               <input type="number" step="0.01" value={formData.desconto} onChange={e => setFormData({...formData, desconto: e.target.value})} className={inputClass} placeholder="0,00" />
-                          </div>
-                          <div className="flex flex-col justify-center sm:text-right">
-                              <label className="mb-1 block text-[10px] font-semibold uppercase text-neutral-500">Total</label>
-                              <span className="text-xl font-semibold text-neutral-900">R$ {(parseFloat(formData.valor || '0') - parseFloat(formData.desconto || '0')).toFixed(2)}</span>
-                          </div>
+                          </label>
+                          <label className="sm:col-span-2">
+                              <span className="mb-1.5 block text-xs font-medium text-neutral-500">Total</span>
+                              <p className="flex h-10 items-center text-sm font-medium text-neutral-900">R$ {(parseFloat(formData.valor || '0') - parseFloat(formData.desconto || '0')).toFixed(2)}</p>
+                          </label>
                       </div>
                       {formData.id && (
-                        <div className="flex flex-wrap gap-2">
+                        <div className="flex flex-wrap gap-1.5">
                           {(['agendado', 'concluido', 'cancelado'] as const).map((st) => (
                             <button
                               key={st}
                               type="button"
                               onClick={() => setFormData((p) => ({ ...p, status: st }))}
-                              className={`rounded-full px-3 py-1.5 text-xs font-medium capitalize ${
-                                formData.status === st ? 'bg-neutral-900 text-white' : 'border border-black/10 bg-white text-neutral-600'
+                              className={`h-9 rounded-md border px-3 text-sm font-medium capitalize ${
+                                formData.status === st ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-200 text-neutral-600 hover:bg-neutral-50'
                               }`}
                             >
                               {st}
@@ -694,8 +695,8 @@ export default function Agenda() {
                           const clinica = clinicas.find((c: any) => String(c.id) === String(formData.clinica_id));
                           const dataFmt = new Date(formData.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
                           return (
-                              <div className="space-y-2 pt-1">
-                                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Confirmar consulta</p>
+                              <div className="space-y-2">
+                                  <p className="text-xs font-medium text-neutral-500">Confirmar consulta</p>
                                   <PatientContactButtons
                                       variant="row"
                                       telefone={pac.telefone}
@@ -715,17 +716,17 @@ export default function Agenda() {
                           );
                       })()}
                   </div>
-                  <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-black/6 px-5 py-4">
+                  <div className="flex shrink-0 items-center justify-between gap-3 border-t border-black/5 px-5 py-4 sm:px-6">
                       {formData.id ? (
-                        <button type="button" onClick={excluirAgendamento} className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50" title="Excluir">
-                          <Trash2 size={18} /> Excluir
+                        <button type="button" onClick={excluirAgendamento} className="inline-flex h-9 items-center gap-1.5 rounded-md px-3 text-sm font-medium text-rose-600 hover:bg-rose-50" title="Excluir">
+                          <Trash2 size={14} /> Excluir
                         </button>
                       ) : (
                         <span />
                       )}
-                      <div className="flex flex-wrap gap-2 sm:ml-auto">
-                        <button type="button" onClick={() => setOpenModal(false)} className="rounded-full px-4 py-2.5 text-sm font-medium text-neutral-600 hover:bg-neutral-100">Cancelar</button>
-                        <button type="button" onClick={() => saveOrUpdate()} disabled={loading} className="inline-flex items-center gap-2 rounded-full bg-neutral-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-60">
+                      <div className="flex items-center gap-3">
+                        <button type="button" onClick={() => setOpenModal(false)} className="h-10 px-3 text-sm font-medium text-neutral-500 hover:text-neutral-900">Cancelar</button>
+                        <button type="button" onClick={() => saveOrUpdate()} disabled={loading} className="inline-flex h-10 items-center rounded-full bg-neutral-900 px-5 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-60">
                           {loading && <Loader2 className="animate-spin" size={16} />} Salvar
                         </button>
                       </div>

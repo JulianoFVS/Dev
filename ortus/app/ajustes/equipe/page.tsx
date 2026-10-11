@@ -8,11 +8,10 @@ import { fetchUserEquipe } from '@/lib/clinicScoped';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
 import Modal from '@/components/ui/Modal';
 import CustomSelect from '@/components/ui/CustomSelect';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/Tabs';
 import {
-    Users, UserPlus, Loader2, X, Mail, Building2, ShieldCheck, Copy, Check,
-    KeyRound, AlertTriangle, User, Briefcase, ToggleLeft, ToggleRight, Clock,
-    DollarSign, Trash2, Plus, Settings, Edit,
+    UserPlus, Loader2, X, ShieldCheck, Copy, Check,
+    AlertTriangle, ToggleLeft, ToggleRight,
+    Trash2, Plus, ArrowUpDown, Edit,
 } from 'lucide-react';
 import type { ComissaoRegra, ModuleName } from '@/lib/types/permissions';
 import { MODULES, buildModuleAccessMap } from '@/lib/modules';
@@ -83,6 +82,7 @@ const formatValorComissao = (tipo: string, valor: number) => (
 );
 
 const EQUIPE_CACHE_KEY = 'ortus:equipe:v1';
+const COMISSOES_CACHE_KEY = 'ortus:equipe:comissoes:v1';
 
 function readEquipeBoot(): Profissional[] | null {
     if (typeof localStorage === 'undefined') return null;
@@ -102,6 +102,9 @@ export default function EquipePage() {
     const [profissionais, setProfissionais] = useState<Profissional[]>(() => bootEquipe ?? []);
     const [loading, setLoading] = useState(() => !(bootEquipe?.length));
     const [perfilCaller, setPerfilCaller] = useState<any>(null);
+    const [perfilResolvido, setPerfilResolvido] = useState(false);
+    const [ordenacao, setOrdenacao] = useState<{ campo: 'nome' | 'cargo' | 'unidades' | 'status'; dir: 'asc' | 'desc' }>({ campo: 'nome', dir: 'asc' });
+    const [ordenacaoComissao, setOrdenacaoComissao] = useState<{ campo: 'profissional' | 'gatilho' | 'tipo' | 'valor'; dir: 'asc' | 'desc' }>({ campo: 'profissional', dir: 'asc' });
 
     // Modal de criação
     const [modalOpen, setModalOpen] = useState(false);
@@ -139,11 +142,22 @@ export default function EquipePage() {
     const [comissoesLoading, setComissoesLoading] = useState(false);
     const [comissaoSaving, setComissaoSaving] = useState(false);
     const [comissaoExcluindo, setComissaoExcluindo] = useState<string | null>(null);
-    const [comissoesConsolidadas, setComissoesConsolidadas] = useState<(ComissaoRegra & { profissionais?: { nome: string } | null })[]>([]);
-    const [comissoesConsolidadasLoading, setComissoesConsolidadasLoading] = useState(false);
+    const comissaoScope = activeClinicId && activeClinicId !== 'all' ? String(activeClinicId) : null;
+    const bootComissoes = comissaoScope
+        ? readRouteCache<(ComissaoRegra & { profissionais?: { nome: string } | null })[]>(COMISSOES_CACHE_KEY, comissaoScope)
+        : null;
+    const [comissoesConsolidadas, setComissoesConsolidadas] = useState<(ComissaoRegra & { profissionais?: { nome: string } | null })[]>(() => bootComissoes ?? []);
+    const [comissoesConsolidadasLoading, setComissoesConsolidadasLoading] = useState(() => !bootComissoes);
     const [comissaoLancamentos, setComissaoLancamentos] = useState<any[]>([]);
     const [nivelAcessoEdit, setNivelAcessoEdit] = useState<'comum' | 'admin'>('comum');
-    const [nivelSaving, setNivelSaving] = useState(false);
+    const [aviso, setAviso] = useState<string | null>(null);
+    const avisoTimer = useRef<number | null>(null);
+
+    function avisar(mensagem: string) {
+        setAviso(mensagem);
+        if (avisoTimer.current) window.clearTimeout(avisoTimer.current);
+        avisoTimer.current = window.setTimeout(() => setAviso(null), 2600);
+    }
 
     const clinicaIdNumerica = useMemo(() => (activeClinicId && activeClinicId !== 'all' ? Number(activeClinicId) : null), [activeClinicId]);
     const clinicaNomeAtiva = useMemo(() => {
@@ -167,14 +181,24 @@ export default function EquipePage() {
         if (!opts?.silent) setLoading(true);
         try {
             const { data: { user } } = await supabase.auth.getUser();
-            if (!user) { if (gen === fetchGen.current) setLoading(false); return; }
+            if (!user) {
+                if (gen === fetchGen.current) {
+                    setPerfilCaller(null);
+                    setPerfilResolvido(true);
+                    setLoading(false);
+                }
+                return;
+            }
 
             const { data: meu } = await supabase
                 .from('profissionais')
                 .select('id, nome, nivel_acesso, is_super_admin')
                 .eq('user_id', user.id)
                 .single();
-            if (gen === fetchGen.current) setPerfilCaller(meu);
+            if (gen === fetchGen.current) {
+                setPerfilCaller(meu);
+                setPerfilResolvido(true);
+            }
 
             const lista = (await fetchUserEquipe()) as Profissional[];
             if (gen !== fetchGen.current) return;
@@ -314,9 +338,18 @@ export default function EquipePage() {
     useEffect(() => {
         if (!clinicaIdNumerica) {
             setComissoesConsolidadas([]);
+            setComissoesConsolidadasLoading(false);
             return;
         }
-        setComissoesConsolidadasLoading(true);
+        const scope = String(clinicaIdNumerica);
+        const cached = readRouteCache<(ComissaoRegra & { profissionais?: { nome: string } | null })[]>(COMISSOES_CACHE_KEY, scope);
+        if (cached) {
+            setComissoesConsolidadas(cached);
+            setComissoesConsolidadasLoading(false);
+        } else {
+            setComissoesConsolidadasLoading(true);
+        }
+        let ativo = true;
         supabase
             .from('comissoes_regras')
             .select('*, profissionais(nome)')
@@ -324,7 +357,12 @@ export default function EquipePage() {
             .eq('ativo', true)
             .order('profissional_id')
             .then(({ data, error }) => {
-                if (!error) setComissoesConsolidadas((data || []) as typeof comissoesConsolidadas);
+                if (!ativo) return;
+                if (!error) {
+                    const rows = (data || []) as typeof comissoesConsolidadas;
+                    writeRouteCache(COMISSOES_CACHE_KEY, scope, rows);
+                    setComissoesConsolidadas(rows);
+                }
                 setComissoesConsolidadasLoading(false);
             });
         supabase
@@ -333,30 +371,60 @@ export default function EquipePage() {
             .eq('clinica_id', clinicaIdNumerica)
             .order('created_at', { ascending: false })
             .limit(20)
-            .then(({ data }) => setComissaoLancamentos(data || []));
-    }, [clinicaIdNumerica, comissoesLoaded, editorAberto]);
+            .then(({ data }) => {
+                if (ativo) setComissaoLancamentos(data || []);
+            });
+        return () => { ativo = false; };
+    }, [clinicaIdNumerica]);
 
     function aplicarPresetPermissoes(presetId: PermissionPresetId) {
         setPermissoesMapa(buildPresetAccessMap(presetId));
         setPermissoesDirty(true);
     }
 
-    async function salvarNivelAcesso() {
+    async function salvarEditor() {
         if (!profissionalSelecionado) return;
-        setNivelSaving(true);
+        if (abaEditor === 'horarios') {
+            await salvarHorario();
+            return;
+        }
+        if (abaEditor !== 'permissoes') return;
+        if (!clinicaIdNumerica) {
+            showAlert('Selecione uma clínica específica no topo para editar permissões.', { type: 'warning' });
+            return;
+        }
+        const nivelAtual = profissionalSelecionado.nivel_acesso === 'admin' ? 'admin' : 'comum';
+        const nivelMudou = nivelAcessoEdit !== nivelAtual;
+        setPermissoesSaving(true);
         try {
-            const { error } = await supabase
-                .from('profissionais')
-                .update({ nivel_acesso: nivelAcessoEdit })
-                .eq('id', profissionalSelecionado.id);
-            if (error) throw error;
-            setProfissionalSelecionado((prev) => prev ? { ...prev, nivel_acesso: nivelAcessoEdit } : prev);
-            setProfissionais((prev) => prev.map((p) => p.id === profissionalSelecionado.id ? { ...p, nivel_acesso: nivelAcessoEdit } : p));
-            await showAlert('Nível de acesso atualizado!', { type: 'success' });
-        } catch {
-            await showAlert('Erro ao atualizar nível de acesso.', { type: 'error' });
+            if (nivelMudou) {
+                const { error } = await supabase
+                    .from('profissionais')
+                    .update({ nivel_acesso: nivelAcessoEdit })
+                    .eq('id', profissionalSelecionado.id);
+                if (error) throw error;
+                setProfissionalSelecionado((prev) => prev ? { ...prev, nivel_acesso: nivelAcessoEdit } : prev);
+                setProfissionais((prev) => prev.map((p) => p.id === profissionalSelecionado.id ? { ...p, nivel_acesso: nivelAcessoEdit } : p));
+            }
+            if (nivelAcessoEdit !== 'admin' && permissoesDirty) {
+                const payload = MODULES.map((modulo) => ({
+                    profissional_id: Number(profissionalSelecionado.id),
+                    clinica_id: clinicaIdNumerica,
+                    modulo: modulo.id,
+                    pode_acessar: permissoesMapa[modulo.id],
+                }));
+                const { error } = await supabase
+                    .from('permissoes_modulos')
+                    .upsert(payload, { onConflict: 'profissional_id,clinica_id,modulo' });
+                if (error) throw error;
+                setPermissoesDirty(false);
+            }
+            avisar('Alterações salvas.');
+        } catch (err: any) {
+            console.error(err);
+            await showAlert('Erro ao salvar.', { type: 'error' });
         } finally {
-            setNivelSaving(false);
+            setPermissoesSaving(false);
         }
     }
 
@@ -397,34 +465,6 @@ export default function EquipePage() {
             setPermissoesDirty(true);
             return next;
         });
-    }
-
-    async function salvarPermissoesAtual() {
-        if (!profissionalSelecionado) return;
-        if (!clinicaIdNumerica) {
-            showAlert('Selecione uma clínica específica no topo para editar permissões.', { type: 'warning' });
-            return;
-        }
-        setPermissoesSaving(true);
-        try {
-            const payload = MODULES.map((modulo) => ({
-                profissional_id: Number(profissionalSelecionado.id),
-                clinica_id: clinicaIdNumerica,
-                modulo: modulo.id,
-                pode_acessar: permissoesMapa[modulo.id],
-            }));
-            const { error } = await supabase
-                .from('permissoes_modulos')
-                .upsert(payload, { onConflict: 'profissional_id,clinica_id,modulo' });
-            if (error) throw error;
-            await showAlert('Permissões atualizadas!', { type: 'success' });
-            setPermissoesDirty(false);
-        } catch (err: any) {
-            console.error(err);
-            await showAlert('Erro ao salvar permissões.', { type: 'error' });
-        } finally {
-            setPermissoesSaving(false);
-        }
     }
 
     async function carregarHorarioEditor() {
@@ -478,7 +518,7 @@ export default function EquipePage() {
         try {
             await salvarHorarioProfissional(clinicaIdNumerica, profissionalSelecionado.id, horarioState);
             setHorarioDirty(false);
-            await showAlert('Horário salvo com sucesso!', { type: 'success' });
+            avisar('Horário salvo.');
         } catch (err: any) {
             console.error(err);
             await showAlert('Erro ao salvar horário.', { type: 'error' });
@@ -541,9 +581,15 @@ export default function EquipePage() {
                     .single();
                 if (error) throw error;
                 setComissoes((prev) => prev.map((r) => (r.id === comissaoEditandoId ? (data as ComissaoRegra) : r)));
+                setComissoesConsolidadas((prev) => {
+                    const row = { ...(data as ComissaoRegra), profissionais: { nome: profissionalSelecionado.nome } };
+                    const next = row.ativo === false ? prev.filter((r) => r.id !== row.id) : [row, ...prev.filter((r) => r.id !== row.id)];
+                    if (clinicaIdNumerica) writeRouteCache(COMISSOES_CACHE_KEY, String(clinicaIdNumerica), next);
+                    return next;
+                });
                 setComissaoEditandoId(null);
                 setComissaoForm({ gatilho: GATILHOS_COMISSAO[0].value, tipo: TIPOS_COMISSAO[0].value, valor: '', ativo: true });
-                await showAlert('Regra atualizada!', { type: 'success' });
+                avisar('Regra atualizada.');
             } else {
                 const { data, error } = await supabase
                     .from('comissoes_regras')
@@ -559,8 +605,16 @@ export default function EquipePage() {
                     .single();
                 if (error) throw error;
                 setComissoes((prev) => [data as ComissaoRegra, ...prev]);
+                if (comissaoForm.ativo) {
+                    const row = { ...(data as ComissaoRegra), profissionais: { nome: profissionalSelecionado.nome } };
+                    setComissoesConsolidadas((prev) => {
+                        const next = [row, ...prev];
+                        if (clinicaIdNumerica) writeRouteCache(COMISSOES_CACHE_KEY, String(clinicaIdNumerica), next);
+                        return next;
+                    });
+                }
                 setComissaoForm((prev) => ({ ...prev, valor: '' }));
-                await showAlert('Regra adicionada!', { type: 'success' });
+                avisar('Regra adicionada.');
             }
         } catch (err: any) {
             console.error(err);
@@ -595,6 +649,14 @@ export default function EquipePage() {
                 .single();
             if (error) throw error;
             setComissoes((prev) => prev.map((r) => (r.id === regra.id ? (data as ComissaoRegra) : r)));
+            const row = data as ComissaoRegra;
+            setComissoesConsolidadas((prev) => {
+                const next = row.ativo === false
+                    ? prev.filter((r) => r.id !== row.id)
+                    : [{ ...row, profissionais: { nome: profissionalSelecionado?.nome || prev.find((r) => r.id === row.id)?.profissionais?.nome || '' } }, ...prev.filter((r) => r.id !== row.id)];
+                if (clinicaIdNumerica) writeRouteCache(COMISSOES_CACHE_KEY, String(clinicaIdNumerica), next);
+                return next;
+            });
         } catch (err: any) {
             console.error(err);
             await showAlert('Erro ao alterar status da regra.', { type: 'error' });
@@ -608,7 +670,12 @@ export default function EquipePage() {
             const { error } = await supabase.from('comissoes_regras').delete().eq('id', id);
             if (error) throw error;
             setComissoes((prev) => prev.filter((regra) => regra.id !== id));
-            await showAlert('Regra removida.', { type: 'success' });
+            setComissoesConsolidadas((prev) => {
+                const next = prev.filter((regra) => regra.id !== id);
+                if (clinicaIdNumerica) writeRouteCache(COMISSOES_CACHE_KEY, String(clinicaIdNumerica), next);
+                return next;
+            });
+            avisar('Regra removida.');
         } catch (err: any) {
             console.error(err);
             await showAlert('Erro ao excluir regra de comissão.', { type: 'error' });
@@ -617,47 +684,36 @@ export default function EquipePage() {
         }
     }
 
+    const campoClasse = 'box-border h-10 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm text-neutral-900 outline-none focus:border-neutral-900';
+    const rotuloClasse = 'mb-1.5 block text-xs font-medium text-neutral-500';
+    const acaoClasse = 'inline-flex h-9 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-40';
+
     const renderClinicaObrigatoria = () => (
-        <div className="p-6 bg-amber-50 border border-amber-200 rounded-2xl text-sm text-amber-800">
-            Selecione uma clínica específica no topo da tela para gerenciar este recurso.
-        </div>
+        <p className="text-sm text-amber-800">Selecione uma clínica específica para gerenciar este recurso.</p>
     );
 
     const renderPermissoesTab = () => {
         if (!profissionalSelecionado) return null;
         if (!clinicaIdNumerica) return renderClinicaObrigatoria();
         return (
-            <div className="space-y-4">
-                <div className="p-4 bg-neutral-50 border border-neutral-100 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div>
-                        <p className="text-xs font-bold text-neutral-600">Nível de acesso</p>
-                        <p className="text-[11px] text-neutral-400">Admin tem acesso total; comum usa os módulos abaixo.</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <div className="flex bg-white p-1 rounded-xl border border-neutral-200">
-                            <button type="button" onClick={() => setNivelAcessoEdit('comum')} className={`px-3 py-1.5 rounded-lg text-xs font-bold ${nivelAcessoEdit === 'comum' ? 'bg-neutral-800 text-white' : 'text-neutral-500'}`}>Comum</button>
-                            <button type="button" onClick={() => setNivelAcessoEdit('admin')} className={`px-3 py-1.5 rounded-lg text-xs font-bold ${nivelAcessoEdit === 'admin' ? 'bg-purple-600 text-white' : 'text-neutral-500'}`}>Admin</button>
-                        </div>
-                        <button type="button" onClick={salvarNivelAcesso} disabled={nivelSaving || nivelAcessoEdit === (profissionalSelecionado.nivel_acesso === 'admin' ? 'admin' : 'comum')} className="px-3 py-1.5 rounded-lg bg-neutral-900 text-white text-xs font-bold disabled:opacity-50">
-                            {nivelSaving ? 'Salvando...' : 'Salvar nível'}
-                        </button>
+            <div className="space-y-2.5">
+                <div>
+                    <span className={rotuloClasse}>Nível de acesso</span>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <button type="button" onClick={() => setNivelAcessoEdit('comum')} className={`h-10 rounded-md border px-3 text-sm font-medium ${nivelAcessoEdit === 'comum' ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-200 text-neutral-700'}`}>Comum</button>
+                        <button type="button" onClick={() => setNivelAcessoEdit('admin')} className={`h-10 rounded-md border px-3 text-sm font-medium ${nivelAcessoEdit === 'admin' ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-200 text-neutral-700'}`}>Admin</button>
                     </div>
                 </div>
-                {profissionalSelecionado.nivel_acesso === 'admin' ? (
-                    <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl text-sm text-emerald-700">
-                        Administradores possuem acesso completo a todos os módulos. Para restringir, altere o nível para <strong>Comum</strong> acima.
-                    </div>
-                ) : (
-                <>
-                <div>
-                    <p className="text-[10px] font-black uppercase tracking-wider text-neutral-400 mb-2">Perfis rápidos</p>
-                    <div className="flex flex-wrap gap-2">
+                <div className={nivelAcessoEdit === 'admin' ? 'pointer-events-none opacity-40' : ''}>
+                    <span className={rotuloClasse}>Perfis rápidos</span>
+                    <div className="flex flex-wrap gap-1.5">
                         {PERMISSION_PRESETS.map((preset) => (
                             <button
                                 key={preset.id}
                                 type="button"
+                                disabled={nivelAcessoEdit === 'admin'}
                                 onClick={() => aplicarPresetPermissoes(preset.id)}
-                                className="px-3 py-2 rounded-xl border border-neutral-200 bg-white text-xs font-bold text-neutral-600 hover:border-neutral-400 hover:text-neutral-900 transition-colors"
+                                className="h-9 rounded-md border border-neutral-200 px-3 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
                                 title={preset.description}
                             >
                                 {preset.label}
@@ -665,75 +721,60 @@ export default function EquipePage() {
                         ))}
                     </div>
                 </div>
-                <p className="text-xs text-neutral-500 font-medium">
-                    Ajuste o acesso por módulo para <span className="font-bold text-neutral-700">{profissionalSelecionado.nome}</span>.
-                </p>
-                <div className="space-y-3">
-                    {MODULES.map((modulo) => (
-                        <div key={modulo.id} className="flex items-center gap-4 p-4 rounded-2xl border border-neutral-100 bg-neutral-50">
-                            <div className="flex-1 min-w-0">
-                                <p className="text-sm font-bold text-neutral-800">{modulo.label}</p>
-                                <p className="text-xs text-neutral-500">{modulo.description}</p>
-                            </div>
-                            <button
-                                type="button"
-                                onClick={() => toggleModulo(modulo.id)}
-                                disabled={permissoesLoading}
-                                className={`p-1 rounded-full transition-colors ${permissoesMapa[modulo.id] ? 'text-neutral-900' : 'text-neutral-400'}`}
-                            >
-                                {permissoesMapa[modulo.id] ? <ToggleRight size={32}/> : <ToggleLeft size={32}/>}
-                            </button>
-                        </div>
-                    ))}
-                </div>
-                <div className="flex justify-end">
-                    <button
-                        type="button"
-                        onClick={salvarPermissoesAtual}
-                        disabled={!permissoesDirty || permissoesSaving}
-                        className="px-5 py-2 rounded-xl text-sm font-bold text-white bg-neutral-900 hover:bg-neutral-800 disabled:opacity-50 flex items-center gap-2"
-                    >
-                        {permissoesSaving ? <Loader2 size={14} className="animate-spin"/> : <Check size={14}/>}Salvar permissões
-                    </button>
-                </div>
-                </>
-                )}
             </div>
         );
     };
+
+    const renderModulos = () => (
+        <div className={`divide-y divide-black/5 ${nivelAcessoEdit === 'admin' ? 'pointer-events-none opacity-40' : ''}`}>
+            {MODULES.map((modulo) => (
+                <div key={modulo.id} className="flex items-center gap-3 py-2">
+                    <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-neutral-900">{modulo.label}</p>
+                        <p className="text-xs text-neutral-500">{modulo.description}</p>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => toggleModulo(modulo.id)}
+                        disabled={permissoesLoading || nivelAcessoEdit === 'admin'}
+                        className={permissoesMapa[modulo.id] ? 'text-neutral-900' : 'text-neutral-300'}
+                    >
+                        {permissoesMapa[modulo.id] ? <ToggleRight size={28}/> : <ToggleLeft size={28}/>}
+                    </button>
+                </div>
+            ))}
+        </div>
+    );
 
     const renderHorariosTab = () => {
         if (!profissionalSelecionado) return null;
         if (!clinicaIdNumerica) return renderClinicaObrigatoria();
         return (
-            <div className="space-y-5">
-                <p className="text-xs text-neutral-500">
-                    Horário de atendimento de <span className="font-bold text-neutral-700">{profissionalSelecionado.nome}</span> na clínica <span className="font-bold">{clinicaNomeAtiva}</span>.
-                </p>
+            <div className="space-y-2.5">
                 {horarioLoading && (
-                    <div className="flex items-center gap-2 text-neutral-500 text-sm"><Loader2 size={16} className="animate-spin"/>Carregando horário...</div>
+                    <div className="flex items-center gap-2 text-sm text-neutral-500"><Loader2 size={16} className="animate-spin"/>Carregando horário...</div>
                 )}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label className="text-[10px] font-black uppercase tracking-wider text-neutral-400">Início</label>
-                        <input type="time" value={horarioState.inicio} onChange={(e) => atualizarHorario('inicio', e.target.value)} className="mt-1 w-full px-4 py-3 rounded-2xl border border-neutral-200 bg-neutral-50 text-sm font-bold text-neutral-700 focus:border-neutral-400 focus:bg-white outline-none" />
-                    </div>
-                    <div>
-                        <label className="text-[10px] font-black uppercase tracking-wider text-neutral-400">Término</label>
-                        <input type="time" value={horarioState.fim} onChange={(e) => atualizarHorario('fim', e.target.value)} className="mt-1 w-full px-4 py-3 rounded-2xl border border-neutral-200 bg-neutral-50 text-sm font-bold text-neutral-700 focus:border-neutral-400 focus:bg-white outline-none" />
-                    </div>
-                    <div>
-                        <label className="text-[10px] font-black uppercase tracking-wider text-neutral-400">Intervalo (min)</label>
-                        <input type="number" min={5} value={horarioState.intervalo} onChange={(e) => atualizarHorario('intervalo', Number(e.target.value))} className="mt-1 w-full px-4 py-3 rounded-2xl border border-neutral-200 bg-neutral-50 text-sm font-bold text-neutral-700 focus:border-neutral-400 focus:bg-white outline-none" />
-                    </div>
-                    <div>
-                        <label className="text-[10px] font-black uppercase tracking-wider text-neutral-400">Limite Simultâneo</label>
-                        <input type="number" min={1} value={horarioState.limiteSimultaneo} onChange={(e) => atualizarHorario('limiteSimultaneo', Number(e.target.value) || 1)} className="mt-1 w-full px-4 py-3 rounded-2xl border border-neutral-200 bg-neutral-50 text-sm font-bold text-neutral-700 focus:border-neutral-400 focus:bg-white outline-none" />
-                    </div>
+                <div className="grid grid-cols-2 gap-x-3 gap-y-2.5">
+                    <label>
+                        <span className={rotuloClasse}>Início</span>
+                        <input type="time" value={horarioState.inicio} onChange={(e) => atualizarHorario('inicio', e.target.value)} className={campoClasse} />
+                    </label>
+                    <label>
+                        <span className={rotuloClasse}>Término</span>
+                        <input type="time" value={horarioState.fim} onChange={(e) => atualizarHorario('fim', e.target.value)} className={campoClasse} />
+                    </label>
+                    <label>
+                        <span className={rotuloClasse}>Intervalo (min)</span>
+                        <input type="number" min={5} value={horarioState.intervalo} onChange={(e) => atualizarHorario('intervalo', Number(e.target.value))} className={campoClasse} />
+                    </label>
+                    <label>
+                        <span className={rotuloClasse}>Limite simultâneo</span>
+                        <input type="number" min={1} value={horarioState.limiteSimultaneo} onChange={(e) => atualizarHorario('limiteSimultaneo', Number(e.target.value) || 1)} className={campoClasse} />
+                    </label>
                 </div>
                 <div>
-                    <p className="text-[10px] font-black uppercase tracking-wider text-neutral-400 mb-2">Dias de atendimento</p>
-                    <div className="flex flex-wrap gap-2">
+                    <span className={rotuloClasse}>Dias de atendimento</span>
+                    <div className="flex flex-wrap gap-1.5">
                         {DIAS_SEMANA.map((dia) => {
                             const ativo = horarioState.dias[dia.id];
                             return (
@@ -741,7 +782,7 @@ export default function EquipePage() {
                                     key={dia.id}
                                     type="button"
                                     onClick={() => toggleDiaHorario(dia.id)}
-                                    className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wide border transition-all ${ativo ? 'bg-neutral-900 text-white border-neutral-900 shadow' : 'bg-white text-neutral-500 border-neutral-200 hover:border-neutral-400'}`}
+                                    className={`h-9 rounded-md border px-3 text-sm font-medium ${ativo ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-200 text-neutral-600 hover:bg-neutral-50'}`}
                                 >
                                     {dia.label}
                                 </button>
@@ -749,26 +790,16 @@ export default function EquipePage() {
                         })}
                     </div>
                 </div>
-                <div>
-                    <label className="text-[10px] font-black uppercase tracking-wider text-neutral-400">Observações / Regras</label>
+                <label className="block">
+                    <span className={rotuloClasse}>Observações</span>
                     <textarea
-                        rows={3}
+                        rows={2}
                         value={horarioState.observacoes}
                         onChange={(e) => atualizarHorario('observacoes', e.target.value)}
-                        className="mt-1 w-full px-4 py-3 rounded-2xl border border-neutral-200 bg-neutral-50 text-sm text-neutral-700 focus:border-neutral-400 focus:bg-white outline-none"
+                        className="w-full resize-none rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 outline-none placeholder:text-neutral-400 focus:border-neutral-900"
                         placeholder="Ex.: Pausa para almoço das 12h às 13h"
                     />
-                </div>
-                <div className="flex justify-end">
-                    <button
-                        type="button"
-                        onClick={salvarHorario}
-                        disabled={!horarioDirty || horarioSaving}
-                        className="px-5 py-2 rounded-xl text-sm font-bold text-white bg-neutral-900 hover:bg-neutral-800 disabled:opacity-50 flex items-center gap-2"
-                    >
-                        {horarioSaving ? <Loader2 size={14} className="animate-spin"/> : <Check size={14}/>}Salvar horário
-                    </button>
-                </div>
+                </label>
             </div>
         );
     };
@@ -777,68 +808,67 @@ export default function EquipePage() {
         if (!profissionalSelecionado) return null;
         if (!clinicaIdNumerica) return renderClinicaObrigatoria();
         return (
-            <div className="space-y-6">
-                <form onSubmit={salvarComissaoRapida} className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-neutral-50 border border-neutral-100 p-4 rounded-2xl">
-                    <div className="md:col-span-2">
-                        <label className="text-[10px] font-black uppercase tracking-wider text-neutral-400">Gatilho</label>
-                        <CustomSelect value={comissaoForm.gatilho} onChange={v => setComissaoForm(prev => ({ ...prev, gatilho: v }))} options={GATILHOS_COMISSAO.map(g => ({ value: g.value, label: g.label }))} size="lg" className="mt-1" />
-                    </div>
-                    <div>
-                        <label className="text-[10px] font-black uppercase tracking-wider text-neutral-400">Tipo</label>
-                        <CustomSelect value={comissaoForm.tipo} onChange={v => setComissaoForm(prev => ({ ...prev, tipo: v }))} options={TIPOS_COMISSAO.map(t => ({ value: t.value, label: t.label }))} size="lg" className="mt-1" />
-                    </div>
-                    <div>
-                        <label className="text-[10px] font-black uppercase tracking-wider text-neutral-400">Valor</label>
-                        <input type="number" step="0.01" min={0} value={comissaoForm.valor} onChange={(e) => setComissaoForm((prev) => ({ ...prev, valor: e.target.value }))} className="mt-1 w-full px-3 py-2.5 rounded-xl border border-neutral-200 bg-white text-sm font-bold text-neutral-700" placeholder={comissaoForm.tipo === 'percentual' ? '0 a 100%' : 'Valor em R$'} />
-                    </div>
-                    <div className="md:col-span-4 flex items-center justify-between gap-3">
-                        <label className="flex items-center gap-2 text-sm font-bold text-neutral-600">
-                            <input type="checkbox" checked={comissaoForm.ativo} onChange={(e) => setComissaoForm((prev) => ({ ...prev, ativo: e.target.checked }))} className="w-4 h-4 rounded border-neutral-300 text-green-600" />
-                            Regra ativa
-                        </label>
-                        <div className="flex gap-2">
-                            {comissaoEditandoId && (
-                                <button type="button" onClick={cancelarEdicaoComissao} className="px-4 py-2 rounded-xl border border-neutral-200 text-neutral-600 text-sm font-bold hover:bg-white">
-                                    Cancelar
-                                </button>
-                            )}
-                            <button type="submit" disabled={comissaoSaving} className="px-4 py-2 rounded-xl bg-green-600 text-white text-sm font-bold flex items-center gap-2 disabled:opacity-50">
-                                {comissaoSaving ? <Loader2 size={14} className="animate-spin"/> : (comissaoEditandoId ? <Check size={14}/> : <Plus size={14}/>)}
-                                {comissaoEditandoId ? 'Salvar alterações' : 'Adicionar regra'}
+            <div className="space-y-4">
+                <form onSubmit={salvarComissaoRapida} className="grid grid-cols-1 gap-x-3 gap-y-2.5 sm:grid-cols-2">
+                    <label className="sm:col-span-2">
+                        <span className={rotuloClasse}>Gatilho</span>
+                        <CustomSelect value={comissaoForm.gatilho} onChange={v => setComissaoForm(prev => ({ ...prev, gatilho: v }))} options={GATILHOS_COMISSAO.map(g => ({ value: g.value, label: g.label }))} size="md" />
+                    </label>
+                    <label>
+                        <span className={rotuloClasse}>Tipo</span>
+                        <CustomSelect value={comissaoForm.tipo} onChange={v => setComissaoForm(prev => ({ ...prev, tipo: v }))} options={TIPOS_COMISSAO.map(t => ({ value: t.value, label: t.label }))} size="md" />
+                    </label>
+                    <label>
+                        <span className={rotuloClasse}>Valor</span>
+                        <input type="number" step="0.01" min={0} value={comissaoForm.valor} onChange={(e) => setComissaoForm((prev) => ({ ...prev, valor: e.target.value }))} className={campoClasse} placeholder={comissaoForm.tipo === 'percentual' ? '0 a 100' : '0,00'} />
+                    </label>
+                    <label className="w-36">
+                        <span className={rotuloClasse}>Status</span>
+                        <CustomSelect
+                            value={comissaoForm.ativo ? 'ativa' : 'inativa'}
+                            onChange={(v) => setComissaoForm((prev) => ({ ...prev, ativo: v === 'ativa' }))}
+                            options={[{ value: 'ativa', label: 'Ativa' }, { value: 'inativa', label: 'Inativa' }]}
+                            size="xs"
+                        />
+                    </label>
+                    <div className="flex items-end justify-end gap-2">
+                        {comissaoEditandoId && (
+                            <button type="button" onClick={cancelarEdicaoComissao} className="h-9 rounded-md border border-neutral-200 px-3 text-sm font-medium text-neutral-600 hover:bg-neutral-50">
+                                Cancelar
                             </button>
-                        </div>
+                        )}
+                        <button type="submit" disabled={comissaoSaving} className={acaoClasse}>
+                            {comissaoSaving ? <Loader2 size={15} className="animate-spin"/> : (comissaoEditandoId ? <Check size={15}/> : <Plus size={15}/>)}
+                            {comissaoEditandoId ? 'Salvar' : 'Adicionar'}
+                        </button>
                     </div>
                 </form>
-                <div className="space-y-3">
+                <div className="divide-y divide-black/5 border-t border-black/5">
                     {comissoesLoading ? (
-                        <div className="flex items-center gap-2 text-neutral-500 text-sm"><Loader2 size={16} className="animate-spin"/>Carregando regras...</div>
+                        <div className="flex items-center gap-2 py-3 text-sm text-neutral-500"><Loader2 size={16} className="animate-spin"/>Carregando regras...</div>
                     ) : comissoes.length === 0 ? (
-                        <div className="p-6 text-center text-sm text-neutral-500 border border-dashed border-neutral-200 rounded-2xl">
-                            Nenhuma regra cadastrada para esta clínica.
-                        </div>
+                        <p className="py-4 text-sm text-neutral-400">Nenhuma regra cadastrada para esta clínica.</p>
                     ) : (
                         comissoes.map((regra) => (
-                            <div key={regra.id} className={`p-4 border rounded-2xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 ${regra.ativo !== false ? 'border-neutral-100 bg-white' : 'border-neutral-100 bg-neutral-50 opacity-70'}`}>
-                                <div>
-                                    <p className="text-sm font-bold text-neutral-700">{getGatilhoLabel(regra.gatilho)}</p>
-                                    <p className="text-xs text-neutral-500">{regra.tipo === 'percentual' ? 'Percentual' : 'Valor fixo'} • <span className="font-bold text-neutral-700">{formatValorComissao(regra.tipo, regra.valor)}</span>{regra.ativo === false && <span className="ml-2 text-amber-600 font-bold">• Inativa</span>}</p>
+                            <div key={regra.id} className={`flex flex-col gap-2 py-2.5 sm:flex-row sm:items-center sm:justify-between ${regra.ativo === false ? 'opacity-60' : ''}`}>
+                                <div className="min-w-0">
+                                    <p className="text-sm font-medium text-neutral-900">{getGatilhoLabel(regra.gatilho)}</p>
+                                    <p className="text-xs text-neutral-500">{regra.tipo === 'percentual' ? 'Percentual' : 'Valor fixo'} · {formatValorComissao(regra.tipo, regra.valor)}{regra.ativo === false ? ' · Inativa' : ''}</p>
                                 </div>
-                                <div className="flex gap-2 self-start sm:self-auto">
-                                    <button type="button" onClick={() => toggleComissaoAtiva(regra)} className={`px-3 py-2 rounded-lg border text-xs font-bold flex items-center gap-1 ${regra.ativo !== false ? 'border-neutral-200 text-neutral-600 hover:bg-neutral-50' : 'border-green-200 text-green-700 hover:bg-green-50'}`}>
-                                        {regra.ativo !== false ? <ToggleRight size={14}/> : <ToggleLeft size={14}/>}
+                                <div className="flex gap-1">
+                                    <button type="button" onClick={() => toggleComissaoAtiva(regra)} className="h-8 rounded-md px-2 text-xs font-medium text-neutral-500 hover:bg-neutral-50 hover:text-neutral-900">
                                         {regra.ativo !== false ? 'Desativar' : 'Ativar'}
                                     </button>
-                                    <button type="button" onClick={() => editarComissaoRegra(regra)} className="px-3 py-2 rounded-lg border border-black/10 text-neutral-900 text-xs font-bold hover:bg-neutral-50 flex items-center gap-1">
-                                        <Edit size={14}/> Editar
+                                    <button type="button" onClick={() => editarComissaoRegra(regra)} className="inline-flex h-8 items-center gap-1 rounded-md px-2 text-xs font-medium text-neutral-500 hover:bg-neutral-50 hover:text-neutral-900">
+                                        <Edit size={13}/> Editar
                                     </button>
                                     <button
                                         type="button"
                                         onClick={() => excluirComissaoRegra(regra.id)}
                                         disabled={comissaoExcluindo === regra.id}
-                                        className="px-3 py-2 rounded-lg border border-red-200 text-red-600 text-xs font-bold hover:bg-red-50 disabled:opacity-50 flex items-center gap-2"
+                                        className="inline-flex h-8 items-center gap-1 rounded-md px-2 text-xs font-medium text-neutral-400 hover:text-rose-600 disabled:opacity-50"
                                     >
-                                        {comissaoExcluindo === regra.id ? <Loader2 size={14} className="animate-spin"/> : <Trash2 size={14}/>}
-                                        Remover
+                                        {comissaoExcluindo === regra.id ? <Loader2 size={13} className="animate-spin"/> : <Trash2 size={13}/>}
                                     </button>
                                 </div>
                             </div>
@@ -851,18 +881,32 @@ export default function EquipePage() {
 
     const isAdmin = perfilCaller?.nivel_acesso === 'admin' || perfilCaller?.is_super_admin;
 
-    const totalAtivos = useMemo(() => profissionais.length, [profissionais]);
-    const totalAdmins = useMemo(() => profissionais.filter((p) => p.nivel_acesso === 'admin').length, [profissionais]);
-    const pendentesSenha = useMemo(() => profissionais.filter((p) => p.precisa_trocar_senha).length, [profissionais]);
-    const totalClinicasCobertas = useMemo(() => {
-        const set = new Set<string>();
-        profissionais.forEach((p) => (p.clinicas || []).forEach((c) => set.add(String(c.id))));
-        return set.size;
-    }, [profissionais]);
+    const totalAtivos = profissionais.length;
+    const totalAdmins = profissionais.filter((p) => p.nivel_acesso === 'admin').length;
+    const pendentesSenha = profissionais.filter((p) => p.precisa_trocar_senha).length;
+
+    function alternarOrdem(campo: 'nome' | 'cargo' | 'unidades' | 'status') {
+        setOrdenacao((prev) => prev.campo === campo ? { campo, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { campo, dir: 'asc' });
+    }
+
+    function alternarOrdemComissao(campo: 'profissional' | 'gatilho' | 'tipo' | 'valor') {
+        setOrdenacaoComissao((prev) => prev.campo === campo ? { campo, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { campo, dir: 'asc' });
+    }
+
+    const profissionaisOrdenados = [...profissionais].sort((a, b) => {
+        const valor = (p: Profissional) => {
+            if (ordenacao.campo === 'cargo') return p.cargo || '';
+            if (ordenacao.campo === 'unidades') return (p.clinicas || []).map((c) => c.nome).sort((x, y) => x.localeCompare(y, 'pt-BR'))[0] || '';
+            if (ordenacao.campo === 'status') return p.precisa_trocar_senha ? 'senha provisória' : 'ativo';
+            return p.nome || '';
+        };
+        const cmp = valor(a).localeCompare(valor(b), 'pt-BR', { sensitivity: 'base' });
+        return ordenacao.dir === 'asc' ? cmp : -cmp;
+    });
 
     const kpiLoading = loading && !jaCarregou.current;
 
-    if (!isAdmin && !loading && !clinicLoading) {
+    if (perfilResolvido && !isAdmin && !clinicLoading) {
         return (
             <div className="w-full px-4 py-10 font-poppins sm:px-6">
                 <div className={`${cardShell} mx-auto max-w-lg border border-amber-200/80 p-8 text-center`}>
@@ -875,157 +919,112 @@ export default function EquipePage() {
     }
 
     return (
-        <div className="w-full space-y-3 px-2.5 py-2.5 pb-12 font-poppins sm:px-3 sm:py-3 md:px-4 md:py-3.5">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-                <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400">Ajustes</p>
+        <div className="flex h-full min-h-0 flex-col overflow-hidden px-3 py-3 font-poppins">
+            {aviso && (
+                <div className="pointer-events-none fixed inset-x-0 top-4 z-[10000] flex justify-center px-4">
+                    <p className="rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-800 shadow-sm">{aviso}</p>
+                </div>
+            )}
+            <div className="mb-3 shrink-0">
+                <div className="min-w-0">
                     <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 md:text-[2rem]">Equipe</h1>
-                    <p className="mt-1 text-sm text-neutral-500 sm:text-base">
-                        {activeClinic ? getClinicLabel(activeClinic) : 'Todas as clínicas'} · {totalAtivos}{' '}
-                        {totalAtivos === 1 ? 'profissional' : 'profissionais'} com acesso
+                    <p className="mt-1 text-sm text-neutral-500">
+                        {activeClinic ? getClinicLabel(activeClinic) : 'Todas as clínicas'}
                     </p>
                 </div>
-                <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
+                <div className="mt-3 flex items-center justify-between gap-3">
+                    <div className="flex min-w-0 flex-wrap gap-x-6 gap-y-1">
+                        <p className="text-sm text-neutral-500"><span className="font-medium tabular-nums text-neutral-900">{totalAtivos}</span> {totalAtivos === 1 ? 'profissional' : 'profissionais'}</p>
+                        <p className="text-sm text-neutral-500"><span className="font-medium tabular-nums text-neutral-900">{totalAdmins}</span> {totalAdmins === 1 ? 'gestor' : 'gestores'}</p>
+                        <p className="text-sm text-neutral-500"><span className="font-medium tabular-nums text-neutral-900">{pendentesSenha}</span> com senha provisória</p>
+                    </div>
                     <button
                         type="button"
                         onClick={abrirModal}
-                        className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-full bg-neutral-900 px-4 text-sm font-medium text-white hover:bg-neutral-800 sm:flex-none"
+                        className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800"
                     >
-                        <UserPlus size={16} /> Adicionar
+                        <UserPlus size={14} /> Adicionar
                     </button>
                 </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-2.5 sm:gap-3 md:grid-cols-4">
-                <section className={`${cardShell} p-4 sm:p-5`}>
-                    <div className="mb-2 flex items-center justify-between">
-                        <span className="rounded-full bg-neutral-100 p-2 text-neutral-700"><Users size={18} /></span>
-                        <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Equipe</span>
-                    </div>
-                    <p className="text-xs font-medium text-neutral-500">Colaboradores</p>
-                    {kpiLoading ? (
-                        <div className="mt-2 h-8 w-16 animate-pulse rounded-xl bg-neutral-100" />
-                    ) : (
-                        <p className="mt-1 text-xl font-semibold text-neutral-900 sm:text-2xl">{totalAtivos}</p>
-                    )}
-                </section>
-                <section className={`${cardShell} p-4 sm:p-5`}>
-                    <div className="mb-2 flex items-center justify-between">
-                        <span className="rounded-full bg-emerald-100 p-2 text-emerald-700"><ShieldCheck size={18} /></span>
-                        <span className="text-[10px] font-semibold uppercase tracking-wide text-emerald-700">Admin</span>
-                    </div>
-                    <p className="text-xs font-medium text-neutral-500">Gestores</p>
-                    {kpiLoading ? (
-                        <div className="mt-2 h-8 w-16 animate-pulse rounded-xl bg-neutral-100" />
-                    ) : (
-                        <p className="mt-1 text-xl font-semibold text-neutral-900 sm:text-2xl">{totalAdmins}</p>
-                    )}
-                </section>
-                <section className={`${cardShell} border border-amber-200/80 p-4 sm:p-5`}>
-                    <div className="mb-2 flex items-center justify-between">
-                        <span className="rounded-full bg-amber-100 p-2 text-amber-700"><KeyRound size={18} /></span>
-                        <span className="text-[10px] font-semibold uppercase tracking-wide text-amber-700">Acesso</span>
-                    </div>
-                    <p className="text-xs font-medium text-neutral-500">Senha provisória</p>
-                    {kpiLoading ? (
-                        <div className="mt-2 h-8 w-16 animate-pulse rounded-xl bg-neutral-100" />
-                    ) : (
-                        <p className="mt-1 text-xl font-semibold text-amber-900 sm:text-2xl">{pendentesSenha}</p>
-                    )}
-                </section>
-                <section className="rounded-[1.35rem] border border-neutral-800 bg-neutral-950 p-4 text-white sm:rounded-[1.5rem] sm:p-5">
-                    <div className="mb-2 flex items-center justify-between">
-                        <span className="rounded-full bg-white/10 p-2 text-[#c8f053]"><Building2 size={18} /></span>
-                        <span className="text-[10px] font-semibold uppercase tracking-wide text-white/70">Rede</span>
-                    </div>
-                    <p className="text-xs font-medium text-white/60">Unidades cobertas</p>
-                    {kpiLoading ? (
-                        <div className="mt-2 h-8 w-16 animate-pulse rounded-xl bg-white/10" />
-                    ) : (
-                        <p className="mt-1 text-xl font-semibold sm:text-2xl">{totalClinicasCobertas}</p>
-                    )}
-                </section>
-            </div>
-
-            <div className={`${cardShell} overflow-hidden`}>
-                <div className="flex flex-col gap-2 border-b border-black/5 p-4 sm:flex-row sm:items-center sm:justify-between md:p-5">
-                    <div className="flex items-center gap-2">
-                        <span className="rounded-full bg-[#f3f4f1] p-2 text-neutral-700"><Users size={18} /></span>
-                        <h3 className="text-base font-semibold text-neutral-900 sm:text-lg">Colaboradores</h3>
-                    </div>
-                    <p className="text-xs text-neutral-500">Permissões, horários e comissão em Editar</p>
+            <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white">
+                <div className="shrink-0 px-3 pt-3">
+                    <h2 className="text-base font-semibold text-neutral-900">Colaboradores</h2>
                 </div>
 
                 {kpiLoading ? (
-                    <div className="space-y-2 p-4">
+                    <div className="space-y-2 p-3">
                         {Array.from({ length: 6 }).map((_, i) => (
-                            <div key={i} className="flex h-14 animate-pulse items-center gap-3 rounded-2xl bg-neutral-50 px-3" />
+                            <div key={i} className="h-10 animate-pulse rounded-md bg-neutral-50" />
                         ))}
                     </div>
                 ) : (
-                <>
+                <div className="min-h-0 flex-1 overflow-y-auto">
                 <div className="overflow-x-auto">
                     <table className="w-full min-w-[540px] text-sm">
                     <thead>
-                        <tr className="border-b border-black/5 text-[10px] font-semibold uppercase tracking-wider text-neutral-500">
-                            <th className="px-4 py-3 text-left sm:px-5">Nome</th>
-                            <th className="px-4 py-3 text-left sm:px-5">Cargo</th>
-                            <th className="hidden px-4 py-3 text-left sm:table-cell sm:px-5">Unidades</th>
-                            <th className="px-4 py-3 text-left sm:px-5">Status</th>
-                            <th className="px-4 py-3 text-right sm:px-5">Ações</th>
+                        <tr className="border-b border-black/5">
+                            {([
+                                ['nome', 'Nome'],
+                                ['cargo', 'Cargo'],
+                                ['unidades', 'Unidades'],
+                                ['status', 'Status'],
+                            ] as const).map(([campo, label]) => (
+                                <th key={campo} className={`px-4 py-2 text-left sm:px-5 ${campo === 'unidades' ? 'hidden sm:table-cell' : ''}`}>
+                                    <button type="button" onClick={() => alternarOrdem(campo)} className="inline-flex items-center gap-1 text-xs font-medium text-neutral-400 hover:text-neutral-900">
+                                        {label}
+                                        <ArrowUpDown size={12} className={ordenacao.campo === campo ? 'text-neutral-900' : 'text-neutral-300'} />
+                                    </button>
+                                </th>
+                            ))}
+                            <th className="px-4 py-2 text-right text-xs font-medium text-neutral-400 sm:px-5">Ações</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-black/5">
-                        {profissionais.map((p) => (
+                        {profissionaisOrdenados.map((p) => {
+                            const partes = p.nome.trim().split(/\s+/);
+                            const iniciais = ((partes[0]?.[0] || '') + (partes[1]?.[0] || '')).toUpperCase() || '?';
+                            return (
                             <tr key={p.id} className="hover:bg-neutral-50/60">
-                                <td className="px-4 py-3.5 sm:px-5">
+                                <td className="px-4 py-2.5 sm:px-5">
                                     <div className="flex items-center gap-3">
-                                        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-neutral-500 to-neutral-900 text-white flex items-center justify-center font-bold text-xs shadow-sm">
-                                            {p.nome.split(' ').map((n) => n[0]).slice(0, 2).join('').toUpperCase()}
-                                        </div>
-                                        <div>
-                                            <p className="font-bold text-neutral-700 text-sm">{p.nome}</p>
+                                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#f3f4f1] text-[11px] font-medium text-neutral-500">
+                                            {iniciais}
+                                        </span>
+                                        <div className="min-w-0">
+                                            <p className="truncate text-sm font-medium text-neutral-900">{p.nome}</p>
                                             {p.nivel_acesso === 'admin' && (
-                                                <p className="text-[10px] font-bold text-neutral-500 uppercase">Administrador</p>
+                                                <p className="text-xs text-neutral-500">Administrador</p>
                                             )}
                                         </div>
                                     </div>
                                 </td>
-                                <td className="px-4 py-3.5 text-sm font-medium text-neutral-700 sm:px-5">{p.cargo || '—'}</td>
-                                <td className="hidden px-4 py-3.5 sm:table-cell sm:px-5">
-                                    <div className="flex flex-wrap gap-1">
-                                        {(p.clinicas || []).slice(0, 3).map((c, index) => (
-                                            <span key={`${c.id}-${index}`} className="text-[10px] font-bold bg-neutral-100 text-neutral-600 px-2 py-1 rounded-md uppercase tracking-wide">
-                                                {c.nome}
-                                            </span>
-                                        ))}
-                                        {(p.clinicas || []).length > 3 && (
-                                            <span className="text-[10px] font-bold text-neutral-400">+{(p.clinicas || []).length - 3}</span>
-                                        )}
-                                    </div>
+                                <td className="px-4 py-2.5 text-sm text-neutral-700 sm:px-5">{p.cargo || '—'}</td>
+                                <td className="hidden px-4 py-2.5 sm:table-cell sm:px-5">
+                                    <p className="text-sm text-neutral-600">
+                                        {(p.clinicas || []).slice(0, 3).map((c) => c.nome).join(', ') || '—'}
+                                        {(p.clinicas || []).length > 3 ? ` +${(p.clinicas || []).length - 3}` : ''}
+                                    </p>
                                 </td>
-                                <td className="px-4 py-3.5 sm:px-5">
-                                    {p.precisa_trocar_senha ? (
-                                        <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 px-2 py-1 rounded-md uppercase">
-                                            <KeyRound size={10} /> Senha provisória
-                                        </span>
-                                    ) : (
-                                        <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-1 rounded-md uppercase">
-                                            <Check size={10} /> Ativo
-                                        </span>
-                                    )}
+                                <td className="px-4 py-2.5 sm:px-5">
+                                    <span className="inline-flex items-center gap-1.5 text-sm text-neutral-700">
+                                        <span className={`h-1.5 w-1.5 rounded-full ${p.precisa_trocar_senha ? 'bg-amber-500' : 'bg-emerald-500'}`} />
+                                        {p.precisa_trocar_senha ? 'Senha provisória' : 'Ativo'}
+                                    </span>
                                 </td>
-                                <td className="px-4 py-3.5 text-right sm:px-5">
+                                <td className="px-4 py-2.5 text-right sm:px-5">
                                     <button
                                         type="button"
                                         onClick={() => abrirEditorAvancado(p)}
-                                        className="touch-target inline-flex items-center gap-1.5 rounded-full border border-black/10 px-3 py-1.5 text-[11px] font-semibold text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900"
+                                        className="inline-flex h-8 items-center rounded-md px-2.5 text-sm font-medium text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900"
                                     >
-                                        <Settings size={12}/> Editar
+                                        Editar
                                     </button>
                                 </td>
                             </tr>
-                        ))}
+                            );
+                        })}
                         {profissionais.length === 0 && (
                             <tr><td colSpan={5} className="px-5 py-12 text-center text-sm text-neutral-400">Nenhum profissional cadastrado.</td></tr>
                         )}
@@ -1034,37 +1033,57 @@ export default function EquipePage() {
                 </div>
 
                 {clinicaIdNumerica && (
-                    <div className="border-t border-black/5 p-4 md:p-5">
-                        <div className="mb-4 flex items-center justify-between gap-3">
-                            <div className="flex items-center gap-2">
-                                <span className="rounded-full bg-emerald-100 p-2 text-emerald-700"><DollarSign size={16} /></span>
-                                <div>
-                                    <h4 className="text-sm font-semibold text-neutral-900">Comissões consolidadas</h4>
-                                    <p className="text-[11px] text-neutral-500">Regras ativas em {clinicaNomeAtiva}</p>
-                                </div>
-                            </div>
-                            {comissoesConsolidadasLoading && <Loader2 size={18} className="animate-spin text-neutral-400" />}
+                    <div className="border-t border-black/5 px-3 py-3">
+                        <div className="mb-2 flex items-center justify-between gap-3">
+                            <h3 className="text-base font-semibold text-neutral-900">Comissões</h3>
+                            {comissoesConsolidadasLoading && <Loader2 size={16} className="animate-spin text-neutral-400" />}
                         </div>
-                        {comissoesConsolidadas.length === 0 ? (
+                        {comissoesConsolidadasLoading && comissoesConsolidadas.length === 0 ? (
+                            <div className="space-y-2">
+                                {Array.from({ length: 3 }).map((_, i) => (
+                                    <div key={i} className="h-10 animate-pulse rounded-md bg-neutral-50" />
+                                ))}
+                            </div>
+                        ) : comissoesConsolidadas.length === 0 ? (
                             <p className="py-6 text-center text-sm text-neutral-400">Nenhuma regra de comissão ativa nesta clínica.</p>
                         ) : (
                             <div className="overflow-x-auto rounded-xl border border-black/5">
                                 <table className="w-full min-w-[480px] text-sm">
                                     <thead>
-                                        <tr className="border-b border-black/5 bg-[#fafaf8] text-[10px] font-semibold uppercase tracking-wider text-neutral-500">
-                                            <th className="px-4 py-2.5 text-left">Profissional</th>
-                                            <th className="px-4 py-2.5 text-left">Gatilho</th>
-                                            <th className="px-4 py-2.5 text-left">Tipo</th>
-                                            <th className="px-4 py-2.5 text-right">Valor</th>
+                                        <tr className="border-b border-black/5">
+                                            {([
+                                                ['profissional', 'Profissional', 'text-left'],
+                                                ['gatilho', 'Gatilho', 'text-left'],
+                                                ['tipo', 'Tipo', 'text-left'],
+                                                ['valor', 'Valor', 'text-right'],
+                                            ] as const).map(([campo, label, align]) => (
+                                                <th key={campo} className={`px-4 py-2 ${align}`}>
+                                                    <button type="button" onClick={() => alternarOrdemComissao(campo)} className={`inline-flex items-center gap-1 text-xs font-medium text-neutral-400 hover:text-neutral-900 ${align === 'text-right' ? 'ml-auto' : ''}`}>
+                                                        {label}
+                                                        <ArrowUpDown size={12} className={ordenacaoComissao.campo === campo ? 'text-neutral-900' : 'text-neutral-300'} />
+                                                    </button>
+                                                </th>
+                                            ))}
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-black/5">
-                                        {comissoesConsolidadas.map((r) => (
+                                        {[...comissoesConsolidadas].sort((a, b) => {
+                                            const valor = (r: typeof a) => {
+                                                if (ordenacaoComissao.campo === 'profissional') return r.profissionais?.nome || '';
+                                                if (ordenacaoComissao.campo === 'gatilho') return getGatilhoLabel(r.gatilho);
+                                                if (ordenacaoComissao.campo === 'tipo') return r.tipo || '';
+                                                return String(r.valor ?? '');
+                                            };
+                                            const cmp = ordenacaoComissao.campo === 'valor'
+                                                ? Number(a.valor) - Number(b.valor)
+                                                : valor(a).localeCompare(valor(b), 'pt-BR', { sensitivity: 'base' });
+                                            return ordenacaoComissao.dir === 'asc' ? cmp : -cmp;
+                                        }).map((r) => (
                                             <tr key={r.id} className="hover:bg-neutral-50/50">
                                                 <td className="px-4 py-2.5 font-medium text-neutral-800">{r.profissionais?.nome || `#${r.profissional_id}`}</td>
                                                 <td className="px-4 py-2.5 text-neutral-600">{getGatilhoLabel(r.gatilho)}</td>
                                                 <td className="px-4 py-2.5 capitalize text-neutral-500">{r.tipo?.replace('_', ' ')}</td>
-                                                <td className="px-4 py-2.5 text-right font-semibold text-emerald-700">{formatValorComissao(r.tipo, Number(r.valor))}</td>
+                                                <td className="px-4 py-2.5 text-right text-sm font-medium text-neutral-900">{formatValorComissao(r.tipo, Number(r.valor))}</td>
                                             </tr>
                                         ))}
                                     </tbody>
@@ -1075,14 +1094,12 @@ export default function EquipePage() {
                 )}
 
                 {clinicaIdNumerica && comissaoLancamentos.length > 0 && (
-                    <div className="border-t border-black/5 p-4 md:p-5">
-                        <h4 className="mb-3 flex items-center gap-2 text-sm font-semibold text-neutral-900">
-                            <DollarSign size={16} className="text-neutral-600" /> Lançamentos recentes
-                        </h4>
+                    <div className="border-t border-black/5 px-3 py-3">
+                        <h3 className="mb-2 text-base font-semibold text-neutral-900">Lançamentos recentes</h3>
                         <div className="overflow-x-auto rounded-xl border border-black/5">
                             <table className="w-full min-w-[520px] text-sm">
                                 <thead>
-                                    <tr className="border-b border-black/5 bg-[#fafaf8] text-[10px] font-semibold uppercase tracking-wider text-neutral-500">
+                                    <tr className="border-b border-black/5 text-xs font-medium text-neutral-400">
                                         <th className="px-4 py-2.5 text-left">Profissional</th>
                                         <th className="px-4 py-2.5 text-left">Descrição</th>
                                         <th className="px-4 py-2.5 text-right">Base</th>
@@ -1097,7 +1114,7 @@ export default function EquipePage() {
                                             <td className="max-w-[200px] truncate px-4 py-2.5 text-xs text-neutral-600">{l.descricao}</td>
                                             <td className="px-4 py-2.5 text-right text-neutral-600">R$ {Number(l.valor_base).toFixed(2)}</td>
                                             <td className="px-4 py-2.5 text-right font-semibold text-neutral-900">R$ {Number(l.valor_comissao).toFixed(2)}</td>
-                                            <td className="px-4 py-2.5"><span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-neutral-600">{l.status}</span></td>
+                                            <td className="px-4 py-2.5 text-sm capitalize text-neutral-600">{l.status}</td>
                                         </tr>
                                     ))}
                                 </tbody>
@@ -1105,120 +1122,154 @@ export default function EquipePage() {
                         </div>
                     </div>
                 )}
-                </>
+                </div>
                 )}
-            </div>
+            </section>
 
             {/* Editor avançado */}
-            <Modal open={!!(editorAberto && profissionalSelecionado)} onClose={fecharEditorAvancado} maxWidth="2xl" hideCloseButton panelClassName="bg-white rounded-[1.35rem] shadow-2xl border border-black/10 max-h-[92vh] flex flex-col overflow-hidden">
+            <Modal open={!!(editorAberto && profissionalSelecionado)} onClose={fecharEditorAvancado} maxWidth="lg" hideCloseButton panelClassName="flex h-[min(85vh,640px)] max-h-[85vh] flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white">
                         {profissionalSelecionado && (<>
-                        <div className="px-6 py-4 border-b border-neutral-100 flex items-start justify-between gap-4">
+                        <div className="flex shrink-0 items-start justify-between gap-3 border-b border-black/5 px-5 py-4 sm:px-6">
                             <div>
-                                <p className="text-[10px] font-black uppercase tracking-wider text-neutral-500">Edição avançada</p>
-                                <h3 className="text-xl font-bold text-neutral-800">{profissionalSelecionado.nome}</h3>
-                                <p className="text-xs font-semibold text-neutral-500">{clinicaNomeAtiva}</p>
+                                <h2 className="text-lg font-semibold text-neutral-900">{profissionalSelecionado.nome}</h2>
+                                <p className="mt-0.5 text-xs font-medium text-neutral-400">{clinicaNomeAtiva}</p>
                             </div>
-                            <button onClick={fecharEditorAvancado} className="p-2 rounded-full text-neutral-400 hover:text-neutral-700 hover:bg-neutral-50">
+                            <button type="button" onClick={fecharEditorAvancado} className="rounded-full p-2 text-neutral-400 hover:bg-neutral-100" aria-label="Fechar">
                                 <X size={18}/>
                             </button>
                         </div>
-                        {(!activeClinicId || activeClinicId === 'all') && (
-                            <div className="px-6 py-3 bg-amber-50 text-amber-800 text-sm font-bold border-b border-amber-100 flex items-center gap-2">
-                                <AlertTriangle size={16}/>Selecione uma clínica específica para aplicar as alterações.
+                        <div className="flex shrink-0 gap-4 border-b border-black/5 px-5 sm:px-6">
+                            {([
+                                ['permissoes', 'Permissões'],
+                                ['horarios', 'Horários'],
+                                ['comissao', 'Comissão'],
+                            ] as const).map(([id, label]) => (
+                                <button
+                                    key={id}
+                                    type="button"
+                                    onClick={() => setAbaEditor(id)}
+                                    className={`border-b-2 py-2.5 text-sm font-medium ${abaEditor === id ? 'border-neutral-900 text-neutral-900' : 'border-transparent text-neutral-500 hover:text-neutral-800'}`}
+                                >
+                                    {label}
+                                </button>
+                            ))}
+                        </div>
+                        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                            {abaEditor === 'permissoes' && (
+                                permissoesLoading && clinicaIdNumerica ? (
+                                    <div className="flex items-center gap-2 px-5 py-4 text-sm text-neutral-500 sm:px-6"><Loader2 size={16} className="animate-spin"/>Carregando permissões...</div>
+                                ) : (
+                                    <>
+                                        <div className="shrink-0 px-5 pt-4 sm:px-6">{renderPermissoesTab()}</div>
+                                        {clinicaIdNumerica && (
+                                            <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-2 sm:px-6">{renderModulos()}</div>
+                                        )}
+                                    </>
+                                )
+                            )}
+                            {abaEditor === 'horarios' && (
+                                <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 sm:px-6">
+                                    {horarioLoading && clinicaIdNumerica ? <div className="flex items-center gap-2 text-sm text-neutral-500"><Loader2 size={16} className="animate-spin"/>Carregando horários...</div> : renderHorariosTab()}
+                                </div>
+                            )}
+                            {abaEditor === 'comissao' && (
+                                <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 sm:px-6">{renderComissoesTab()}</div>
+                            )}
+                        </div>
+                        {abaEditor !== 'comissao' && profissionalSelecionado && clinicaIdNumerica && (
+                            <div className="flex shrink-0 justify-end border-t border-black/5 px-5 py-4 sm:px-6">
+                                <button
+                                    type="button"
+                                    onClick={salvarEditor}
+                                    disabled={
+                                        permissoesSaving || horarioSaving ||
+                                        (abaEditor === 'horarios' ? !horarioDirty : (
+                                            nivelAcessoEdit === (profissionalSelecionado.nivel_acesso === 'admin' ? 'admin' : 'comum') && !permissoesDirty
+                                        ))
+                                    }
+                                    className={acaoClasse}
+                                >
+                                    {(permissoesSaving || horarioSaving) ? <Loader2 size={15} className="animate-spin"/> : <Check size={15}/>} Salvar
+                                </button>
                             </div>
                         )}
-                        <Tabs value={abaEditor} onValueChange={(value) => setAbaEditor(value as 'permissoes' | 'horarios' | 'comissao')} className="flex-1 flex flex-col min-h-0 overflow-hidden">
-                            <div className="px-6 pt-4 flex-none">
-                                <TabsList className="bg-neutral-100 rounded-2xl p-1 w-full grid grid-cols-3">
-                                    <TabsTrigger value="permissoes" className="touch-target text-xs font-bold">Permissões</TabsTrigger>
-                                    <TabsTrigger value="horarios" className="touch-target text-xs font-bold">Horários</TabsTrigger>
-                                    <TabsTrigger value="comissao" className="touch-target text-xs font-bold">Comissão</TabsTrigger>
-                                </TabsList>
-                            </div>
-                            <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-6 space-y-4">
-                                <TabsContent value="permissoes" className="m-0">{permissoesLoading && clinicaIdNumerica ? <div className="text-sm text-neutral-500 flex items-center gap-2"><Loader2 size={16} className="animate-spin"/>Carregando permissões...</div> : renderPermissoesTab()}</TabsContent>
-                                <TabsContent value="horarios" className="m-0">{horarioLoading && clinicaIdNumerica ? <div className="text-sm text-neutral-500 flex items-center gap-2"><Loader2 size={16} className="animate-spin"/>Carregando horários...</div> : renderHorariosTab()}</TabsContent>
-                                <TabsContent value="comissao" className="m-0">{renderComissoesTab()}</TabsContent>
-                            </div>
-                        </Tabs>
                         </>)}
             </Modal>
 
-            <Modal open={modalOpen} onClose={() => setModalOpen(false)} maxWidth="lg" hideCloseButton panelClassName="bg-white rounded-2xl shadow-2xl border border-neutral-100 max-h-[90vh] overflow-y-auto">
-                        <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-100">
-                            <h2 className="font-bold text-neutral-800 flex items-center gap-2"><UserPlus size={18} className="text-neutral-900" /> Novo funcionário</h2>
-                            <button onClick={() => setModalOpen(false)} className="touch-target text-neutral-400 hover:text-neutral-700 p-1 rounded-lg hover:bg-neutral-50"><X size={18} /></button>
+            <Modal open={modalOpen} onClose={() => setModalOpen(false)} maxWidth="lg" hideCloseButton panelClassName="overflow-visible rounded-xl border border-neutral-200 bg-white">
+                <form onSubmit={salvar} className="px-5 py-4 sm:px-6 sm:py-5">
+                    <div className="mb-5 flex items-start justify-between gap-3 border-b border-black/5 pb-4">
+                        <div>
+                            <h2 className="text-lg font-semibold text-neutral-900">Novo funcionário</h2>
+                            <p className="mt-0.5 text-xs font-medium text-neutral-400">Nome, acesso e unidades da rede.</p>
                         </div>
-                        <form onSubmit={salvar} className="p-6 space-y-4">
-                            {erro && (
-                                <div className="bg-red-50 border border-red-200 text-red-700 text-xs font-bold px-3 py-2 rounded-lg flex items-center gap-2">
-                                    <AlertTriangle size={14} /> {erro}
-                                </div>
-                            )}
-
-                            <div>
-                                <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider ml-1 flex items-center gap-1 mb-1"><User size={12}/> Nome completo</label>
-                                <input
-                                    value={form.nome}
-                                    onChange={(e) => setForm({ ...form, nome: e.target.value })}
-                                    className="w-full px-3 py-2.5 bg-neutral-50 border border-neutral-200 rounded-lg text-sm font-medium text-neutral-700 focus:bg-white focus:border-neutral-400 focus:ring-2 focus:ring-neutral-200 outline-none"
-                                    placeholder="Ex.: Dra. Ana Souza"
-                                    required
-                                />
+                        <button type="button" onClick={() => setModalOpen(false)} className="rounded-full p-2 text-neutral-400 hover:bg-neutral-100" aria-label="Fechar"><X size={18}/></button>
+                    </div>
+                    {erro && (
+                        <p className="mb-3 flex items-center gap-2 text-xs font-medium text-rose-600">
+                            <AlertTriangle size={14} /> {erro}
+                        </p>
+                    )}
+                    <div className="grid grid-cols-1 gap-x-3 gap-y-2.5 sm:grid-cols-2">
+                        <label className="sm:col-span-2">
+                            <span className="mb-1.5 block text-xs font-medium text-neutral-500">Nome</span>
+                            <input
+                                value={form.nome}
+                                onChange={(e) => setForm({ ...form, nome: e.target.value })}
+                                className="box-border h-10 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm text-neutral-900 outline-none placeholder:text-neutral-400 focus:border-neutral-900"
+                                placeholder="Ex.: Dra. Ana Souza"
+                                required
+                            />
+                        </label>
+                        <label>
+                            <span className="mb-1.5 block text-xs font-medium text-neutral-500">E-mail</span>
+                            <input
+                                type="email"
+                                value={form.email}
+                                onChange={(e) => setForm({ ...form, email: e.target.value })}
+                                className="box-border h-10 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm text-neutral-900 outline-none placeholder:text-neutral-400 focus:border-neutral-900"
+                                placeholder="funcionario@email.com"
+                                required
+                            />
+                        </label>
+                        <label>
+                            <span className="mb-1.5 block text-xs font-medium text-neutral-500">Cargo</span>
+                            <CustomSelect value={form.cargo} onChange={v => setForm({ ...form, cargo: v })} options={CARGOS.map(c => ({ value: c, label: c }))} size="md" />
+                        </label>
+                        <div className="sm:col-span-2">
+                            <span className="mb-1.5 block text-xs font-medium text-neutral-500">Unidades de acesso</span>
+                            <div className="grid max-h-36 grid-cols-1 gap-1.5 overflow-y-auto sm:grid-cols-2">
+                                {clinics.length === 0 && (
+                                    <p className="text-sm text-neutral-400">Nenhuma unidade disponível na sua rede.</p>
+                                )}
+                                {clinics.map((c) => {
+                                    const id = String(c.id);
+                                    const checked = form.clinicas.includes(id);
+                                    return (
+                                        <label
+                                            key={id}
+                                            className={`flex h-10 cursor-pointer items-center gap-2 rounded-md border px-3 text-sm ${checked ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-200 text-neutral-700 hover:bg-neutral-50'}`}
+                                        >
+                                            <input
+                                                type="checkbox"
+                                                checked={checked}
+                                                onChange={() => toggleClinica(id)}
+                                                className="sr-only"
+                                            />
+                                            <span className="truncate">{getClinicLabel(c)}</span>
+                                        </label>
+                                    );
+                                })}
                             </div>
-
-                            <div>
-                                <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider ml-1 flex items-center gap-1 mb-1"><Mail size={12}/> E-mail de acesso</label>
-                                <input
-                                    type="email"
-                                    value={form.email}
-                                    onChange={(e) => setForm({ ...form, email: e.target.value })}
-                                    className="w-full px-3 py-2.5 bg-neutral-50 border border-neutral-200 rounded-lg text-sm font-medium text-neutral-700 focus:bg-white focus:border-neutral-400 focus:ring-2 focus:ring-neutral-200 outline-none"
-                                    placeholder="funcionario@email.com"
-                                    required
-                                />
-                            </div>
-
-                            <div>
-                                <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider ml-1 flex items-center gap-1 mb-1"><Briefcase size={12}/> Cargo</label>
-                                <CustomSelect value={form.cargo} onChange={v => setForm({ ...form, cargo: v })} options={CARGOS.map(c => ({ value: c, label: c }))} size="lg" className="mt-1" />
-                            </div>
-
-                            <div>
-                                <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider ml-1 flex items-center gap-1 mb-2"><Building2 size={12}/> Unidades de acesso</label>
-                                <div className="space-y-1.5 max-h-52 overflow-y-auto border border-neutral-100 rounded-xl p-2 bg-neutral-50/50">
-                                    {clinics.length === 0 && (
-                                        <p className="text-xs text-neutral-400 italic px-2 py-3">Nenhuma unidade disponível na sua rede.</p>
-                                    )}
-                                    {clinics.map((c) => {
-                                        const id = String(c.id);
-                                        const checked = form.clinicas.includes(id);
-                                        return (
-                                            <label
-                                                key={id}
-                                                className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-all ${checked ? 'bg-neutral-50 border-black/10' : 'bg-white border-neutral-100 hover:border-neutral-300'}`}
-                                            >
-                                                <input
-                                                    type="checkbox"
-                                                    checked={checked}
-                                                    onChange={() => toggleClinica(id)}
-                                                    className="rounded text-neutral-900 focus:ring-neutral-500"
-                                                />
-                                                <span className="text-sm font-bold text-neutral-700">{getClinicLabel(c)}</span>
-                                            </label>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-
-                            <div className="flex items-center justify-end gap-2 pt-3 border-t border-neutral-50">
-                                <button type="button" onClick={() => setModalOpen(false)} className="touch-target px-4 py-2 text-sm font-bold text-neutral-500 hover:bg-neutral-50 rounded-lg">Cancelar</button>
-                                <button type="submit" disabled={salvando} className="touch-target px-5 py-2 bg-neutral-900 hover:bg-neutral-800 disabled:opacity-50 text-white text-sm font-bold rounded-lg flex items-center gap-2 shadow-md shadow-black/10">
-                                    {salvando ? <Loader2 size={14} className="animate-spin"/> : <UserPlus size={14}/>}
-                                    Criar funcionário
-                                </button>
-                            </div>
-                        </form>
+                        </div>
+                    </div>
+                    <div className="mt-5 flex justify-end border-t border-black/5 pt-4">
+                        <button type="submit" disabled={salvando} className="inline-flex h-9 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-40">
+                            {salvando ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}
+                            Cadastrar
+                        </button>
+                    </div>
+                </form>
             </Modal>
 
             <Modal open={!!credenciais} onClose={() => setCredenciais(null)} maxWidth="md" hideCloseButton panelClassName="bg-white rounded-2xl shadow-2xl border border-neutral-100 overflow-hidden">

@@ -693,10 +693,10 @@ export default function Configuracoes() {
 
       try {
           let clinicaId: string | number | null = clinicaEditando?.id ?? null;
+          let aviso: string | null = null;
           if (clinicaEditando?.id) {
               const { error } = await supabase.from('clinicas').update(payload).eq('id', clinicaEditando.id);
               if (error) throw error;
-              showAlert('Clínica atualizada com sucesso!', { type: 'success' });
           } else {
               const { data: { session } } = await supabase.auth.getSession();
               if (!session) { showAlert('Sessão expirada. Faça login novamente.', { type: 'error' }); return; }
@@ -740,9 +740,7 @@ export default function Configuracoes() {
                   .from('profissionais_clinicas')
                   .insert([{ profissional_id: prof.id, clinica_id: novaC.id }]);
               if (vincErr) {
-                  showAlert('Clínica criada, mas não foi possível vincular você automaticamente. Vincule em /ajustes/equipe.', { type: 'warning' });
-              } else {
-                  showAlert('Clínica cadastrada com sucesso!', { type: 'success' });
+                  aviso = 'Clínica criada, mas não foi possível vincular você automaticamente. Vincule em Equipe.';
               }
           }
 
@@ -750,9 +748,14 @@ export default function Configuracoes() {
               try {
                   await publicarLogo(clinicaId, logoArquivo);
               } catch (err: any) {
-                  showAlert('A clínica foi salva, mas a logo não foi enviada: ' + (err?.message || err), { type: 'warning' });
+                  const falhaLogo = 'A clínica foi salva, mas a logo não foi enviada: ' + (err?.message || err);
+                  aviso = aviso ? `${aviso}\n${falhaLogo}` : falhaLogo;
               }
           }
+
+          showAlert(aviso || (clinicaEditando?.id ? 'Clínica atualizada com sucesso!' : 'Clínica cadastrada com sucesso!'), {
+              type: aviso ? 'warning' : 'success',
+          });
 
           setModalClinicaCompleto(false);
           setClinicaEditando(null);
@@ -828,10 +831,10 @@ export default function Configuracoes() {
       setUploadingLogo(true);
       try {
           const fileExt = file.name.split('.').pop() || 'png';
-          const filePath = `clinica-${clinicaId}-${Date.now()}.${fileExt}`;
-          const { error: uploadError } = await supabase.storage.from('clinicas-logos').upload(filePath, file, { upsert: true });
+          const filePath = `clinicas/${clinicaId}/logo-${Date.now()}.${fileExt}`;
+          const { error: uploadError } = await supabase.storage.from('arquivos_ortus').upload(filePath, file, { upsert: true });
           if (uploadError) throw uploadError;
-          const { data: { publicUrl } } = supabase.storage.from('clinicas-logos').getPublicUrl(filePath);
+          const { data: { publicUrl } } = supabase.storage.from('arquivos_ortus').getPublicUrl(filePath);
           const { error } = await supabase.from('clinicas').update({ logo_url: publicUrl }).eq('id', clinicaId);
           if (error) throw error;
           setClinicaForm((prev) => ({ ...prev, logo_url: publicUrl }));
@@ -1734,21 +1737,22 @@ export default function Configuracoes() {
                   <h4 className="mb-3 text-sm font-semibold text-neutral-900">Endereço</h4>
                   <div className="grid grid-cols-2 gap-x-3 gap-y-2.5 lg:grid-cols-4">
                       <label className="min-w-0">
-                          <span className={labelModal}>CEP {buscandoCepClinica && <Loader2 size={12} className="ml-1 inline animate-spin" />}</span>
+                          <span className={labelModal}>CEP <span className="text-red-500">*</span> {buscandoCepClinica && <Loader2 size={12} className="ml-1 inline animate-spin" />}</span>
                           <input value={clinicaForm.cep} onChange={e => { setClinicaForm({...clinicaForm, cep: e.target.value}); if (e.target.value.replace(/\D/g, '').length === 8) buscarCepClinica(e.target.value); }} onBlur={() => buscarCepClinica(clinicaForm.cep)} className={campoModal} placeholder="00000-000"/>
                       </label>
-                      <label className="min-w-0"><span className={labelModal}>Rua / avenida</span><input value={clinicaForm.rua} onChange={e => setClinicaForm({...clinicaForm, rua: e.target.value})} className={campoModal} placeholder="Rua / Avenida"/></label>
-                      <label className="min-w-0"><span className={labelModal}>Número</span><input value={clinicaForm.numero} onChange={e => setClinicaForm({...clinicaForm, numero: e.target.value})} className={campoModal} placeholder="Nº"/></label>
+                      <label className="min-w-0"><span className={labelModal}>Rua / avenida <span className="text-red-500">*</span></span><input value={clinicaForm.rua} onChange={e => setClinicaForm({...clinicaForm, rua: e.target.value})} className={campoModal} placeholder="Rua / Avenida"/></label>
+                      <label className="min-w-0"><span className={labelModal}>Número <span className="text-red-500">*</span></span><input value={clinicaForm.numero} onChange={e => setClinicaForm({...clinicaForm, numero: e.target.value})} className={campoModal} placeholder="Nº"/></label>
                       <label className="min-w-0"><span className={labelModal}>Complemento</span><input value={clinicaForm.complemento} onChange={e => setClinicaForm({...clinicaForm, complemento: e.target.value})} className={campoModal} placeholder="Apto, bloco, sala"/></label>
-                      <label className="min-w-0"><span className={labelModal}>Bairro</span><input value={clinicaForm.bairro} onChange={e => setClinicaForm({...clinicaForm, bairro: e.target.value})} className={campoModal} placeholder="Bairro"/></label>
-                      <label className="min-w-0"><span className={labelModal}>Cidade</span><input value={clinicaForm.cidade} onChange={e => setClinicaForm({...clinicaForm, cidade: e.target.value})} className={campoModal} placeholder="Cidade"/></label>
-                      <label className="min-w-0"><span className={labelModal}>UF</span><CustomSelect value={clinicaForm.uf || ''} onChange={v => setClinicaForm({...clinicaForm, uf: v})} options={UF_OPTIONS} size="md"/></label>
+                      <label className="min-w-0"><span className={labelModal}>Bairro <span className="text-red-500">*</span></span><input value={clinicaForm.bairro} onChange={e => setClinicaForm({...clinicaForm, bairro: e.target.value})} className={campoModal} placeholder="Bairro"/></label>
+                      <label className="min-w-0"><span className={labelModal}>Cidade <span className="text-red-500">*</span></span><input value={clinicaForm.cidade} onChange={e => setClinicaForm({...clinicaForm, cidade: e.target.value})} className={campoModal} placeholder="Cidade"/></label>
+                      <label className="min-w-0"><span className={labelModal}>UF <span className="text-red-500">*</span></span><CustomSelect value={clinicaForm.uf || ''} onChange={v => setClinicaForm({...clinicaForm, uf: v})} options={UF_OPTIONS} size="md"/></label>
                   </div>
               </section>
 
-              <div className="mt-5 flex justify-end border-t border-black/5 pt-4">
-                  <button type="button" onClick={salvarClinicaCompleta} className="inline-flex h-10 items-center gap-2 rounded-full bg-neutral-900 px-5 text-sm font-medium text-white hover:bg-neutral-800">
-                      <Save size={15}/> {clinicaEditando ? 'Salvar' : 'Cadastrar'}
+              <div className="mt-5 flex items-center justify-end gap-3 border-t border-black/5 pt-4">
+                  <button type="button" onClick={() => { setModalClinicaCompleto(false); setClinicaEditando(null); limparLogoLocal(); }} className="h-10 px-3 text-sm font-medium text-neutral-500 hover:text-neutral-900">Cancelar</button>
+                  <button type="button" onClick={salvarClinicaCompleta} className="inline-flex h-10 items-center rounded-full bg-neutral-900 px-5 text-sm font-medium text-white hover:bg-neutral-800">
+                      {clinicaEditando ? 'Salvar' : 'Cadastrar'}
                   </button>
               </div>
           </div>

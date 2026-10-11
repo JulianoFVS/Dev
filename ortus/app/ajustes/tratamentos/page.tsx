@@ -457,10 +457,9 @@ export default function TratamentosBasePage() {
         <div className="w-full space-y-3 px-2.5 py-2.5 pb-12 font-poppins sm:px-3 sm:py-3 md:px-4 md:py-3.5">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
                 <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400">Ajustes</p>
                     <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 md:text-[2rem]">Tratamentos base</h1>
-                    <p className="mt-1 text-sm text-neutral-500 sm:text-base">
-                        {activeClinic ? getClinicLabel(activeClinic) : 'Clínica'} · catálogo de especialidades e procedimentos
+                    <p className="mt-1 text-sm text-neutral-500">
+                        {activeClinic ? getClinicLabel(activeClinic) : 'Clínica'}
                     </p>
                 </div>
                 <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">

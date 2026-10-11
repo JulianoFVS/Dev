@@ -60,7 +60,7 @@ function opcoesData(atual?: string) {
   return opcoes;
 }
 
-const inputClass = 'w-full rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm font-medium text-neutral-800 outline-none focus:border-neutral-400';
+const inputClass = 'box-border h-10 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm text-neutral-900 outline-none focus:border-neutral-900';
 
 export default function ModalNovoAgendamento({
   open,
@@ -216,16 +216,19 @@ export default function ModalNovoAgendamento({
       maxWidth="lg"
       hideCloseButton
       zIndex={80}
-      panelClassName="flex max-h-[95vh] flex-col overflow-hidden rounded-[1.35rem] border border-black/8 bg-white shadow-xl sm:rounded-[1.5rem]"
+      panelClassName="flex max-h-[85vh] flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white"
     >
-      <div className="flex shrink-0 items-center justify-between border-b border-black/6 px-5 py-4">
-        <h3 className="text-lg font-semibold text-neutral-900">Novo agendamento</h3>
-        <button type="button" onClick={onClose} className="rounded-full p-2 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-800"><X size={20} /></button>
+      <div className="flex shrink-0 items-start justify-between gap-3 border-b border-black/5 px-5 py-4 sm:px-6">
+        <div>
+          <h2 className="text-lg font-semibold text-neutral-900">Novo agendamento</h2>
+          <p className="mt-0.5 text-xs font-medium text-neutral-400">Paciente, horário e procedimento.</p>
+        </div>
+        <button type="button" onClick={onClose} className="rounded-full p-2 text-neutral-400 hover:bg-neutral-100" aria-label="Fechar"><X size={18} /></button>
       </div>
       <div className="flex-1 space-y-5 overflow-y-auto p-5 sm:p-6">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
-            <label className="mb-1 flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-neutral-500">
+            <label className="mb-1.5 block text-xs font-medium text-neutral-500">
               Clínica
               {clinicaTravada && <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[9px] font-bold normal-case text-amber-600">Travada no filtro</span>}
             </label>
@@ -238,7 +241,7 @@ export default function ModalNovoAgendamento({
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-neutral-500">Profissional</label>
+            <label className="mb-1.5 block text-xs font-medium text-neutral-500">Profissional</label>
             <CustomSelect
               value={form.profissional_id}
               onChange={(v) => setForm((p) => ({ ...p, profissional_id: v }))}
@@ -249,7 +252,7 @@ export default function ModalNovoAgendamento({
           </div>
         </div>
         <div>
-          <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-neutral-500">Paciente</label>
+          <label className="mb-1.5 block text-xs font-medium text-neutral-500">Paciente</label>
           <CustomSelect
             value={form.paciente_id}
             onChange={(v) => setForm((p) => ({ ...p, paciente_id: v }))}
@@ -260,16 +263,16 @@ export default function ModalNovoAgendamento({
         </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
-            <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-neutral-500">Data</label>
+            <label className="mb-1.5 block text-xs font-medium text-neutral-500">Data</label>
             <CustomSelect value={form.date} onChange={(v) => setForm((p) => ({ ...p, date: v }))} options={opcoesData(form.date)} placeholder="Selecione a data" searchable />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-neutral-500">Hora</label>
+            <label className="mb-1.5 block text-xs font-medium text-neutral-500">Hora</label>
             <CustomSelect value={form.time} onChange={(v) => setForm((p) => ({ ...p, time: v }))} options={OPCOES_HORA} placeholder="Selecione a hora" searchable />
           </div>
         </div>
         <div>
-          <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-neutral-500">Procedimento</label>
+          <label className="mb-1.5 block text-xs font-medium text-neutral-500">Procedimento</label>
           <ProcedureCombobox
             clinicaId={form.clinica_id}
             especialidades={especialidades}
@@ -279,23 +282,23 @@ export default function ModalNovoAgendamento({
             disabled={!form.clinica_id}
           />
         </div>
-        <div className="grid grid-cols-1 gap-4 rounded-xl border border-black/6 bg-[#f3f4f1] p-4 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-x-3 gap-y-2.5 sm:grid-cols-3">
           <div>
-            <label className="mb-1 block text-[10px] font-semibold uppercase text-neutral-500">Valor (R$)</label>
+            <label className="mb-1.5 block text-xs font-medium text-neutral-500">Valor (R$)</label>
             <input type="number" step="0.01" value={form.valor} onChange={(e) => setForm((p) => ({ ...p, valor: e.target.value }))} className={inputClass} placeholder="0,00" />
           </div>
           <div>
-            <label className="mb-1 block text-[10px] font-semibold uppercase text-neutral-500">Desconto (R$)</label>
+            <label className="mb-1.5 block text-xs font-medium text-neutral-500">Desconto (R$)</label>
             <input type="number" step="0.01" value={form.desconto} onChange={(e) => setForm((p) => ({ ...p, desconto: e.target.value }))} className={inputClass} placeholder="0,00" />
           </div>
           <div className="flex flex-col justify-center sm:text-right">
-            <label className="mb-1 block text-[10px] font-semibold uppercase text-neutral-500">Total</label>
-            <span className="text-xl font-semibold text-neutral-900">R$ {(parseFloat(form.valor || '0') - parseFloat(form.desconto || '0')).toFixed(2)}</span>
+            <label className="mb-1.5 block text-xs font-medium text-neutral-500">Total</label>
+            <p className="flex h-10 items-center text-sm font-medium text-neutral-900">R$ {(parseFloat(form.valor || '0') - parseFloat(form.desconto || '0')).toFixed(2)}</p>
           </div>
         </div>
         {pacienteAtual && form.date && form.time && form.clinica_id && (
           <div className="space-y-2 pt-1">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400">Confirmar consulta</p>
+            <p className="text-xs font-medium text-neutral-500">Confirmar consulta</p>
             <PatientContactButtons
               variant="row"
               telefone={pacienteAtual.telefone}
@@ -314,9 +317,9 @@ export default function ModalNovoAgendamento({
           </div>
         )}
       </div>
-      <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-black/6 px-5 py-4">
-        <button type="button" onClick={onClose} className="rounded-full px-4 py-2.5 text-sm font-medium text-neutral-600 hover:bg-neutral-100">Cancelar</button>
-        <button type="button" onClick={salvar} disabled={salvando} className="inline-flex items-center gap-2 rounded-full bg-neutral-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-60">
+      <div className="flex shrink-0 items-center justify-end gap-3 border-t border-black/5 px-5 py-4 sm:px-6">
+        <button type="button" onClick={onClose} className="h-10 px-3 text-sm font-medium text-neutral-500 hover:text-neutral-900">Cancelar</button>
+        <button type="button" onClick={salvar} disabled={salvando} className="inline-flex h-10 items-center rounded-full bg-neutral-900 px-5 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-60">
           {salvando && <Loader2 className="animate-spin" size={16} />} Salvar
         </button>
       </div>
