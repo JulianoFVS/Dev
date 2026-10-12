@@ -1,5 +1,5 @@
 'use client';
-import type { ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import Link from 'next/link';
 import { CheckCircle, Calendar, DollarSign, Users } from 'lucide-react';
 import LandingNavbar from '@/components/landing/LandingNavbar';
@@ -10,12 +10,18 @@ export default function LandingPage() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  useEffect(() => {
+    const html = document.documentElement;
+    html.classList.add('landing-scroll');
+    return () => html.classList.remove('landing-scroll');
+  }, []);
+
   return (
-    <div className="min-h-screen bg-white font-sans text-slate-900 selection:bg-sky-100 scroll-smooth">
+    <div className="min-h-screen bg-white font-sans text-slate-900 selection:bg-sky-100">
       <LandingNavbar />
       <HeroOrtus />
 
-      <section id="funcionalidades" className="border-t border-slate-100 py-24">
+      <section id="funcionalidades" className="scroll-mt-24 py-24">
         <div className="mx-auto max-w-7xl px-6">
           <div className="mx-auto mb-16 max-w-2xl text-center">
             <h2 className="mb-4 font-poppins text-3xl font-extrabold tracking-tight text-[#1a1a1a] md:text-4xl">
@@ -34,7 +40,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <section id="precos" className="border-t border-slate-100 py-24">
+      <section id="precos" className="scroll-mt-24 border-t border-slate-100 py-24">
         <div className="mx-auto max-w-7xl px-6">
           <h2 className="mb-16 text-center font-poppins text-3xl font-extrabold tracking-tight text-[#1a1a1a] md:text-4xl">
             Planos flexíveis
@@ -47,7 +53,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <footer id="contato" className="border-t border-slate-800 bg-slate-900 px-6 py-12 text-slate-400">
+      <footer id="contato" className="scroll-mt-24 border-t border-slate-800 bg-slate-900 px-6 py-12 text-slate-400">
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-6 md:flex-row">
           <Link href="/" onClick={scrollToTop} className="flex items-center gap-2 opacity-50 grayscale transition-all hover:grayscale-0">
             <img src="/landing/ortus-wordmark.svg" className="h-7" alt="ortus" />

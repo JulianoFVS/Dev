@@ -14,8 +14,8 @@ export default function LandingNavbar() {
   const [aberto, setAberto] = useState(false);
 
   return (
-    <header className="sticky top-0 z-50 border-b border-slate-100 bg-white">
-      <nav className="mx-auto flex h-16 w-full max-w-[1180px] items-center justify-between px-5 md:h-[72px]">
+    <header className="fixed left-1/2 top-4 z-50 w-[min(1120px,calc(100%-1.5rem))] -translate-x-1/2">
+      <nav className="flex h-14 items-center justify-between rounded-full border border-black/5 bg-white/70 px-4 shadow-[0_10px_40px_rgba(26,34,25,0.12)] backdrop-blur-md md:h-16 md:px-6">
         <div className="flex items-center gap-8 lg:gap-12">
           <Link href="/" aria-label="ORTUS" className="flex items-center">
             <img
@@ -66,7 +66,7 @@ export default function LandingNavbar() {
       </nav>
 
       {aberto && (
-        <div className="border-t border-slate-100 bg-white px-5 py-3 md:hidden">
+        <div className="mt-2 rounded-[1.5rem] border border-black/5 bg-white/75 px-4 py-2 shadow-[0_10px_40px_rgba(26,34,25,0.12)] backdrop-blur-md md:hidden">
           <ul className="flex flex-col">
             {LINKS.map((link) => (
               <li key={link.href}>

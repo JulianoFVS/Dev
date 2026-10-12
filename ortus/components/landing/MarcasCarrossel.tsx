@@ -53,19 +53,19 @@ const MARCAS: Marca[] = [
 /** Cópias por metade: cada grupo fica mais largo que a viewport e o -50% fecha o loop. */
 const COPIAS_POR_GRUPO = 6;
 
-function LogoMarca({ marca }: { marca: Marca }) {
+function LogoMarca({ marca, grande = false }: { marca: Marca; grande?: boolean }) {
   if (marca.src) {
     return (
       <img
         src={marca.src}
         alt={marca.nome}
-        className="h-[14px] w-auto object-contain opacity-70 md:h-[16px]"
+        className={`w-auto object-contain opacity-70 ${grande ? 'h-[18px] md:h-[20px]' : 'h-[14px] md:h-[16px]'}`}
       />
     );
   }
 
   return (
-    <span className="flex items-center gap-1 text-[12px] leading-none text-ortus-navy/70 md:text-[13px]">
+    <span className={`flex items-center gap-1.5 leading-none text-ortus-navy/70 ${grande ? 'text-[15px] md:text-[17px]' : 'text-[12px] md:text-[13px]'}`}>
       {marca.glifo}
       <span className={marca.classe}>
         {marca.nome}
@@ -90,6 +90,23 @@ function GrupoMarcas({ ariaHidden }: { ariaHidden?: boolean }) {
           className="flex shrink-0 items-center px-3.5 md:px-5"
         >
           <LogoMarca marca={marca} />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+export function ListaPatrocinadores({ align }: { align: 'start' | 'end' }) {
+  const lado = MARCAS.slice(0, 4);
+  return (
+      <ul
+      className={`flex flex-row flex-nowrap items-center gap-4 md:gap-5 ${align === 'end' ? 'justify-end' : 'justify-start'}`}
+      aria-label={align === 'end' ? 'Marcas parceiras' : undefined}
+      aria-hidden={align === 'start' ? true : undefined}
+    >
+      {lado.map((marca, i) => (
+        <li key={`${marca.nome}-${align}-${i}`}>
+          <LogoMarca marca={marca} grande />
         </li>
       ))}
     </ul>

@@ -57,6 +57,11 @@ html {
   scrollbar-color: #c7c7cc transparent;
 }
 
+html.landing-scroll {
+  scroll-behavior: smooth;
+  scroll-padding-top: 5.5rem;
+}
+
 html::-webkit-scrollbar,
 body::-webkit-scrollbar,
 .ortus-scroll::-webkit-scrollbar {
@@ -204,6 +209,7 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
+    html.landing-scroll { scroll-behavior: auto; }
     .ortus-marquee-track { animation: none; }
     .ortus-shine { animation: none; color: #171717; background: none; filter: none; }
     .ortus-logo-idle { animation: none; }

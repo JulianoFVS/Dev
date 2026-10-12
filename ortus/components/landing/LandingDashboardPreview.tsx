@@ -116,7 +116,7 @@ export default function LandingDashboardPreview() {
   const maxBarra = Math.max(1, ...BARRAS.map((b) => b.valor));
 
   return (
-    <div className="font-poppins flex w-[1280px] gap-2 bg-[#dfe5df] p-2">
+    <div className="font-poppins flex w-[1280px] gap-2 overflow-hidden rounded-[2.25rem] bg-[#dfe5df] p-2">
       <Sidebar />
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-[2.25rem] bg-[#f3f4f1] shadow-[0_1px_0_rgba(0,0,0,0.04)]">
