@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import type { MouseEvent } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -12,6 +12,7 @@ import { useClinica } from '@/app/context/ClinicaContext';
 import { registrarAudit } from '@/lib/auditLog';
 import TabEvolucao from './TabEvolucao';
 import CustomSelect from '@/components/ui/CustomSelect';
+import SegmentedControl from '@/components/ui/SegmentedControl';
 import TagInput from '@/components/ui/TagInput';
 import Modal from '@/components/ui/Modal';
 import { MEDICAMENTOS_CATALOGO } from '@/lib/medicamentosCatalogo';
@@ -2265,10 +2266,18 @@ export default function PacienteDetalhe() {
                                 </div>
                                 <div>
                                     <label className={campoLabel}>Preenchido por</label>
-                                    <div className="flex h-10 overflow-hidden rounded-md border border-neutral-200 bg-white">
-                                        <button type="button" onClick={() => { setAnamneseAtual({...anamneseAtual, preenchido_por: 'profissional'}); setLinkAnamnesePaciente(null); }} className={`flex-1 text-xs font-medium ${anamneseAtual.preenchido_por === 'profissional' ? 'bg-neutral-900 text-white' : 'text-neutral-600'}`}>Profissional</button>
-                                        <button type="button" onClick={() => setAnamneseAtual({...anamneseAtual, preenchido_por: 'paciente'})} className={`flex-1 border-l border-neutral-200 text-xs font-medium ${anamneseAtual.preenchido_por === 'paciente' ? 'bg-neutral-900 text-white' : 'text-neutral-600'}`}>Paciente</button>
-                                    </div>
+                                    <SegmentedControl
+                                        value={anamneseAtual.preenchido_por === 'paciente' ? 'paciente' : 'profissional'}
+                                        onChange={(modo) => {
+                                            setAnamneseAtual({ ...anamneseAtual, preenchido_por: modo });
+                                            if (modo === 'profissional') setLinkAnamnesePaciente(null);
+                                        }}
+                                        size="sm"
+                                        options={[
+                                            { value: 'profissional', label: 'Profissional' },
+                                            { value: 'paciente', label: 'Paciente' },
+                                        ]}
+                                    />
                                 </div>
                             </div>
 
@@ -2417,10 +2426,15 @@ export default function PacienteDetalhe() {
 
                 {abaAtiva === 'tratamentos' && (
                     <div className="animate-in fade-in space-y-4">
-                        <div className="flex items-end gap-6 border-b border-neutral-200">
-                            <button type="button" onClick={() => setSubAbaTratamentos('tratamentos')} className={`-mb-px border-b-2 pb-2 text-sm font-medium ${subAbaTratamentos === 'tratamentos' ? 'border-neutral-900 text-neutral-900' : 'border-transparent text-neutral-500 hover:text-neutral-800'}`}>Odontograma</button>
-                            <button type="button" onClick={() => setSubAbaTratamentos('evolucoes')} className={`-mb-px border-b-2 pb-2 text-sm font-medium ${subAbaTratamentos === 'evolucoes' ? 'border-neutral-900 text-neutral-900' : 'border-transparent text-neutral-500 hover:text-neutral-800'}`}>Tratamentos</button>
-                        </div>
+                        <SegmentedControl
+                            value={subAbaTratamentos}
+                            onChange={setSubAbaTratamentos}
+                            className="w-fit min-w-[16rem]"
+                            options={[
+                                { value: 'tratamentos', label: 'Odontograma' },
+                                { value: 'evolucoes', label: 'Tratamentos' },
+                            ]}
+                        />
 
                         {subAbaTratamentos === 'evolucoes' ? (
                             <div className="space-y-4">
@@ -2483,18 +2497,17 @@ export default function PacienteDetalhe() {
                         <div className={prontuarioPanel}>
                             <div className="mb-3 flex items-center justify-between gap-3">
                                 <h3 className="text-base font-semibold text-neutral-900">Odontograma</h3>
-                                <div className="flex items-end gap-5">
-                                    {(['anatomica', 'esquematica', 'livre'] as const).map(v => (
-                                        <button
-                                            key={v}
-                                            type="button"
-                                            onClick={() => setVisaoOdonto(v)}
-                                            className={`border-b-2 pb-1 text-sm font-medium ${visaoOdonto === v ? 'border-neutral-900 text-neutral-900' : 'border-transparent text-neutral-500 hover:text-neutral-800'}`}
-                                        >
-                                            {v === 'anatomica' ? 'Anatômica' : v === 'esquematica' ? 'Esquemática' : 'Texto livre'}
-                                        </button>
-                                    ))}
-                                </div>
+                                <SegmentedControl
+                                    value={visaoOdonto}
+                                    onChange={setVisaoOdonto}
+                                    size="sm"
+                                    className="w-fit"
+                                    options={[
+                                        { value: 'anatomica', label: 'Anatômica' },
+                                        { value: 'esquematica', label: 'Esquemática' },
+                                        { value: 'livre', label: 'Texto livre' },
+                                    ]}
+                                />
                                 {savingOdo && <span className="flex items-center gap-1 text-xs font-medium text-neutral-400"><Loader2 size={12} className="animate-spin"/> Salvando</span>}
                             </div>
 
@@ -2676,10 +2689,16 @@ export default function PacienteDetalhe() {
                         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                             <h3 className="text-base font-semibold text-neutral-900">Documentos</h3>
                             <div className="flex flex-wrap items-center gap-2">
-                                <div className="flex h-8 overflow-hidden rounded-md border border-neutral-200 bg-white">
-                                    <button type="button" onClick={() => setVisualDocs('bloco')} className={`inline-flex h-8 w-8 items-center justify-center ${visualDocs === 'bloco' ? 'bg-neutral-900 text-white' : 'text-neutral-500 hover:bg-neutral-50'}`} aria-label="Blocos"><LayoutGrid size={14}/></button>
-                                    <button type="button" onClick={() => setVisualDocs('lista')} className={`inline-flex h-8 w-8 items-center justify-center border-l border-neutral-200 ${visualDocs === 'lista' ? 'bg-neutral-900 text-white' : 'text-neutral-500 hover:bg-neutral-50'}`} aria-label="Lista"><List size={14}/></button>
-                                </div>
+                                <SegmentedControl
+                                    value={visualDocs}
+                                    onChange={setVisualDocs}
+                                    size="sm"
+                                    className="w-fit shrink-0"
+                                    options={[
+                                        { value: 'bloco', label: <LayoutGrid size={14} />, ariaLabel: 'Blocos' },
+                                        { value: 'lista', label: <List size={14} />, ariaLabel: 'Lista' },
+                                    ]}
+                                />
                                 <button type="button" onClick={() => setModalDoc(true)} className="inline-flex h-8 items-center gap-1.5 rounded-md border border-neutral-200 px-2.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"><Printer size={14}/> Emitir</button>
                                 <label className={`inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md bg-neutral-900 px-2.5 text-xs font-medium text-white hover:bg-neutral-800 ${uploadingDoc ? 'pointer-events-none opacity-50' : ''}`}>
                                     {uploadingDoc ? <Loader2 size={14} className="animate-spin"/> : <Upload size={14}/>} Enviar
@@ -2795,21 +2814,35 @@ export default function PacienteDetalhe() {
                         <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(18rem,0.85fr)]">
                         <div>
                         <div className="mb-3 flex flex-wrap items-center gap-2">
-                            <div className="flex h-8 overflow-hidden rounded-md border border-neutral-200 bg-white">
-                                <button type="button" onClick={() => setFaceHofAtiva('feminina')} className={`h-8 px-3 text-xs font-medium ${faceHofAtiva === 'feminina' ? 'bg-neutral-900 text-white' : 'text-neutral-600'}`}>Feminino</button>
-                                <button type="button" onClick={() => setFaceHofAtiva('masculina')} className={`h-8 border-l border-neutral-200 px-3 text-xs font-medium ${faceHofAtiva === 'masculina' ? 'bg-neutral-900 text-white' : 'text-neutral-600'}`}>Masculino</button>
-                            </div>
+                            <SegmentedControl
+                                value={faceHofAtiva}
+                                onChange={setFaceHofAtiva}
+                                size="sm"
+                                options={[
+                                    { value: 'feminina', label: 'Feminino' },
+                                    { value: 'masculina', label: 'Masculino' },
+                                ]}
+                            />
                             <button type="button" onClick={async () => { if(marcacoesHof.length && await showConfirm('Limpar todas as marcações?', { title: 'Limpar', type: 'warning', confirmLabel: 'Limpar' })) setMarcacoesHof([]); }} className="inline-flex h-8 items-center gap-1.5 rounded-md border border-neutral-900 bg-neutral-50 px-3 text-xs font-medium text-neutral-900 hover:bg-neutral-100"><Eraser size={12}/> Limpar</button>
-                            <div className="flex h-8 overflow-hidden rounded-md border border-neutral-200 bg-white">
-                                {(['visualizar','alterar'] as const).map(modo => (
-                                    <button key={modo} type="button" onClick={() => { setHofModo(modo); if (modo === 'visualizar') setHofPopover({ x: 0, y: 0, open: false }); }} className={`h-8 border-r border-neutral-200 px-3 text-xs font-medium last:border-r-0 ${hofModo === modo ? 'bg-neutral-900 text-white' : 'text-neutral-600'}`} aria-pressed={hofModo === modo}>{modo === 'visualizar' ? 'Visualizar' : 'Alterar'}</button>
-                                ))}
-                            </div>
-                            <div className="flex h-8 overflow-hidden rounded-md border border-neutral-200 bg-white">
-                                {(['mapa', 'demo', 'frontal'] as const).map((vista) => (
-                                    <button key={vista} type="button" onClick={() => { setHofVista(vista); if (vista !== 'mapa') setHofPopover({ x: 0, y: 0, open: false }); }} className={`h-8 border-r border-neutral-200 px-3 text-xs font-medium last:border-r-0 ${hofVista === vista ? 'bg-neutral-900 text-white' : 'text-neutral-600'}`}>{vista === 'mapa' ? 'Mapa' : vista === 'demo' ? 'Demonstração' : 'Frontal'}</button>
-                                ))}
-                            </div>
+                            <SegmentedControl
+                                value={hofModo}
+                                onChange={(modo) => { setHofModo(modo); if (modo === 'visualizar') setHofPopover({ x: 0, y: 0, open: false }); }}
+                                size="sm"
+                                options={[
+                                    { value: 'visualizar', label: 'Visualizar' },
+                                    { value: 'alterar', label: 'Alterar' },
+                                ]}
+                            />
+                            <SegmentedControl
+                                value={hofVista}
+                                onChange={(vista) => { setHofVista(vista); if (vista !== 'mapa') setHofPopover({ x: 0, y: 0, open: false }); }}
+                                size="sm"
+                                options={[
+                                    { value: 'mapa', label: 'Mapa' },
+                                    { value: 'demo', label: 'Demonstração' },
+                                    { value: 'frontal', label: 'Frontal' },
+                                ]}
+                            />
                         </div>
                         <p className="mb-3 text-xs text-neutral-400">{hofVista === 'demo' ? 'Ilustração na foto fixa, para demonstrar. Não é o resultado clínico.' : hofVista === 'frontal' ? 'Ilustração na foto frontal desta sessão. Não é o resultado clínico.' : hofModo === 'alterar' ? 'Clique no rosto para marcar.' : 'Visualizar não cria pontos novos.'}</p>
 

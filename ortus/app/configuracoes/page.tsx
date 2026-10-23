@@ -19,6 +19,7 @@ import {
   type TaxaMaquininha,
 } from '@/lib/configDefaults';
 import CustomSelect from '@/components/ui/CustomSelect';
+import SegmentedControl from '@/components/ui/SegmentedControl';
 import Switch from '@/components/ui/Switch';
 import DocumentoVariavelEditor, { type DocumentoVariavelEditorHandle } from '@/components/forms/DocumentoVariavelEditor';
 import Modal from '@/components/ui/Modal';
@@ -1142,10 +1143,15 @@ export default function Configuracoes() {
                                 <div className="w-40 shrink-0">
                                     <CustomSelect value={docsTipo} onChange={setDocsTipo} options={[{value:'todos',label:'Tipo'},{value:'contrato',label:'Contrato'},{value:'receita',label:'Receita'},{value:'atestado',label:'Atestado'},{value:'outro',label:'Outro'}]} size="md"/>
                                 </div>
-                                <div className="flex rounded-md border border-neutral-200 bg-white p-0.5">
-                                    <button type="button" onClick={() => setDocsVisualizacao('lista')} className={`rounded-md p-2 ${docsVisualizacao === 'lista' ? 'bg-neutral-900 text-white' : 'text-neutral-500'}`} aria-label="Lista"><List size={16}/></button>
-                                    <button type="button" onClick={() => setDocsVisualizacao('grade')} className={`rounded-md p-2 ${docsVisualizacao === 'grade' ? 'bg-neutral-900 text-white' : 'text-neutral-500'}`} aria-label="Grade"><LayoutGrid size={16}/></button>
-                                </div>
+                                <SegmentedControl
+                                    value={docsVisualizacao}
+                                    onChange={setDocsVisualizacao}
+                                    className="w-fit shrink-0"
+                                    options={[
+                                        { value: 'lista', label: <List size={16} />, ariaLabel: 'Lista' },
+                                        { value: 'grade', label: <LayoutGrid size={16} />, ariaLabel: 'Grade' },
+                                    ]}
+                                />
                             </div>
                         </div>
 
@@ -1724,14 +1730,14 @@ export default function Configuracoes() {
                       <label className="min-w-0"><span className={labelModal}>Fuso</span><CustomSelect value={clinicaForm.fuso_horario} onChange={v => setClinicaForm({...clinicaForm, fuso_horario: v})} options={FUSO_HORARIO_OPTIONS} size="md"/></label>
                       <div className="min-w-0 lg:col-span-2">
                           <span className={labelModal}>Notas fiscais em nome de</span>
-                          <div className="relative grid h-10 grid-cols-2 rounded-md border border-neutral-200 p-0.5">
-                              <span
-                                aria-hidden
-                                className={`pointer-events-none absolute bottom-0.5 left-0.5 top-0.5 w-[calc(50%-0.125rem)] rounded-[5px] bg-neutral-900 transition-transform duration-200 ease-out ${clinicaForm.emitir_notas_em_nome === 'profissional' ? 'translate-x-full' : 'translate-x-0'}`}
-                              />
-                              <button type="button" onClick={() => setClinicaForm({...clinicaForm, emitir_notas_em_nome: 'clinica'})} className={`relative z-10 rounded-[5px] text-sm font-medium transition-colors duration-200 ${clinicaForm.emitir_notas_em_nome === 'clinica' ? 'text-white' : 'text-neutral-600'}`}>Clínica</button>
-                              <button type="button" onClick={() => setClinicaForm({...clinicaForm, emitir_notas_em_nome: 'profissional'})} className={`relative z-10 rounded-[5px] text-sm font-medium transition-colors duration-200 ${clinicaForm.emitir_notas_em_nome === 'profissional' ? 'text-white' : 'text-neutral-600'}`}>Profissional</button>
-                          </div>
+                          <SegmentedControl
+                              value={clinicaForm.emitir_notas_em_nome === 'profissional' ? 'profissional' : 'clinica'}
+                              onChange={(v) => setClinicaForm({ ...clinicaForm, emitir_notas_em_nome: v })}
+                              options={[
+                                  { value: 'clinica', label: 'Clínica' },
+                                  { value: 'profissional', label: 'Profissional' },
+                              ]}
+                          />
                       </div>
                   </div>
               </section>

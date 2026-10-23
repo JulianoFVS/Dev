@@ -15,6 +15,8 @@ import { fetchUserClinicas, fetchUserEquipe } from '@/lib/clinicScoped';
 
 import { Plus, X, Loader2, UserPlus, Trash2, Clock, Bell, ChevronDown } from 'lucide-react';
 import CustomSelect from '@/components/ui/CustomSelect';
+import CampoData from '@/components/ui/CampoData';
+import CampoHora from '@/components/ui/CampoHora';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
 import { validarAgendamentoCompleto } from '@/lib/horarioProfissional';
 import PatientContactButtons from '@/components/PatientContactButtons';
@@ -28,40 +30,6 @@ import {
   type LembreteAgendamento,
 } from '@/lib/lembretesAgenda';
 import { lerPrefillAgenda, limparPrefillAgenda } from '@/lib/agendaPrefill';
-
-const OPCOES_HORA = Array.from({ length: 48 }, (_, i) => {
-  const h = String(Math.floor(i / 2)).padStart(2, '0');
-  const m = i % 2 ? '30' : '00';
-  const value = `${h}:${m}`;
-  return { value, label: value };
-});
-
-function isoLocal(d: Date) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
-
-function opcoesDataAgenda(atual?: string) {
-  const base = new Date();
-  base.setHours(12, 0, 0, 0);
-  const opcoes = Array.from({ length: 120 }, (_, i) => {
-    const d = new Date(base);
-    d.setDate(base.getDate() + i);
-    const value = isoLocal(d);
-    const label = d.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' });
-    return { value, label };
-  });
-  if (atual && !opcoes.some((o) => o.value === atual)) {
-    const d = new Date(`${atual}T12:00:00`);
-    opcoes.unshift({
-      value: atual,
-      label: Number.isNaN(d.getTime()) ? atual : d.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' }),
-    });
-  }
-  return opcoes;
-}
 
 export default function Agenda() {
   const calendarRef = useRef(null);
@@ -465,7 +433,21 @@ export default function Agenda() {
     nowIndicator: true,
     navLinks: true,
     buttonText: { today: 'Hoje', month: 'Mês', week: 'Semana', day: 'Dia', list: 'Lista' },
+    buttonHints: { prev: () => '', next: () => '', today: () => '' },
+    viewHint: () => '',
   };
+
+  useEffect(() => {
+    const root = document.querySelector('.bento-calendar');
+    if (!root) return;
+    const limpar = () => {
+      root.querySelectorAll('.fc-header-toolbar [title]').forEach((el) => el.removeAttribute('title'));
+    };
+    limpar();
+    const obs = new MutationObserver(limpar);
+    obs.observe(root, { subtree: true, attributes: true, attributeFilter: ['title'] });
+    return () => obs.disconnect();
+  }, []);
 
   const inputClass =
     'box-border h-10 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm text-neutral-900 outline-none focus:border-neutral-900';
@@ -622,25 +604,11 @@ export default function Agenda() {
                           </label>
                           <label>
                               <span className="mb-1.5 block text-xs font-medium text-neutral-500">Data</span>
-                              <CustomSelect
-                                  value={formData.date}
-                                  onChange={v => setFormData({...formData, date: v})}
-                                  options={opcoesDataAgenda(formData.date)}
-                                  placeholder="Selecione a data"
-                                  searchable
-                                  size="md"
-                              />
+                              <CampoData value={formData.date} onChange={(v) => setFormData({ ...formData, date: v })} />
                           </label>
                           <label>
                               <span className="mb-1.5 block text-xs font-medium text-neutral-500">Hora</span>
-                              <CustomSelect
-                                  value={formData.time}
-                                  onChange={v => setFormData({...formData, time: v})}
-                                  options={OPCOES_HORA}
-                                  placeholder="Selecione a hora"
-                                  searchable
-                                  size="md"
-                              />
+                              <CampoHora value={formData.time} onChange={(v) => setFormData({ ...formData, time: v })} passo={30} />
                           </label>
                           <label className="sm:col-span-2">
                               <span className="mb-1.5 block text-xs font-medium text-neutral-500">Procedimento</span>
@@ -689,32 +657,6 @@ export default function Agenda() {
                         </div>
                       )}
                       
-                      {(() => {
-                          const pac = pacientes.find((p: any) => p.id == formData.paciente_id);
-                          if (!pac || !formData.date || !formData.time || !formData.clinica_id) return null;
-                          const clinica = clinicas.find((c: any) => String(c.id) === String(formData.clinica_id));
-                          const dataFmt = new Date(formData.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
-                          return (
-                              <div className="space-y-2">
-                                  <p className="text-xs font-medium text-neutral-500">Confirmar consulta</p>
-                                  <PatientContactButtons
-                                      variant="row"
-                                      telefone={pac.telefone}
-                                      email={pac.email}
-                                      clinicaId={formData.clinica_id}
-                                      evento="confirmacao"
-                                      contexto={{
-                                          paciente_nome: (pac.nome || '').split(' ')[0],
-                                          data_consulta: dataFmt,
-                                          hora_consulta: formData.time,
-                                          clinica_nome: clinica?.nome,
-                                          clinica_telefone: clinica?.telefone,
-                                      }}
-                                      className="w-full"
-                                  />
-                              </div>
-                          );
-                      })()}
                   </div>
                   <div className="flex shrink-0 items-center justify-between gap-3 border-t border-black/5 px-5 py-4 sm:px-6">
                       {formData.id ? (
@@ -726,7 +668,7 @@ export default function Agenda() {
                       )}
                       <div className="flex items-center gap-3">
                         <button type="button" onClick={() => setOpenModal(false)} className="h-10 px-3 text-sm font-medium text-neutral-500 hover:text-neutral-900">Cancelar</button>
-                        <button type="button" onClick={() => saveOrUpdate()} disabled={loading} className="inline-flex h-10 items-center rounded-full bg-neutral-900 px-5 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-60">
+                        <button type="button" onClick={() => saveOrUpdate()} disabled={loading} className="inline-flex h-10 items-center gap-2 rounded-md bg-neutral-900 px-5 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-60">
                           {loading && <Loader2 className="animate-spin" size={16} />} Salvar
                         </button>
                       </div>

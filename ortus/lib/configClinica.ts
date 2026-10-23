@@ -10,7 +10,7 @@ export async function carregarConfig<T>(clinicaId: number | string, chave: strin
         .select('valor')
         .eq('clinica_id', Number(clinicaId))
         .eq('chave', chave)
-        .single();
+        .maybeSingle();
 
     if (data?.valor !== undefined && data.valor !== null) {
         return data.valor as T;

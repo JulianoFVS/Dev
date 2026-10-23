@@ -4,7 +4,9 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import type { ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+import { useClinica } from '@/app/context/ClinicaContext';
 import { usePatientSlideOver } from '@/components/PatientSlideOver';
+import Modal from '@/components/ui/Modal';
 import {
   Search,
   User,
@@ -15,11 +17,10 @@ import {
   Smile,
   Bell,
   BarChart3,
-  ArrowUpRight,
-  Command,
   ClipboardList,
   ShieldCheck,
   Mail,
+  X,
 } from 'lucide-react';
 import type { ModuleName } from '@/lib/types/permissions';
 
@@ -47,6 +48,11 @@ export default function Omnibar({ moduleAccess, isAdmin }: OmnibarProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
   const { openPatient } = usePatientSlideOver();
+  const { activeClinicId, clinics } = useClinica();
+  const clinicIds = useMemo(() => {
+    if (activeClinicId && activeClinicId !== 'all') return [Number(activeClinicId)];
+    return clinics.map((c) => Number(c.id)).filter((n) => Number.isFinite(n));
+  }, [activeClinicId, clinics]);
 
   const canAccessModule = useCallback(
     (module?: ModuleName) => {
@@ -177,16 +183,22 @@ export default function Omnibar({ moduleAccess, isAdmin }: OmnibarProps) {
     setQuery('');
     setActiveIdx(0);
     setTimeout(() => inputRef.current?.focus(), 40);
-    if (pacientesCache.length === 0) {
-      supabase
-        .from('pacientes')
-        .select('id, nome, telefone, cpf')
-        .limit(500)
-        .then(({ data }) => {
-          if (data) setPacientesCache(data);
-        });
+    if (clinicIds.length === 0) {
+      setPacientesCache([]);
+      return;
     }
-  }, [open, pacientesCache.length]);
+    let cancelado = false;
+    supabase
+      .from('pacientes')
+      .select('id, nome, telefone, cpf')
+      .in('clinica_id', clinicIds)
+      .order('nome')
+      .limit(500)
+      .then(({ data }) => {
+        if (!cancelado && data) setPacientesCache(data);
+      });
+    return () => { cancelado = true; };
+  }, [open, clinicIds]);
 
   const search = useCallback(
     (q: string) => {
@@ -274,19 +286,13 @@ export default function Omnibar({ moduleAccess, isAdmin }: OmnibarProps) {
           setOpen(false);
         }}
         onMouseEnter={() => setActiveIdx(idx)}
-        className={`flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left transition-colors ${
-          active ? 'bg-neutral-900 text-white' : 'text-neutral-900 hover:bg-white'
+        className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-left ${
+          active ? 'bg-neutral-900 text-white' : 'text-neutral-900 hover:bg-neutral-50'
         }`}
       >
-        <span
-          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
-            active ? 'bg-white/15 text-white' : 'bg-[#f3f4f1] text-neutral-700'
-          }`}
-        >
-          {r.icon}
-        </span>
+        <span className={`shrink-0 ${active ? 'text-white' : 'text-neutral-400'}`}>{r.icon}</span>
         <span className="min-w-0 flex-1">
-          <span className={`block truncate text-sm font-semibold ${active ? 'text-white' : 'text-neutral-900'}`}>
+          <span className={`block truncate text-sm font-medium ${active ? 'text-white' : 'text-neutral-900'}`}>
             {r.label}
           </span>
           {r.sublabel && (
@@ -295,78 +301,63 @@ export default function Omnibar({ moduleAccess, isAdmin }: OmnibarProps) {
             </span>
           )}
         </span>
-        <ArrowUpRight size={16} className={active ? 'text-white/70' : 'text-neutral-400'} />
       </button>
     );
   }
 
   return (
-    <div
-      className="fixed inset-0 z-[100] flex items-start justify-center bg-black/25 px-3 pt-[10vh] backdrop-blur-md sm:px-4"
-      onClick={() => setOpen(false)}
-      role="presentation"
+    <Modal
+      open={open}
+      onClose={() => setOpen(false)}
+      zIndex={100}
+      maxWidth="lg"
+      hideCloseButton
+      panelClassName="flex max-h-[85vh] flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white"
     >
-      <div
-        className="flex w-full max-w-lg flex-col overflow-hidden rounded-[1.75rem] border border-black/10 bg-[#eceee9] shadow-[0_24px_80px_rgba(0,0,0,0.28)] sm:max-w-xl"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Busca rápida"
-      >
-        <div className="border-b border-black/5 bg-white px-4 py-4 sm:px-5">
-          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-neutral-400">Busca rápida</p>
-          <div className="flex items-center gap-3 rounded-2xl border border-black/10 bg-[#f8f8f6] px-3 py-2.5">
-            <Search size={20} className="shrink-0 text-neutral-500" />
-            <input
-              ref={inputRef}
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={handleKeyNav}
-              placeholder="Paciente, página ou comando…"
-              className="min-w-0 flex-1 bg-transparent text-base font-medium text-neutral-900 outline-none placeholder:text-neutral-400"
-            />
-            <kbd className="hidden rounded-lg border border-black/10 bg-white px-2 py-1 text-[10px] font-semibold text-neutral-500 sm:inline">
-              esc
-            </kbd>
-          </div>
+      <div className="flex shrink-0 items-start justify-between gap-3 border-b border-black/5 px-5 py-4 sm:px-6">
+        <div>
+          <h2 className="text-lg font-semibold text-neutral-900">Busca</h2>
+          <p className="mt-0.5 text-xs font-medium text-neutral-400">Pacientes e páginas da clínica.</p>
         </div>
+        <button type="button" onClick={() => setOpen(false)} className="rounded-full p-2 text-neutral-400 hover:bg-neutral-100" aria-label="Fechar">
+          <X size={18} />
+        </button>
+      </div>
 
-        <div className="max-h-[min(52vh,420px)] overflow-y-auto p-2 sm:p-3">
-          {results.length === 0 && query ? (
-            <p className="py-10 text-center text-sm text-neutral-500">
-              Nada encontrado para &quot;<span className="font-semibold text-neutral-800">{query}</span>&quot;
-            </p>
-          ) : null}
-
-          {grouped.paciente.length > 0 && (
-            <div className="mb-2">
-              <p className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-neutral-400">Pacientes</p>
-              <div className="space-y-1">{grouped.paciente.map((r) => renderRow(r))}</div>
-            </div>
-          )}
-
-          {grouped.navegacao.length > 0 && (
-            <div>
-              <p className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-neutral-400">Páginas</p>
-              <div className="space-y-1">{grouped.navegacao.map((r) => renderRow(r))}</div>
-            </div>
-          )}
-        </div>
-
-        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-black/5 bg-white px-4 py-2.5 text-[11px] font-medium text-neutral-500">
-          <div className="flex flex-wrap gap-2">
-            <span>
-              <kbd className="rounded border border-black/10 bg-[#f3f4f1] px-1.5 py-0.5">↑↓</kbd> navegar
-            </span>
-            <span>
-              <kbd className="rounded border border-black/10 bg-[#f3f4f1] px-1.5 py-0.5">↵</kbd> abrir
-            </span>
-          </div>
-          <span className="inline-flex items-center gap-1">
-            <Command size={11} />K
-          </span>
+      <div className="shrink-0 px-5 pt-4 sm:px-6">
+        <label className="mb-1.5 block text-xs font-medium text-neutral-500">Buscar</label>
+        <div className="relative">
+          <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
+          <input
+            ref={inputRef}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={handleKeyNav}
+            placeholder="Nome, telefone ou página"
+            className="box-border h-10 w-full rounded-md border border-neutral-200 bg-white pl-9 pr-3 text-sm text-neutral-900 outline-none focus:border-neutral-900"
+          />
         </div>
       </div>
-    </div>
+
+      <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3 sm:px-4">
+        {results.length === 0 && query ? (
+          <p className="px-2 py-6 text-sm text-neutral-500">Nenhum resultado.</p>
+        ) : null}
+
+        {grouped.paciente.length > 0 && (
+          <div className="mb-2">
+            <p className="px-2 pb-1 text-xs font-medium text-neutral-500">Pacientes</p>
+            <div className="space-y-0.5">{grouped.paciente.map((r) => renderRow(r))}</div>
+          </div>
+        )}
+
+        {grouped.navegacao.length > 0 && (
+          <div>
+            <p className="px-2 pb-1 text-xs font-medium text-neutral-500">Páginas</p>
+            <div className="space-y-0.5">{grouped.navegacao.map((r) => renderRow(r))}</div>
+          </div>
+        )}
+      </div>
+    </Modal>
   );
 }

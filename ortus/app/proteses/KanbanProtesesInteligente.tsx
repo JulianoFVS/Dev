@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase';
 import { usePatientSlideOver } from '@/components/PatientSlideOver';
 import { useClinica } from '@/app/context/ClinicaContext';
 import { carregarConfig, salvarConfig } from '@/lib/configClinica';
-import { AlertTriangle, Check, CheckCircle2, ChevronDown, ChevronRight, CircleDot, ClipboardList, Edit3, Eye, Filter, FlaskConical, Gem, Heart, Loader2, Package, Paintbrush, Plus, Scissors, Search, Shield, Smile, Sparkles, Star, Trash2, Truck, Wrench, X, Zap } from 'lucide-react';
+import { Check, ChevronDown, ChevronRight, CircleDot, ClipboardList, Edit3, Eye, Filter, FlaskConical, Gem, Heart, Loader2, Package, Paintbrush, Plus, Scissors, Search, Shield, Smile, Sparkles, Star, Trash2, Truck, Wrench, X, Zap } from 'lucide-react';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
 import CustomSelect from '@/components/ui/CustomSelect';
 import Modal from '@/components/ui/Modal';
@@ -197,6 +197,9 @@ export default function KanbanProtesesInteligente() {
   const [cards, setCards] = useState<Card[]>(() => boardCacheRef.current?.cards ?? []);
   const [patients, setPatients] = useState<PatientOption[]>(() => boardCacheRef.current?.patients ?? []);
   const [coresQuadro, setCoresQuadro] = useState<Record<string, string>>(() => boardCacheRef.current?.cores ?? {});
+  const coresQuadroRef = useRef(coresQuadro);
+  coresQuadroRef.current = coresQuadro;
+  const preservarCoresRef = useRef(false);
   const [loading, setLoading] = useState(() => !(boardCacheRef.current?.columns?.length));
   const jaCarregou = useRef(!!boardCacheRef.current?.columns?.length);
   const [saving, setSaving] = useState(false);
@@ -342,7 +345,9 @@ export default function KanbanProtesesInteligente() {
     const nextCards = (cardsData || []) as Card[];
     const nextPatients = (patientsData || []) as PatientOption[];
 
-    const nextCores = coresRaw && typeof coresRaw === 'object' && !Array.isArray(coresRaw) ? coresRaw : {};
+    const fetchedCores = coresRaw && typeof coresRaw === 'object' && !Array.isArray(coresRaw) ? coresRaw : {};
+    const nextCores = preservarCoresRef.current ? { ...fetchedCores, ...coresQuadroRef.current } : fetchedCores;
+    preservarCoresRef.current = false;
     setColumns(nextColumns);
     setCards(nextCards);
     setPatients(nextPatients);
@@ -517,11 +522,13 @@ export default function KanbanProtesesInteligente() {
   }
 
   async function gravarCorQuadro(id: number | string, hex: string) {
-    const next = { ...coresQuadro };
+    const next = { ...coresQuadroRef.current };
     if (hex) next[String(id)] = hex;
     else delete next[String(id)];
+    coresQuadroRef.current = next;
     setCoresQuadro(next);
     if (clinicId) await salvarConfig(clinicId, 'kanban_cores_quadros', next);
+    return next;
   }
 
   async function saveColumn() {
@@ -538,13 +545,25 @@ export default function KanbanProtesesInteligente() {
 
     if (error) return showToast('warning', 'Não foi possível salvar o quadro: ' + error.message);
     const savedId = data?.id ?? editingColumn?.id;
-    if (savedId != null) await gravarCorQuadro(savedId, columnCor);
+    if (savedId != null) {
+      await gravarCorQuadro(savedId, columnCor);
+      preservarCoresRef.current = true;
+    }
+
+    if (savedId != null) {
+      setColumns((atual) => {
+        const nextColumns = editingColumn
+          ? atual.map((column) => column.id === savedId ? { ...column, ...payload } : column)
+          : [...atual, { id: savedId, titulo: title, ordem: atual.length + 1, clinica_id: clinicId, icone: columnIcon, checklist_ativo: columnChecklist }];
+        writeBoardCache({ clinicId, columns: nextColumns, cards, patients, cores: coresQuadroRef.current });
+        return nextColumns;
+      });
+    }
 
     setColumnModalOpen(false);
     setEditingColumn(null);
     setColumnTitle('');
     showToast('success', editingColumn ? 'Quadro atualizado.' : 'Novo quadro criado.');
-    loadBoard(clinicId);
   }
 
   async function deleteColumn(column: Column) {
@@ -683,9 +702,8 @@ export default function KanbanProtesesInteligente() {
       </div>
 
       {toast && (
-        <div className={`fixed right-5 top-5 z-[90] flex max-w-sm gap-3 rounded-2xl border border-black/10 bg-neutral-950 p-4 text-white shadow-2xl`}>
-          {toast.type === 'warning' ? <AlertTriangle size={20} className="shrink-0" /> : <CheckCircle2 size={20} className="shrink-0" />}
-          <p className="text-sm font-bold">{toast.message}</p>
+        <div className="pointer-events-none fixed inset-x-0 top-4 z-[90] flex justify-center px-4">
+          <p className="rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-800 shadow-sm">{toast.message}</p>
         </div>
       )}
 
@@ -818,7 +836,6 @@ export default function KanbanProtesesInteligente() {
                     type="button"
                     onClick={() => document.getElementById(`coluna-${col.id}`)?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })}
                     className="flex items-center gap-2 rounded-md border border-transparent px-3 py-2 text-xs font-medium text-neutral-600 transition-colors hover:border-neutral-200 hover:bg-[#f3f4f1] hover:text-neutral-900"
-                    title={`Ir para ${col.titulo}`}
                   >
                     <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-600">{getColumnIcon(col)}</span>
                     <span className="hidden sm:inline whitespace-nowrap">{col.titulo}</span>
@@ -885,7 +902,10 @@ export default function KanbanProtesesInteligente() {
               {columns.map((column) => {
                 const columnCards = cardsByColumn(column.id);
                 const hasChecklist = isChecklistColumn(column);
-                const tinta = tintaQuadro(coresQuadro[String(column.id)]);
+                const corAtiva = columnModalOpen && editingColumn && String(editingColumn.id) === String(column.id)
+                  ? columnCor
+                  : coresQuadro[String(column.id)];
+                const tinta = tintaQuadro(corAtiva);
 
                 return (
                   <section
@@ -906,10 +926,10 @@ export default function KanbanProtesesInteligente() {
                         {hasChecklist && (
                           <span className="rounded-md border border-neutral-200 bg-white px-2 py-0.5 text-xs font-medium text-neutral-600">Checklist</span>
                         )}
-                        <button type="button" onClick={() => openEditColumn(column)} className="rounded-lg p-1.5 text-neutral-400 transition-colors hover:bg-white hover:text-neutral-900" title="Editar quadro">
+                        <button type="button" onClick={() => openEditColumn(column)} className="rounded-lg p-1.5 text-neutral-400 transition-colors hover:bg-white hover:text-neutral-900" aria-label="Editar quadro">
                           <Edit3 size={13} />
                         </button>
-                        <button type="button" onClick={() => deleteColumn(column)} className="rounded-lg p-1.5 text-neutral-400 transition-colors hover:bg-white hover:text-red-600" title="Remover quadro">
+                        <button type="button" onClick={() => deleteColumn(column)} className="rounded-lg p-1.5 text-neutral-400 transition-colors hover:bg-white hover:text-red-600" aria-label="Remover quadro">
                           <Trash2 size={13} />
                         </button>
                       </div>
@@ -938,7 +958,6 @@ export default function KanbanProtesesInteligente() {
                           }}
                           onClick={() => openEditOrder(card)}
                           className={`group cursor-pointer rounded-xl border border-neutral-200 bg-white p-3 transition-colors hover:bg-neutral-50 active:cursor-grabbing ${draggedCard?.id === card.id ? 'border-dashed opacity-50' : ''}`}
-                          title="Clique para editar · Arraste para mover"
                         >
                           <div className="mb-1 flex items-start justify-between gap-2">
                             <div className="min-w-0">
@@ -953,7 +972,7 @@ export default function KanbanProtesesInteligente() {
                               <button
                                 onClick={(e) => { e.stopPropagation(); deleteCard(card.id); }}
                                 className="rounded-md p-1 text-neutral-300 opacity-0 transition-colors hover:bg-red-50 hover:text-red-500 group-hover:opacity-100"
-                                title="Excluir pedido"
+                                aria-label="Excluir pedido"
                               >
                                 <Trash2 size={14} />
                               </button>
@@ -1116,7 +1135,7 @@ export default function KanbanProtesesInteligente() {
             </div>
       </Modal>
 
-      <Modal open={columnModalOpen} onClose={() => setColumnModalOpen(false)} maxWidth="md" zIndex={86} hideCloseButton panelClassName="flex max-h-[85vh] flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white">
+      <Modal open={columnModalOpen} onClose={() => setColumnModalOpen(false)} maxWidth="md" zIndex={86} closeOnBackdrop={false} hideCloseButton panelClassName="flex max-h-[85vh] flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white">
           <div className="flex shrink-0 items-start justify-between gap-4 border-b border-neutral-200 p-5">
               <div>
                 <p className="text-xs font-medium text-neutral-500">{editingColumn ? 'Editar quadro' : 'Novo quadro'}</p>
@@ -1134,12 +1153,12 @@ export default function KanbanProtesesInteligente() {
               <div>
                 <label className="mb-2 block text-xs font-medium text-neutral-500">Cor</label>
                 <div className="flex flex-wrap gap-1.5">
-                  <button type="button" onClick={() => setColumnCor('')} className={`h-7 w-7 rounded-md border bg-[#f3f4f1] ${columnCor ? 'border-neutral-200' : 'border-neutral-900'}`} title="Padrão" aria-label="Sem cor" />
+                  <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setColumnCor(''); }} className={`h-7 w-7 rounded-md border bg-[#f3f4f1] ${columnCor ? 'border-neutral-200' : 'border-neutral-900'}`} title="Padrão" aria-label="Sem cor" />
                   {CORES_QUADRO.map((hex) => (
                     <button
                       key={hex}
                       type="button"
-                      onClick={() => setColumnCor(hex)}
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); setColumnCor(hex); }}
                       className={`h-7 w-7 rounded-md border-2 ${columnCor === hex ? 'border-neutral-900' : 'border-transparent'}`}
                       style={{ backgroundColor: hex }}
                       aria-label={hex}

@@ -4,7 +4,7 @@ import { readRouteCache, writeRouteCache } from '@/lib/routeListCache';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import {
-    Loader2, Plus, X, Copy, Check, AlertTriangle, ArrowUpDown,
+    Loader2, Plus, X, Copy, Check, AlertTriangle, ArrowUpDown, Pencil, Trash2,
 } from 'lucide-react';
 import Modal from '@/components/ui/Modal';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
@@ -43,6 +43,7 @@ export default function SuperAdminPage() {
     const [ordem, setOrdem] = useState<{ campo: 'nome' | 'criada'; dir: 'asc' | 'desc' }>({ campo: 'nome', dir: 'asc' });
     const [editando, setEditando] = useState<Rede | null>(null);
     const [nomeEdit, setNomeEdit] = useState('');
+    const pularBlur = useRef(false);
     const { showConfirm } = useCustomAlert();
 
     useEffect(() => { validar(); }, []);
@@ -138,20 +139,19 @@ export default function SuperAdminPage() {
 
     function abrirEdicao(rede: Rede) {
         setErro(null);
+        pularBlur.current = false;
         setEditando(rede);
         setNomeEdit(rede.nome);
     }
 
-    async function salvarEdicao(e: React.FormEvent) {
-        e.preventDefault();
-        if (!editando) return;
-        const nome = nomeEdit.trim();
-        if (!nome) { setErro('Nome da rede é obrigatório.'); return; }
-        const anterior = editando;
-        const proximas = redes.map((r) => String(r.id) === String(anterior.id) ? { ...r, nome } : r);
+    async function salvarEdicao(rede: Rede, nomeInformado?: string) {
+        const nome = (nomeInformado ?? nomeEdit).trim();
+        setEditando(null);
+        if (!nome || nome === rede.nome) return;
+        const anterior = redes;
+        const proximas = redes.map((r) => String(r.id) === String(rede.id) ? { ...r, nome } : r);
         setRedes(proximas);
         writeRouteCache(SA_CACHE_KEY, SA_SCOPE, { redes: proximas, metricas });
-        setEditando(null);
         setSalvando(true);
         setErro(null);
         try {
@@ -161,15 +161,13 @@ export default function SuperAdminPage() {
             const resp = await fetch('/api/super-admin/rede', {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                body: JSON.stringify({ id: anterior.id, nome }),
+                body: JSON.stringify({ id: rede.id, nome }),
             });
             const json = await resp.json().catch(() => ({}));
             if (!resp.ok) throw new Error(json.error || 'Não foi possível renomear a rede.');
         } catch (err: any) {
-            setRedes(redes);
-            writeRouteCache(SA_CACHE_KEY, SA_SCOPE, { redes, metricas });
-            setEditando(anterior);
-            setNomeEdit(anterior.nome);
+            setRedes(anterior);
+            writeRouteCache(SA_CACHE_KEY, SA_SCOPE, { redes: anterior, metricas });
             setErro(err?.message || 'Não foi possível renomear a rede.');
         }
         setSalvando(false);
@@ -308,13 +306,32 @@ export default function SuperAdminPage() {
                                                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#f3f4f1] text-[11px] font-medium text-neutral-500">
                                                     {r.nome.split(' ').map((n) => n[0]).slice(0, 2).join('').toUpperCase()}
                                                 </span>
-                                                <span className="font-medium text-neutral-900">{r.nome}</span>
+                                                {editando && String(editando.id) === String(r.id) ? (
+                                                    <input
+                                                        autoFocus
+                                                        value={nomeEdit}
+                                                        onChange={(e) => setNomeEdit(e.target.value)}
+                                                        onBlur={() => {
+                                                            if (pularBlur.current) { pularBlur.current = false; return; }
+                                                            void salvarEdicao(r);
+                                                        }}
+                                                        onKeyDown={(e) => {
+                                                            if (e.key === 'Enter') { e.preventDefault(); (e.target as HTMLInputElement).blur(); }
+                                                            if (e.key === 'Escape') { pularBlur.current = true; setEditando(null); }
+                                                        }}
+                                                        className="h-8 w-full min-w-0 rounded-md border border-neutral-200 bg-white px-2 text-sm text-neutral-900 outline-none focus:border-neutral-900"
+                                                    />
+                                                ) : (
+                                                    <span className="font-medium text-neutral-900">{r.nome}</span>
+                                                )}
                                             </div>
                                         </td>
                                         <td className="px-4 py-2.5 text-neutral-600 sm:px-5">{fmtData(r.created_at)}</td>
                                         <td className="px-4 py-2.5 text-right sm:px-5">
-                                            <button type="button" onClick={() => abrirEdicao(r)} className="inline-flex h-8 items-center rounded-md px-2.5 text-sm font-medium text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900">Editar</button>
-                                            <button type="button" onClick={() => apagarRede(r)} className="inline-flex h-8 items-center rounded-md px-2.5 text-sm font-medium text-rose-600 hover:bg-rose-50">Apagar</button>
+                                            <div className="inline-flex items-center justify-end gap-1.5">
+                                                <button type="button" onClick={() => abrirEdicao(r)} className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-neutral-200 text-neutral-500 hover:bg-neutral-50" aria-label="Editar"><Pencil size={14}/></button>
+                                                <button type="button" onClick={() => apagarRede(r)} className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-neutral-200 text-neutral-400 hover:text-rose-600" aria-label="Apagar"><Trash2 size={14}/></button>
+                                            </div>
                                         </td>
                                     </tr>
                                 ))}
@@ -361,33 +378,6 @@ export default function SuperAdminPage() {
                         <button type="submit" disabled={salvando} className="inline-flex h-9 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-40">
                             {salvando ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />}
                             Criar
-                        </button>
-                    </div>
-                </form>
-            </Modal>
-
-            <Modal open={!!editando} onClose={() => setEditando(null)} maxWidth="md" hideCloseButton panelClassName="overflow-hidden rounded-xl border border-neutral-200 bg-white">
-                <form onSubmit={salvarEdicao} className="px-5 py-4 sm:px-6 sm:py-5">
-                    <div className="mb-5 flex items-start justify-between gap-3 border-b border-black/5 pb-4">
-                        <div>
-                            <h2 className="text-base font-semibold text-neutral-900">Editar rede</h2>
-                            <p className="mt-0.5 text-sm text-neutral-500">Altera só o nome da rede.</p>
-                        </div>
-                        <button type="button" onClick={() => setEditando(null)} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-100" aria-label="Fechar"><X size={16}/></button>
-                    </div>
-                    {erro && (
-                        <p className="mb-3 flex items-center gap-2 text-xs font-medium text-rose-600">
-                            <AlertTriangle size={14} /> {erro}
-                        </p>
-                    )}
-                    <label>
-                        <span className={rotulo}>Nome da rede</span>
-                        <input value={nomeEdit} onChange={(e) => setNomeEdit(e.target.value)} className={campo} required />
-                    </label>
-                    <div className="mt-5 flex justify-end gap-2 border-t border-black/5 pt-4">
-                        <button type="button" onClick={() => setEditando(null)} className="inline-flex h-9 items-center rounded-md px-3 text-sm font-medium text-neutral-600 hover:bg-neutral-50">Cancelar</button>
-                        <button type="submit" disabled={salvando} className="inline-flex h-9 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-40">
-                            {salvando ? <Loader2 size={15} className="animate-spin" /> : null} Salvar
                         </button>
                     </div>
                 </form>

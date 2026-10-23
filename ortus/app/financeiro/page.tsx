@@ -9,6 +9,7 @@ import {
 import { useClinica, getClinicLabel } from '@/app/context/ClinicaContext';
 import { carregarConfig, salvarConfig } from '@/lib/configClinica';
 import CustomSelect from '@/components/ui/CustomSelect';
+import SegmentedControl from '@/components/ui/SegmentedControl';
 import CampoData from '@/components/ui/CampoData';
 import Modal from '@/components/ui/Modal';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
@@ -586,11 +587,16 @@ export default function Financeiro() {
               <CampoData value={dataFim} onChange={setDataFim} />
             </div>
           )}
-          <div className="flex rounded-md border border-neutral-200 bg-white p-0.5">
-            <button type="button" onClick={() => setTipoFiltro('todos')} className={`rounded-md px-3 py-1.5 text-sm font-medium ${tipoFiltro === 'todos' ? 'bg-neutral-900 text-white' : 'text-neutral-600'}`}>Todos</button>
-            <button type="button" onClick={() => setTipoFiltro('entrada')} className={`rounded-md px-3 py-1.5 text-sm font-medium ${tipoFiltro === 'entrada' ? 'bg-neutral-900 text-white' : 'text-neutral-600'}`}>Entradas</button>
-            <button type="button" onClick={() => setTipoFiltro('saida')} className={`rounded-md px-3 py-1.5 text-sm font-medium ${tipoFiltro === 'saida' ? 'bg-neutral-900 text-white' : 'text-neutral-600'}`}>Saídas</button>
-          </div>
+          <SegmentedControl
+            value={(tipoFiltro === 'entrada' || tipoFiltro === 'saida' ? tipoFiltro : 'todos') as 'todos' | 'entrada' | 'saida'}
+            onChange={(v) => setTipoFiltro(v)}
+            className="shrink-0"
+            options={[
+              { value: 'todos', label: 'Todos' },
+              { value: 'entrada', label: 'Entradas' },
+              { value: 'saida', label: 'Saídas' },
+            ]}
+          />
           <div className="relative min-w-0 flex-1">
             <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
             <input
@@ -799,10 +805,14 @@ export default function Financeiro() {
                 </div>
                 <form onSubmit={salvarLancamento} className="flex min-h-0 flex-1 flex-col">
                   <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-5 py-4 sm:px-6">
-                    <div className="grid grid-cols-2 gap-1 rounded-md border border-neutral-200 bg-white p-0.5">
-                        <button type="button" onClick={() => setNovoLancamento({...novoLancamento, tipo: 'entrada'})} className={`flex h-9 items-center justify-center gap-2 rounded-md text-sm font-medium ${novoLancamento.tipo === 'entrada' ? 'bg-neutral-900 text-white' : 'text-neutral-600'}`}><ArrowUpCircle size={16}/> Receita</button>
-                        <button type="button" onClick={() => setNovoLancamento({...novoLancamento, tipo: 'saida'})} className={`flex h-9 items-center justify-center gap-2 rounded-md text-sm font-medium ${novoLancamento.tipo === 'saida' ? 'bg-neutral-900 text-white' : 'text-neutral-600'}`}><ArrowDownCircle size={16}/> Despesa</button>
-                    </div>
+                    <SegmentedControl
+                        value={novoLancamento.tipo === 'entrada' ? 'entrada' : 'saida'}
+                        onChange={(tipo) => setNovoLancamento({ ...novoLancamento, tipo })}
+                        options={[
+                            { value: 'entrada', label: <><ArrowUpCircle size={16} /> Receita</> },
+                            { value: 'saida', label: <><ArrowDownCircle size={16} /> Despesa</> },
+                        ]}
+                    />
 
                     <label>
                         <span className={rotulo}>Descrição</span>
@@ -858,10 +868,16 @@ export default function Financeiro() {
                     <div>
                         <div className="mb-1.5 flex items-center justify-between gap-2">
                             <span className="text-xs font-medium text-neutral-500">Categoria</span>
-                            <div className="flex rounded-md border border-neutral-200 bg-white p-0.5">
-                                <button type="button" onClick={() => setModoCategoria('lista')} className={`rounded-md px-2 py-0.5 text-xs font-medium ${modoCategoria === 'lista' ? 'bg-neutral-900 text-white' : 'text-neutral-600'}`}>Lista</button>
-                                <button type="button" onClick={() => setModoCategoria('livre')} className={`rounded-md px-2 py-0.5 text-xs font-medium ${modoCategoria === 'livre' ? 'bg-neutral-900 text-white' : 'text-neutral-600'}`}>Livre</button>
-                            </div>
+                            <SegmentedControl
+                                value={modoCategoria}
+                                onChange={setModoCategoria}
+                                size="sm"
+                                className="w-fit"
+                                options={[
+                                    { value: 'lista', label: 'Lista' },
+                                    { value: 'livre', label: 'Livre' },
+                                ]}
+                            />
                         </div>
                         {modoCategoria === 'lista' ? (
                             <>

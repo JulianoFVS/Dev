@@ -8,6 +8,7 @@ import { fetchUserEquipe } from '@/lib/clinicScoped';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
 import Modal from '@/components/ui/Modal';
 import CustomSelect from '@/components/ui/CustomSelect';
+import CampoHora from '@/components/ui/CampoHora';
 import Switch from '@/components/ui/Switch';
 import {
     UserPlus, Loader2, X, ShieldCheck, Copy, Check,
@@ -755,11 +756,11 @@ export default function EquipePage() {
                 <div className="grid grid-cols-2 gap-x-3 gap-y-2.5">
                     <label>
                         <span className={rotuloClasse}>Início</span>
-                        <input type="time" value={horarioState.inicio} onChange={(e) => atualizarHorario('inicio', e.target.value)} className={campoClasse} />
+                        <CampoHora value={horarioState.inicio} onChange={(v) => atualizarHorario('inicio', v)} />
                     </label>
                     <label>
                         <span className={rotuloClasse}>Término</span>
-                        <input type="time" value={horarioState.fim} onChange={(e) => atualizarHorario('fim', e.target.value)} className={campoClasse} />
+                        <CampoHora value={horarioState.fim} onChange={(v) => atualizarHorario('fim', v)} />
                     </label>
                     <label>
                         <span className={rotuloClasse}>Intervalo (min)</span>
@@ -806,8 +807,8 @@ export default function EquipePage() {
         if (!profissionalSelecionado) return null;
         if (!clinicaIdNumerica) return renderClinicaObrigatoria();
         return (
-            <div className="space-y-4">
-                <form onSubmit={salvarComissaoRapida} className="grid grid-cols-1 gap-x-3 gap-y-2.5 sm:grid-cols-2">
+            <div className="flex min-h-0 flex-1 flex-col gap-3">
+                <form onSubmit={salvarComissaoRapida} className="grid shrink-0 grid-cols-1 gap-x-3 gap-y-2.5 sm:grid-cols-2">
                     <label className="sm:col-span-2">
                         <span className={rotuloClasse}>Gatilho</span>
                         <CustomSelect value={comissaoForm.gatilho} onChange={v => setComissaoForm(prev => ({ ...prev, gatilho: v }))} options={GATILHOS_COMISSAO.map(g => ({ value: g.value, label: g.label }))} size="md" />
@@ -820,28 +821,21 @@ export default function EquipePage() {
                         <span className={rotuloClasse}>Valor</span>
                         <input type="number" step="0.01" min={0} value={comissaoForm.valor} onChange={(e) => setComissaoForm((prev) => ({ ...prev, valor: e.target.value }))} className={campoClasse} placeholder={comissaoForm.tipo === 'percentual' ? '0 a 100' : '0,00'} />
                     </label>
-                    <label className="w-36">
-                        <span className={rotuloClasse}>Status</span>
-                        <CustomSelect
-                            value={comissaoForm.ativo ? 'ativa' : 'inativa'}
-                            onChange={(v) => setComissaoForm((prev) => ({ ...prev, ativo: v === 'ativa' }))}
-                            options={[{ value: 'ativa', label: 'Ativa' }, { value: 'inativa', label: 'Inativa' }]}
-                            size="xs"
-                        />
-                    </label>
-                    <div className="flex items-end justify-end gap-2">
-                        {comissaoEditandoId && (
-                            <button type="button" onClick={cancelarEdicaoComissao} className="h-9 rounded-md border border-neutral-200 px-3 text-sm font-medium text-neutral-600 hover:bg-neutral-50">
-                                Cancelar
-                            </button>
-                        )}
+                    <div className="flex h-10 items-center justify-between gap-3 sm:col-span-2">
+                        <span className="text-sm text-neutral-700">Regra ativa</span>
+                        <Switch checked={comissaoForm.ativo} onChange={(ativo) => setComissaoForm((prev) => ({ ...prev, ativo }))} />
+                    </div>
+                    <div className="flex items-end justify-end gap-2 sm:col-span-2">
+                        <button type="button" onClick={cancelarEdicaoComissao} className="h-9 rounded-md px-3 text-sm font-medium text-neutral-500 hover:bg-neutral-50 hover:text-neutral-900">
+                            Cancelar
+                        </button>
                         <button type="submit" disabled={comissaoSaving} className={acaoClasse}>
                             {comissaoSaving ? <Loader2 size={15} className="animate-spin"/> : (comissaoEditandoId ? <Check size={15}/> : <Plus size={15}/>)}
                             {comissaoEditandoId ? 'Salvar' : 'Adicionar'}
                         </button>
                     </div>
                 </form>
-                <div className="divide-y divide-black/5 border-t border-black/5">
+                <div className="min-h-0 flex-1 divide-y divide-black/5 overflow-y-auto border-t border-black/5">
                     {comissoesLoading ? (
                         <div className="flex items-center gap-2 py-3 text-sm text-neutral-500"><Loader2 size={16} className="animate-spin"/>Carregando regras...</div>
                     ) : comissoes.length === 0 ? (
@@ -945,7 +939,7 @@ export default function EquipePage() {
                 </button>
             </div>
 
-            <div className="flex min-h-0 flex-1 flex-col gap-3 lg:flex-row">
+            <div className="flex min-h-0 flex-1 flex-col gap-3">
             <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white">
                 <div className="shrink-0 px-3 pt-3">
                     <h2 className="text-base font-semibold text-neutral-900">Colaboradores</h2>
@@ -958,10 +952,9 @@ export default function EquipePage() {
                         ))}
                     </div>
                 ) : (
-                <div className="min-h-0 flex-1 overflow-y-auto">
-                <div className="overflow-x-auto">
+                <div className="min-h-0 flex-1 overflow-auto">
                     <table className="w-full min-w-[540px] text-sm">
-                    <thead>
+                    <thead className="sticky top-0 z-10 bg-white">
                         <tr className="border-b border-black/5">
                             {([
                                 ['nome', 'Nome'],
@@ -1015,7 +1008,7 @@ export default function EquipePage() {
                                     <button
                                         type="button"
                                         onClick={() => abrirEditorAvancado(p)}
-                                        className="inline-flex h-8 items-center rounded-md px-2.5 text-sm font-medium text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900"
+                                        className="inline-flex h-8 items-center text-sm font-medium text-neutral-600 hover:text-neutral-900"
                                     >
                                         Editar
                                     </button>
@@ -1029,7 +1022,6 @@ export default function EquipePage() {
                     </tbody>
                 </table>
                 </div>
-                </div>
                 )}
             </section>
 
@@ -1038,24 +1030,20 @@ export default function EquipePage() {
                     <h2 className="text-base font-semibold text-neutral-900">Comissões</h2>
                     {comissoesConsolidadasLoading && <Loader2 size={16} className="animate-spin text-neutral-400" />}
                 </div>
-                <div className="min-h-0 flex-1 overflow-y-auto">
+                <div className="min-h-0 flex-1 overflow-auto">
                 {!clinicaIdNumerica ? (
                     <p className="px-3 py-6 text-center text-sm text-neutral-400">Selecione uma clínica para ver as comissões.</p>
+                ) : comissoesConsolidadasLoading && comissoesConsolidadas.length === 0 ? (
+                    <div className="space-y-2 p-3">
+                        {Array.from({ length: 3 }).map((_, i) => (
+                            <div key={i} className="h-10 animate-pulse rounded-md bg-neutral-50" />
+                        ))}
+                    </div>
+                ) : comissoesConsolidadas.length === 0 ? (
+                    <p className="px-3 py-6 text-center text-sm text-neutral-400">Nenhuma regra de comissão ativa nesta clínica.</p>
                 ) : (
-                <>
-                    <div className="px-3 py-3">
-                        {comissoesConsolidadasLoading && comissoesConsolidadas.length === 0 ? (
-                            <div className="space-y-2">
-                                {Array.from({ length: 3 }).map((_, i) => (
-                                    <div key={i} className="h-10 animate-pulse rounded-md bg-neutral-50" />
-                                ))}
-                            </div>
-                        ) : comissoesConsolidadas.length === 0 ? (
-                            <p className="py-6 text-center text-sm text-neutral-400">Nenhuma regra de comissão ativa nesta clínica.</p>
-                        ) : (
-                            <div className="overflow-x-auto rounded-xl border border-black/5">
-                                <table className="w-full min-w-[480px] text-sm">
-                                    <thead>
+                                <table className="w-full min-w-[540px] text-sm">
+                                    <thead className="sticky top-0 z-10 bg-white">
                                         <tr className="border-b border-black/5">
                                             {([
                                                 ['profissional', 'Profissional', 'text-left'],
@@ -1070,6 +1058,7 @@ export default function EquipePage() {
                                                     </button>
                                                 </th>
                                             ))}
+                                            <th className="px-4 py-2 text-right text-xs font-medium text-neutral-400 sm:px-5">Ações</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-black/5">
@@ -1090,44 +1079,53 @@ export default function EquipePage() {
                                                 <td className="px-4 py-2.5 text-neutral-600">{getGatilhoLabel(r.gatilho)}</td>
                                                 <td className="px-4 py-2.5 capitalize text-neutral-500">{r.tipo?.replace('_', ' ')}</td>
                                                 <td className="px-4 py-2.5 text-right text-sm font-medium text-neutral-900">{formatValorComissao(r.tipo, Number(r.valor))}</td>
+                                                <td className="px-4 py-2.5 text-right sm:px-5">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            const prof = profissionais.find((p) => String(p.id) === String(r.profissional_id));
+                                                            if (!prof) {
+                                                                avisar('Profissional não encontrado nesta equipe.');
+                                                                return;
+                                                            }
+                                                            abrirEditorAvancado(prof, 'comissao');
+                                                        }}
+                                                        className="inline-flex h-8 items-center text-sm font-medium text-neutral-600 hover:text-neutral-900"
+                                                    >
+                                                        Editar
+                                                    </button>
+                                                </td>
                                             </tr>
                                         ))}
                                     </tbody>
                                 </table>
-                            </div>
-                        )}
-                    </div>
-
-                {comissaoLancamentos.length > 0 && (
+                )}
+                {clinicaIdNumerica && comissaoLancamentos.length > 0 && (
                     <div className="border-t border-black/5 px-3 py-3">
                         <h3 className="mb-2 text-base font-semibold text-neutral-900">Lançamentos recentes</h3>
-                        <div className="overflow-x-auto rounded-xl border border-black/5">
-                            <table className="w-full min-w-[520px] text-sm">
-                                <thead>
-                                    <tr className="border-b border-black/5 text-xs font-medium text-neutral-400">
-                                        <th className="px-4 py-2.5 text-left">Profissional</th>
-                                        <th className="px-4 py-2.5 text-left">Descrição</th>
-                                        <th className="px-4 py-2.5 text-right">Base</th>
-                                        <th className="px-4 py-2.5 text-right">Comissão</th>
-                                        <th className="px-4 py-2.5 text-left">Status</th>
+                        <table className="w-full min-w-[520px] text-sm">
+                            <thead>
+                                <tr className="border-b border-black/5 text-xs font-medium text-neutral-400">
+                                    <th className="px-4 py-2.5 text-left">Profissional</th>
+                                    <th className="px-4 py-2.5 text-left">Descrição</th>
+                                    <th className="px-4 py-2.5 text-right">Base</th>
+                                    <th className="px-4 py-2.5 text-right">Comissão</th>
+                                    <th className="px-4 py-2.5 text-left">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-black/5">
+                                {comissaoLancamentos.map((l) => (
+                                    <tr key={l.id} className="hover:bg-neutral-50/50">
+                                        <td className="px-4 py-2.5 font-medium text-neutral-800">{l.profissionais?.nome || `#${l.profissional_id}`}</td>
+                                        <td className="max-w-[200px] truncate px-4 py-2.5 text-xs text-neutral-600">{l.descricao}</td>
+                                        <td className="px-4 py-2.5 text-right text-neutral-600">R$ {Number(l.valor_base).toFixed(2)}</td>
+                                        <td className="px-4 py-2.5 text-right font-semibold text-neutral-900">R$ {Number(l.valor_comissao).toFixed(2)}</td>
+                                        <td className="px-4 py-2.5 text-sm capitalize text-neutral-600">{l.status}</td>
                                     </tr>
-                                </thead>
-                                <tbody className="divide-y divide-black/5">
-                                    {comissaoLancamentos.map((l) => (
-                                        <tr key={l.id} className="hover:bg-neutral-50/50">
-                                            <td className="px-4 py-2.5 font-medium text-neutral-800">{l.profissionais?.nome || `#${l.profissional_id}`}</td>
-                                            <td className="max-w-[200px] truncate px-4 py-2.5 text-xs text-neutral-600">{l.descricao}</td>
-                                            <td className="px-4 py-2.5 text-right text-neutral-600">R$ {Number(l.valor_base).toFixed(2)}</td>
-                                            <td className="px-4 py-2.5 text-right font-semibold text-neutral-900">R$ {Number(l.valor_comissao).toFixed(2)}</td>
-                                            <td className="px-4 py-2.5 text-sm capitalize text-neutral-600">{l.status}</td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
+                                ))}
+                            </tbody>
+                        </table>
                     </div>
-                )}
-                </>
                 )}
                 </div>
             </section>
@@ -1180,11 +1178,12 @@ export default function EquipePage() {
                                 </div>
                             )}
                             {abaEditor === 'comissao' && (
-                                <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 sm:px-6">{renderComissoesTab()}</div>
+                                <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-5 py-4 sm:px-6">{renderComissoesTab()}</div>
                             )}
                         </div>
                         {abaEditor !== 'comissao' && profissionalSelecionado && clinicaIdNumerica && (
-                            <div className="flex shrink-0 justify-end border-t border-black/5 px-5 py-4 sm:px-6">
+                            <div className="flex shrink-0 justify-end gap-2 border-t border-black/5 px-5 py-4 sm:px-6">
+                                <button type="button" onClick={fecharEditorAvancado} className="h-9 rounded-md px-3 text-sm font-medium text-neutral-500 hover:bg-neutral-50 hover:text-neutral-900">Cancelar</button>
                                 <button
                                     type="button"
                                     onClick={salvarEditor}

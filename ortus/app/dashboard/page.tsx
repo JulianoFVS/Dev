@@ -3,9 +3,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
+import { clinicScope, readRouteCache, writeRouteCache } from '@/lib/routeListCache';
 import { useClinica } from '@/app/context/ClinicaContext';
+import SegmentedControl from '@/components/ui/SegmentedControl';
 import { carregarConfig } from '@/lib/configClinica';
 import { usePatientSlideOver } from '@/components/PatientSlideOver';
+import ModalNovoAgendamento from '@/components/agenda/ModalNovoAgendamento';
 import {
   ArrowUpRight,
   Bell,
@@ -41,10 +44,6 @@ type AgendaItem = {
 type Tratamento = { id: string; procedimento: string; status: string; observacoes?: string | null };
 type Pendencia = { id: string; titulo: string; detalhe: string; href: string };
 type Periodo = 'hoje' | 'semana' | 'mes';
-type FilaLinha =
-  | { tipo: 'consulta'; id: string; ag: AgendaItem; cadeira: number }
-  | { tipo: 'livre'; id: string; inicio: string };
-
 type Financeiro = {
   recebido: number;
   pagamentos: number;
@@ -55,6 +54,28 @@ type Financeiro = {
 };
 
 const FIN_VAZIO: Financeiro = { recebido: 0, pagamentos: 0, previsto: 0, restantes: 0, atraso: 0, atrasados: 0 };
+const DASH_CACHE_KEY = 'ortus:dashboard:v2';
+
+type DashSnap = {
+  agendaHoje: AgendaItem[];
+  tratamentos: Tratamento[];
+  pendencias: Pendencia[];
+  ultimaVisita: string | null;
+  saldoAberto: number;
+  financeiro: Financeiro;
+  barras: { id: string; rotulo: string; valor: number }[];
+  fiados: { id: string; valor_final?: number | null; pacientes?: { id?: string; nome?: string } | null }[];
+  duracaoMin: number;
+  abertura: string;
+  fechamento: string;
+};
+
+function readDashBoot(): DashSnap | null {
+  if (typeof localStorage === 'undefined') return null;
+  const cid = localStorage.getItem('ortus_clinica_id');
+  const clinicId = !cid || cid === 'all' || cid === 'todas' ? 'all' : cid;
+  return readRouteCache<DashSnap>(DASH_CACHE_KEY, clinicScope(clinicId));
+}
 
 function iniciais(nome?: string | null) {
   const partes = (nome || '').trim().split(/\s+/).filter(Boolean);
@@ -100,17 +121,6 @@ function abrirBusca() {
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, ctrlKey: true, bubbles: true }));
 }
 
-function parseHora(hhmm: string) {
-  const [h, m] = hhmm.split(':').map(Number);
-  return (h || 0) * 60 + (m || 0);
-}
-
-function fmtMinutos(min: number) {
-  const h = Math.floor(min / 60);
-  const m = min % 60;
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-}
-
 function inicioDoPeriodo(periodo: Periodo) {
   const d = new Date();
   d.setHours(0, 0, 0, 0);
@@ -122,53 +132,6 @@ function inicioDoPeriodo(periodo: Periodo) {
     d.setDate(1);
   }
   return d;
-}
-
-function cadeiraDe(ag: AgendaItem, mapa: Map<string, number>) {
-  const key = ag.profissional_id != null ? String(ag.profissional_id) : 'sem';
-  return mapa.get(key) || 1;
-}
-
-function montarMapaCadeiras(lista: AgendaItem[]) {
-  const mapa = new Map<string, number>();
-  lista.forEach((ag) => {
-    const key = ag.profissional_id != null ? String(ag.profissional_id) : 'sem';
-    if (!mapa.has(key)) mapa.set(key, mapa.size + 1);
-  });
-  if (!mapa.size) mapa.set('sem', 1);
-  return mapa;
-}
-
-function montarFila(
-  lista: AgendaItem[],
-  duracaoMin: number,
-  abertura: string,
-  fechamento: string,
-  cadeiras: Map<string, number>,
-): FilaLinha[] {
-  const linhas: FilaLinha[] = [];
-  const ab = parseHora(abertura);
-  const fe = parseHora(fechamento);
-  const ordenada = [...lista].sort((a, b) => new Date(a.data_hora).getTime() - new Date(b.data_hora).getTime());
-
-  const minutosDe = (iso: string) => {
-    const d = new Date(iso);
-    return d.getHours() * 60 + d.getMinutes();
-  };
-
-  let cursor = ab;
-  ordenada.forEach((ag, i) => {
-    const ini = minutosDe(ag.data_hora);
-    if (ini - cursor >= duracaoMin) {
-      linhas.push({ tipo: 'livre', id: `livre-${cursor}-${i}`, inicio: fmtMinutos(cursor) });
-    }
-    linhas.push({ tipo: 'consulta', id: ag.id, ag, cadeira: cadeiraDe(ag, cadeiras) });
-    cursor = Math.max(cursor, ini + duracaoMin);
-  });
-  if (fe - cursor >= duracaoMin) {
-    linhas.push({ tipo: 'livre', id: `livre-fim`, inicio: fmtMinutos(cursor) });
-  }
-  return linhas;
 }
 
 function somarFinanceiro(
@@ -222,26 +185,36 @@ function barrasDia(lista: { data_hora: string; status?: string | null; valor_fin
 }
 
 export default function Dashboard() {
-  const [loading, setLoading] = useState(true);
-  const [agendaHoje, setAgendaHoje] = useState<AgendaItem[]>([]);
-  const [tratamentos, setTratamentos] = useState<Tratamento[]>([]);
-  const [pendencias, setPendencias] = useState<Pendencia[]>([]);
-  const [ultimaVisita, setUltimaVisita] = useState<string | null>(null);
-  const [saldoAberto, setSaldoAberto] = useState(0);
-  const [financeiro, setFinanceiro] = useState<Financeiro>(FIN_VAZIO);
-  const [barras, setBarras] = useState<{ id: string; rotulo: string; valor: number }[]>([]);
+  const boot = typeof sessionStorage !== 'undefined' ? readDashBoot() : null;
+  const [loading, setLoading] = useState(() => !boot);
+  const [agendaHoje, setAgendaHoje] = useState<AgendaItem[]>(() => boot?.agendaHoje ?? []);
+  const [tratamentos, setTratamentos] = useState<Tratamento[]>(() => boot?.tratamentos ?? []);
+  const [pendencias, setPendencias] = useState<Pendencia[]>(() => boot?.pendencias ?? []);
+  const [ultimaVisita, setUltimaVisita] = useState<string | null>(() => boot?.ultimaVisita ?? null);
+  const [saldoAberto, setSaldoAberto] = useState(() => boot?.saldoAberto ?? 0);
+  const [financeiro, setFinanceiro] = useState<Financeiro>(() => boot?.financeiro ?? FIN_VAZIO);
+  const [barras, setBarras] = useState<{ id: string; rotulo: string; valor: number }[]>(() => boot?.barras ?? []);
   const [concluindo, setConcluindo] = useState(false);
   const [periodo, setPeriodo] = useState<Periodo>('hoje');
-  const [duracaoMin, setDuracaoMin] = useState(40);
-  const [abertura, setAbertura] = useState('08:00');
-  const [fechamento, setFechamento] = useState('18:00');
-  const [fiados, setFiados] = useState<{ id: string; valor_final?: number | null; pacientes?: { id?: string; nome?: string } | null }[]>([]);
+  const [duracaoMin, setDuracaoMin] = useState(() => boot?.duracaoMin ?? 40);
+  const [abertura, setAbertura] = useState(() => boot?.abertura ?? '08:00');
+  const [fechamento, setFechamento] = useState(() => boot?.fechamento ?? '18:00');
+  const [fiados, setFiados] = useState<{ id: string; valor_final?: number | null; pacientes?: { id?: string; nome?: string } | null }[]>(() => boot?.fiados ?? []);
   const { activeClinicId, activeClinic, clinics, loading: clinicLoading } = useClinica();
   const { openPatient } = usePatientSlideOver();
   const { mensagensCount, notificacoesCount } = useInboxCounts();
-  const jaCarregou = useRef(false);
+  const jaCarregou = useRef(!!boot);
   const reqId = useRef(0);
   const periodoReqId = useRef(0);
+  const avisoTimer = useRef<number | null>(null);
+  const [modalAgenda, setModalAgenda] = useState(false);
+  const [aviso, setAviso] = useState<string | null>(null);
+
+  function avisar(mensagem: string) {
+    setAviso(mensagem);
+    if (avisoTimer.current) window.clearTimeout(avisoTimer.current);
+    avisoTimer.current = window.setTimeout(() => setAviso(null), 2600);
+  }
 
   const idsClinica = useMemo(() => {
     if (activeClinicId && activeClinicId !== 'all') return [Number(activeClinicId)];
@@ -296,10 +269,10 @@ export default function Dashboard() {
     const agora = new Date();
     const prefClinica = filtros[0];
 
-    const [agendaRes, fiadosRes, prefs] = await Promise.all([
+    const [agendaRes, fiadosRes] = await Promise.all([
       supabase
         .from('agendamentos')
-        .select('id, data_hora, procedimento, status, valor_final, observacoes, profissional_id, pacientes(id, nome, telefone, data_nascimento, ficha_medica, planos(nome, tipo))')
+        .select('id, data_hora, procedimento, status, valor_final, profissional_id, pacientes(id, nome, telefone, data_nascimento, planos(nome, tipo))')
         .gte('data_hora', `${hoje}T00:00:00`)
         .lte('data_hora', `${hoje}T23:59:59`)
         .in('clinica_id', filtros)
@@ -310,11 +283,6 @@ export default function Dashboard() {
         .eq('status', 'fiado')
         .in('clinica_id', filtros)
         .limit(8),
-      carregarConfig(prefClinica, 'preferencias', 'ortus_preferencias', {
-        duracao_consulta_padrao: 40,
-        horario_abertura: '08:00',
-        horario_fechamento: '18:00',
-      }),
     ]);
 
     if (id !== reqId.current) return;
@@ -323,30 +291,6 @@ export default function Dashboard() {
     const listaFiados = (fiadosRes.data || []) as typeof fiados;
     setAgendaHoje(hojeLista);
     setFiados(listaFiados);
-    setDuracaoMin(Number(prefs?.duracao_consulta_padrao) || 40);
-    setAbertura(prefs?.horario_abertura || '08:00');
-    setFechamento(prefs?.horario_fechamento || '18:00');
-
-    const atuais = hojeLista.filter((a) => a.status !== 'concluido');
-    const emCurso = atuais.find((a) => new Date(a.data_hora).getTime() <= agora.getTime()) || atuais[0] || null;
-    const pacienteId = emCurso?.pacientes?.id;
-
-    if (pacienteId) {
-      const [{ data: trats }, { data: historico }, { data: debitos }] = await Promise.all([
-        supabase.from('paciente_tratamentos').select('id, procedimento, status, observacoes').eq('paciente_id', pacienteId).order('criado_em', { ascending: false }).limit(6),
-        supabase.from('agendamentos').select('data_hora').eq('paciente_id', pacienteId).eq('status', 'concluido').order('data_hora', { ascending: false }).limit(1),
-        supabase.from('agendamentos').select('valor_final').eq('paciente_id', pacienteId).eq('status', 'fiado'),
-      ]);
-      if (id !== reqId.current) return;
-      setTratamentos((trats as Tratamento[]) || []);
-      setUltimaVisita(historico?.[0]?.data_hora ? new Date(historico[0].data_hora).toLocaleDateString('pt-BR') : null);
-      setSaldoAberto((debitos || []).reduce((acc, i) => acc + (i.valor_final || 0), 0));
-    } else {
-      setTratamentos([]);
-      setUltimaVisita(null);
-      setSaldoAberto(0);
-    }
-
     if (periodo === 'hoje') aplicarFinanceiroHoje(hojeLista, listaFiados);
 
     const pend: Pendencia[] = [];
@@ -377,9 +321,88 @@ export default function Dashboard() {
           href: a.pacientes?.id ? `/pacientes/${a.pacientes.id}` : '/agenda',
         });
       });
-    setPendencias(pend.slice(0, 6));
+    const proximasPendencias = pend.slice(0, 6);
+    setPendencias(proximasPendencias);
     setLoading(false);
     jaCarregou.current = true;
+
+    const atuais = hojeLista.filter((a) => a.status !== 'concluido');
+    const emCurso = atuais.find((a) => new Date(a.data_hora).getTime() <= agora.getTime()) || atuais[0] || null;
+    const pacienteId = emCurso?.pacientes?.id;
+    const soma = somarFinanceiro(hojeLista, listaFiados);
+    const fin = soma.fin;
+    const barrasHoje = barrasHora(hojeLista);
+    const snapBase = {
+      agendaHoje: hojeLista,
+      pendencias: proximasPendencias,
+      financeiro: periodo === 'hoje' ? fin : financeiro,
+      barras: periodo === 'hoje' ? barrasHoje : barras,
+      fiados: listaFiados,
+      duracaoMin,
+      abertura,
+      fechamento,
+    };
+
+    void carregarConfig(prefClinica, 'preferencias', 'ortus_preferencias', {
+      duracao_consulta_padrao: 40,
+      horario_abertura: '08:00',
+      horario_fechamento: '18:00',
+    }).then((prefs) => {
+      if (id !== reqId.current) return;
+      setDuracaoMin(Number(prefs?.duracao_consulta_padrao) || 40);
+      setAbertura(prefs?.horario_abertura || '08:00');
+      setFechamento(prefs?.horario_fechamento || '18:00');
+    });
+
+    if (!pacienteId) {
+      setTratamentos([]);
+      setUltimaVisita(null);
+      setSaldoAberto(0);
+      writeRouteCache(DASH_CACHE_KEY, clinicScope(activeClinicId), {
+        ...snapBase,
+        tratamentos: [],
+        ultimaVisita: null,
+        saldoAberto: 0,
+      });
+      return;
+    }
+
+    writeRouteCache(DASH_CACHE_KEY, clinicScope(activeClinicId), {
+      ...snapBase,
+      tratamentos,
+      ultimaVisita,
+      saldoAberto,
+    });
+
+    void Promise.all([
+      supabase.from('paciente_tratamentos').select('id, procedimento, status, observacoes').eq('paciente_id', pacienteId).order('criado_em', { ascending: false }).limit(6),
+      supabase.from('agendamentos').select('data_hora').eq('paciente_id', pacienteId).eq('status', 'concluido').order('data_hora', { ascending: false }).limit(1),
+      supabase.from('agendamentos').select('valor_final').eq('paciente_id', pacienteId).eq('status', 'fiado'),
+      supabase.from('pacientes').select('id, ficha_medica').eq('id', pacienteId).maybeSingle(),
+    ]).then(([{ data: trats }, { data: historico }, { data: debitos }, { data: fichaRow }]) => {
+      if (id !== reqId.current) return;
+      const nextTrats = (trats as Tratamento[]) || [];
+      const nextVisita = historico?.[0]?.data_hora ? new Date(historico[0].data_hora).toLocaleDateString('pt-BR') : null;
+      const nextSaldo = (debitos || []).reduce((acc, item) => acc + (item.valor_final || 0), 0);
+      setTratamentos(nextTrats);
+      setUltimaVisita(nextVisita);
+      setSaldoAberto(nextSaldo);
+      const agendaComFicha = fichaRow?.ficha_medica
+        ? hojeLista.map((item) => (
+          item.pacientes?.id === pacienteId
+            ? { ...item, pacientes: { ...item.pacientes, ficha_medica: fichaRow.ficha_medica } }
+            : item
+        ))
+        : hojeLista;
+      if (fichaRow?.ficha_medica) setAgendaHoje(agendaComFicha);
+      writeRouteCache(DASH_CACHE_KEY, clinicScope(activeClinicId), {
+        ...snapBase,
+        agendaHoje: agendaComFicha,
+        tratamentos: nextTrats,
+        ultimaVisita: nextVisita,
+        saldoAberto: nextSaldo,
+      });
+    });
   }
 
   async function carregarPeriodo(alvo: Periodo, req: number) {
@@ -426,18 +449,11 @@ export default function Dashboard() {
     }
   }
 
-  const mapaCadeiras = useMemo(() => montarMapaCadeiras(agendaHoje), [agendaHoje]);
-
   const emAtendimento = useMemo(() => {
     const agora = Date.now();
     const abertos = agendaHoje.filter((a) => a.status !== 'concluido');
     return abertos.find((a) => new Date(a.data_hora).getTime() <= agora) || abertos[0] || null;
   }, [agendaHoje]);
-
-  const fila = useMemo(
-    () => montarFila(agendaHoje, duracaoMin, abertura, fechamento, mapaCadeiras),
-    [agendaHoje, duracaoMin, abertura, fechamento, mapaCadeiras],
-  );
 
   const proximoAgendamento = useMemo(() => {
     const agora = Date.now();
@@ -475,6 +491,11 @@ export default function Dashboard() {
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-x-hidden overflow-y-auto px-2.5 py-2.5 sm:px-3 sm:py-3 md:px-4 md:py-3.5 lg:overflow-y-hidden">
+      {aviso && (
+        <div className="pointer-events-none fixed inset-x-0 top-4 z-[10000] flex justify-center px-4">
+          <p className="rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-800 shadow-sm">{aviso}</p>
+        </div>
+      )}
       <header className="relative z-20 mb-3 shrink-0">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0">
@@ -525,13 +546,14 @@ export default function Dashboard() {
             >
               <Settings size={18} />
             </Link>
-            <Link
-              href="/agenda"
+            <button
+              type="button"
+              onClick={() => setModalAgenda(true)}
               className="inline-flex h-11 items-center gap-2 rounded-full bg-neutral-900 px-5 text-sm font-medium text-white hover:bg-neutral-800 sm:text-base"
             >
               <Plus size={18} />
               Novo agendamento
-            </Link>
+            </button>
           </div>
         </div>
 
@@ -650,24 +672,16 @@ export default function Dashboard() {
                   <h3 className="text-lg font-semibold text-neutral-900 sm:text-xl">Estatísticas</h3>
                   <p className="text-sm text-neutral-500 sm:text-base">{graficoLabel}</p>
                 </div>
-                <div className="flex rounded-full border border-black/10 bg-[#f3f4f1] p-1">
-                  {([
-                    ['hoje', 'Hoje'],
-                    ['semana', 'Semana'],
-                    ['mes', 'Mês'],
-                  ] as const).map(([id, label]) => (
-                    <button
-                      key={id}
-                      type="button"
-                      onClick={() => setPeriodo(id)}
-                      className={`rounded-full px-3 py-1 text-sm font-medium sm:px-4 sm:text-base ${
-                        periodo === id ? 'bg-neutral-900 text-white' : 'text-neutral-600'
-                      }`}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
+                <SegmentedControl
+                  value={periodo}
+                  onChange={setPeriodo}
+                  className="shrink-0"
+                  options={[
+                    { value: 'hoje', label: 'Hoje' },
+                    { value: 'semana', label: 'Semana' },
+                    { value: 'mes', label: 'Mês' },
+                  ]}
+                />
               </div>
 
               <div className="mt-3 flex shrink-0 flex-wrap gap-4 text-sm sm:text-base">
@@ -745,36 +759,23 @@ export default function Dashboard() {
                   <span className="text-sm text-neutral-400">{agendaHoje.length}</span>
                 </div>
                 <ul className="min-h-[8rem] flex-1 overflow-y-auto overscroll-contain p-2 lg:min-h-0">
-                  {fila.length === 0 ? (
+                  {agendaHoje.length === 0 ? (
                     <li className="p-3 text-sm text-neutral-400 sm:text-base">Nenhuma consulta hoje.</li>
                   ) : (
-                    fila.map((linha) => {
-                      if (linha.tipo === 'livre') {
-                        return (
-                          <li key={linha.id}>
-                            <Link href="/agenda" className="mb-2 flex items-start justify-between gap-2 rounded-2xl border border-black/5 bg-[#f8f8f6] p-3 hover:bg-white">
-                              <div>
-                                <p className="font-medium text-neutral-900 sm:text-base">Horário livre</p>
-                                <p className="text-sm font-medium text-neutral-600">{linha.inicio}</p>
-                              </div>
-                              <ArrowUpRight size={16} className="shrink-0 text-neutral-400" />
-                            </Link>
-                          </li>
-                        );
-                      }
-                      const atual = emAtendimento?.id === linha.ag.id;
+                    agendaHoje.map((ag) => {
+                      const atual = emAtendimento?.id === ag.id;
                       return (
-                        <li key={linha.id}>
+                        <li key={ag.id}>
                           <Link
-                            href={linha.ag.pacientes?.id ? `/pacientes/${linha.ag.pacientes.id}` : '/agenda'}
+                            href={ag.pacientes?.id ? `/pacientes/${ag.pacientes.id}` : '/agenda'}
                             className={`mb-2 flex items-start justify-between gap-2 rounded-2xl border p-3 ${
                               atual ? 'border-[#c8f053] bg-white' : 'border-black/5 bg-[#f8f8f6] hover:bg-white'
                             }`}
                           >
                             <div className="min-w-0">
-                              <p className="truncate font-medium text-neutral-900 sm:text-base">{linha.ag.pacientes?.nome || 'Consulta'}</p>
+                              <p className="truncate font-medium text-neutral-900 sm:text-base">{ag.pacientes?.nome || 'Consulta'}</p>
                               <p className="truncate text-sm font-medium text-neutral-600">
-                                {hora(linha.ag.data_hora)} · {linha.ag.procedimento || 'Consulta'}
+                                {hora(ag.data_hora)} · {ag.procedimento || 'Consulta'}
                               </p>
                             </div>
                             <ArrowUpRight size={16} className="shrink-0 text-neutral-400" />
@@ -831,6 +832,14 @@ export default function Dashboard() {
             </aside>
           </div>
         </div>
+      <ModalNovoAgendamento
+        open={modalAgenda}
+        onClose={() => setModalAgenda(false)}
+        onSaved={() => {
+          avisar('Agendamento salvo.');
+          carregar({ silent: true });
+        }}
+      />
     </div>
   );
 }
