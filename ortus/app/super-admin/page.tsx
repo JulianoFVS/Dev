@@ -7,6 +7,7 @@ import {
     Loader2, Plus, X, Copy, Check, AlertTriangle, ArrowUpDown,
 } from 'lucide-react';
 import Modal from '@/components/ui/Modal';
+import { useCustomAlert } from '@/components/ui/CustomAlert';
 
 type Rede = { id: string | number; nome: string; created_at?: string | null };
 
@@ -40,6 +41,9 @@ export default function SuperAdminPage() {
     const [credenciais, setCredenciais] = useState<Credenciais | null>(null);
     const [copiado, setCopiado] = useState<'email' | 'senha' | 'tudo' | null>(null);
     const [ordem, setOrdem] = useState<{ campo: 'nome' | 'criada'; dir: 'asc' | 'desc' }>({ campo: 'nome', dir: 'asc' });
+    const [editando, setEditando] = useState<Rede | null>(null);
+    const [nomeEdit, setNomeEdit] = useState('');
+    const { showConfirm } = useCustomAlert();
 
     useEffect(() => { validar(); }, []);
 
@@ -132,6 +136,74 @@ export default function SuperAdminPage() {
         setSalvando(false);
     }
 
+    function abrirEdicao(rede: Rede) {
+        setErro(null);
+        setEditando(rede);
+        setNomeEdit(rede.nome);
+    }
+
+    async function salvarEdicao(e: React.FormEvent) {
+        e.preventDefault();
+        if (!editando) return;
+        const nome = nomeEdit.trim();
+        if (!nome) { setErro('Nome da rede é obrigatório.'); return; }
+        const anterior = editando;
+        const proximas = redes.map((r) => String(r.id) === String(anterior.id) ? { ...r, nome } : r);
+        setRedes(proximas);
+        writeRouteCache(SA_CACHE_KEY, SA_SCOPE, { redes: proximas, metricas });
+        setEditando(null);
+        setSalvando(true);
+        setErro(null);
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            const token = session?.access_token;
+            if (!token) throw new Error('Sessão expirada.');
+            const resp = await fetch('/api/super-admin/rede', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body: JSON.stringify({ id: anterior.id, nome }),
+            });
+            const json = await resp.json().catch(() => ({}));
+            if (!resp.ok) throw new Error(json.error || 'Não foi possível renomear a rede.');
+        } catch (err: any) {
+            setRedes(redes);
+            writeRouteCache(SA_CACHE_KEY, SA_SCOPE, { redes, metricas });
+            setEditando(anterior);
+            setNomeEdit(anterior.nome);
+            setErro(err?.message || 'Não foi possível renomear a rede.');
+        }
+        setSalvando(false);
+    }
+
+    async function apagarRede(rede: Rede) {
+        const ok = await showConfirm(`Apagar a rede "${rede.nome}"?`, { title: 'Apagar rede', type: 'warning', confirmLabel: 'Apagar' });
+        if (!ok) return;
+        const anterior = redes;
+        const metricasAnteriores = metricas;
+        const proximas = redes.filter((r) => String(r.id) !== String(rede.id));
+        const metricasProximas = { ...metricas, redes: Math.max(0, metricas.redes - 1) };
+        setRedes(proximas);
+        setMetricas(metricasProximas);
+        writeRouteCache(SA_CACHE_KEY, SA_SCOPE, { redes: proximas, metricas: metricasProximas });
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            const token = session?.access_token;
+            if (!token) throw new Error('Sessão expirada.');
+            const resp = await fetch('/api/super-admin/rede', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body: JSON.stringify({ id: rede.id }),
+            });
+            const json = await resp.json().catch(() => ({}));
+            if (!resp.ok) throw new Error(json.error || 'Não foi possível apagar a rede.');
+        } catch (err: any) {
+            setRedes(anterior);
+            setMetricas(metricasAnteriores);
+            writeRouteCache(SA_CACHE_KEY, SA_SCOPE, { redes: anterior, metricas: metricasAnteriores });
+            setErro(err?.message || 'Não foi possível apagar a rede.');
+        }
+    }
+
     function copiar(tipo: 'email' | 'senha' | 'tudo') {
         if (!credenciais) return;
         const texto =
@@ -169,23 +241,32 @@ export default function SuperAdminPage() {
     if (autorizado === false) return null;
 
     return (
-        <div className="flex h-full min-h-0 flex-col overflow-hidden px-3 py-3 font-poppins">
-            <div className="mb-3 shrink-0">
+        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden px-2.5 py-2.5 font-poppins sm:px-3 sm:py-3 md:px-4 md:py-3.5">
+            <div className="flex shrink-0 flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                 <div className="min-w-0">
                     <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 md:text-[2rem]">Painel SaaS</h1>
-                    <p className="mt-1 text-sm text-neutral-500">Redes, clínicas e usuários da plataforma.</p>
+                    <p className="mt-1 text-sm text-neutral-500 sm:text-base">
+                        {carregandoLista ? 'Redes, clínicas e usuários da plataforma.' : (
+                            <>
+                                <span className="tabular-nums text-neutral-900">{metricas.redes}</span> {metricas.redes === 1 ? 'rede' : 'redes'}
+                                {' · '}
+                                <span className="tabular-nums text-neutral-900">{metricas.clinicas}</span> {metricas.clinicas === 1 ? 'clínica' : 'clínicas'}
+                                {' · '}
+                                <span className="tabular-nums text-neutral-900">{metricas.usuarios}</span> {metricas.usuarios === 1 ? 'usuário' : 'usuários'}
+                            </>
+                        )}
+                    </p>
                 </div>
-                <div className="mt-3 flex items-center justify-between gap-3">
-                    <div className="flex min-w-0 flex-wrap gap-x-6 gap-y-1">
-                        <p className="text-sm text-neutral-500"><span className="font-medium tabular-nums text-neutral-900">{carregandoLista ? '—' : metricas.redes}</span> {metricas.redes === 1 ? 'rede' : 'redes'}</p>
-                        <p className="text-sm text-neutral-500"><span className="font-medium tabular-nums text-neutral-900">{carregandoLista ? '—' : metricas.clinicas}</span> {metricas.clinicas === 1 ? 'clínica' : 'clínicas'}</p>
-                        <p className="text-sm text-neutral-500"><span className="font-medium tabular-nums text-neutral-900">{carregandoLista ? '—' : metricas.usuarios}</span> {metricas.usuarios === 1 ? 'usuário' : 'usuários'}</p>
-                    </div>
-                    <button type="button" onClick={abrirModal} className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800">
-                        <Plus size={14} /> Novo cliente
-                    </button>
-                </div>
+                <button type="button" onClick={abrirModal} className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-md bg-neutral-900 px-4 text-sm font-medium text-white hover:bg-neutral-800">
+                    <Plus size={16} /> Novo cliente
+                </button>
             </div>
+
+            {erro && !modalOpen && !editando && (
+                <p className="flex shrink-0 items-center gap-2 text-sm text-rose-600">
+                    <AlertTriangle size={14} /> {erro}
+                </p>
+            )}
 
             <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white">
                 <div className="shrink-0 px-3 pt-3">
@@ -213,11 +294,12 @@ export default function SuperAdminPage() {
                                             </button>
                                         </th>
                                     ))}
+                                    <th className="px-4 py-2 text-right text-xs font-medium text-neutral-400 sm:px-5">Ações</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {redesOrdenadas.length === 0 && (
-                                    <tr><td colSpan={2} className="px-4 py-10 text-center text-sm text-neutral-400">Nenhuma rede cadastrada.</td></tr>
+                                    <tr><td colSpan={3} className="px-4 py-10 text-center text-sm text-neutral-400">Nenhuma rede cadastrada.</td></tr>
                                 )}
                                 {redesOrdenadas.map((r) => (
                                     <tr key={String(r.id)} className="border-b border-black/5 last:border-0 hover:bg-neutral-50/60">
@@ -230,6 +312,10 @@ export default function SuperAdminPage() {
                                             </div>
                                         </td>
                                         <td className="px-4 py-2.5 text-neutral-600 sm:px-5">{fmtData(r.created_at)}</td>
+                                        <td className="px-4 py-2.5 text-right sm:px-5">
+                                            <button type="button" onClick={() => abrirEdicao(r)} className="inline-flex h-8 items-center rounded-md px-2.5 text-sm font-medium text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900">Editar</button>
+                                            <button type="button" onClick={() => apagarRede(r)} className="inline-flex h-8 items-center rounded-md px-2.5 text-sm font-medium text-rose-600 hover:bg-rose-50">Apagar</button>
+                                        </td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -245,14 +331,14 @@ export default function SuperAdminPage() {
                             <h2 className="text-lg font-semibold text-neutral-900">Novo cliente</h2>
                             <p className="mt-0.5 text-xs font-medium text-neutral-400">Rede, clínica inicial e acesso do dono.</p>
                         </div>
-                        <button type="button" onClick={() => setModalOpen(false)} className="rounded-full p-2 text-neutral-400 hover:bg-neutral-100" aria-label="Fechar"><X size={18}/></button>
+                        <button type="button" onClick={() => setModalOpen(false)} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-100" aria-label="Fechar"><X size={16}/></button>
                     </div>
                     {erro && (
                         <p className="mb-3 flex items-center gap-2 text-xs font-medium text-rose-600">
                             <AlertTriangle size={14} /> {erro}
                         </p>
                     )}
-                    <div className="grid grid-cols-1 gap-x-3 gap-y-2.5 sm:grid-cols-2">
+                    <div className="grid grid-cols-1 gap-x-3 gap-y-4 sm:grid-cols-2">
                         <label className="sm:col-span-2">
                             <span className={rotulo}>Nome da rede <span className="text-red-500">*</span></span>
                             <input value={form.nomeRede} onChange={(e) => setForm({ ...form, nomeRede: e.target.value })} className={campo} placeholder="Ex.: Clínica Sorrir" required />
@@ -270,10 +356,38 @@ export default function SuperAdminPage() {
                             <input type="email" value={form.emailDono} onChange={(e) => setForm({ ...form, emailDono: e.target.value })} className={campo} placeholder="dono@clinica.com" required />
                         </label>
                     </div>
-                    <div className="mt-5 flex justify-end border-t border-black/5 pt-4">
+                    <div className="mt-5 flex justify-end gap-2 border-t border-black/5 pt-4">
+                        <button type="button" onClick={() => setModalOpen(false)} className="inline-flex h-9 items-center rounded-md px-3 text-sm font-medium text-neutral-600 hover:bg-neutral-50">Cancelar</button>
                         <button type="submit" disabled={salvando} className="inline-flex h-9 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-40">
                             {salvando ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />}
                             Criar
+                        </button>
+                    </div>
+                </form>
+            </Modal>
+
+            <Modal open={!!editando} onClose={() => setEditando(null)} maxWidth="md" hideCloseButton panelClassName="overflow-hidden rounded-xl border border-neutral-200 bg-white">
+                <form onSubmit={salvarEdicao} className="px-5 py-4 sm:px-6 sm:py-5">
+                    <div className="mb-5 flex items-start justify-between gap-3 border-b border-black/5 pb-4">
+                        <div>
+                            <h2 className="text-base font-semibold text-neutral-900">Editar rede</h2>
+                            <p className="mt-0.5 text-sm text-neutral-500">Altera só o nome da rede.</p>
+                        </div>
+                        <button type="button" onClick={() => setEditando(null)} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-100" aria-label="Fechar"><X size={16}/></button>
+                    </div>
+                    {erro && (
+                        <p className="mb-3 flex items-center gap-2 text-xs font-medium text-rose-600">
+                            <AlertTriangle size={14} /> {erro}
+                        </p>
+                    )}
+                    <label>
+                        <span className={rotulo}>Nome da rede</span>
+                        <input value={nomeEdit} onChange={(e) => setNomeEdit(e.target.value)} className={campo} required />
+                    </label>
+                    <div className="mt-5 flex justify-end gap-2 border-t border-black/5 pt-4">
+                        <button type="button" onClick={() => setEditando(null)} className="inline-flex h-9 items-center rounded-md px-3 text-sm font-medium text-neutral-600 hover:bg-neutral-50">Cancelar</button>
+                        <button type="submit" disabled={salvando} className="inline-flex h-9 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-40">
+                            {salvando ? <Loader2 size={15} className="animate-spin" /> : null} Salvar
                         </button>
                     </div>
                 </form>

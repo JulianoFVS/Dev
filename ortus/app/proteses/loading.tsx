@@ -7,14 +7,14 @@ export default function ProtesesLoading() {
           <div className="mt-2 h-4 w-56 animate-pulse rounded-xl bg-neutral-100" />
         </div>
         <div className="flex gap-2">
-          <div className="h-10 w-28 animate-pulse rounded-full bg-neutral-200" />
-          <div className="h-10 w-36 animate-pulse rounded-full bg-neutral-900/20" />
+          <div className="h-10 w-28 animate-pulse rounded-md bg-neutral-200" />
+          <div className="h-10 w-36 animate-pulse rounded-md bg-neutral-900/20" />
         </div>
       </div>
-      <div className="h-14 shrink-0 animate-pulse rounded-[1.35rem] bg-neutral-200 sm:rounded-[1.5rem]" />
+      <div className="h-14 shrink-0 animate-pulse rounded-xl bg-neutral-200" />
       <div className="kanban-scrollbar flex min-h-0 flex-1 gap-3 overflow-x-auto px-3 pb-2 pt-3 sm:px-4 sm:pt-4">
         {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="h-full min-h-[280px] w-72 shrink-0 animate-pulse rounded-[1.35rem] bg-neutral-200 sm:min-h-0 sm:rounded-[1.5rem]" />
+          <div key={i} className="h-full min-h-[280px] w-72 shrink-0 animate-pulse rounded-xl bg-neutral-200 sm:min-h-0" />
         ))}
       </div>
     </div>

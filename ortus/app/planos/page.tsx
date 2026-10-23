@@ -6,6 +6,7 @@ import { useClinica } from '@/app/context/ClinicaContext';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
 import Modal from '@/components/ui/Modal';
 import CustomSelect from '@/components/ui/CustomSelect';
+import Switch from '@/components/ui/Switch';
 import {
     Loader2,
     Plus,
@@ -841,10 +842,10 @@ export function PlanosContent({ embedded = false }: { embedded?: boolean }) {
                             <textarea value={novoPlanoObservacoes} onChange={(e) => setNovoPlanoObservacoes(e.target.value)} rows={2} className="w-full resize-none rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 outline-none placeholder:text-neutral-400 focus:border-neutral-900" placeholder="Cobertura, TUSS, glosas"/>
                         </label>
                         {!editandoPlano && (
-                            <button type="button" onClick={() => setCriarPlanoVazio((v) => !v)} className={`flex h-10 items-center justify-between rounded-md border px-3 text-sm font-medium ${criarPlanoVazio ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-200 text-neutral-700'}`}>
+                            <div className="flex h-10 items-center justify-between rounded-md border border-neutral-200 px-3 text-sm font-medium text-neutral-700">
                                 Criar plano vazio
-                                <span className={`h-5 w-9 rounded-full p-0.5 ${criarPlanoVazio ? 'bg-white/30' : 'bg-neutral-200'}`}><span className={`block h-4 w-4 rounded-full bg-white ${criarPlanoVazio ? 'ml-auto' : ''}`} /></span>
-                            </button>
+                                <Switch checked={criarPlanoVazio} onChange={setCriarPlanoVazio} />
+                            </div>
                         )}
                     </div>
                     <div className="mt-5 flex justify-end border-t border-black/5 pt-4">

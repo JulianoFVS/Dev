@@ -6,10 +6,10 @@ export default function AgendaLoading() {
           <div className="h-8 w-32 animate-pulse rounded-xl bg-neutral-200" />
           <div className="h-4 w-48 animate-pulse rounded-lg bg-neutral-100" />
         </div>
-        <div className="h-11 w-full animate-pulse rounded-full bg-neutral-200 sm:w-44" />
+        <div className="h-9 w-full animate-pulse rounded-md bg-neutral-200 sm:w-44" />
       </div>
-      <div className="h-10 w-full max-w-md animate-pulse rounded-full bg-neutral-100" />
-      <div className="min-h-0 flex-1 animate-pulse rounded-[1.35rem] bg-neutral-200 sm:rounded-[1.5rem]" />
+      <div className="h-10 w-full max-w-md animate-pulse rounded-md bg-neutral-100" />
+      <div className="min-h-0 flex-1 animate-pulse rounded-xl bg-neutral-200" />
     </div>
   );
 }

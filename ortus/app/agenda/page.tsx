@@ -393,7 +393,7 @@ export default function Agenda() {
       setOpenModal(true);
   }
 
-  const cardShell = 'rounded-[1.35rem] bg-white sm:rounded-[1.5rem]';
+  const cardShell = 'rounded-xl bg-white';
 
   const renderEventContent = (eventInfo: any) => {
       const props = eventInfo.event.extendedProps;

@@ -205,7 +205,7 @@ export default function Pacientes() {
       e.stopPropagation();
   }
 
-  const card = 'rounded-[1.35rem] bg-white sm:rounded-[1.5rem]';
+  const card = 'rounded-xl bg-white';
 
   return (
     <div className="w-full space-y-3 px-2.5 py-2.5 pb-12 font-poppins sm:px-3 sm:py-3 md:px-4 md:py-3.5">
@@ -215,7 +215,7 @@ export default function Pacientes() {
             <p className="mt-1 text-sm text-neutral-500 sm:text-base">{filtrados.length} {filtrados.length === 1 ? 'paciente' : 'pacientes'}</p>
           </div>
           <div className="flex w-full gap-2 sm:w-auto">
-              <button onClick={novoPaciente} className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-full bg-neutral-900 px-4 text-sm font-medium text-white hover:bg-neutral-800 sm:flex-none"><Plus size={16}/> Novo paciente</button>
+              <button onClick={novoPaciente} className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-md bg-neutral-900 px-4 text-sm font-medium text-white hover:bg-neutral-800 sm:flex-none"><Plus size={16}/> Novo paciente</button>
           </div>
       </div>
 
@@ -223,18 +223,18 @@ export default function Pacientes() {
           <div className="flex flex-col gap-2 md:flex-row md:items-center">
               <div className="relative min-w-0 flex-1">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" size={18}/>
-                  <input type="text" placeholder="Buscar nome, CPF ou telefone…" className="h-10 w-full rounded-full border border-black/10 bg-[#f8f8f6] py-2 pl-10 pr-3 text-sm outline-none placeholder:text-neutral-400 focus:border-neutral-400" value={busca} onChange={e => setBusca(e.target.value)} />
+                  <input type="text" placeholder="Buscar nome, CPF ou telefone…" className="h-10 w-full rounded-md border border-neutral-200 bg-white py-2 pl-10 pr-3 text-sm text-neutral-900 outline-none placeholder:text-neutral-400 focus:border-neutral-900" value={busca} onChange={e => setBusca(e.target.value)} />
               </div>
 
               <div className="flex shrink-0 items-center gap-2">
-              <button onClick={() => setShowFiltros(!showFiltros)} className={`inline-flex h-10 items-center gap-2 rounded-full border px-4 text-sm font-medium transition-colors ${showFiltros || filtrosAtivos ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-black/10 text-neutral-700 hover:bg-neutral-50'}`}>
+              <button onClick={() => setShowFiltros(!showFiltros)} className={`inline-flex h-10 items-center gap-2 rounded-md border px-4 text-sm font-medium transition-colors ${showFiltros || filtrosAtivos ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-200 text-neutral-700 hover:bg-neutral-50'}`}>
                   <Filter size={15}/> Filtros
                   {filtrosAtivos && <span className="h-1.5 w-1.5 rounded-full bg-[#c8f053]"></span>}
               </button>
 
-              <div className="flex rounded-full border border-black/10 bg-[#f3f4f1] p-0.5">
-                  <button onClick={() => setVisualizacao('lista')} className={`rounded-full p-2 ${visualizacao === 'lista' ? 'bg-neutral-900 text-white' : 'text-neutral-500'}`}><ListIcon size={18}/></button>
-                  <button onClick={() => setVisualizacao('cards')} className={`rounded-full p-2 ${visualizacao === 'cards' ? 'bg-neutral-900 text-white' : 'text-neutral-500'}`}><LayoutGrid size={18}/></button>
+              <div className="flex rounded-md border border-neutral-200 bg-white p-0.5">
+                  <button onClick={() => setVisualizacao('lista')} className={`rounded-[5px] p-2 ${visualizacao === 'lista' ? 'bg-neutral-900 text-white' : 'text-neutral-500'}`}><ListIcon size={18}/></button>
+                  <button onClick={() => setVisualizacao('cards')} className={`rounded-[5px] p-2 ${visualizacao === 'cards' ? 'bg-neutral-900 text-white' : 'text-neutral-500'}`}><LayoutGrid size={18}/></button>
               </div>
               </div>
           </div>
@@ -243,25 +243,25 @@ export default function Pacientes() {
               <div className="flex flex-wrap items-end gap-2 border-t border-black/5 pt-3">
                   <div className="min-w-0 flex-1">
                       <label className="mb-1 block text-[10px] font-medium uppercase tracking-wide text-neutral-400">Clínica</label>
-                      <CustomSelect pill value={filtroClinica} onChange={setFiltroClinica} options={[{value:'todas',label:'Todas as clínicas'}, ...clinicas.map((c:any) => ({value:String(c.id),label:c.nome}))]} size="sm"/>
+                      <CustomSelect value={filtroClinica} onChange={setFiltroClinica} options={[{value:'todas',label:'Todas as clínicas'}, ...clinicas.map((c:any) => ({value:String(c.id),label:c.nome}))]} size="sm"/>
                   </div>
                   <div className="min-w-0 flex-1">
                       <label className="mb-1 block text-[10px] font-medium uppercase tracking-wide text-neutral-400">Status</label>
-                      <CustomSelect pill value={filtroStatus} onChange={setFiltroStatus} options={[{value:'todos',label:'Todos'},{value:'ativo',label:'Ativo'},{value:'agendado',label:'Agendado'},{value:'novo',label:'Novo'}]} size="sm"/>
+                      <CustomSelect value={filtroStatus} onChange={setFiltroStatus} options={[{value:'todos',label:'Todos'},{value:'ativo',label:'Ativo'},{value:'agendado',label:'Agendado'},{value:'novo',label:'Novo'}]} size="sm"/>
                   </div>
                   <div className="min-w-0 flex-1">
                       <label className="mb-1 block text-[10px] font-medium uppercase tracking-wide text-neutral-400">Sem consulta há</label>
-                      <CustomSelect pill value={String(filtroSemConsulta ?? '')} onChange={v => setFiltroSemConsulta(v ? Number(v) : null)} options={[{value:'',label:'Qualquer período'},{value:'30',label:'30 dias'},{value:'60',label:'60 dias'},{value:'90',label:'90 dias'},{value:'180',label:'6 meses'},{value:'365',label:'1 ano'}]} size="sm"/>
+                      <CustomSelect value={String(filtroSemConsulta ?? '')} onChange={v => setFiltroSemConsulta(v ? Number(v) : null)} options={[{value:'',label:'Qualquer período'},{value:'30',label:'30 dias'},{value:'60',label:'60 dias'},{value:'90',label:'90 dias'},{value:'180',label:'6 meses'},{value:'365',label:'1 ano'}]} size="sm"/>
                   </div>
                   <div className="min-w-0 flex-1">
                       <label className="mb-1 block text-[10px] font-medium uppercase tracking-wide text-neutral-400">Procedimento pendente</label>
-                      <input placeholder="Ex: canal" value={filtroProcedimento} onChange={e => setFiltroProcedimento(e.target.value)} className="h-10 w-full rounded-full border border-black/10 bg-[#f8f8f6] px-4 text-sm outline-none focus:border-neutral-400"/>
+                      <input placeholder="Ex: canal" value={filtroProcedimento} onChange={e => setFiltroProcedimento(e.target.value)} className="h-10 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm text-neutral-900 outline-none focus:border-neutral-900"/>
                   </div>
                   <button
                       type="button"
                       onClick={() => setFiltroDebito((atual) => !atual)}
                       aria-pressed={filtroDebito}
-                      className={`inline-flex h-10 shrink-0 items-center gap-2 rounded-full border px-3 text-sm font-medium transition-colors ${filtroDebito ? 'border-red-200 bg-red-50 text-neutral-900' : 'border-black/10 bg-[#f8f8f6] text-neutral-700 hover:bg-white'}`}
+                      className={`inline-flex h-10 shrink-0 items-center gap-2 rounded-md border px-3 text-sm font-medium transition-colors ${filtroDebito ? 'border-red-200 bg-red-50 text-neutral-900' : 'border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50'}`}
                   >
                       <span className={`flex h-4 w-4 items-center justify-center rounded-md border ${filtroDebito ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-300 bg-white'}`}>
                           {filtroDebito && <Check size={11} strokeWidth={3} />}
@@ -277,7 +277,7 @@ export default function Pacientes() {
       </div>
 
       {clinicaDivergente && (
-          <div className="flex items-start gap-3 rounded-[1.25rem] border border-amber-300 bg-amber-50 px-4 py-3.5 text-sm font-medium text-amber-950 sm:items-center sm:text-base">
+          <div className="flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3.5 text-sm font-medium text-amber-950 sm:items-center sm:text-base">
               <AlertCircle size={20} className="mt-0.5 shrink-0 text-amber-600 sm:mt-0" />
               <p>A clínica deste filtro não é a unidade ativa no menu lateral.</p>
           </div>
@@ -380,8 +380,8 @@ export default function Pacientes() {
                 <div className="space-y-2">
                     <div className="flex items-center gap-2 text-sm text-neutral-600"><Phone size={14}/> {p.telefone || 'Sem telefone'}</div>
                     <div className="flex flex-wrap items-center gap-2">
-                        <span className="rounded-full bg-neutral-100 px-2.5 py-1 text-[11px] font-semibold uppercase text-neutral-700">{planoDe(p)}</span>
-                        <span className="rounded-full border border-black/10 px-2.5 py-1 text-[11px] font-semibold capitalize text-neutral-600">{p.status}</span>
+                        <span className="rounded-md bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-700">{planoDe(p)}</span>
+                        <span className="rounded-md border border-neutral-200 px-2 py-0.5 text-xs font-medium capitalize text-neutral-600">{p.status}</span>
                     </div>
                 </div>
             </div>

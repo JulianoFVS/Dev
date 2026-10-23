@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { criarTratamento } from '@/lib/db/tratamentos';
 import { Calendar, CheckCircle, Clock, DollarSign, Loader2, Save, Smile, User } from 'lucide-react';
+import Switch from '@/components/ui/Switch';
 
 export type TreatmentPatient = {
   id: string | number;
@@ -170,13 +171,7 @@ export default function TreatmentForm({ paciente, onSuccess, onCancel }: Treatme
               <Calendar size={14} className={form.agendar ? 'text-blue-600' : 'text-slate-400'} />
               <p className="text-[11px] font-black uppercase tracking-wider text-slate-500">Agendar na Agenda</p>
             </div>
-            <button
-              type="button"
-              onClick={() => setForm({ ...form, agendar: !form.agendar })}
-              className={`relative w-10 h-5 rounded-full transition-colors ${form.agendar ? 'bg-blue-600' : 'bg-slate-300'}`}
-            >
-              <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${form.agendar ? 'translate-x-5' : 'translate-x-0'}`} />
-            </button>
+            <Switch checked={form.agendar} onChange={(valor) => setForm({ ...form, agendar: valor })} />
           </div>
           {form.agendar && (
             <div className="mt-3 animate-in fade-in slide-in-from-top-1">

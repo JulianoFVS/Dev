@@ -5,11 +5,12 @@ import { supabase } from '@/lib/supabase';
 import { clinicScope, readRouteCache, writeRouteCache } from '@/lib/routeListCache';
 import { carregarConfig } from '@/lib/configClinica';
 import CustomSelect from '@/components/ui/CustomSelect';
+import CampoData from '@/components/ui/CampoData';
 import { useClinica, getClinicLabel } from '@/app/context/ClinicaContext';
 import { printDocument, printTable, escapePrintHtml } from '@/lib/printDocument';
 import { AlertCircle, ArrowLeft, ChevronRight, Printer } from 'lucide-react';
 
-const cardShell = 'rounded-[1.35rem] bg-white sm:rounded-[1.5rem]';
+const cardShell = 'rounded-xl border border-neutral-200 bg-white';
 const REL_CACHE_KEY = 'ortus:relatorios:v2';
 const DIA = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'] as const;
 
@@ -337,9 +338,6 @@ export default function Relatorios() {
         if (clinicLoading || !activeClinicId) return;
         if (!silent) setLoading(true);
 
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) { if (gen === fetchGen.current) setLoading(false); return; }
-
         let ids = clinics.map((c) => c.id).filter((id) => id != null && String(id) !== '');
         if (activeClinicId !== 'all') ids = ids.filter((id) => String(id) === String(activeClinicId));
         if (ids.length === 0) {
@@ -354,42 +352,42 @@ export default function Relatorios() {
         const fetchInicio = prev.inicio < historico ? prev.inicio : historico;
         const cidMeta = activeClinicId !== 'all' ? String(activeClinicId) : String(ids[0]);
 
-        const [agendamentos, despesas, pacientes, planos, fiados, visitas, cards, colunas, comissoes, horarios, meta] = await Promise.all([
+        const [agendamentos, despesas, pacientes, fiados, horarios, meta, vinculos] = await Promise.all([
             ler<Ag[]>(supabase.from('agendamentos').select('id, data_hora, procedimento, status, valor, desconto, valor_final, paciente_id, profissional_id, pacientes(nome), profissionais(nome)').gte('data_hora', fetchInicio.toISOString()).lte('data_hora', range.fim.toISOString()).in('clinica_id', ids)),
             ler<Despesa[]>(supabase.from('despesas').select('id, descricao, valor, data, categoria, tipo, status').gte('data', isoDia(fetchInicio)).lte('data', isoDia(range.fim)).in('clinica_id', ids)),
             ler<Pac[]>(supabase.from('pacientes').select('id, nome, created_at, plano_id').in('clinica_id', ids)),
-            ler<Plano[]>(supabase.from('planos').select('id, nome, tipo').in('clinica_id', ids)),
             ler<Ag[]>(supabase.from('agendamentos').select('id, data_hora, procedimento, status, valor, desconto, valor_final, paciente_id, profissional_id, pacientes(nome), profissionais(nome)').eq('status', 'fiado').in('clinica_id', ids)),
-            ler<Visita[]>(supabase.from('agendamentos').select('paciente_id, data_hora').eq('status', 'concluido').in('clinica_id', ids).order('data_hora', { ascending: false }).limit(5000)),
-            ler<CardLab[]>(supabase.from('kanban_cartoes').select('id, paciente_nome, descricao, tipo_protese, data_entrega, valor, coluna_id').in('clinica_id', ids).limit(2000)),
-            ler<Coluna[]>(supabase.from('kanban_colunas').select('id, titulo').in('clinica_id', ids)),
-            ler<Comissao[]>(supabase.from('comissoes_lancamentos').select('id, profissional_id, descricao, valor_comissao, status').in('clinica_id', ids).limit(2000)),
             ler<Horario[]>(supabase.from('profissionais_horarios').select('profissional_id, inicio, fim, intervalo_minutos, dias_semana').in('clinica_id', ids)),
             carregarConfig<Record<string, unknown>>(cidMeta, 'lancamentos_meta', 'ortus_lancamentos_meta', {}).catch(() => ({})),
+            ler<{ profissionais: Prof | Prof[] | null }[]>(supabase.from('profissionais_clinicas').select('profissionais(id, nome)').in('clinica_id', ids)),
         ]);
 
         if (gen !== fetchGen.current) return;
 
-        const profIds = new Set<number>();
-        [...agendamentos, ...fiados].forEach((a) => { if (a.profissional_id) profIds.add(Number(a.profissional_id)); });
-        comissoes.forEach((c) => { if (c.profissional_id) profIds.add(Number(c.profissional_id)); });
-        horarios.forEach((h) => { if (h.profissional_id) profIds.add(Number(h.profissional_id)); });
-        let profissionais: Prof[] = [];
-        if (profIds.size > 0) {
-            const { data } = await supabase.from('profissionais').select('id, nome').in('id', [...profIds]);
-            profissionais = (data || []) as Prof[];
-        }
+        const profissionaisMap = new Map<string, Prof>();
+        vinculos.forEach((row) => {
+            const p = Array.isArray(row.profissionais) ? row.profissionais[0] : row.profissionais;
+            if (p?.id != null && p.nome) profissionaisMap.set(String(p.id), { id: Number(p.id), nome: p.nome });
+        });
+        const profissionais = [...profissionaisMap.values()];
+        const base = { agendamentos, despesas, pacientes, fiados, horarios, profissionais, meta: meta || {} };
+        setDados((prev) => ({ ...prev, ...base }));
+        jaCarregou.current = true;
+        setLoading(false);
+
+        const [planos, visitas, cards, colunas, comissoes] = await Promise.all([
+            ler<Plano[]>(supabase.from('planos').select('id, nome, tipo').in('clinica_id', ids)),
+            ler<Visita[]>(supabase.from('agendamentos').select('paciente_id, data_hora').eq('status', 'concluido').in('clinica_id', ids).order('data_hora', { ascending: false }).limit(5000)),
+            ler<CardLab[]>(supabase.from('kanban_cartoes').select('id, paciente_nome, descricao, tipo_protese, data_entrega, valor, coluna_id').in('clinica_id', ids).limit(2000)),
+            ler<Coluna[]>(supabase.from('kanban_colunas').select('id, titulo').in('clinica_id', ids)),
+            ler<Comissao[]>(supabase.from('comissoes_lancamentos').select('id, profissional_id, descricao, valor_comissao, status').in('clinica_id', ids).limit(2000)),
+        ]);
 
         if (gen !== fetchGen.current) return;
 
-        const snapshot: Snap = {
-            agendamentos, despesas, pacientes, planos, fiados, visitas, cards, colunas, comissoes, horarios, profissionais,
-            meta: meta || {},
-        };
+        const snapshot: Snap = { ...VAZIO, ...base, planos, visitas, cards, colunas, comissoes };
         writeRouteCache(REL_CACHE_KEY, relScope(activeClinicId, cacheKey), snapshot);
         setDados(snapshot);
-        jaCarregou.current = true;
-        setLoading(false);
     }
 
     const profNome = useMemo(() => {
@@ -504,7 +502,7 @@ export default function Relatorios() {
     }
 
     const pill = (ativo: boolean) =>
-        `rounded-full px-3 py-2 text-xs font-medium transition-colors sm:px-4 sm:text-sm ${ativo ? 'bg-neutral-900 text-white' : 'border border-black/10 bg-white text-neutral-600 hover:bg-neutral-50'}`;
+        `h-9 rounded-md px-3 text-sm font-medium transition-colors ${ativo ? 'bg-neutral-900 text-white' : 'border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50'}`;
 
     return (
         <div className="w-full space-y-3 px-2.5 py-2.5 pb-12 font-poppins sm:px-3 sm:py-3 md:px-4 md:py-3.5">
@@ -521,14 +519,14 @@ export default function Relatorios() {
                     </p>
                 </div>
                 {tipo !== 'painel' && (
-                    <button type="button" onClick={imprimir} className="inline-flex h-10 items-center justify-center gap-2 self-start rounded-full border border-black/10 bg-white px-4 text-sm font-medium text-neutral-800 hover:bg-neutral-50">
+                    <button type="button" onClick={imprimir} className="inline-flex h-10 items-center justify-center gap-2 self-start rounded-md border border-neutral-200 bg-white px-4 text-sm font-medium text-neutral-800 hover:bg-neutral-50">
                         <Printer size={16} /> <span className="hidden sm:inline">PDF</span>
                     </button>
                 )}
             </div>
 
             {activeClinicId === 'all' && (
-                <div className="flex items-start gap-2 rounded-[1.15rem] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
                     <AlertCircle size={16} className="mt-0.5 shrink-0" />
                     <span>Estes números somam todas as clínicas da sua conta. Selecione uma unidade no menu para ver só ela.</span>
                 </div>
@@ -544,10 +542,16 @@ export default function Relatorios() {
                     <button type="button" onClick={() => setModo('intervalo')} className={pill(modo === 'intervalo')}>Intervalo</button>
                 </div>
                 {modo === 'intervalo' && (
-                    <div className="flex flex-wrap items-center gap-2 rounded-full border border-black/10 bg-[#f8f8f6] px-3 py-2">
-                        <input type="date" value={dataInicio} onChange={(e) => setDataInicio(e.target.value)} className="bg-transparent text-xs font-medium text-neutral-700 outline-none sm:text-sm" />
-                        <span className="text-neutral-400">até</span>
-                        <input type="date" value={dataFim} onChange={(e) => setDataFim(e.target.value)} className="bg-transparent text-xs font-medium text-neutral-700 outline-none sm:text-sm" />
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto_1fr] sm:items-end">
+                        <label>
+                            <span className="mb-1.5 block text-xs font-medium text-neutral-500">De</span>
+                            <CampoData value={dataInicio} onChange={setDataInicio} />
+                        </label>
+                        <span className="hidden pb-2 text-sm text-neutral-400 sm:block">até</span>
+                        <label>
+                            <span className="mb-1.5 block text-xs font-medium text-neutral-500">Até</span>
+                            <CampoData value={dataFim} onChange={setDataFim} />
+                        </label>
                     </div>
                 )}
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -571,7 +575,7 @@ export default function Relatorios() {
                 <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
                     {GRUPOS.map((grupo) => (
                         <section key={grupo.titulo} className={`${cardShell} overflow-hidden`}>
-                            <h2 className="px-4 pb-1 pt-4 text-[11px] font-semibold uppercase tracking-[0.14em] text-neutral-400 sm:px-5">{grupo.titulo}</h2>
+                            <h2 className="px-4 pb-2 pt-3 text-base font-semibold text-neutral-900 sm:px-5">{grupo.titulo}</h2>
                             <div>
                                 {grupo.itens.map((id) => {
                                     const kpi = modelo.kpis.find((k) => k.id === id);
@@ -614,8 +618,8 @@ export default function Relatorios() {
                                 <div className="overflow-x-auto">
                                     <table className="min-w-[640px] w-full text-left text-sm">
                                         <thead>
-                                            <tr className="border-b border-black/5 text-[11px] uppercase tracking-wide text-neutral-400">
-                                                {s.colunas.map((c) => <th key={c} className="px-4 py-3 font-semibold sm:px-5">{c}</th>)}
+                                            <tr className="border-b border-black/5 text-xs font-medium text-neutral-400">
+                                                {s.colunas.map((c) => <th key={c} className="px-4 py-2 font-medium sm:px-5">{c}</th>)}
                                             </tr>
                                         </thead>
                                         <tbody>

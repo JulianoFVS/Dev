@@ -2,13 +2,14 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import {
-    TrendingUp, TrendingDown, Wallet, Activity, Plus,
-    Download, ArrowUpCircle, ArrowDownCircle, Loader2, X, Save, Calendar, AlertCircle, Search, Filter, Pencil,
-    Trash2, Ban, Clock as ClockIcon, RotateCcw, CheckCircle, Tag
+    Plus,
+    Download, ArrowUpCircle, ArrowDownCircle, Loader2, X, Save, AlertCircle, Search, Filter, Pencil,
+    Trash2, Ban, Clock as ClockIcon, RotateCcw, CheckCircle
 } from 'lucide-react';
 import { useClinica, getClinicLabel } from '@/app/context/ClinicaContext';
 import { carregarConfig, salvarConfig } from '@/lib/configClinica';
 import CustomSelect from '@/components/ui/CustomSelect';
+import CampoData from '@/components/ui/CampoData';
 import Modal from '@/components/ui/Modal';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
 import {
@@ -23,7 +24,9 @@ import {
 } from '@/lib/configDefaults';
 
 const CATS_PADRAO = nomesCategoriasAtivas(CATEGORIAS_FINANCEIRAS_PADRAO);
-const cardShell = 'rounded-[1.35rem] bg-white sm:rounded-[1.5rem]';
+const cardShell = 'rounded-xl border border-neutral-200 bg-white';
+const campo = 'box-border h-10 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm text-neutral-900 outline-none focus:border-neutral-900';
+const rotulo = 'mb-1.5 block text-xs font-medium text-neutral-500';
 
 const FORMAS_PAGAMENTO = [
   { value: 'nao_informada', label: 'Não informada' },
@@ -319,6 +322,11 @@ export default function Financeiro() {
           setSalvando(false);
           return;
       }
+      if (!novoLancamento.data) {
+          await showAlert('Informe a data.', { type: 'warning' });
+          setSalvando(false);
+          return;
+      }
       const clinicaId = activeClinicId;
       const { data: { user } } = await supabase.auth.getUser();
       const payload: any = {
@@ -509,7 +517,20 @@ export default function Financeiro() {
   const countCancelados = transacoes.filter(t => t.status === 'cancelado').length;
 
   const pillPeriodo = (ativo: boolean) =>
-    `rounded-full px-4 py-2 text-sm font-medium transition-colors ${ativo ? 'bg-neutral-900 text-white' : 'border border-black/10 bg-white text-neutral-600 hover:bg-neutral-50'}`;
+    `inline-flex h-10 items-center rounded-md px-3 text-sm font-medium transition-colors ${ativo ? 'bg-neutral-900 text-white' : 'border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50'}`;
+
+  function mudarMes(delta: number) {
+    const [ano, mes] = mesSelecionado.split('-').map(Number);
+    const data = new Date(ano, (mes || 1) - 1 + delta, 1);
+    setMesSelecionado(`${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, '0')}`);
+  }
+
+  const rotuloMes = (() => {
+    const [ano, mes] = mesSelecionado.split('-').map(Number);
+    if (!ano || !mes) return mesSelecionado;
+    const nome = new Date(ano, mes - 1, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+    return nome.charAt(0).toUpperCase() + nome.slice(1);
+  })();
 
   return (
     <div className="w-full space-y-3 px-2.5 py-2.5 pb-12 font-poppins sm:px-3 sm:py-3 md:px-4 md:py-3.5">
@@ -524,7 +545,7 @@ export default function Financeiro() {
           <button
             type="button"
             onClick={exportarCsv}
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-black/10 bg-white px-4 text-sm font-medium text-neutral-800 hover:bg-neutral-50"
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-neutral-200 bg-white px-4 text-sm font-medium text-neutral-800 hover:bg-neutral-50"
             title="Baixar o extrato filtrado em CSV"
           >
             <Download size={16} />
@@ -533,7 +554,7 @@ export default function Financeiro() {
           <button
             type="button"
             onClick={abrirNovoLancamento}
-            className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-full bg-neutral-900 px-4 text-sm font-medium text-white hover:bg-neutral-800 sm:flex-none"
+            className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-md bg-neutral-900 px-4 text-sm font-medium text-white hover:bg-neutral-800 sm:flex-none"
           >
             <Plus size={16} /> Novo lançamento
           </button>
@@ -541,7 +562,7 @@ export default function Financeiro() {
       </div>
 
       {activeClinicId === 'all' && (
-        <div className="flex items-start gap-2 rounded-[1.15rem] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           <AlertCircle size={16} className="mt-0.5 shrink-0" />
           <span>O caixa está somando todas as suas clínicas. Selecione uma unidade no menu para ver o extrato de uma clínica só.</span>
         </div>
@@ -554,26 +575,21 @@ export default function Financeiro() {
             <button type="button" onClick={() => setModoData('periodo')} className={pillPeriodo(modoData === 'periodo')}>Intervalo</button>
           </div>
           {modoData === 'mes' ? (
-            <div className="flex h-10 items-center gap-2 rounded-full border border-black/10 bg-[#f8f8f6] px-3">
-              <Calendar size={16} className="text-neutral-400" />
-              <input
-                type="month"
-                value={mesSelecionado}
-                onChange={(e) => setMesSelecionado(e.target.value)}
-                className="cursor-pointer bg-transparent text-sm font-medium text-neutral-800 outline-none"
-              />
+            <div className="flex h-10 items-center gap-1 rounded-md border border-neutral-200 bg-white px-1">
+              <button type="button" onClick={() => mudarMes(-1)} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-neutral-500 hover:bg-neutral-50" aria-label="Mês anterior">‹</button>
+              <span className="min-w-[9.5rem] px-1 text-center text-sm text-neutral-900">{rotuloMes}</span>
+              <button type="button" onClick={() => mudarMes(1)} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-neutral-500 hover:bg-neutral-50" aria-label="Próximo mês">›</button>
             </div>
           ) : (
-            <div className="flex flex-wrap items-center gap-2 rounded-full border border-black/10 bg-[#f8f8f6] px-3 py-2">
-              <input type="date" value={dataInicio} onChange={(e) => setDataInicio(e.target.value)} className="bg-transparent text-xs font-medium text-neutral-700 outline-none sm:text-sm" />
-              <span className="text-neutral-400">até</span>
-              <input type="date" value={dataFim} onChange={(e) => setDataFim(e.target.value)} className="bg-transparent text-xs font-medium text-neutral-700 outline-none sm:text-sm" />
+            <div className="grid min-w-0 flex-1 grid-cols-1 gap-2 sm:grid-cols-2">
+              <CampoData value={dataInicio} onChange={setDataInicio} />
+              <CampoData value={dataFim} onChange={setDataFim} />
             </div>
           )}
-          <div className="flex rounded-full border border-black/10 bg-[#f3f4f1] p-0.5">
-            <button type="button" onClick={() => setTipoFiltro('todos')} className={`rounded-full px-3 py-1.5 text-xs font-semibold ${tipoFiltro === 'todos' ? 'bg-neutral-900 text-white' : 'text-neutral-600'}`}>Todos</button>
-            <button type="button" onClick={() => setTipoFiltro('entrada')} className={`rounded-full px-3 py-1.5 text-xs font-semibold ${tipoFiltro === 'entrada' ? 'bg-neutral-900 text-white' : 'text-neutral-600'}`}>Entradas</button>
-            <button type="button" onClick={() => setTipoFiltro('saida')} className={`rounded-full px-3 py-1.5 text-xs font-semibold ${tipoFiltro === 'saida' ? 'bg-neutral-900 text-white' : 'text-neutral-600'}`}>Saídas</button>
+          <div className="flex rounded-md border border-neutral-200 bg-white p-0.5">
+            <button type="button" onClick={() => setTipoFiltro('todos')} className={`rounded-md px-3 py-1.5 text-sm font-medium ${tipoFiltro === 'todos' ? 'bg-neutral-900 text-white' : 'text-neutral-600'}`}>Todos</button>
+            <button type="button" onClick={() => setTipoFiltro('entrada')} className={`rounded-md px-3 py-1.5 text-sm font-medium ${tipoFiltro === 'entrada' ? 'bg-neutral-900 text-white' : 'text-neutral-600'}`}>Entradas</button>
+            <button type="button" onClick={() => setTipoFiltro('saida')} className={`rounded-md px-3 py-1.5 text-sm font-medium ${tipoFiltro === 'saida' ? 'bg-neutral-900 text-white' : 'text-neutral-600'}`}>Saídas</button>
           </div>
           <div className="relative min-w-0 flex-1">
             <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
@@ -581,7 +597,7 @@ export default function Financeiro() {
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
               placeholder="Descrição, paciente ou categoria"
-              className="h-10 w-full rounded-full border border-black/10 bg-[#f8f8f6] pl-9 pr-3 text-sm outline-none focus:border-neutral-400"
+              className="h-10 w-full rounded-md border border-neutral-200 bg-white pl-9 pr-3 text-sm outline-none focus:border-neutral-900"
             />
           </div>
           <button type="button" onClick={() => setShowFiltros((v) => !v)} className={pillPeriodo(showFiltros)}>
@@ -590,93 +606,80 @@ export default function Financeiro() {
         </div>
         {showFiltros && (
           <div className="grid grid-cols-1 gap-3 border-t border-black/5 pt-3 sm:grid-cols-2 lg:grid-cols-4">
-            <label className="space-y-1 text-xs font-semibold uppercase tracking-wide text-neutral-400">
-              Categoria
+            <label>
+              <span className={rotulo}>Categoria</span>
               <CustomSelect value={filtroCategoria} onChange={setFiltroCategoria} options={[{ value: 'todas', label: 'Todas' }, ...opcoesCategoria.map((c) => ({ value: c, label: c }))]} size="md" />
             </label>
-            <label className="space-y-1 text-xs font-semibold uppercase tracking-wide text-neutral-400">
-              Origem
+            <label>
+              <span className={rotulo}>Origem</span>
               <CustomSelect value={filtroOrigem} onChange={setFiltroOrigem} options={[{ value: 'todas', label: 'Todas' }, ...Object.entries(ORIGEM_LABEL).map(([value, label]) => ({ value, label }))]} size="md" />
             </label>
-            <label className="space-y-1 text-xs font-semibold uppercase tracking-wide text-neutral-400">
-              Forma
+            <label>
+              <span className={rotulo}>Forma</span>
               <CustomSelect value={filtroForma} onChange={setFiltroForma} options={[{ value: 'todas', label: 'Todas' }, ...opcoesForma.map((c) => ({ value: c, label: c }))]} size="md" />
             </label>
-            <label className="space-y-1 text-xs font-semibold uppercase tracking-wide text-neutral-400">
-              Profissional
+            <label>
+              <span className={rotulo}>Profissional</span>
               <CustomSelect value={filtroProfissional} onChange={setFiltroProfissional} options={[{ value: 'todos', label: 'Todos' }, ...opcoesProfissional.map((c) => ({ value: c, label: c }))]} size="md" />
             </label>
-            <label className="space-y-1 text-xs font-semibold uppercase tracking-wide text-neutral-400">
-              Paciente
+            <label>
+              <span className={rotulo}>Paciente</span>
               <CustomSelect value={filtroPaciente} onChange={setFiltroPaciente} options={[{ value: '', label: 'Todos' }, ...pacientesOptions.map((p) => ({ value: p.id, label: p.nome }))]} searchable size="md" />
             </label>
-            <label className="space-y-1 text-xs font-semibold uppercase tracking-wide text-neutral-400">
-              Taxa de cartão
+            <label>
+              <span className={rotulo}>Taxa de cartão</span>
               <CustomSelect value={filtroTaxa} onChange={(v) => setFiltroTaxa(v as 'todas' | 'com' | 'sem')} options={[{ value: 'todas', label: 'Com e sem taxa' }, { value: 'com', label: 'Com taxa' }, { value: 'sem', label: 'Sem taxa' }]} size="md" />
             </label>
-            <label className="space-y-1 text-xs font-semibold uppercase tracking-wide text-neutral-400">
-              Valor mínimo
-              <input type="number" step="0.01" value={valorMin} onChange={(e) => setValorMin(e.target.value)} className="h-10 w-full rounded-2xl border border-black/10 bg-[#f8f8f6] px-3 text-sm font-medium normal-case text-neutral-800 outline-none" />
+            <label>
+              <span className={rotulo}>Valor mínimo</span>
+              <input type="number" step="0.01" value={valorMin} onChange={(e) => setValorMin(e.target.value)} className={campo} />
             </label>
-            <label className="space-y-1 text-xs font-semibold uppercase tracking-wide text-neutral-400">
-              Valor máximo
-              <input type="number" step="0.01" value={valorMax} onChange={(e) => setValorMax(e.target.value)} className="h-10 w-full rounded-2xl border border-black/10 bg-[#f8f8f6] px-3 text-sm font-medium normal-case text-neutral-800 outline-none" />
+            <label>
+              <span className={rotulo}>Valor máximo</span>
+              <input type="number" step="0.01" value={valorMax} onChange={(e) => setValorMax(e.target.value)} className={campo} />
             </label>
           </div>
         )}
       </div>
 
       <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4 sm:gap-3">
-        <section className={`${cardShell} p-4 sm:p-5`}>
-          <div className="mb-2 flex items-center justify-between">
-            <span className="rounded-full bg-emerald-100 p-2 text-emerald-700"><TrendingUp size={18} /></span>
-            <span className="text-[10px] font-semibold uppercase tracking-wide text-emerald-700">Entradas</span>
-          </div>
-          <p className="text-xs font-medium text-neutral-500">Já entrou</p>
+        <section className={`${cardShell} p-3 sm:p-4`}>
+          <p className="text-xs font-medium text-neutral-500">Entradas</p>
           {loading && !jaCarregou.current ? (
-            <div className="mt-2 h-8 w-28 animate-pulse rounded-xl bg-neutral-100" />
+            <div className="mt-2 h-7 w-28 animate-pulse rounded-md bg-neutral-100" />
           ) : (
-            <p className="mt-1 text-xl font-semibold text-neutral-900 sm:text-2xl">R$ {resumo.entrada.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+            <p className="mt-1 text-xl font-semibold text-neutral-900">R$ {resumo.entrada.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
           )}
+          <p className="mt-0.5 text-xs text-neutral-400">Já entrou</p>
         </section>
-        <section className={`${cardShell} p-4 sm:p-5`}>
-          <div className="mb-2 flex items-center justify-between">
-            <span className="rounded-full bg-red-100 p-2 text-red-600"><TrendingDown size={18} /></span>
-            <span className="text-[10px] font-semibold uppercase tracking-wide text-red-600">Saídas</span>
-          </div>
-          <p className="text-xs font-medium text-neutral-500">Já pagas</p>
+        <section className={`${cardShell} p-3 sm:p-4`}>
+          <p className="text-xs font-medium text-neutral-500">Saídas</p>
           {loading && !jaCarregou.current ? (
-            <div className="mt-2 h-8 w-28 animate-pulse rounded-xl bg-neutral-100" />
+            <div className="mt-2 h-7 w-28 animate-pulse rounded-md bg-neutral-100" />
           ) : (
-            <p className="mt-1 text-xl font-semibold text-neutral-900 sm:text-2xl">R$ {resumo.saida.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+            <p className="mt-1 text-xl font-semibold text-neutral-900">R$ {resumo.saida.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
           )}
+          <p className="mt-0.5 text-xs text-neutral-400">Já pagas</p>
         </section>
-        <section className="rounded-[1.35rem] border border-neutral-800 bg-neutral-950 p-4 text-white sm:rounded-[1.5rem] sm:p-5">
-          <div className="mb-2 flex items-center justify-between">
-            <span className="rounded-full bg-white/10 p-2 text-[#c8f053]"><Wallet size={18} /></span>
-            <span className="text-[10px] font-semibold uppercase tracking-wide text-white/70">Resultado</span>
-          </div>
-          <p className="text-xs font-medium text-white/60">Entradas − saídas concluídas</p>
+        <section className={`${cardShell} p-3 sm:p-4`}>
+          <p className="text-xs font-medium text-neutral-500">Resultado</p>
           {loading && !jaCarregou.current ? (
-            <div className="mt-2 h-8 w-28 animate-pulse rounded-xl bg-white/10" />
+            <div className="mt-2 h-7 w-28 animate-pulse rounded-md bg-neutral-100" />
           ) : (
-            <p className={`mt-1 text-xl font-semibold sm:text-2xl ${resumo.saldo >= 0 ? 'text-white' : 'text-red-400'}`}>
+            <p className={`mt-1 text-xl font-semibold ${resumo.saldo >= 0 ? 'text-neutral-900' : 'text-red-600'}`}>
               R$ {resumo.saldo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
             </p>
           )}
+          <p className="mt-0.5 text-xs text-neutral-400">Entradas − saídas concluídas</p>
         </section>
-        <section className={`${cardShell} border border-amber-200/80 p-4 sm:p-5`}>
-          <div className="mb-2 flex items-center justify-between">
-            <span className="rounded-full bg-amber-100 p-2 text-amber-700"><ClockIcon size={18} /></span>
-            <span className="text-[10px] font-semibold uppercase tracking-wide text-amber-700">Fora do saldo</span>
-          </div>
+        <section className={`${cardShell} p-3 sm:p-4`}>
           <p className="text-xs font-medium text-neutral-500">Em aberto</p>
           {loading && !jaCarregou.current ? (
-            <div className="mt-2 h-8 w-28 animate-pulse rounded-xl bg-neutral-100" />
+            <div className="mt-2 h-7 w-28 animate-pulse rounded-md bg-neutral-100" />
           ) : (
             <>
-              <p className="mt-1 text-xl font-semibold text-amber-800 sm:text-2xl">R$ {resumo.andamento.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-              <p className="mt-1 text-[11px] text-neutral-500">A receber R$ {resumo.aReceber.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} · A pagar R$ {resumo.aPagar.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+              <p className="mt-1 text-xl font-semibold text-neutral-900">R$ {resumo.andamento.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+              <p className="mt-0.5 text-xs text-neutral-400">A receber R$ {resumo.aReceber.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} · A pagar R$ {resumo.aPagar.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
             </>
           )}
         </section>
@@ -692,34 +695,31 @@ export default function Financeiro() {
             key={id}
             type="button"
             onClick={() => setAbaStatus(id)}
-            className={`inline-flex flex-1 items-center justify-center gap-2 rounded-full px-4 py-2.5 text-sm font-medium transition-colors sm:flex-none ${
-              abaStatus === id ? 'bg-neutral-900 text-white' : 'border border-black/10 bg-white text-neutral-600 hover:bg-neutral-50'
+            className={`inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition-colors sm:flex-none ${
+              abaStatus === id ? 'bg-neutral-900 text-white' : 'border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50'
             }`}
           >
             <Icon size={16} />
             {label}
             {count > 0 && (
-              <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${abaStatus === id ? 'bg-white/20' : 'bg-neutral-100 text-neutral-600'}`}>{count}</span>
+              <span className={`rounded-md px-1.5 py-0.5 text-xs font-medium ${abaStatus === id ? 'bg-white/20' : 'bg-neutral-100 text-neutral-600'}`}>{count}</span>
             )}
           </button>
         ))}
       </div>
 
       <div className={`${cardShell} overflow-hidden`}>
-          <div className="flex flex-col gap-3 border-b border-black/5 p-4 sm:flex-row sm:items-center sm:justify-between md:p-5">
-              <div className="flex items-center gap-2">
-                  <span className="rounded-full bg-[#f3f4f1] p-2 text-neutral-700"><Activity size={18}/></span>
-                  <h3 className="text-base font-semibold text-neutral-900 sm:text-lg">
-                    {abaStatus === 'ativos' ? 'Extrato' : abaStatus === 'andamento' ? 'Em andamento' : 'Cancelados'}
-                  </h3>
-              </div>
+          <div className="flex flex-col gap-1 border-b border-black/5 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <h3 className="text-base font-semibold text-neutral-900">
+                {abaStatus === 'ativos' ? 'Extrato' : abaStatus === 'andamento' ? 'Em andamento' : 'Cancelados'}
+              </h3>
               <span className="text-xs font-medium text-neutral-400">{transacoesFiltradas.length} movimentações</span>
           </div>
           <div className="divide-y divide-black/5">
               {loading && !jaCarregou.current ? (
                   <div className="space-y-2 p-4">
                     {Array.from({ length: 5 }).map((_, i) => (
-                      <div key={i} className="flex h-16 animate-pulse items-center gap-3 rounded-2xl bg-neutral-50 px-3" />
+                      <div key={i} className="flex h-14 animate-pulse items-center gap-3 rounded-md bg-neutral-50 px-3" />
                     ))}
                   </div>
               ) : transacoesFiltradas.length === 0 ? (
@@ -729,29 +729,29 @@ export default function Financeiro() {
                       const isCancel = t.status === 'cancelado';
                       const isAndam = t.status === 'andamento';
                       return (
-                          <div key={t.id} className={`group flex items-center justify-between p-4 transition-colors sm:p-5 ${isCancel ? 'bg-neutral-50/80 hover:bg-neutral-100/60' : 'hover:bg-[#f8f8f6]'}`}>
-                              <div className="flex min-w-0 flex-1 items-center gap-3 sm:gap-4">
-                                  <div className={`flex items-center justify-center rounded-2xl p-2.5 sm:p-3 ${
-                                      isCancel ? 'bg-neutral-200 text-neutral-400'
-                                      : isAndam ? 'bg-amber-100 text-amber-700'
-                                      : t.tipo === 'entrada' ? 'bg-emerald-100 text-emerald-700'
-                                      : 'bg-red-100 text-red-600'
+                          <div key={t.id} className={`group flex items-center justify-between gap-3 px-4 py-3 transition-colors ${isCancel ? 'bg-neutral-50/80 hover:bg-neutral-100/60' : 'hover:bg-neutral-50'}`}>
+                              <div className="flex min-w-0 flex-1 items-center gap-3">
+                                  <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-neutral-200 bg-white ${
+                                      isCancel ? 'text-neutral-400'
+                                      : isAndam ? 'text-amber-700'
+                                      : t.tipo === 'entrada' ? 'text-emerald-700'
+                                      : 'text-red-600'
                                   }`}>
-                                      {isCancel ? <Ban size={22}/> : isAndam ? <ClockIcon size={22}/> : t.tipo === 'entrada' ? <ArrowUpCircle size={24}/> : <ArrowDownCircle size={24}/>}
+                                      {isCancel ? <Ban size={16}/> : isAndam ? <ClockIcon size={16}/> : t.tipo === 'entrada' ? <ArrowUpCircle size={16}/> : <ArrowDownCircle size={16}/>}
                                   </div>
-                                  <div className="flex-1 min-w-0">
-                                      <p className={`text-sm font-semibold md:text-base ${isCancel ? 'text-neutral-400 line-through' : 'text-neutral-800'}`}>{t.descricao}</p>
+                                  <div className="min-w-0 flex-1">
+                                      <p className={`truncate text-sm font-medium ${isCancel ? 'text-neutral-400 line-through' : 'text-neutral-900'}`}>{t.descricao}</p>
                                       {t.taxaNome && t.valorBruto != null && t.valorBruto !== t.valor && (
-                                          <p className="text-[10px] text-neutral-400">Bruto R$ {(t.valorBruto ?? 0).toFixed(2)} · {t.taxaNome} · Líquido</p>
+                                          <p className="text-xs text-neutral-400">Bruto R$ {(t.valorBruto ?? 0).toFixed(2)} · {t.taxaNome} · Líquido</p>
                                       )}
-                                      <div className="mt-1 flex flex-wrap items-center gap-2">
-                                          <span className="rounded-full border border-black/5 bg-[#f3f4f1] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-neutral-600">{t.categoria}</span>
-                                          <span className="rounded-full border border-black/5 bg-white px-2 py-0.5 text-[10px] font-semibold text-neutral-500">{ORIGEM_LABEL[t.origemTipo] || 'Manual'}</span>
-                                          <span className="text-[10px] font-medium text-neutral-400">{t.forma || 'Não informada'}</span>
-                                          {t.profissional ? <span className="text-[10px] font-medium text-neutral-400">{t.profissional}</span> : null}
-                                          <span className="text-xs font-medium text-neutral-400">{new Date(t.data).toLocaleDateString('pt-BR', {timeZone: 'UTC'})}</span>
-                                          {isAndam && <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800">Em andamento</span>}
-                                          {isCancel && t.motivo_cancelamento && <span className="rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-semibold text-red-700" title={String(t.motivo_cancelamento)}>Motivo: {String(t.motivo_cancelamento).length > 40 ? String(t.motivo_cancelamento).slice(0,40)+'…' : String(t.motivo_cancelamento)}</span>}
+                                      <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                                          <span className="rounded-md bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-600">{t.categoria}</span>
+                                          <span className="rounded-md border border-neutral-200 px-2 py-0.5 text-xs font-medium text-neutral-500">{ORIGEM_LABEL[t.origemTipo] || 'Manual'}</span>
+                                          <span className="text-xs text-neutral-400">{t.forma || 'Não informada'}</span>
+                                          {t.profissional ? <span className="text-xs text-neutral-400">{t.profissional}</span> : null}
+                                          <span className="text-xs text-neutral-400">{new Date(t.data).toLocaleDateString('pt-BR', {timeZone: 'UTC'})}</span>
+                                          {isAndam && <span className="rounded-md bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800">Em andamento</span>}
+                                          {isCancel && t.motivo_cancelamento && <span className="rounded-md bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700" title={String(t.motivo_cancelamento)}>Motivo: {String(t.motivo_cancelamento).length > 40 ? String(t.motivo_cancelamento).slice(0,40)+'…' : String(t.motivo_cancelamento)}</span>}
                                       </div>
                                   </div>
                               </div>
@@ -764,20 +764,20 @@ export default function Financeiro() {
                                   </span>
                                   <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                                       {abaStatus === 'andamento' && t.origem === 'manual' && (
-                                          <button type="button" onClick={() => concluirAndamento(t)} className="rounded-full p-2 text-emerald-700 hover:bg-emerald-50" title="Marcar como concluído"><CheckCircle size={14}/></button>
+                                          <button type="button" onClick={() => concluirAndamento(t)} className="rounded-md p-2 text-emerald-700 hover:bg-emerald-50" title="Marcar como concluído"><CheckCircle size={14}/></button>
                                       )}
                                       {abaStatus === 'andamento' && t.origem === 'agendamento' && (
-                                          <button type="button" onClick={() => receberFiado(t)} className="rounded-full p-2 text-emerald-700 hover:bg-emerald-50" title="Registrar recebimento"><CheckCircle size={14}/></button>
+                                          <button type="button" onClick={() => receberFiado(t)} className="rounded-md p-2 text-emerald-700 hover:bg-emerald-50" title="Registrar recebimento"><CheckCircle size={14}/></button>
                                       )}
                                       {abaStatus === 'cancelados' ? (
                                           <>
-                                              <button type="button" onClick={() => restaurarCancelado(t)} className="rounded-full p-2 text-neutral-700 hover:bg-neutral-100" title="Restaurar"><RotateCcw size={14}/></button>
-                                              <button type="button" onClick={() => excluirDefinitivo(t)} className="rounded-full p-2 text-red-600 hover:bg-red-50" title="Excluir definitivamente"><Trash2 size={14}/></button>
+                                              <button type="button" onClick={() => restaurarCancelado(t)} className="rounded-md p-2 text-neutral-700 hover:bg-neutral-100" title="Restaurar"><RotateCcw size={14}/></button>
+                                              <button type="button" onClick={() => excluirDefinitivo(t)} className="rounded-md p-2 text-red-600 hover:bg-red-50" title="Excluir definitivamente"><Trash2 size={14}/></button>
                                           </>
                                       ) : t.origem === 'manual' && (
                                           <>
-                                              <button type="button" onClick={() => abrirEdicao(t)} className="rounded-full p-2 text-neutral-700 hover:bg-neutral-100" title="Editar lançamento"><Pencil size={14}/></button>
-                                              <button type="button" onClick={() => pedirCancelamento(t)} className="rounded-full p-2 text-red-600 hover:bg-red-50" title="Cancelar lançamento"><Ban size={14}/></button>
+                                              <button type="button" onClick={() => abrirEdicao(t)} className="rounded-md p-2 text-neutral-700 hover:bg-neutral-100" title="Editar lançamento"><Pencil size={14}/></button>
+                                              <button type="button" onClick={() => pedirCancelamento(t)} className="rounded-md p-2 text-red-600 hover:bg-red-50" title="Cancelar lançamento"><Ban size={14}/></button>
                                           </>
                                       )}
                                   </div>
@@ -789,58 +789,56 @@ export default function Financeiro() {
           </div>
       </div>
 
-      <Modal open={modalAberto} onClose={() => { setModalAberto(false); setEditandoId(null); }} maxWidth="md" hideCloseButton panelClassName="flex max-h-[92vh] w-full flex-col overflow-hidden rounded-[1.75rem] border border-black/10 bg-[#eceee9] shadow-[0_24px_80px_rgba(0,0,0,0.28)]">
-                <div className="flex shrink-0 items-center justify-between border-b border-black/5 bg-white p-5">
-                    <h3 className="text-xl font-semibold text-neutral-900">{editandoId ? 'Editar lançamento' : 'Novo lançamento'}</h3>
-                    <button type="button" onClick={() => { setModalAberto(false); setEditandoId(null); }} className="rounded-full p-2 text-neutral-400 transition-colors hover:bg-red-50 hover:text-red-600"><X size={20}/></button>
+      <Modal open={modalAberto} onClose={() => { setModalAberto(false); setEditandoId(null); }} maxWidth="md" hideCloseButton panelClassName="flex max-h-[85vh] w-full flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white">
+                <div className="flex shrink-0 items-start justify-between gap-3 border-b border-black/5 px-5 py-4 sm:px-6">
+                    <div>
+                        <h3 className="text-base font-semibold text-neutral-900">{editandoId ? 'Editar lançamento' : 'Novo lançamento'}</h3>
+                        <p className="mt-0.5 text-sm text-neutral-500">Vinculado à clínica selecionada no menu.</p>
+                    </div>
+                    <button type="button" onClick={() => { setModalAberto(false); setEditandoId(null); }} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-100" aria-label="Fechar"><X size={16}/></button>
                 </div>
-                <form onSubmit={salvarLancamento} className="flex-1 flex flex-col min-h-0">
-                  <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-5">
-                    <div className="flex items-start gap-2 rounded-[1.15rem] border border-black/5 bg-[#f3f4f1] p-3 text-xs font-medium text-neutral-700">
-                        <AlertCircle size={16} className="mt-0.5 shrink-0 text-neutral-500"/>
-                        <span>O lançamento será vinculado à clínica selecionada no menu.</span>
+                <form onSubmit={salvarLancamento} className="flex min-h-0 flex-1 flex-col">
+                  <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-5 py-4 sm:px-6">
+                    <div className="grid grid-cols-2 gap-1 rounded-md border border-neutral-200 bg-white p-0.5">
+                        <button type="button" onClick={() => setNovoLancamento({...novoLancamento, tipo: 'entrada'})} className={`flex h-9 items-center justify-center gap-2 rounded-md text-sm font-medium ${novoLancamento.tipo === 'entrada' ? 'bg-neutral-900 text-white' : 'text-neutral-600'}`}><ArrowUpCircle size={16}/> Receita</button>
+                        <button type="button" onClick={() => setNovoLancamento({...novoLancamento, tipo: 'saida'})} className={`flex h-9 items-center justify-center gap-2 rounded-md text-sm font-medium ${novoLancamento.tipo === 'saida' ? 'bg-neutral-900 text-white' : 'text-neutral-600'}`}><ArrowDownCircle size={16}/> Despesa</button>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2 rounded-full border border-black/10 bg-[#f3f4f1] p-0.5">
-                        <button type="button" onClick={() => setNovoLancamento({...novoLancamento, tipo: 'entrada'})} className={`flex items-center justify-center gap-2 rounded-full py-2.5 text-sm font-semibold transition-all ${novoLancamento.tipo === 'entrada' ? 'bg-neutral-900 text-white' : 'text-neutral-600'}`}><ArrowUpCircle size={18}/> Receita</button>
-                        <button type="button" onClick={() => setNovoLancamento({...novoLancamento, tipo: 'saida'})} className={`flex items-center justify-center gap-2 rounded-full py-2.5 text-sm font-semibold transition-all ${novoLancamento.tipo === 'saida' ? 'bg-neutral-900 text-white' : 'text-neutral-600'}`}><ArrowDownCircle size={18}/> Despesa</button>
-                    </div>
+                    <label>
+                        <span className={rotulo}>Descrição</span>
+                        <input required className={campo} placeholder={novoLancamento.tipo === 'entrada' ? 'Ex: Venda de kit' : 'Ex: Conta de luz'} value={novoLancamento.descricao} onChange={e => setNovoLancamento({...novoLancamento, descricao: e.target.value})} />
+                    </label>
 
-                    <div>
-                        <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-neutral-400">Descrição</label>
-                        <input required className="w-full rounded-2xl border border-black/10 bg-[#f8f8f6] p-3 font-medium text-neutral-800 outline-none focus:border-neutral-400" placeholder={novoLancamento.tipo === 'entrada' ? 'Ex: Venda de Kit' : 'Ex: Conta de Luz'} value={novoLancamento.descricao} onChange={e => setNovoLancamento({...novoLancamento, descricao: e.target.value})} />
-                    </div>
-
-                    <div>
-                        <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-neutral-400">Forma de pagamento</label>
+                    <label>
+                        <span className={rotulo}>Forma de pagamento</span>
                         <CustomSelect
                             value={novoLancamento.forma}
                             onChange={(v) => setNovoLancamento({ ...novoLancamento, forma: v })}
                             options={FORMAS_PAGAMENTO}
-                            size="lg"
+                            size="md"
                         />
-                    </div>
+                    </label>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                            <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-neutral-400">Valor (R$)</label>
-                            <input required type="number" step="0.01" className="w-full rounded-2xl border border-black/10 bg-[#f8f8f6] p-3 font-medium text-neutral-800 outline-none focus:border-neutral-400" placeholder="0.00" value={novoLancamento.valor} onChange={e => setNovoLancamento({...novoLancamento, valor: e.target.value})} />
-                        </div>
-                        <div>
-                            <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-neutral-400">Data</label>
-                            <input required type="date" className="w-full rounded-2xl border border-black/10 bg-[#f8f8f6] p-3 font-medium text-neutral-700 outline-none focus:border-neutral-400" value={novoLancamento.data} onChange={e => setNovoLancamento({...novoLancamento, data: e.target.value})} />
-                        </div>
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <label>
+                            <span className={rotulo}>Valor (R$)</span>
+                            <input required type="number" step="0.01" className={campo} placeholder="0,00" value={novoLancamento.valor} onChange={e => setNovoLancamento({...novoLancamento, valor: e.target.value})} />
+                        </label>
+                        <label>
+                            <span className={rotulo}>Data</span>
+                            <CampoData value={novoLancamento.data} onChange={(iso) => setNovoLancamento({ ...novoLancamento, data: iso })} />
+                        </label>
                     </div>
 
                     {novoLancamento.tipo === 'entrada' && taxasMaquininha.length > 0 && (
                         <div>
-                            <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-neutral-400">Taxa da maquininha</label>
+                            <span className={rotulo}>Taxa da maquininha</span>
                             <CustomSelect
                                 value={novoLancamento.taxa_id}
                                 onChange={v => setNovoLancamento({ ...novoLancamento, taxa_id: v })}
                                 options={[{ value: '', label: 'Sem taxa (valor integral)' }, ...taxasMaquininha.map(t => ({ value: t.id, label: `${t.nome} (${t.taxa_percentual}%)` }))]}
                                 placeholder="Selecione..."
-                                size="lg"
+                                size="md"
                                 menuPortal
                             />
                             {novoLancamento.taxa_id && novoLancamento.valor && (() => {
@@ -849,7 +847,7 @@ export default function Financeiro() {
                                 const bruto = parseFloat(novoLancamento.valor) || 0;
                                 const liquido = calcularValorLiquido(bruto, taxa.taxa_percentual);
                                 return (
-                                    <p className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2 mt-2 font-bold">
+                                    <p className="mt-2 rounded-md border border-neutral-200 bg-neutral-50 px-3 py-2 text-xs text-neutral-600">
                                         Valor líquido estimado: R$ {liquido.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} (taxa {taxa.taxa_percentual}%)
                                     </p>
                                 );
@@ -857,81 +855,74 @@ export default function Financeiro() {
                         </div>
                     )}
 
-                    {/* CATEGORIA */}
                     <div>
-                        <div className="flex justify-between items-center mb-1">
-                            <label className="text-xs font-semibold uppercase tracking-wide text-neutral-400">Categoria</label>
-                            <div className="flex rounded-full border border-black/10 bg-[#f3f4f1] p-0.5">
-                                <button type="button" onClick={() => setModoCategoria('lista')} className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${modoCategoria === 'lista' ? 'bg-neutral-900 text-white' : 'text-neutral-600'}`}>Lista</button>
-                                <button type="button" onClick={() => setModoCategoria('livre')} className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${modoCategoria === 'livre' ? 'bg-neutral-900 text-white' : 'text-neutral-600'}`}>Livre</button>
+                        <div className="mb-1.5 flex items-center justify-between gap-2">
+                            <span className="text-xs font-medium text-neutral-500">Categoria</span>
+                            <div className="flex rounded-md border border-neutral-200 bg-white p-0.5">
+                                <button type="button" onClick={() => setModoCategoria('lista')} className={`rounded-md px-2 py-0.5 text-xs font-medium ${modoCategoria === 'lista' ? 'bg-neutral-900 text-white' : 'text-neutral-600'}`}>Lista</button>
+                                <button type="button" onClick={() => setModoCategoria('livre')} className={`rounded-md px-2 py-0.5 text-xs font-medium ${modoCategoria === 'livre' ? 'bg-neutral-900 text-white' : 'text-neutral-600'}`}>Livre</button>
                             </div>
                         </div>
                         {modoCategoria === 'lista' ? (
                             <>
-                                <CustomSelect value={novoLancamento.categoria} onChange={v => setNovoLancamento({...novoLancamento, categoria: v})} options={categorias.map(c => ({ value: c, label: c }))} placeholder="Selecione a categoria" size="lg"/>
-                                <div className="flex gap-2 mt-2">
-                                    <input value={novaCatTemp} onChange={e => setNovaCatTemp(e.target.value)} placeholder="+ Criar nova categoria..." className="flex-1 rounded-2xl border border-black/10 bg-[#f8f8f6] p-2 text-xs font-medium outline-none focus:border-neutral-400"/>
-                                    <button type="button" onClick={adicionarNovaCategoria} disabled={!novaCatTemp.trim()} className="flex items-center gap-1 rounded-full bg-neutral-900 px-3 py-2 text-xs font-semibold text-white hover:bg-neutral-800 disabled:opacity-40"><Plus size={12}/> Salvar</button>
+                                <CustomSelect value={novoLancamento.categoria} onChange={v => setNovoLancamento({...novoLancamento, categoria: v})} options={categorias.map(c => ({ value: c, label: c }))} placeholder="Selecione a categoria" size="md"/>
+                                <div className="mt-2 flex gap-2">
+                                    <input value={novaCatTemp} onChange={e => setNovaCatTemp(e.target.value)} placeholder="Nova categoria" className={campo}/>
+                                    <button type="button" onClick={adicionarNovaCategoria} disabled={!novaCatTemp.trim()} className="inline-flex h-10 items-center gap-1 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-40"><Plus size={14}/> Salvar</button>
                                 </div>
                             </>
                         ) : (
                             <div>
-                                <input value={novoLancamento.categoria} onChange={e => setNovoLancamento({...novoLancamento, categoria: e.target.value})} placeholder="Digite uma categoria..." className="w-full rounded-2xl border border-black/10 bg-[#f8f8f6] p-3 font-medium text-neutral-800 outline-none focus:border-neutral-400"/>
-                                <p className="mt-1 flex items-center gap-1 text-[10px] text-neutral-400"><Tag size={10}/> Usada só neste lançamento (não salva na lista).</p>
+                                <input value={novoLancamento.categoria} onChange={e => setNovoLancamento({...novoLancamento, categoria: e.target.value})} placeholder="Digite uma categoria" className={campo}/>
+                                <p className="mt-1 text-xs text-neutral-400">Usada só neste lançamento.</p>
                             </div>
                         )}
                     </div>
 
-                    {/* PACIENTE (vinculação opcional) */}
                     <div>
-                        <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-neutral-400">Paciente <span className="font-normal normal-case text-neutral-400">(opcional)</span></label>
+                        <span className={rotulo}>Paciente</span>
                         <CustomSelect
                             value={novoLancamento.paciente_id}
                             onChange={v => setNovoLancamento({ ...novoLancamento, paciente_id: v })}
-                            options={[{ value: '', label: 'Sem vínculo (despesa operacional)' }, ...pacientesOptions.map(p => ({ value: p.id, label: p.nome }))]}
+                            options={[{ value: '', label: 'Sem vínculo' }, ...pacientesOptions.map(p => ({ value: p.id, label: p.nome }))]}
                             placeholder="Selecione..."
                             searchable
-                            size="lg"
+                            size="md"
                         />
-                        <p className="mt-1 text-[10px] text-neutral-400">Se vinculado, o lançamento some se o paciente for removido.</p>
                     </div>
 
-                    {/* STATUS */}
                     <div>
-                        <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-neutral-400">Status</label>
+                        <span className={rotulo}>Status</span>
                         <div className="grid grid-cols-2 gap-2">
-                            <button type="button" onClick={() => setNovoLancamento({...novoLancamento, status: 'concluido'})} className={`flex items-center justify-center gap-1.5 rounded-full border py-2.5 text-xs font-semibold transition-all ${novoLancamento.status === 'concluido' ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-black/10 bg-white text-neutral-600'}`}><CheckCircle size={14}/> Concluído</button>
-                            <button type="button" onClick={() => setNovoLancamento({...novoLancamento, status: 'andamento'})} className={`flex items-center justify-center gap-1.5 rounded-full border py-2.5 text-xs font-semibold transition-all ${novoLancamento.status === 'andamento' ? 'border-amber-600 bg-amber-600 text-white' : 'border-black/10 bg-white text-neutral-600'}`}><ClockIcon size={14}/> Em andamento</button>
+                            <button type="button" onClick={() => setNovoLancamento({...novoLancamento, status: 'concluido'})} className={`flex h-10 items-center justify-center gap-1.5 rounded-md border text-sm font-medium ${novoLancamento.status === 'concluido' ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-200 bg-white text-neutral-600'}`}><CheckCircle size={14}/> Concluído</button>
+                            <button type="button" onClick={() => setNovoLancamento({...novoLancamento, status: 'andamento'})} className={`flex h-10 items-center justify-center gap-1.5 rounded-md border text-sm font-medium ${novoLancamento.status === 'andamento' ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-200 bg-white text-neutral-600'}`}><ClockIcon size={14}/> Em andamento</button>
                         </div>
                     </div>
 
                   </div>
-                  <div className="flex shrink-0 gap-3 border-t border-black/5 bg-white p-5">
-                      <button type="button" onClick={() => setModalAberto(false)} className="flex-1 rounded-full bg-[#f3f4f1] py-3 text-sm font-semibold text-neutral-600 hover:bg-neutral-200">Cancelar</button>
-                      <button type="submit" disabled={salvando} className="flex flex-1 items-center justify-center gap-2 rounded-full bg-neutral-900 py-3 text-sm font-semibold text-white hover:bg-neutral-800 disabled:opacity-60">
-                          {salvando ? <Loader2 className="animate-spin"/> : <><Save size={18}/> Salvar</>}
+                  <div className="flex shrink-0 items-center justify-end gap-2 border-t border-black/5 px-5 py-4 sm:px-6">
+                      <button type="button" onClick={() => setModalAberto(false)} className="inline-flex h-9 items-center rounded-md px-3 text-sm font-medium text-neutral-600 hover:bg-neutral-50">Cancelar</button>
+                      <button type="submit" disabled={salvando} className="inline-flex h-9 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-40">
+                          {salvando ? <Loader2 size={14} className="animate-spin"/> : <Save size={14}/>} Salvar
                       </button>
                   </div>
                 </form>
       </Modal>
 
       {modalCancelar && (
-      <Modal open onClose={() => setModalCancelar(null)} maxWidth="md" hideCloseButton panelClassName="overflow-hidden rounded-[1.75rem] border border-black/10 bg-[#eceee9] shadow-[0_24px_80px_rgba(0,0,0,0.28)]">
-                <div className="flex items-center gap-3 border-b border-black/5 bg-white p-5">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-red-600 text-white"><Ban size={20}/></div>
-                    <div>
-                        <h3 className="font-semibold text-neutral-900">Cancelar lançamento</h3>
-                        <p className="text-xs text-neutral-500">{modalCancelar.descricao}</p>
-                    </div>
+      <Modal open onClose={() => setModalCancelar(null)} maxWidth="md" hideCloseButton panelClassName="overflow-hidden rounded-xl border border-neutral-200 bg-white">
+                <div className="border-b border-black/5 px-5 py-4 sm:px-6">
+                    <h3 className="text-base font-semibold text-neutral-900">Cancelar lançamento</h3>
+                    <p className="mt-0.5 text-sm text-neutral-500">{modalCancelar.descricao}</p>
                 </div>
-                <div className="space-y-3 bg-white p-5">
-                    <label className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Motivo <span className="text-red-500">*</span></label>
-                    <textarea autoFocus value={motivoCancelar} onChange={e => setMotivoCancelar(e.target.value)} className="h-24 w-full resize-none rounded-2xl border border-black/10 bg-[#f8f8f6] p-3 text-sm outline-none focus:border-neutral-400" placeholder="Ex: Pagamento não realizado, lançamento duplicado..."/>
-                    <p className="text-[10px] text-neutral-400">O lançamento ficará na aba Cancelados com o motivo registrado.</p>
+                <div className="px-5 py-4 sm:px-6">
+                    <label className={rotulo}>Motivo <span className="text-red-500">*</span></label>
+                    <textarea autoFocus value={motivoCancelar} onChange={e => setMotivoCancelar(e.target.value)} className="h-24 w-full resize-none rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 outline-none focus:border-neutral-900" placeholder="Ex: pagamento não realizado, lançamento duplicado"/>
+                    <p className="mt-1.5 text-xs text-neutral-400">O lançamento fica em Cancelados, com o motivo.</p>
                 </div>
-                <div className="flex justify-end gap-2 border-t border-black/5 bg-[#f3f4f1] p-5">
-                    <button type="button" onClick={() => setModalCancelar(null)} className="rounded-full px-4 py-2.5 text-sm font-semibold text-neutral-600 hover:bg-white">Voltar</button>
-                    <button type="button" onClick={confirmarCancelamento} disabled={!motivoCancelar.trim()} className="flex items-center gap-2 rounded-full bg-red-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-40"><Ban size={14}/> Confirmar</button>
+                <div className="flex justify-end gap-2 border-t border-black/5 px-5 py-4 sm:px-6">
+                    <button type="button" onClick={() => setModalCancelar(null)} className="inline-flex h-9 items-center rounded-md px-3 text-sm font-medium text-neutral-600 hover:bg-neutral-50">Cancelar</button>
+                    <button type="button" onClick={confirmarCancelamento} disabled={!motivoCancelar.trim()} className="inline-flex h-9 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-40">Confirmar</button>
                 </div>
       </Modal>
       )}

@@ -8,9 +8,10 @@ import { fetchUserEquipe } from '@/lib/clinicScoped';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
 import Modal from '@/components/ui/Modal';
 import CustomSelect from '@/components/ui/CustomSelect';
+import Switch from '@/components/ui/Switch';
 import {
     UserPlus, Loader2, X, ShieldCheck, Copy, Check,
-    AlertTriangle, ToggleLeft, ToggleRight,
+    AlertTriangle,
     Trash2, Plus, ArrowUpDown, Edit,
 } from 'lucide-react';
 import type { ComissaoRegra, ModuleName } from '@/lib/types/permissions';
@@ -733,14 +734,11 @@ export default function EquipePage() {
                         <p className="text-sm font-medium text-neutral-900">{modulo.label}</p>
                         <p className="text-xs text-neutral-500">{modulo.description}</p>
                     </div>
-                    <button
-                        type="button"
-                        onClick={() => toggleModulo(modulo.id)}
+                    <Switch
+                        checked={!!permissoesMapa[modulo.id]}
+                        onChange={() => toggleModulo(modulo.id)}
                         disabled={permissoesLoading || nivelAcessoEdit === 'admin'}
-                        className={permissoesMapa[modulo.id] ? 'text-neutral-900' : 'text-neutral-300'}
-                    >
-                        {permissoesMapa[modulo.id] ? <ToggleRight size={28}/> : <ToggleLeft size={28}/>}
-                    </button>
+                    />
                 </div>
             ))}
         </div>
@@ -919,35 +917,35 @@ export default function EquipePage() {
     }
 
     return (
-        <div className="flex h-full min-h-0 flex-col overflow-hidden px-3 py-3 font-poppins">
+        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden px-2.5 py-2.5 font-poppins sm:px-3 sm:py-3 md:px-4 md:py-3.5">
             {aviso && (
                 <div className="pointer-events-none fixed inset-x-0 top-4 z-[10000] flex justify-center px-4">
                     <p className="rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-800 shadow-sm">{aviso}</p>
                 </div>
             )}
-            <div className="mb-3 shrink-0">
+            <div className="flex shrink-0 flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                 <div className="min-w-0">
                     <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 md:text-[2rem]">Equipe</h1>
-                    <p className="mt-1 text-sm text-neutral-500">
+                    <p className="mt-1 text-sm text-neutral-500 sm:text-base">
                         {activeClinic ? getClinicLabel(activeClinic) : 'Todas as clínicas'}
+                        {' · '}
+                        <span className="tabular-nums text-neutral-900">{totalAtivos}</span> {totalAtivos === 1 ? 'profissional' : 'profissionais'}
+                        {' · '}
+                        <span className="tabular-nums text-neutral-900">{totalAdmins}</span> {totalAdmins === 1 ? 'gestor' : 'gestores'}
+                        {' · '}
+                        <span className="tabular-nums text-neutral-900">{pendentesSenha}</span> com senha provisória
                     </p>
                 </div>
-                <div className="mt-3 flex items-center justify-between gap-3">
-                    <div className="flex min-w-0 flex-wrap gap-x-6 gap-y-1">
-                        <p className="text-sm text-neutral-500"><span className="font-medium tabular-nums text-neutral-900">{totalAtivos}</span> {totalAtivos === 1 ? 'profissional' : 'profissionais'}</p>
-                        <p className="text-sm text-neutral-500"><span className="font-medium tabular-nums text-neutral-900">{totalAdmins}</span> {totalAdmins === 1 ? 'gestor' : 'gestores'}</p>
-                        <p className="text-sm text-neutral-500"><span className="font-medium tabular-nums text-neutral-900">{pendentesSenha}</span> com senha provisória</p>
-                    </div>
-                    <button
-                        type="button"
-                        onClick={abrirModal}
-                        className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800"
-                    >
-                        <UserPlus size={14} /> Adicionar
-                    </button>
-                </div>
+                <button
+                    type="button"
+                    onClick={abrirModal}
+                    className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-md bg-neutral-900 px-4 text-sm font-medium text-white hover:bg-neutral-800"
+                >
+                    <UserPlus size={16} /> Adicionar
+                </button>
             </div>
 
+            <div className="flex min-h-0 flex-1 flex-col gap-3 lg:flex-row">
             <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white">
                 <div className="shrink-0 px-3 pt-3">
                     <h2 className="text-base font-semibold text-neutral-900">Colaboradores</h2>
@@ -1031,13 +1029,21 @@ export default function EquipePage() {
                     </tbody>
                 </table>
                 </div>
+                </div>
+                )}
+            </section>
 
-                {clinicaIdNumerica && (
-                    <div className="border-t border-black/5 px-3 py-3">
-                        <div className="mb-2 flex items-center justify-between gap-3">
-                            <h3 className="text-base font-semibold text-neutral-900">Comissões</h3>
-                            {comissoesConsolidadasLoading && <Loader2 size={16} className="animate-spin text-neutral-400" />}
-                        </div>
+            <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white">
+                <div className="flex shrink-0 items-center justify-between gap-3 px-3 pt-3">
+                    <h2 className="text-base font-semibold text-neutral-900">Comissões</h2>
+                    {comissoesConsolidadasLoading && <Loader2 size={16} className="animate-spin text-neutral-400" />}
+                </div>
+                <div className="min-h-0 flex-1 overflow-y-auto">
+                {!clinicaIdNumerica ? (
+                    <p className="px-3 py-6 text-center text-sm text-neutral-400">Selecione uma clínica para ver as comissões.</p>
+                ) : (
+                <>
+                    <div className="px-3 py-3">
                         {comissoesConsolidadasLoading && comissoesConsolidadas.length === 0 ? (
                             <div className="space-y-2">
                                 {Array.from({ length: 3 }).map((_, i) => (
@@ -1091,9 +1097,8 @@ export default function EquipePage() {
                             </div>
                         )}
                     </div>
-                )}
 
-                {clinicaIdNumerica && comissaoLancamentos.length > 0 && (
+                {comissaoLancamentos.length > 0 && (
                     <div className="border-t border-black/5 px-3 py-3">
                         <h3 className="mb-2 text-base font-semibold text-neutral-900">Lançamentos recentes</h3>
                         <div className="overflow-x-auto rounded-xl border border-black/5">
@@ -1122,9 +1127,11 @@ export default function EquipePage() {
                         </div>
                     </div>
                 )}
-                </div>
+                </>
                 )}
+                </div>
             </section>
+            </div>
 
             {/* Editor avançado */}
             <Modal open={!!(editorAberto && profissionalSelecionado)} onClose={fecharEditorAvancado} maxWidth="lg" hideCloseButton panelClassName="flex h-[min(85vh,640px)] max-h-[85vh] flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white">

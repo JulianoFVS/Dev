@@ -19,6 +19,7 @@ import {
   type TaxaMaquininha,
 } from '@/lib/configDefaults';
 import CustomSelect from '@/components/ui/CustomSelect';
+import Switch from '@/components/ui/Switch';
 import DocumentoVariavelEditor, { type DocumentoVariavelEditorHandle } from '@/components/forms/DocumentoVariavelEditor';
 import Modal from '@/components/ui/Modal';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
@@ -1112,12 +1113,10 @@ export default function Configuracoes() {
                                 { k: 'notificar_debitos', l: 'Débitos pendentes' },
                                 { k: 'confirmar_exclusao', l: 'Confirmar antes de excluir' },
                             ].map(it => (
-                                <label key={it.k} className="flex items-center justify-between rounded-md border border-neutral-200 px-3 py-2">
+                                <div key={it.k} className="flex items-center justify-between rounded-md border border-neutral-200 px-3 py-2">
                                     <span className="text-sm font-medium text-neutral-800">{it.l}</span>
-                                    <button type="button" onClick={() => atualizarPref(it.k, !prefs[it.k])} className={`relative h-6 w-11 rounded-full ${prefs[it.k] ? 'bg-neutral-900' : 'bg-neutral-300'}`} aria-pressed={!!prefs[it.k]}>
-                                        <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${prefs[it.k] ? 'left-5' : 'left-0.5'}`}></span>
-                                    </button>
-                                </label>
+                                    <Switch checked={!!prefs[it.k]} onChange={(valor) => atualizarPref(it.k, valor)} />
+                                </div>
                             ))}
                         </div>
                     </section>
@@ -1138,14 +1137,14 @@ export default function Configuracoes() {
                             <div className="flex items-center gap-2">
                                 <div className="relative min-w-0 flex-1">
                                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" size={16}/>
-                                    <input value={docsBusca} onChange={e => setDocsBusca(e.target.value)} placeholder="Buscar modelo" className="h-10 w-full rounded-full border border-black/10 bg-[#f8f8f6] py-2 pl-9 pr-3 text-sm outline-none placeholder:text-neutral-400 focus:border-neutral-400"/>
+                                    <input value={docsBusca} onChange={e => setDocsBusca(e.target.value)} placeholder="Buscar modelo" className="h-10 w-full rounded-md border border-neutral-200 bg-white py-2 pl-9 pr-3 text-sm outline-none placeholder:text-neutral-400 focus:border-neutral-900"/>
                                 </div>
                                 <div className="w-40 shrink-0">
-                                    <CustomSelect pill value={docsTipo} onChange={setDocsTipo} options={[{value:'todos',label:'Tipo'},{value:'contrato',label:'Contrato'},{value:'receita',label:'Receita'},{value:'atestado',label:'Atestado'},{value:'outro',label:'Outro'}]} size="sm"/>
+                                    <CustomSelect value={docsTipo} onChange={setDocsTipo} options={[{value:'todos',label:'Tipo'},{value:'contrato',label:'Contrato'},{value:'receita',label:'Receita'},{value:'atestado',label:'Atestado'},{value:'outro',label:'Outro'}]} size="md"/>
                                 </div>
-                                <div className="flex rounded-full border border-black/10 bg-[#f3f4f1] p-0.5">
-                                    <button type="button" onClick={() => setDocsVisualizacao('lista')} className={`rounded-full p-2 ${docsVisualizacao === 'lista' ? 'bg-neutral-900 text-white' : 'text-neutral-500'}`} aria-label="Lista"><List size={16}/></button>
-                                    <button type="button" onClick={() => setDocsVisualizacao('grade')} className={`rounded-full p-2 ${docsVisualizacao === 'grade' ? 'bg-neutral-900 text-white' : 'text-neutral-500'}`} aria-label="Grade"><LayoutGrid size={16}/></button>
+                                <div className="flex rounded-md border border-neutral-200 bg-white p-0.5">
+                                    <button type="button" onClick={() => setDocsVisualizacao('lista')} className={`rounded-md p-2 ${docsVisualizacao === 'lista' ? 'bg-neutral-900 text-white' : 'text-neutral-500'}`} aria-label="Lista"><List size={16}/></button>
+                                    <button type="button" onClick={() => setDocsVisualizacao('grade')} className={`rounded-md p-2 ${docsVisualizacao === 'grade' ? 'bg-neutral-900 text-white' : 'text-neutral-500'}`} aria-label="Grade"><LayoutGrid size={16}/></button>
                                 </div>
                             </div>
                         </div>
@@ -1725,9 +1724,13 @@ export default function Configuracoes() {
                       <label className="min-w-0"><span className={labelModal}>Fuso</span><CustomSelect value={clinicaForm.fuso_horario} onChange={v => setClinicaForm({...clinicaForm, fuso_horario: v})} options={FUSO_HORARIO_OPTIONS} size="md"/></label>
                       <div className="min-w-0 lg:col-span-2">
                           <span className={labelModal}>Notas fiscais em nome de</span>
-                          <div className="grid h-10 grid-cols-2 rounded-md border border-neutral-200 p-0.5">
-                              <button type="button" onClick={() => setClinicaForm({...clinicaForm, emitir_notas_em_nome: 'clinica'})} className={`rounded-[5px] text-sm font-medium ${clinicaForm.emitir_notas_em_nome === 'clinica' ? 'bg-neutral-900 text-white' : 'text-neutral-600'}`}>Clínica</button>
-                              <button type="button" onClick={() => setClinicaForm({...clinicaForm, emitir_notas_em_nome: 'profissional'})} className={`rounded-[5px] text-sm font-medium ${clinicaForm.emitir_notas_em_nome === 'profissional' ? 'bg-neutral-900 text-white' : 'text-neutral-600'}`}>Profissional</button>
+                          <div className="relative grid h-10 grid-cols-2 rounded-md border border-neutral-200 p-0.5">
+                              <span
+                                aria-hidden
+                                className={`pointer-events-none absolute bottom-0.5 left-0.5 top-0.5 w-[calc(50%-0.125rem)] rounded-[5px] bg-neutral-900 transition-transform duration-200 ease-out ${clinicaForm.emitir_notas_em_nome === 'profissional' ? 'translate-x-full' : 'translate-x-0'}`}
+                              />
+                              <button type="button" onClick={() => setClinicaForm({...clinicaForm, emitir_notas_em_nome: 'clinica'})} className={`relative z-10 rounded-[5px] text-sm font-medium transition-colors duration-200 ${clinicaForm.emitir_notas_em_nome === 'clinica' ? 'text-white' : 'text-neutral-600'}`}>Clínica</button>
+                              <button type="button" onClick={() => setClinicaForm({...clinicaForm, emitir_notas_em_nome: 'profissional'})} className={`relative z-10 rounded-[5px] text-sm font-medium transition-colors duration-200 ${clinicaForm.emitir_notas_em_nome === 'profissional' ? 'text-white' : 'text-neutral-600'}`}>Profissional</button>
                           </div>
                       </div>
                   </div>

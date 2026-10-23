@@ -11,6 +11,7 @@ import { useClinica, getClinicLabel } from '@/app/context/ClinicaContext';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
 import Modal from '@/components/ui/Modal';
 import CustomSelect from '@/components/ui/CustomSelect';
+import CampoData from '@/components/ui/CampoData';
 import { TAREFA_PRIORIDADE_OPTIONS, TAREFA_STATUS_OPTIONS } from '@/lib/formOptions';
 
 interface Tarefa {
@@ -415,15 +416,15 @@ export default function Tarefas() {
             <Modal open={modalOpen} onClose={() => setModalOpen(false)} maxWidth="lg" hideCloseButton panelClassName="flex max-h-[85vh] flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white">
                         <div className="flex shrink-0 items-start justify-between gap-3 border-b border-black/5 px-5 py-4 sm:px-6">
                             <div>
-                                <h2 className="text-lg font-semibold text-neutral-900">{tarefaEditando ? 'Editar tarefa' : 'Nova tarefa'}</h2>
-                                <p className="mt-0.5 text-xs font-medium text-neutral-400">Título, prazo e responsável.</p>
+                                <h2 className="text-base font-semibold text-neutral-900">{tarefaEditando ? 'Editar tarefa' : 'Nova tarefa'}</h2>
+                                <p className="mt-0.5 text-sm text-neutral-500">Título, prazo e responsável.</p>
                             </div>
-                            <button type="button" onClick={() => setModalOpen(false)} className="rounded-full p-2 text-neutral-400 hover:bg-neutral-100" aria-label="Fechar">
-                                <X size={18}/>
+                            <button type="button" onClick={() => setModalOpen(false)} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-100" aria-label="Fechar">
+                                <X size={16}/>
                             </button>
                         </div>
                         
-                        <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto px-5 py-4 sm:px-6">
+                        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-5 py-4 sm:px-6">
                             <label>
                                 <span className="mb-1.5 block text-xs font-medium text-neutral-500">Título <span className="text-red-500">*</span></span>
                                 <input 
@@ -445,19 +446,14 @@ export default function Tarefas() {
                                 />
                             </label>
 
-                            <div className="grid grid-cols-2 gap-x-3 gap-y-2.5">
+                            <div className="grid grid-cols-1 gap-x-3 gap-y-4 sm:grid-cols-2">
                                 <label>
                                     <span className="mb-1.5 block text-xs font-medium text-neutral-500">Responsável</span>
                                     <CustomSelect value={form.responsavel_id} onChange={v => setForm({...form, responsavel_id: v})} options={[{ value: '', label: 'Sem responsável' }, ...profissionais.map(p => ({ value: String(p.id), label: p.nome }))]} size="md" />
                                 </label>
                                 <label>
                                     <span className="mb-1.5 block text-xs font-medium text-neutral-500">Data limite</span>
-                                    <input 
-                                        type="date"
-                                        value={form.data_limite}
-                                        onChange={e => setForm({...form, data_limite: e.target.value})}
-                                        className="box-border h-10 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm text-neutral-900 outline-none focus:border-neutral-900"
-                                    />
+                                    <CampoData value={form.data_limite} onChange={(iso) => setForm({ ...form, data_limite: iso })} />
                                 </label>
                                 <label>
                                     <span className="mb-1.5 block text-xs font-medium text-neutral-500">Prioridade</span>
@@ -481,9 +477,12 @@ export default function Tarefas() {
                                     <Trash2 size={14}/> Excluir
                                 </button>
                             ) : <span />}
-                            <button type="button" onClick={salvarTarefa} disabled={salvando} className="inline-flex h-9 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-40">
-                                {salvando ? <Loader2 size={14} className="animate-spin"/> : null} Salvar
-                            </button>
+                            <div className="flex items-center gap-2">
+                                <button type="button" onClick={() => setModalOpen(false)} className="inline-flex h-9 items-center rounded-md px-3 text-sm font-medium text-neutral-600 hover:bg-neutral-50">Cancelar</button>
+                                <button type="button" onClick={salvarTarefa} disabled={salvando} className="inline-flex h-9 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-40">
+                                    {salvando ? <Loader2 size={14} className="animate-spin"/> : null} Salvar
+                                </button>
+                            </div>
                         </div>
             </Modal>
         </div>

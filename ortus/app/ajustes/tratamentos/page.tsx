@@ -12,11 +12,11 @@ import {
     Pencil,
     Trash2,
     AlertTriangle,
-    ToggleLeft,
     ToggleRight,
     DollarSign,
 } from 'lucide-react';
 import Modal from '@/components/ui/Modal';
+import Switch from '@/components/ui/Switch';
 import { bentoModalPanel } from '@/lib/bentoUi';
 
 const cardShell = 'rounded-[1.35rem] bg-white sm:rounded-[1.5rem]';
@@ -737,14 +737,13 @@ export default function TratamentosBasePage() {
                                     placeholder="Ex.: 30101012"
                                 />
                             </div>
-                            <button
-                                type="button"
-                                onClick={() => setTratamentoForm((prev) => ({ ...prev, aceita_faces: !prev.aceita_faces }))}
-                                className={`flex items-center gap-2 px-4 py-2 rounded-2xl border text-xs font-black uppercase tracking-wider ${tratamentoForm.aceita_faces ? 'bg-neutral-900 border-neutral-900 text-white' : 'bg-white border-neutral-200 text-neutral-500'}`}
-                            >
-                                {tratamentoForm.aceita_faces ? <ToggleRight size={20} /> : <ToggleLeft size={20} />}
-                                Aceita faces
-                            </button>
+                            <div className="flex items-center justify-between gap-3 rounded-md border border-neutral-200 px-3 py-2">
+                                <span className="text-sm font-medium text-neutral-800">Aceita faces</span>
+                                <Switch
+                                    checked={tratamentoForm.aceita_faces}
+                                    onChange={(valor) => setTratamentoForm((prev) => ({ ...prev, aceita_faces: valor }))}
+                                />
+                            </div>
                             <div className="flex items-center justify-end gap-2 pt-4">
                                 <button type="button" onClick={fecharModalTratamento} className="px-4 py-2 rounded-xl text-sm font-bold text-neutral-500 hover:bg-neutral-50">Cancelar</button>
                                 <button

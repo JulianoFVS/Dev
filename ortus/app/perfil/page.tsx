@@ -11,7 +11,7 @@ import {
   Mail,
   Upload,
 } from 'lucide-react';
-import { bentoInput, bentoPrimaryBtn, bentoGhostBtn } from '@/lib/bentoUi';
+import { bentoInput } from '@/lib/bentoUi';
 import { useRouter } from 'next/navigation';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
 import { useClinica, getClinicLabel } from '@/app/context/ClinicaContext';
@@ -23,7 +23,7 @@ import {
 } from '@/lib/profileSession';
 import { clearAuthCookies } from '@/lib/authCookies';
 
-const cardShell = 'rounded-[1.35rem] bg-white sm:rounded-[1.5rem]';
+const cardShell = 'rounded-xl border border-neutral-200 bg-white';
 const sectionPad = 'p-4 sm:p-5 md:p-6';
 
 type ProfRow = {
@@ -266,7 +266,7 @@ export default function Perfil() {
         <button
           type="button"
           onClick={sair}
-          className={`${bentoGhostBtn} h-10 w-full border-red-200 text-red-700 hover:bg-red-50 sm:w-auto`}
+          className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md border border-red-200 bg-white px-3 text-sm font-medium text-red-700 hover:bg-red-50 sm:w-auto"
         >
           <LogOut size={18} /> Sair
         </button>
@@ -349,7 +349,7 @@ export default function Perfil() {
                       onChange={(e) => setForm({ ...form, novaSenha: e.target.value })}
                     />
                   </div>
-                  <button type="submit" disabled={salvando} className={`${bentoPrimaryBtn} h-11 w-full sm:w-auto sm:min-w-[10rem] sm:px-8`}>
+                  <button type="submit" disabled={salvando} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-40 sm:w-auto">
                     {salvando ? <Loader2 className="animate-spin" /> : <><Save size={18} /> Salvar</>}
                   </button>
                 </form>

@@ -655,13 +655,21 @@ export function PatientActionModalProvider({ children }: { children: React.React
                   </p>
                 )}
 
-                <div className="mt-5 flex justify-end border-t border-black/5 pt-4">
+                <div className="mt-5 flex items-center justify-end gap-3 border-t border-black/5 pt-4">
+                  <button
+                    type="button"
+                    onClick={closePatientActions}
+                    disabled={qcSaving}
+                    className="h-10 px-3 text-sm font-medium text-neutral-500 hover:text-neutral-900 disabled:opacity-40"
+                  >
+                    Cancelar
+                  </button>
                   <button
                     onClick={submitQuickCapture}
                     disabled={qcSaving || !qcNome.trim() || !qcClinicaId}
-                    className="inline-flex h-10 shrink-0 items-center gap-2 rounded-full bg-neutral-900 px-5 text-sm font-medium text-white hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-40"
+                    className="inline-flex h-10 shrink-0 items-center gap-2 rounded-md bg-neutral-900 px-5 text-sm font-medium text-white hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-40"
                   >
-                    {qcSaving ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
+                    {qcSaving && <Loader2 size={15} className="animate-spin" />}
                     {qcSaving ? 'Cadastrando...' : 'Cadastrar'}
                   </button>
                 </div>
