@@ -15,6 +15,7 @@ import CustomSelect from '@/components/ui/CustomSelect';
 import SegmentedControl from '@/components/ui/SegmentedControl';
 import TagInput from '@/components/ui/TagInput';
 import Modal from '@/components/ui/Modal';
+import Switch from '@/components/ui/Switch';
 import { MEDICAMENTOS_CATALOGO } from '@/lib/medicamentosCatalogo';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
 import { validarPaciente, isMenorDeIdade } from '@/lib/pacienteValidation';
@@ -28,7 +29,7 @@ import { printDocument, printQaBlock, printSignatureBlock, printTable, escapePri
 import PatientContactButtons from '@/components/PatientContactButtons';
 import { carregarTaxasAtivas, type ParteRecebimento } from '@/lib/recebimentoAgendamento';
 import { criarDebitoManual, listarDebitosPaciente, listarOpcoesMarcarNaoPago, marcarAgendamentoNaoPago, receberDebito } from '@/lib/debitosPaciente';
-import { calcularValorLiquido, type TaxaMaquininha } from '@/lib/configDefaults';
+import { calcularValorLiquido, TAXAS_MAQUININHA_PADRAO, type TaxaMaquininha } from '@/lib/configDefaults';
 import { registrarComissaoTratamentoFinalizado } from '@/lib/comissao';
 import { carregarProntuario } from '@/lib/fichaPaciente';
 import { criarAnamnese, atualizarAnamnese, excluirAnamnese as excluirAnamneseDb, gerarLinkAnamnesePaciente as gerarLinkAnamnesePacienteApi } from '@/lib/db/anamneses';
@@ -66,8 +67,6 @@ interface ToothState { faces: Partial<Record<Face, FaceStatus>>; cond: ToothCond
 
 const TOOLS = ODONTO_TOOLS;
 
-const prontuarioPanel = '';
-
 const campoLabel = 'mb-1.5 block text-xs font-medium text-neutral-500';
 
 function campoClass(editing: boolean) {
@@ -79,12 +78,52 @@ function campoClass(editing: boolean) {
 const PATIENT_NAV_SECTIONS = [
   { key: 'dados', label: 'Dados', icon: User },
   { key: 'anamnese', label: 'Anamnese', icon: FileText },
-  { key: 'tratamentos', label: 'Odontograma e Tratamentos', icon: Smile },
+  { key: 'odontograma', label: 'Odontograma', icon: Smile },
+  { key: 'tratamentos', label: 'Tratamentos', icon: ClipboardList },
   { key: 'documentos', label: 'Documentos', icon: FolderOpen },
   { key: 'debitos', label: 'Débitos', icon: DollarSign },
   { key: 'hof', label: 'HOF', icon: Sparkles },
   { key: 'historico', label: 'Histórico', icon: Clock },
 ];
+
+type FormaRecebimento = 'credito_visa' | 'credito_elo' | 'debito_visa' | 'debito_elo' | 'pix' | 'dinheiro';
+
+const FORMAS_RECEBIMENTO: { value: FormaRecebimento; label: string }[] = [
+  { value: 'credito_visa', label: 'Crédito Visa/Master' },
+  { value: 'credito_elo', label: 'Crédito Elo/outros' },
+  { value: 'debito_visa', label: 'Débito Visa/Master' },
+  { value: 'debito_elo', label: 'Débito Elo/outros' },
+  { value: 'pix', label: 'PIX' },
+  { value: 'dinheiro', label: 'Dinheiro' },
+];
+
+function formaEhCredito(forma: string) {
+  return forma === 'credito_visa' || forma === 'credito_elo';
+}
+
+function taxaDaForma(taxas: TaxaMaquininha[], forma: string, parcelas: number): TaxaMaquininha | undefined {
+  if (forma === 'dinheiro') return undefined;
+  const fontes = [taxas, TAXAS_MAQUININHA_PADRAO];
+  if (forma === 'pix') {
+    return fontes.map((lista) => lista.find((t) => t.tipo === 'pix')).find(Boolean);
+  }
+  const bandeira = forma.endsWith('_visa') ? 'Visa/Master' : 'Elo';
+  if (forma.startsWith('debito')) {
+    return fontes.map((lista) => (
+      lista.find((t) => t.tipo === 'debito' && t.bandeira === bandeira)
+      || (forma === 'debito_elo' ? lista.find((t) => t.tipo === 'debito' && t.bandeira !== 'Visa/Master') : undefined)
+    )).find(Boolean);
+  }
+  return fontes.map((lista) => {
+    const daBandeira = lista.filter((t) => t.bandeira === bandeira && t.parcela != null);
+    const opcoes = daBandeira.length
+      ? daBandeira
+      : forma === 'credito_elo'
+        ? lista.filter((t) => t.parcela != null && t.bandeira !== 'Visa/Master' && t.tipo !== 'pix' && t.tipo !== 'debito')
+        : [];
+    return opcoes.find((t) => t.parcela === parcelas) || opcoes.find((t) => t.parcela === 1);
+  }).find(Boolean);
+}
 
 const LEGACY_CONDICOES = [
   'Diabetes', 'Hipertensão', 'Cardiopatia', 'Asma/Bronquite',
@@ -374,8 +413,7 @@ export default function PacienteDetalhe() {
   const [loading, setLoading] = useState(pacienteCache.current === null);
   const { showAlert, showConfirm } = useCustomAlert();
   
-  const [abaAtiva, setAbaAtiva] = useState(initialTab);
-  const [subAbaTratamentos, setSubAbaTratamentos] = useState<'tratamentos' | 'evolucoes'>(rawTab === 'evolucao' ? 'evolucoes' : 'tratamentos');
+  const [abaAtiva, setAbaAtiva] = useState(initialTab === 'evolucao' ? 'tratamentos' : initialTab);
   const [anamnesePreview, setAnamnesePreview] = useState<any>(null);
   const [modalAnamnese, setModalAnamnese] = useState(false);
   const [visualDocs, setVisualDocs] = useState<'bloco' | 'lista'>('bloco');
@@ -416,8 +454,9 @@ export default function PacienteDetalhe() {
   const [formDebito, setFormDebito] = useState({ descricao: '', valor: '', agendamentosMarcados: [] as number[], tratamentosMarcados: [] as string[] });
   const [debitoOpcoes, setDebitoOpcoes] = useState<{ agendamentos: any[]; tratamentos: any[] }>({ agendamentos: [], tratamentos: [] });
   const [salvandoDebito, setSalvandoDebito] = useState(false);
-  const [partesPagamento, setPartesPagamento] = useState<Array<{ key: string; taxaId: string; valor: string }>>([]);
+  const [partesPagamento, setPartesPagamento] = useState<Array<{ key: string; forma: FormaRecebimento; parcelas: number; valor: string }>>([]);
   const [taxasRecebimento, setTaxasRecebimento] = useState<TaxaMaquininha[]>([]);
+  const [repassarTaxas, setRepassarTaxas] = useState(false);
   const [recebendo, setRecebendo] = useState(false);
   
   const [form, setForm] = useState<any>(() => pacienteCache.current || {});
@@ -1672,12 +1711,18 @@ export default function PacienteDetalhe() {
       const taxas = form.clinica_id ? await carregarTaxasAtivas(form.clinica_id) : [];
       const bruto = Number(debito?.valor_final ?? debito?.valor) || 0;
       setTaxasRecebimento(taxas);
-      setPartesPagamento([{ key: '1', taxaId: taxas[0]?.id || '', valor: bruto ? bruto.toFixed(2) : '' }]);
+      setRepassarTaxas(false);
+      setPartesPagamento([{ key: '1', forma: 'pix', parcelas: 1, valor: bruto ? bruto.toFixed(2) : '' }]);
       setModalReceber(debito);
   }
 
-  function atualizarPartePagamento(key: string, patch: Partial<{ taxaId: string; valor: string }>) {
-      setPartesPagamento((atual) => atual.map((parte) => parte.key === key ? { ...parte, ...patch } : parte));
+  function atualizarPartePagamento(key: string, patch: Partial<{ forma: FormaRecebimento; parcelas: number; valor: string }>) {
+      setPartesPagamento((atual) => atual.map((parte) => {
+          if (parte.key !== key) return parte;
+          const proxima = { ...parte, ...patch };
+          if (patch.forma && !formaEhCredito(patch.forma)) proxima.parcelas = 1;
+          return proxima;
+      }));
   }
 
   function adicionarPartePagamento() {
@@ -1685,17 +1730,25 @@ export default function PacienteDetalhe() {
       const bruto = Number(modalReceber?.valor_final ?? modalReceber?.valor) || 0;
       const usado = partesPagamento.reduce((soma, parte) => soma + (parseFloat(parte.valor.replace(',', '.')) || 0), 0);
       const falta = Math.max(0, bruto - usado);
-      setPartesPagamento((atual) => [...atual, { key: String(Date.now()), taxaId: '', valor: falta ? falta.toFixed(2) : '' }]);
+      setPartesPagamento((atual) => [...atual, { key: String(Date.now()), forma: 'dinheiro', parcelas: 1, valor: falta ? falta.toFixed(2) : '' }]);
   }
 
   async function confirmarRecebimento() {
       if (!modalReceber) return;
       const bruto = Number(modalReceber.valor_final ?? modalReceber.valor) || 0;
-      const partes: ParteRecebimento[] = partesPagamento.map((parte) => ({
-          taxaId: parte.taxaId || undefined,
-          valor: parseFloat(parte.valor.replace(',', '.')) || 0,
-      })).filter((parte) => parte.valor > 0);
-      const soma = partes.reduce((total, parte) => total + parte.valor, 0);
+      const partesBase = partesPagamento.map((parte) => ({
+          ...parte,
+          base: parseFloat(parte.valor.replace(',', '.')) || 0,
+          taxa: taxaDaForma(taxasRecebimento, parte.forma, parte.parcelas),
+      })).filter((parte) => parte.base > 0);
+      const partes: ParteRecebimento[] = partesBase.map((parte) => {
+          const percentual = parte.taxa?.taxa_percentual || 0;
+          const valor = repassarTaxas && percentual > 0 && percentual < 100
+              ? Math.round((parte.base / (1 - percentual / 100)) * 100) / 100
+              : parte.base;
+          return { taxaId: parte.taxa?.id, valor };
+      });
+      const soma = partesBase.reduce((total, parte) => total + parte.base, 0);
       if (bruto > 0 && Math.abs(soma - bruto) > 0.009) {
           showAlert(`A soma das formas (R$ ${soma.toFixed(2)}) precisa fechar o total de R$ ${bruto.toFixed(2)}.`, { type: 'warning' });
           return;
@@ -1915,65 +1968,54 @@ export default function PacienteDetalhe() {
         </div>
 
         {/* MODAL DE DOCUMENTOS */}
-        <Modal open={modalDoc} onClose={() => setModalDoc(false)} maxWidth="2xl" hideCloseButton panelClassName="max-h-[85vh] overflow-y-auto rounded-xl border border-neutral-200 bg-white">
-                <div className="p-5">
-                    <div className="mb-4 flex items-center justify-between">
+        <Modal open={modalDoc} onClose={() => setModalDoc(false)} maxWidth="2xl" hideCloseButton panelClassName="flex h-[32rem] max-h-[85vh] flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white">
+                <div className="flex h-full min-h-0 flex-col p-5">
+                    <div className="mb-4 flex shrink-0 items-center justify-between">
                         <h3 className="text-base font-semibold text-neutral-900">Emitir documento</h3>
                         <button type="button" onClick={() => setModalDoc(false)} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-100" aria-label="Fechar"><X size={16}/></button>
                     </div>
-                    
-                    <div className="mb-4 flex h-10 overflow-hidden rounded-md border border-neutral-200 bg-white">
-                        <button type="button" onClick={() => { setTipoDoc('receita'); setModeloDocId(''); }} className={`flex-1 text-xs font-medium ${tipoDoc === 'receita' ? 'bg-neutral-900 text-white' : 'text-neutral-600 hover:bg-neutral-50'}`}>Receita</button>
-                        <button type="button" onClick={() => { setTipoDoc('atestado'); setModeloDocId(''); }} className={`flex-1 border-l border-neutral-200 text-xs font-medium ${tipoDoc === 'atestado' ? 'bg-neutral-900 text-white' : 'text-neutral-600 hover:bg-neutral-50'}`}>Atestado</button>
-                        <button type="button" onClick={() => { setTipoDoc('contrato'); setModeloDocId(''); }} className={`flex-1 border-l border-neutral-200 text-xs font-medium ${tipoDoc === 'contrato' ? 'bg-neutral-900 text-white' : 'text-neutral-600 hover:bg-neutral-50'}`}>Contrato</button>
+
+                    <SegmentedControl
+                        value={tipoDoc}
+                        onChange={(tipo) => { setTipoDoc(tipo); setModeloDocId(''); }}
+                        className="mb-4 w-full shrink-0"
+                        options={[
+                            { value: 'receita', label: 'Receita' },
+                            { value: 'atestado', label: 'Atestado' },
+                            { value: 'contrato', label: 'Contrato' },
+                        ]}
+                    />
+
+                    <div className="mb-3 shrink-0">
+                        <label className={campoLabel}>Modelo</label>
+                        <CustomSelect
+                            value={modeloDocId}
+                            onChange={v => {
+                                setModeloDocId(v);
+                                const modelo = modelosDocumentos.find(m => m.id === v);
+                                if (modelo) setTextoDoc(aplicarVariaveisDocumento(modelo.conteudo, buildCtxDocumento()));
+                            }}
+                            options={modelosDocumentos.filter(m => m.tipo === tipoDoc).map(m => ({ value: m.id, label: m.nome }))}
+                            placeholder="Nenhum modelo"
+                            size="lg"
+                            menuPortal
+                        />
                     </div>
 
-                    {tipoDoc === 'contrato' && modelosDocumentos.filter(m => m.tipo === 'contrato').length > 0 && (
-                        <div className="mb-4">
-                            <label className={campoLabel}>Modelo de contrato</label>
-                            <CustomSelect
-                                value={modeloDocId}
-                                onChange={v => {
-                                    setModeloDocId(v);
-                                    const modelo = modelosDocumentos.find(m => m.id === v);
-                                    if (modelo) setTextoDoc(aplicarVariaveisDocumento(modelo.conteudo, buildCtxDocumento()));
-                                }}
-                                options={modelosDocumentos.filter(m => m.tipo === 'contrato').map(m => ({ value: m.id, label: m.nome }))}
-                                size="lg"
-                            />
-                        </div>
-                    )}
-
-                    {(tipoDoc === 'receita' || tipoDoc === 'atestado') && modelosDocumentos.filter(m => m.tipo === tipoDoc).length > 0 && (
-                        <div className="mb-4">
-                            <label className={campoLabel}>Modelo</label>
-                            <CustomSelect
-                                value={modeloDocId}
-                                onChange={v => {
-                                    setModeloDocId(v);
-                                    const modelo = modelosDocumentos.find(m => m.id === v);
-                                    if (modelo) setTextoDoc(aplicarVariaveisDocumento(modelo.conteudo, buildCtxDocumento()));
-                                }}
-                                options={modelosDocumentos.filter(m => m.tipo === tipoDoc).map(m => ({ value: m.id, label: m.nome }))}
-                                size="lg"
-                            />
-                        </div>
-                    )}
-
-                    <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                            <label className={campoLabel}>Conteúdo</label>
+                    <div className="flex min-h-0 flex-1 flex-col">
+                        <div className="mb-1.5 flex shrink-0 items-center justify-between">
+                            <label className="text-xs font-medium text-neutral-500">Conteúdo</label>
                             <button type="button" onClick={() => setTextoDoc('')} className="text-xs font-medium text-neutral-500 hover:text-neutral-900">Limpar</button>
                         </div>
-                        <textarea 
-                            value={textoDoc} 
-                            onChange={(e) => setTextoDoc(e.target.value)} 
-                            className="h-64 w-full resize-none rounded-md border border-neutral-200 bg-white p-3 text-sm leading-relaxed text-neutral-900 outline-none focus:border-neutral-900"
-                        ></textarea>
-                        <p className="text-right text-xs text-neutral-400">O cabeçalho e o rodapé da clínica entram na impressão.</p>
+                        <textarea
+                            value={textoDoc}
+                            onChange={(e) => setTextoDoc(e.target.value)}
+                            className="min-h-0 w-full flex-1 resize-none rounded-md border border-neutral-200 bg-white p-3 text-sm leading-relaxed text-neutral-900 outline-none focus:border-neutral-900"
+                        />
+                        <p className="mt-1.5 shrink-0 text-right text-xs text-neutral-400">O cabeçalho e o rodapé da clínica entram na impressão.</p>
                     </div>
 
-                    <div className="mt-4 flex justify-end">
+                    <div className="mt-3 flex shrink-0 justify-end">
                         <button type="button" onClick={imprimirDocumento} className="inline-flex h-9 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800">
                             <Printer size={14}/> Imprimir
                         </button>
@@ -1981,33 +2023,60 @@ export default function PacienteDetalhe() {
                 </div>
         </Modal>
 
-        <Modal open={!!modalReceber} onClose={() => setModalReceber(null)} maxWidth="md" hideCloseButton panelClassName="overflow-hidden rounded-xl border border-neutral-200 bg-white">
+        <Modal open={!!modalReceber} onClose={() => setModalReceber(null)} maxWidth="xl" hideCloseButton panelClassName="overflow-hidden rounded-xl border border-neutral-200 bg-white">
                 <div className="p-5">
                     <h3 className="text-base font-semibold text-neutral-900">Registrar recebimento</h3>
                     <p className="mt-1 text-sm text-neutral-500">{modalReceber?.procedimento}</p>
                     {(() => {
                         const bruto = Number(modalReceber?.valor_final ?? modalReceber?.valor) || 0;
-                        const soma = partesPagamento.reduce((total, parte) => total + (parseFloat(parte.valor.replace(',', '.')) || 0), 0);
-                        const liquido = partesPagamento.reduce((total, parte) => {
-                            const valor = parseFloat(parte.valor.replace(',', '.')) || 0;
-                            const taxa = taxasRecebimento.find((item) => item.id === parte.taxaId);
-                            return total + (taxa ? calcularValorLiquido(valor, taxa.taxa_percentual) : valor);
-                        }, 0);
+                        const linhas = partesPagamento.map((parte) => {
+                            const base = parseFloat(parte.valor.replace(',', '.')) || 0;
+                            const taxa = taxaDaForma(taxasRecebimento, parte.forma, parte.parcelas);
+                            const percentual = taxa?.taxa_percentual || 0;
+                            const cobrado = repassarTaxas && percentual > 0 && percentual < 100 ? base / (1 - percentual / 100) : base;
+                            const liquidoParte = repassarTaxas ? base : (taxa ? calcularValorLiquido(base, percentual) : base);
+                            return { base, cobrado, liquidoParte };
+                        });
+                        const soma = linhas.reduce((total, linha) => total + linha.base, 0);
+                        const liquido = linhas.reduce((total, linha) => total + linha.liquidoParte, 0);
+                        const cobrado = linhas.reduce((total, linha) => total + linha.cobrado, 0);
                         const diferenca = bruto - soma;
                         return (
                             <>
-                                <p className="mb-4 mt-2 text-base font-semibold text-neutral-900">R$ {bruto.toFixed(2)}</p>
+                                <p className="mb-4 mt-2 text-base font-semibold text-neutral-900">R$ {bruto.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
                                 <div className="space-y-2">
-                                    <label className={campoLabel}>Formas de pagamento</label>
-                                    {partesPagamento.map((parte) => (
-                                        <div key={parte.key} className="grid grid-cols-[minmax(0,1fr)_7.5rem_auto] items-center gap-2">
+                                    <div className="mb-1 flex items-center justify-between gap-3">
+                                        <span className="text-xs font-medium text-neutral-500">Formas de pagamento</span>
+                                        <Switch checked={repassarTaxas} onChange={setRepassarTaxas} className="text-xs font-medium text-neutral-500">
+                                            Repassar taxas
+                                        </Switch>
+                                    </div>
+                                    {partesPagamento.map((parte) => {
+                                        const credito = formaEhCredito(parte.forma);
+                                        const parcelasOpcoes = Array.from({ length: 12 }, (_, i) => {
+                                            const n = i + 1;
+                                            const taxa = taxaDaForma(taxasRecebimento, parte.forma, n);
+                                            const rotulo = taxa ? `${n}x · ${taxa.taxa_percentual.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 2 })}%` : `${n}x`;
+                                            return { value: String(n), label: rotulo };
+                                        });
+                                        return (
+                                        <div key={parte.key} className={`grid items-center gap-2 ${credito ? 'grid-cols-[minmax(0,1fr)_8.5rem_7rem_auto]' : 'grid-cols-[minmax(0,1fr)_7rem_auto]'}`}>
                                             <CustomSelect
-                                                value={parte.taxaId}
-                                                onChange={(valor) => atualizarPartePagamento(parte.key, { taxaId: valor })}
-                                                options={[{ value: '', label: 'Dinheiro' }, ...taxasRecebimento.map((taxa) => ({ value: taxa.id, label: `${taxa.nome} (${taxa.taxa_percentual}%)` }))]}
+                                                value={parte.forma}
+                                                onChange={(valor) => atualizarPartePagamento(parte.key, { forma: valor as FormaRecebimento })}
+                                                options={FORMAS_RECEBIMENTO}
                                                 size="lg"
                                                 menuPortal
                                             />
+                                            {credito && (
+                                                <CustomSelect
+                                                    value={String(parte.parcelas || 1)}
+                                                    onChange={(valor) => atualizarPartePagamento(parte.key, { parcelas: Number(valor) || 1 })}
+                                                    options={parcelasOpcoes}
+                                                    size="lg"
+                                                    menuPortal
+                                                />
+                                            )}
                                             <input
                                                 inputMode="decimal"
                                                 value={parte.valor}
@@ -2018,14 +2087,15 @@ export default function PacienteDetalhe() {
                                             <button
                                                 type="button"
                                                 onClick={() => setPartesPagamento((atual) => atual.length > 1 ? atual.filter((item) => item.key !== parte.key) : atual)}
-                                                className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-neutral-900 bg-white text-neutral-900 hover:bg-rose-50 hover:text-rose-600 disabled:border-neutral-200 disabled:text-neutral-300"
+                                                className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-500 hover:bg-neutral-50 hover:text-neutral-900 disabled:text-neutral-300"
                                                 disabled={partesPagamento.length < 2}
                                                 aria-label="Remover forma"
                                             >
                                                 <X size={16} strokeWidth={2.5} />
                                             </button>
                                         </div>
-                                    ))}
+                                        );
+                                    })}
                                     {partesPagamento.length < 5 && (
                                         <button type="button" onClick={adicionarPartePagamento} className="inline-flex h-8 items-center gap-1.5 text-xs font-medium text-neutral-600 hover:text-neutral-900">
                                             <Plus size={12} /> Adicionar forma
@@ -2033,6 +2103,9 @@ export default function PacienteDetalhe() {
                                     )}
                                     <p className="text-xs font-medium text-neutral-600">
                                         Líquido: R$ {liquido.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                        {repassarTaxas && cobrado > soma + 0.009 && (
+                                            <span className="ml-2 text-neutral-500">Paciente paga R$ {cobrado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                        )}
                                         {Math.abs(diferenca) > 0.009 && (
                                             <span className="ml-2 text-amber-700">{diferenca > 0 ? `Falta R$ ${diferenca.toFixed(2)}` : `Sobra R$ ${Math.abs(diferenca).toFixed(2)}`}</span>
                                         )}
@@ -2078,7 +2151,7 @@ export default function PacienteDetalhe() {
                 })}
             </nav>
 
-            <div className={abaAtiva === 'dados' || abaAtiva === 'anamnese' ? 'flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden' : 'min-h-0 min-w-0 flex-1 overflow-y-auto px-3 py-3 sm:px-5 sm:py-4'}>
+            <div className={abaAtiva === 'dados' || abaAtiva === 'anamnese' || abaAtiva === 'odontograma' ? 'flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden' : 'min-h-0 min-w-0 flex-1 overflow-y-auto px-3 py-3 sm:px-5 sm:py-4'}>
                 {abaAtiva === 'dados' && (
                     <div className="flex h-full min-h-0 flex-col overflow-y-auto px-4 py-3">
                         <div className="mb-3 flex shrink-0 items-center justify-between gap-2">
@@ -2426,18 +2499,6 @@ export default function PacienteDetalhe() {
 
                 {abaAtiva === 'tratamentos' && (
                     <div className="animate-in fade-in space-y-4">
-                        <SegmentedControl
-                            value={subAbaTratamentos}
-                            onChange={setSubAbaTratamentos}
-                            className="w-fit min-w-[16rem]"
-                            options={[
-                                { value: 'tratamentos', label: 'Odontograma' },
-                                { value: 'evolucoes', label: 'Tratamentos' },
-                            ]}
-                        />
-
-                        {subAbaTratamentos === 'evolucoes' ? (
-                            <div className="space-y-4">
                             <TabEvolucao id={id as string} form={form} ficha={ficha} setFicha={setFicha} evolucoes={evolucoes} setEvolucoes={setEvolucoes}/>
                         <div className="rounded-xl border border-neutral-200 bg-white p-4">
                             <div className="mb-3 flex items-center justify-between gap-3">
@@ -2490,13 +2551,14 @@ export default function PacienteDetalhe() {
                             )}
                         </div>
 
-                            </div>
-                        ) : (
-                        <>
-                        {/* ODONTOGRAMA */}
-                        <div className={prontuarioPanel}>
-                            <div className="mb-3 flex items-center justify-between gap-3">
-                                <h3 className="text-base font-semibold text-neutral-900">Odontograma</h3>
+                    </div>
+                )}
+
+                {abaAtiva === 'odontograma' && (
+                    <div className="flex h-full min-h-0 flex-col overflow-hidden px-3 py-3 sm:px-4 sm:py-3">
+                        <div className="mb-2 flex shrink-0 flex-wrap items-center justify-between gap-2">
+                            <h3 className="text-base font-semibold text-neutral-900">Odontograma</h3>
+                            <div className="flex flex-wrap items-center gap-2">
                                 <SegmentedControl
                                     value={visaoOdonto}
                                     onChange={setVisaoOdonto}
@@ -2508,58 +2570,66 @@ export default function PacienteDetalhe() {
                                         { value: 'livre', label: 'Texto livre' },
                                     ]}
                                 />
-                                {savingOdo && <span className="flex items-center gap-1 text-xs font-medium text-neutral-400"><Loader2 size={12} className="animate-spin"/> Salvando</span>}
-                            </div>
-
-                            {visaoOdonto === 'livre' ? (
-                                <div className="mt-2">
-                                    <textarea
-                                        value={textoOdontogramaLivre}
-                                        onChange={e => setTextoOdontogramaLivre(e.target.value)}
-                                        className="min-h-[280px] w-full resize-y rounded-md border border-neutral-200 bg-white p-3 text-sm leading-relaxed text-neutral-900 outline-none focus:border-neutral-900"
-                                        placeholder="Observações e plano de tratamento"
-                                    />
-                                    <p className="mt-2 text-xs text-neutral-400">Salvo junto ao odontograma e incluído no PDF.</p>
-                                </div>
-                            ) : (
-                            <>
-                            <div className="mb-3 flex flex-wrap items-center gap-2">
-                                <div className="w-40 shrink-0">
-                                    <CustomSelect
-                                        value={tipoArcada}
-                                        onChange={(v) => setTipoArcada(v as 'permanente' | 'leite')}
-                                        options={[{ value: 'permanente', label: 'Permanentes' }, { value: 'leite', label: 'De leite' }]}
-                                        size="sm"
-                                    />
-                                </div>
-                                <div className="flex min-w-0 flex-1 flex-wrap gap-1.5">
-                                    {TOOLS.map(t => (
-                                        <button
-                                            key={t.key}
-                                            type="button"
-                                            onClick={() => setFerramenta(t.key)}
-                                            className={`inline-flex h-8 items-center gap-1.5 rounded-md border px-2 text-xs font-medium ${ferramenta === t.key ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50'}`}
-                                        >
-                                            <span className="h-2.5 w-2.5 rounded-sm border border-black/10" style={{ background: t.color }}></span>
-                                            {t.label}
-                                        </button>
-                                    ))}
-                                </div>
-                                <button type="button" onClick={imprimirOrcamento} className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-neutral-300 bg-white px-3 text-xs font-medium text-neutral-800 hover:bg-neutral-50"><Printer size={13}/> PDF</button>
+                                <button type="button" onClick={imprimirOrcamento} className="inline-flex h-8 items-center gap-1.5 rounded-md border border-neutral-200 bg-white px-2.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"><Printer size={13}/> PDF</button>
                                 <button
                                     type="button"
                                     onClick={async () => {
                                         if (await showConfirm('Limpar todo o odontograma?', { title: 'Limpar', type: 'warning', confirmLabel: 'Limpar' })) resetOdontogramAll();
                                     }}
-                                    className="ml-2 inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-neutral-900 bg-neutral-900 px-3 text-xs font-medium text-white hover:bg-neutral-800"
+                                    className="inline-flex h-8 items-center gap-1.5 rounded-md border border-neutral-200 bg-white px-2.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
                                 >
                                     <Eraser size={13}/> Limpar
                                 </button>
+                                {savingOdo && <span className="flex items-center gap-1 text-xs font-medium text-neutral-400"><Loader2 size={12} className="animate-spin"/> Salvando</span>}
+                            </div>
+                        </div>
+
+                            {visaoOdonto === 'livre' ? (
+                                <div className="flex min-h-0 flex-1 flex-col">
+                                    <textarea
+                                        value={textoOdontogramaLivre}
+                                        onChange={e => setTextoOdontogramaLivre(e.target.value)}
+                                        className="min-h-0 w-full flex-1 resize-none rounded-md border border-neutral-200 bg-white p-3 text-sm leading-relaxed text-neutral-900 outline-none focus:border-neutral-900"
+                                        placeholder="Observações e plano de tratamento"
+                                    />
+                                    <p className="mt-2 shrink-0 text-xs text-neutral-400">Salvo junto ao odontograma e incluído no PDF.</p>
+                                </div>
+                            ) : (
+                            <>
+                            <div className="mb-2 flex shrink-0 items-center gap-1.5 overflow-x-auto">
+                                <div className="w-36 shrink-0">
+                                    <CustomSelect
+                                        value={tipoArcada}
+                                        onChange={(v) => setTipoArcada(v as 'permanente' | 'leite')}
+                                        options={[{ value: 'permanente', label: 'Permanentes' }, { value: 'leite', label: 'De leite' }]}
+                                        size="xs"
+                                    />
+                                </div>
+                                {TOOLS.map(t => (
+                                    <button
+                                        key={t.key}
+                                        type="button"
+                                        onClick={() => setFerramenta(t.key)}
+                                        className={`inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium ${ferramenta === t.key ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50'}`}
+                                    >
+                                        <span className="h-2 w-2 rounded-full" style={{ background: t.color, boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.12)' }} />
+                                        {t.label}
+                                    </button>
+                                ))}
+                                {!mostrar3D && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setMostrar3D(true)}
+                                        className="inline-flex h-8 shrink-0 items-center rounded-md border border-neutral-200 bg-white px-2.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+                                    >
+                                        Vista 3D
+                                    </button>
+                                )}
                             </div>
 
-                            <div className={mostrar3D ? 'grid grid-cols-1 items-stretch gap-3 lg:grid-cols-[minmax(0,7fr)_minmax(0,3fr)]' : ''}>
-                            <div className="min-w-0 overflow-x-auto rounded-2xl border border-black/10 bg-white p-3 sm:p-5">
-                                <div className="flex w-max min-w-full justify-center">
+                            <div className={`min-h-0 overflow-hidden ${mostrar3D ? 'grid flex-1 grid-cols-1 items-stretch gap-2 lg:grid-cols-[minmax(0,7fr)_minmax(0,3fr)]' : 'shrink-0'}`}>
+                            <div className="flex min-h-0 min-w-0 items-center justify-center overflow-hidden rounded-xl border border-neutral-200 bg-white py-2">
+                                <div className={mostrar3D ? 'origin-center max-sm:[zoom:0.38] sm:[zoom:0.62]' : 'origin-center max-sm:[zoom:0.4] sm:[zoom:0.72] lg:[zoom:0.92]'}>
                                     <div>
                                         {(() => {
                                             const isEsq = visaoOdonto === 'esquematica';
@@ -2585,7 +2655,7 @@ export default function PacienteDetalhe() {
                             </div>
 
                             {mostrar3D && (
-                                <div className="flex h-[min(52vh,480px)] min-h-[280px] min-w-0 flex-col overflow-hidden rounded-2xl border border-black/10 bg-[#f8f8f6] p-2 sm:p-3 lg:h-full">
+                                <div className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border border-neutral-200 bg-[#f8f8f6] p-2">
                                     <div className="mb-2 flex items-center justify-between gap-2">
                                         <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-400">Vista 3D</span>
                                         <button
@@ -2608,19 +2678,7 @@ export default function PacienteDetalhe() {
                             )}
                             </div>
 
-                            {!mostrar3D && (
-                                <div className="mt-3">
-                                    <button
-                                        type="button"
-                                        onClick={() => setMostrar3D(true)}
-                                        className="inline-flex h-8 items-center justify-center rounded-md bg-neutral-900 px-3 text-xs font-medium text-white"
-                                    >
-                                        Abrir vista 3D
-                                    </button>
-                                </div>
-                            )}
-
-                            <div className="mt-6 border-t border-black/5 pt-4">
+                            <div className="mt-2 flex min-h-0 flex-1 flex-col overflow-hidden border-t border-neutral-200 pt-2">
                                 <div className="mb-2 flex flex-wrap items-center gap-3">
                                     {marcacoesPendentes.length > 0 && (
                                         <button
@@ -2639,9 +2697,9 @@ export default function PacienteDetalhe() {
                                     </div>
                                 </div>
                                 {marcacoesOdonto.length === 0 ? (
-                                    <p className="px-3 py-4 text-sm text-neutral-400">Nenhuma marcação.</p>
+                                    <p className="py-2 text-sm text-neutral-400">Nenhuma marcação.</p>
                                 ) : (
-                                    <div className="grid items-start gap-3 lg:grid-cols-2">
+                                    <div className="grid min-h-0 flex-1 items-start gap-2 overflow-y-auto lg:grid-cols-2">
                                         {[marcacoesOdonto.slice(0, Math.ceil(marcacoesOdonto.length / 2)), marcacoesOdonto.slice(Math.ceil(marcacoesOdonto.length / 2))].filter((fatia) => fatia.length > 0).map((fatia) => (
                                             <div key={fatia[0].num} className="overflow-hidden rounded-xl border border-neutral-200">
                                                 {fatia.map((m) => (
@@ -2677,10 +2735,6 @@ export default function PacienteDetalhe() {
                             </div>
                             </>
                             )}
-                        </div>
-
-                        </>
-                        )}
                     </div>
                 )}
 
@@ -2738,11 +2792,11 @@ export default function PacienteDetalhe() {
                                     <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
                                         {documentosOrdenados().map(d => (
                                             <div key={d.id} className="overflow-hidden rounded-xl border border-neutral-200">
-                                                <button type="button" onClick={() => abrirDocumento(d)} className="flex h-32 w-full flex-col items-center justify-center gap-2 overflow-hidden bg-neutral-50 text-neutral-500">
+                                                <button type="button" onClick={() => abrirDocumento(d)} className="relative flex h-32 w-full flex-col items-center justify-center gap-2 overflow-hidden bg-neutral-50 text-neutral-500">
                                                     {d.previewUrl && documentoEhImagem(d) ? (
                                                         <img src={d.previewUrl} alt="" className="h-full w-full object-cover" />
                                                     ) : d.previewUrl && documentoEhPdf(d) ? (
-                                                        <iframe src={`${d.previewUrl}#toolbar=0&navpanes=0&scrollbar=0&page=1&view=FitH`} title="" className="pointer-events-none h-full w-full bg-white" />
+                                                        <iframe src={`${d.previewUrl}#toolbar=0&navpanes=0&scrollbar=0&page=1&view=FitH`} title="" scrolling="no" className="pointer-events-none absolute left-0 top-0 h-48 w-[calc(100%+20px)] border-0 bg-white" />
                                                     ) : (
                                                         <>
                                                             <FileText size={28} />
@@ -2766,36 +2820,32 @@ export default function PacienteDetalhe() {
 
                 {abaAtiva === 'debitos' && (
                     <div>
-                        <div className="mb-4 flex items-end justify-between gap-3">
+                        <div className="mb-3 flex items-center justify-between gap-3">
                             <div>
                                 <h3 className="text-base font-semibold text-neutral-900">Débitos</h3>
-                                <p className="mt-1 text-2xl font-semibold tracking-tight text-neutral-900">
-                                    R$ {debitos.reduce((s,d) => s + (d.valor || 0), 0).toFixed(2)}
+                                <p className="mt-1 text-sm text-neutral-500">
+                                    {debitos.length === 0 ? 'Nada em aberto' : `${debitos.length} em aberto · ${formatarMoeda(debitos.reduce((s, d) => s + (d.valor || 0), 0))}`}
                                 </p>
-                                <p className="text-xs font-medium text-neutral-500">{debitos.length === 0 ? 'Nada em aberto' : `${debitos.length} em aberto`}</p>
                             </div>
-                            <button type="button" onClick={abrirModalDebitoManual} className="inline-flex h-9 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800"><Plus size={14}/> Adicionar</button>
+                            <button type="button" onClick={abrirModalDebitoManual} className="inline-flex h-8 items-center gap-1.5 rounded-md bg-neutral-900 px-2.5 text-xs font-medium text-white hover:bg-neutral-800"><Plus size={14}/> Adicionar</button>
                         </div>
 
                         {debitos.length === 0 ? (
                             <p className="py-8 text-center text-sm text-neutral-400">Nenhum débito em aberto.</p>
                         ) : (
-                            <div className="grid gap-3">
+                            <div className="overflow-hidden rounded-xl border border-neutral-200">
                                 {debitos.map(d => (
-                                    <div key={d.id} className="flex items-center gap-4 rounded-xl border border-neutral-200 bg-white px-4 py-3">
+                                    <div key={d.id} className="flex items-center gap-3 border-b border-neutral-100 px-3 py-2.5 last:border-b-0">
                                         <div className="min-w-0 flex-1">
-                                            <div className="truncate text-sm font-semibold text-neutral-900">{d.descricao || d.procedimento}</div>
-                                            <p className="mt-1 text-xs text-neutral-500">
+                                            <div className="truncate text-sm font-medium text-neutral-900">{d.descricao || d.procedimento}</div>
+                                            <p className="mt-0.5 text-xs text-neutral-500">
                                                 {d.data_hora ? new Date(d.data_hora).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : d.created_at ? new Date(d.created_at).toLocaleDateString('pt-BR') : '—'}
                                                 {d.profissionais?.nome ? ` · ${d.profissionais.nome}` : ''}
+                                                {' · '}{d.origem === 'manual' ? 'Manual' : 'Atendimento'}
                                             </p>
-                                            <span className="mt-2 inline-flex h-6 items-center rounded-md bg-neutral-100 px-2 text-[11px] font-medium text-neutral-700">{d.origem === 'manual' ? 'Manual' : 'Atendimento'}</span>
                                         </div>
-                                        <div className="text-right">
-                                            <p className="text-[11px] font-medium uppercase tracking-wide text-neutral-400">Em aberto</p>
-                                            <p className="text-lg font-semibold text-neutral-900">R$ {(d.valor || 0).toFixed(2)}</p>
-                                        </div>
-                                        <button type="button" onClick={() => marcarComoPago(d.id)} className="inline-flex h-9 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-xs font-medium text-white hover:bg-neutral-800"><CheckCircle size={13}/> Receber</button>
+                                        <p className="shrink-0 text-sm font-semibold text-neutral-900">{formatarMoeda(d.valor || 0)}</p>
+                                        <button type="button" onClick={() => marcarComoPago(d.id)} className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-neutral-900 px-2.5 text-xs font-medium text-white hover:bg-neutral-800"><CheckCircle size={13}/> Receber</button>
                                     </div>
                                 ))}
                             </div>

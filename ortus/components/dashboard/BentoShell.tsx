@@ -42,9 +42,9 @@ export default function BentoShell({
   const reduzir = zoom < 0.999;
 
   return (
-    <div className="h-[100dvh] w-full overflow-hidden bg-[#f3f4f1] lg:bg-[#dfe5df]">
+    <div className="h-[100dvh] w-full overflow-hidden bg-[#f3f4f1] lg:bg-neutral-950">
       <div
-        className="flex h-full w-full flex-col bg-[#f3f4f1] lg:flex-row lg:gap-2 lg:bg-[#dfe5df] lg:p-2"
+        className="flex h-full w-full flex-col bg-[#f3f4f1] lg:flex-row lg:gap-2 lg:bg-neutral-950 lg:p-2"
         style={
           reduzir
             ? {
