@@ -36,8 +36,8 @@ async function autorizar(req: Request) {
 
 export async function PATCH(req: Request) {
     const auth = await autorizar(req);
-    if ('erro' in auth && auth.erro) return auth.erro;
-    const { supabaseAdmin } = auth as { supabaseAdmin: ReturnType<typeof createClient> };
+    if ('erro' in auth) return auth.erro;
+    const { supabaseAdmin } = auth;
 
     const body = await req.json().catch(() => ({}));
     const id = body?.id;
@@ -53,8 +53,8 @@ export async function PATCH(req: Request) {
 
 export async function DELETE(req: Request) {
     const auth = await autorizar(req);
-    if ('erro' in auth && auth.erro) return auth.erro;
-    const { supabaseAdmin } = auth as { supabaseAdmin: ReturnType<typeof createClient> };
+    if ('erro' in auth) return auth.erro;
+    const { supabaseAdmin } = auth;
 
     const body = await req.json().catch(() => ({}));
     const id = body?.id;

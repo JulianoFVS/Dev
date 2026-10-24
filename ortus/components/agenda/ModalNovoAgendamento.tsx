@@ -22,8 +22,8 @@ type Props = {
   pacienteId?: string;
   pacienteNome?: string;
   clinicaId?: string;
-  procedimento: string;
-  observacoes: string;
+  procedimento?: string;
+  observacoes?: string;
   data?: string;
 };
 
@@ -43,8 +43,8 @@ export default function ModalNovoAgendamento({
   pacienteId = '',
   pacienteNome = '',
   clinicaId,
-  procedimento,
-  observacoes,
+  procedimento = '',
+  observacoes = '',
   data,
 }: Props) {
   const { activeClinicId } = useClinica();
