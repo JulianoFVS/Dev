@@ -7,7 +7,6 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   BarChart3,
-  Bell,
   Calendar,
   CheckSquare,
   CircleHelp,
@@ -65,7 +64,6 @@ export default function MobileAppChrome({
     ...(showTratamentosBase ? [{ href: '/ajustes/tratamentos', label: 'Tratamentos', icon: ClipboardList }] : []),
     ...(showPainelSaas ? [{ href: '/super-admin', label: 'Painel SaaS', icon: ShieldAlert }] : []),
     { href: '/mensagens', label: 'Mensagens', icon: Mail },
-    { href: '/inbox', label: 'Notificações', icon: Bell },
     { href: '/configuracoes', label: 'Configurações', icon: Settings },
     { href: '/ajuda', label: 'Ajuda', icon: CircleHelp },
     { href: '/perfil', label: 'Meu perfil', icon: User },

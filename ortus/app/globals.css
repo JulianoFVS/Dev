@@ -368,6 +368,12 @@ input[type="time"] {
     -webkit-appearance: none;
 }
 
+input::placeholder,
+textarea::placeholder {
+    color: #a3a3a3;
+    opacity: 1;
+}
+
 /* ===== CUSTOM SCROLLBAR - Global (thin, slate) ===== */
 .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; border-radius: 100px; }

@@ -15,10 +15,8 @@ import {
   Check,
   FileText,
   Loader2,
-  Mail,
   Plus,
   Search,
-  Settings,
 } from 'lucide-react';
 import { useInboxCounts } from '@/hooks/useInboxCounts';
 import PillMeter from '@/components/bento/PillMeter';
@@ -522,29 +520,12 @@ export default function Dashboard() {
             <Link
               href="/mensagens"
               className="relative flex h-11 w-11 items-center justify-center rounded-full border border-black/10 bg-white text-neutral-700 hover:bg-neutral-50"
-              title="Mensagens"
-            >
-              <Mail size={18} />
-              {mensagensCount > 0 && (
-                <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-neutral-900 ring-2 ring-white" aria-hidden />
-              )}
-            </Link>
-            <Link
-              href="/inbox"
-              className="relative flex h-11 w-11 items-center justify-center rounded-full border border-black/10 bg-white text-neutral-700 hover:bg-neutral-50"
-              title="Notificações"
+              title="Mensagens e notificações"
             >
               <Bell size={18} />
-              {notificacoesCount > 0 && (
-                <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-red-500 ring-2 ring-white" aria-hidden />
+              {(mensagensCount + notificacoesCount) > 0 && (
+                <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-neutral-900 ring-2 ring-white" aria-hidden />
               )}
-            </Link>
-            <Link
-              href="/configuracoes"
-              className="flex h-11 w-11 items-center justify-center rounded-full border border-black/10 bg-white text-neutral-700 hover:bg-neutral-50"
-              title="Configurações"
-            >
-              <Settings size={18} />
             </Link>
             <button
               type="button"

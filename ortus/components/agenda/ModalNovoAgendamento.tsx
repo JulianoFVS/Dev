@@ -200,7 +200,7 @@ export default function ModalNovoAgendamento({
       <div className="flex-1 space-y-5 overflow-y-auto p-5 sm:p-6">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
-            <label className="mb-1.5 block text-xs font-medium text-neutral-500">Clínica</label>
+            <label className="mb-1.5 block text-xs font-medium text-neutral-500">Clínica <span className="text-neutral-900">*</span></label>
             <CustomSelect
               value={form.clinica_id}
               onChange={(v) => setForm((p) => ({ ...p, clinica_id: v, profissional_id: nivel !== 'admin' ? meuProfissionalId : '' }))}
@@ -221,7 +221,7 @@ export default function ModalNovoAgendamento({
           </div>
         </div>
         <div>
-          <label className="mb-1.5 block text-xs font-medium text-neutral-500">Paciente</label>
+          <label className="mb-1.5 block text-xs font-medium text-neutral-500">Paciente <span className="text-neutral-900">*</span></label>
           <CustomSelect
             value={form.paciente_id}
             onChange={(v) => setForm((p) => ({ ...p, paciente_id: v }))}
@@ -232,16 +232,16 @@ export default function ModalNovoAgendamento({
         </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
-            <label className="mb-1.5 block text-xs font-medium text-neutral-500">Data</label>
+            <label className="mb-1.5 block text-xs font-medium text-neutral-500">Data <span className="text-neutral-900">*</span></label>
             <CampoData value={form.date} onChange={(v) => setForm((p) => ({ ...p, date: v }))} />
           </div>
           <div>
-            <label className="mb-1.5 block text-xs font-medium text-neutral-500">Hora</label>
+            <label className="mb-1.5 block text-xs font-medium text-neutral-500">Hora <span className="text-neutral-900">*</span></label>
             <CampoHora value={form.time} onChange={(v) => setForm((p) => ({ ...p, time: v }))} passo={30} />
           </div>
         </div>
         <div>
-          <label className="mb-1.5 block text-xs font-medium text-neutral-500">Procedimento</label>
+          <label className="mb-1.5 block text-xs font-medium text-neutral-500">Procedimento <span className="text-neutral-900">*</span></label>
           <ProcedureCombobox
             clinicaId={form.clinica_id}
             especialidades={especialidades}
@@ -254,11 +254,11 @@ export default function ModalNovoAgendamento({
         <div className="grid grid-cols-1 gap-x-3 gap-y-2.5 sm:grid-cols-3">
           <div>
             <label className="mb-1.5 block text-xs font-medium text-neutral-500">Valor (R$)</label>
-            <input type="number" step="0.01" value={form.valor} onChange={(e) => setForm((p) => ({ ...p, valor: e.target.value }))} className={inputClass} placeholder="0,00" />
+            <input type="number" step="1" value={form.valor} onChange={(e) => setForm((p) => ({ ...p, valor: e.target.value }))} className={`${inputClass} placeholder:text-neutral-400`} placeholder="0,00" />
           </div>
           <div>
             <label className="mb-1.5 block text-xs font-medium text-neutral-500">Desconto (R$)</label>
-            <input type="number" step="0.01" value={form.desconto} onChange={(e) => setForm((p) => ({ ...p, desconto: e.target.value }))} className={inputClass} placeholder="0,00" />
+            <input type="number" step="1" value={form.desconto} onChange={(e) => setForm((p) => ({ ...p, desconto: e.target.value }))} className={`${inputClass} placeholder:text-neutral-400`} placeholder="0,00" />
           </div>
           <div className="flex flex-col justify-center sm:text-right">
             <label className="mb-1.5 block text-xs font-medium text-neutral-500">Total</label>

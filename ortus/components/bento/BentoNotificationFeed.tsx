@@ -26,6 +26,7 @@ type Props = {
   onDelete: (id: Item['id']) => void;
   unreadBgClass?: string;
   iconForItem?: (item: Item) => ReactNode;
+  embedded?: boolean;
 };
 
 export default function BentoNotificationFeed({
@@ -41,25 +42,21 @@ export default function BentoNotificationFeed({
   onDelete,
   unreadBgClass = 'bg-[#f3f4f1]/80',
   iconForItem,
+  embedded = false,
 }: Props) {
-  return (
-    <BentoPageShell
-      title={title}
-      subtitle={subtitle}
-      maxWidthClass="max-w-3xl"
-      actions={
-        <>
-          <button type="button" className={bentoPill(escopo === 'ativas')} onClick={() => onEscopo('ativas')}>
-            Ativas
-          </button>
-          <button type="button" className={`${bentoPill(escopo === 'historico')} inline-flex items-center gap-1.5`} onClick={() => onEscopo('historico')}>
-            <History size={14} />
-            Histórico
-          </button>
-        </>
-      }
-    >
-      <div className={`${bentoCard} min-h-[420px] overflow-hidden border border-black/5`}>
+  const acoes = (
+    <>
+      <button type="button" className={bentoPill(escopo === 'ativas')} onClick={() => onEscopo('ativas')}>
+        Ativas
+      </button>
+      <button type="button" className={`${bentoPill(escopo === 'historico')} inline-flex items-center gap-1.5`} onClick={() => onEscopo('historico')}>
+        <History size={14} />
+        Histórico
+      </button>
+    </>
+  );
+  const lista = (
+      <div className={`${embedded ? 'min-h-0 flex-1 overflow-y-auto' : `${bentoCard} min-h-[420px] overflow-hidden border border-black/5`}`}>
         {loading ? (
           <div className="space-y-3 p-4">
             {Array.from({ length: 5 }).map((_, i) => (
@@ -113,6 +110,24 @@ export default function BentoNotificationFeed({
           </ul>
         )}
       </div>
+  );
+  if (embedded) {
+    return (
+      <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white">
+        <div className="flex shrink-0 items-center justify-between gap-2 border-b border-black/5 px-3 py-2.5">
+          <div className="min-w-0">
+            <h2 className="text-base font-semibold text-neutral-900">{title}</h2>
+            <p className="truncate text-xs text-neutral-500">{subtitle}</p>
+          </div>
+          <div className="flex shrink-0 items-center gap-1.5">{acoes}</div>
+        </div>
+        {lista}
+      </section>
+    );
+  }
+  return (
+    <BentoPageShell title={title} subtitle={subtitle} maxWidthClass="max-w-3xl" actions={acoes}>
+      {lista}
     </BentoPageShell>
   );
 }

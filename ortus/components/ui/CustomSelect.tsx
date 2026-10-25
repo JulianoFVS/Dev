@@ -89,12 +89,13 @@ export default function CustomSelect({
       const gap = 6;
       const contentH = filtered.length * 36 + (searchable ? 52 : 10);
       const curto = !searchable && filtered.length <= 6;
-      const needed = curto ? contentH : Math.min(contentH, 360);
+      const piso = (searchable ? 52 : 0) + 4 * 36 + 8;
+      const needed = curto ? contentH : Math.min(Math.max(contentH, piso), 360);
       const spaceBelow = window.innerHeight - rect.bottom - gap;
       const spaceAbove = rect.top - gap;
-      const openUp = !curto && needed > spaceBelow && spaceAbove > spaceBelow;
-      const available = Math.max(contentH, openUp ? spaceAbove : spaceBelow);
-      const maxH = curto ? contentH : Math.min(needed, available);
+      const openUp = !curto && ((needed > spaceBelow && spaceAbove > spaceBelow) || (spaceBelow < piso && spaceAbove >= spaceBelow));
+      const available = openUp ? spaceAbove : spaceBelow;
+      const maxH = curto ? contentH : Math.max(Math.min(piso, Math.max(spaceAbove, spaceBelow)), Math.min(needed, available));
 
       setMenuStyle({
         position: 'fixed',
@@ -147,7 +148,7 @@ export default function CustomSelect({
         className={`py-1 ${!searchable && filtered.length <= 6 ? 'overflow-hidden' : 'custom-scrollbar overflow-y-auto'}`}
         style={!searchable && filtered.length <= 6 ? undefined : {
           maxHeight: menuPortal && typeof menuStyle.maxHeight === 'number'
-            ? Math.max(120, Number(menuStyle.maxHeight) - (searchable ? 52 : 0))
+            ? Math.max(4 * 36 + 8, Number(menuStyle.maxHeight) - (searchable ? 52 : 0))
             : 288,
         }}
       >
@@ -192,7 +193,7 @@ export default function CustomSelect({
             : `rounded-md border-neutral-200 bg-white hover:border-neutral-300 focus:border-neutral-900 disabled:border-neutral-200 disabled:bg-white ${sizeClasses[size]}`
         } ${open ? 'border-neutral-900' : ''} ${triggerClassName}`}
       >
-        <span className={`truncate ${!selected ? 'text-neutral-400' : 'font-medium'}`}>
+        <span className={`min-w-0 flex-1 truncate text-left ${!selected ? 'text-neutral-400' : 'font-medium'}`}>
           {selected ? selected.label : placeholder}
         </span>
         <ChevronDown

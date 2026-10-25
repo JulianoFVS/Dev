@@ -74,6 +74,12 @@ export default function Pacientes() {
       if (activeClinicId) setFiltroClinica(activeClinicId === 'all' ? 'todas' : activeClinicId);
   }, [activeClinicId]);
 
+  useEffect(() => {
+      const filtro = new URLSearchParams(window.location.search).get('filtro');
+      if (filtro === 'debito') { setFiltroDebito(true); setShowFiltros(true); }
+      if (filtro === 'sem30') { setFiltroSemConsulta(30); setShowFiltros(true); }
+  }, []);
+
   const lastClinicRef = useRef<string | null>(null);
   const jaCarregou = useRef(cachedRef.current.length > 0);
 
@@ -246,23 +252,24 @@ export default function Pacientes() {
           </div>
 
           {showFiltros && (
-              <div className="flex flex-wrap items-end gap-2 border-t border-black/5 pt-3">
-                  <div className="min-w-0 flex-1">
+              <div className="grid grid-cols-1 items-end gap-2 border-t border-black/5 pt-3 md:grid-cols-2 xl:grid-cols-[minmax(0,1.15fr)_8.5rem_11.5rem_minmax(0,1fr)_auto]">
+                  <div className="min-w-0">
                       <label className="mb-1 block text-[10px] font-medium uppercase tracking-wide text-neutral-400">Clínica</label>
                       <CustomSelect value={filtroClinica} onChange={setFiltroClinica} options={[{value:'todas',label:'Todas as clínicas'}, ...clinicas.map((c:any) => ({value:String(c.id),label:c.nome}))]} size="sm"/>
                   </div>
-                  <div className="min-w-0 flex-1">
+                  <div className="min-w-0">
                       <label className="mb-1 block text-[10px] font-medium uppercase tracking-wide text-neutral-400">Status</label>
                       <CustomSelect value={filtroStatus} onChange={setFiltroStatus} options={[{value:'todos',label:'Todos'},{value:'ativo',label:'Ativo'},{value:'agendado',label:'Agendado'},{value:'novo',label:'Novo'}]} size="sm"/>
                   </div>
-                  <div className="min-w-0 flex-1">
+                  <div className="min-w-0">
                       <label className="mb-1 block text-[10px] font-medium uppercase tracking-wide text-neutral-400">Sem consulta há</label>
                       <CustomSelect value={String(filtroSemConsulta ?? '')} onChange={v => setFiltroSemConsulta(v ? Number(v) : null)} options={[{value:'',label:'Qualquer período'},{value:'30',label:'30 dias'},{value:'60',label:'60 dias'},{value:'90',label:'90 dias'},{value:'180',label:'6 meses'},{value:'365',label:'1 ano'}]} size="sm"/>
                   </div>
-                  <div className="min-w-0 flex-1">
+                  <div className="min-w-0">
                       <label className="mb-1 block text-[10px] font-medium uppercase tracking-wide text-neutral-400">Procedimento pendente</label>
-                      <input placeholder="Ex: canal" value={filtroProcedimento} onChange={e => setFiltroProcedimento(e.target.value)} className="h-10 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm text-neutral-900 outline-none focus:border-neutral-900"/>
+                      <input placeholder="Ex: canal" value={filtroProcedimento} onChange={e => setFiltroProcedimento(e.target.value)} className="h-10 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm text-neutral-900 outline-none placeholder:text-neutral-400 focus:border-neutral-900"/>
                   </div>
+                  <div className="flex items-center gap-2">
                   <button
                       type="button"
                       onClick={() => setFiltroDebito((atual) => !atual)}
@@ -278,6 +285,7 @@ export default function Pacientes() {
                   {filtrosAtivos && (
                       <button onClick={() => { limparFiltros(); setFiltroClinica(clinicaAtivaId); }} className="inline-flex h-10 shrink-0 items-center gap-1 text-sm font-medium text-neutral-500 hover:text-neutral-900"><X size={14}/> Limpar</button>
                   )}
+                  </div>
               </div>
           )}
       </div>
@@ -354,7 +362,7 @@ export default function Pacientes() {
                           clinica_nome: p.nome_clinica,
                         })}
                       />
-                      <DicaAcao label="Agendar consulta"><button type="button" onClick={() => router.push(`/agenda?paciente=${p.id}`)} className="rounded-full p-2 text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900"><Calendar size={15}/></button></DicaAcao>
+                      <DicaAcao label="Agendar consulta"><button type="button" onClick={() => window.dispatchEvent(new CustomEvent('ortus:novo-agendamento', { detail: { pacienteId: String(p.id), pacienteNome: p.nome, clinicaId: p.clinica_id ? String(p.clinica_id) : undefined } }))} className="rounded-full p-2 text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900"><Calendar size={15}/></button></DicaAcao>
                       <DicaAcao label="Nova prótese"><button type="button" onClick={() => router.push(`/proteses?paciente=${p.id}`)} className="rounded-full p-2 text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900"><Smile size={15}/></button></DicaAcao>
                       <ChevronRight size={16} className="text-neutral-300" />
                     </div>
@@ -378,7 +386,7 @@ export default function Pacientes() {
                     </div>
                     <div className="flex items-center gap-1" onClick={stopRowClick}>
                         <PatientContactButtons variant="icons" channels={['whatsapp']} telefone={p.telefone} email={p.email} clinicaId={p.clinica_id} evento="pos_consulta" contexto={buildDocumentoContexto({ paciente_nome: p.nome?.split(' ')[0], clinica_nome: p.nome_clinica })} />
-                        <DicaAcao label="Agendar consulta"><button type="button" onClick={() => router.push(`/agenda?paciente=${p.id}`)} className="rounded-full p-2 text-neutral-500 hover:bg-white hover:text-neutral-900"><Calendar size={16}/></button></DicaAcao>
+                        <DicaAcao label="Agendar consulta"><button type="button" onClick={() => window.dispatchEvent(new CustomEvent('ortus:novo-agendamento', { detail: { pacienteId: String(p.id), pacienteNome: p.nome, clinicaId: p.clinica_id ? String(p.clinica_id) : undefined } }))} className="rounded-full p-2 text-neutral-500 hover:bg-white hover:text-neutral-900"><Calendar size={16}/></button></DicaAcao>
                         <DicaAcao label="Nova prótese"><button type="button" onClick={() => router.push(`/proteses?paciente=${p.id}`)} className="rounded-full p-2 text-neutral-500 hover:bg-white hover:text-neutral-900"><Smile size={16}/></button></DicaAcao>
                     </div>
                 </div>

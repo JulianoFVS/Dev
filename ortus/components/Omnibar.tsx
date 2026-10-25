@@ -6,22 +6,18 @@ import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useClinica } from '@/app/context/ClinicaContext';
 import { usePatientSlideOver } from '@/components/PatientSlideOver';
+import { usePatientActionModal } from '@/components/PatientActionModal';
 import Modal from '@/components/ui/Modal';
 import {
   Search,
   User,
-  Calendar,
-  DollarSign,
-  Settings,
-  LayoutDashboard,
-  Smile,
-  Bell,
-  BarChart3,
-  ClipboardList,
-  ShieldCheck,
-  Mail,
+  UserPlus,
+  CalendarPlus,
+  AlertCircle,
+  Clock,
   X,
 } from 'lucide-react';
+import ModalNovoAgendamento from '@/components/agenda/ModalNovoAgendamento';
 import type { ModuleName } from '@/lib/types/permissions';
 
 type OmniResult = {
@@ -45,9 +41,12 @@ export default function Omnibar({ moduleAccess, isAdmin }: OmnibarProps) {
   const [results, setResults] = useState<OmniResult[]>([]);
   const [activeIdx, setActiveIdx] = useState(0);
   const [pacientesCache, setPacientesCache] = useState<any[]>([]);
+  const [agenda, setAgenda] = useState<{ pacienteId?: string; pacienteNome?: string; clinicaId?: string } | null>(null);
+  const [aviso, setAviso] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
   const { openPatient } = usePatientSlideOver();
+  const { openQuickCapture } = usePatientActionModal();
   const { activeClinicId, clinics } = useClinica();
   const clinicIds = useMemo(() => {
     if (activeClinicId && activeClinicId !== 'all') return [Number(activeClinicId)];
@@ -66,105 +65,64 @@ export default function Omnibar({ moduleAccess, isAdmin }: OmnibarProps) {
   const navItems = useMemo<OmniResult[]>(() => {
     const base: OmniResult[] = [
       {
-        id: 'nav_dash',
-        label: 'Dashboard',
-        sublabel: 'Visão geral da clínica',
-        icon: <LayoutDashboard size={18} strokeWidth={1.75} />,
-        action: () => router.push('/dashboard'),
-        category: 'navegacao',
-        module: 'inteligencia',
-      },
-      {
-        id: 'nav_agenda',
-        label: 'Agenda',
-        sublabel: 'Calendário de consultas',
-        icon: <Calendar size={18} strokeWidth={1.75} />,
-        action: () => router.push('/agenda'),
+        id: 'atalho_agenda',
+        label: 'Novo agendamento',
+        sublabel: 'Marcar consulta sem sair da tela',
+        icon: <CalendarPlus size={18} strokeWidth={1.75} />,
+        action: () => setAgenda({}),
         category: 'navegacao',
         module: 'agenda',
       },
       {
-        id: 'nav_pac',
-        label: 'Pacientes',
-        sublabel: 'Lista de pacientes',
-        icon: <User size={18} strokeWidth={1.75} />,
-        action: () => router.push('/pacientes'),
+        id: 'atalho_paciente',
+        label: 'Novo paciente',
+        sublabel: 'Cadastro rápido',
+        icon: <UserPlus size={18} strokeWidth={1.75} />,
+        action: () => openQuickCapture(null),
         category: 'navegacao',
         module: 'ficha_paciente',
       },
       {
-        id: 'nav_fin',
-        label: 'Financeiro',
-        sublabel: 'Entradas e saídas',
-        icon: <DollarSign size={18} strokeWidth={1.75} />,
-        action: () => router.push('/financeiro'),
+        id: 'atalho_debito',
+        label: 'Pacientes com débito',
+        sublabel: 'Quem ainda está em aberto',
+        icon: <AlertCircle size={18} strokeWidth={1.75} />,
+        action: () => router.push('/pacientes?filtro=debito'),
         category: 'navegacao',
-        module: 'financeiro',
+        module: 'ficha_paciente',
       },
       {
-        id: 'nav_prot',
-        label: 'Próteses',
-        sublabel: 'Kanban de próteses',
-        icon: <Smile size={18} strokeWidth={1.75} />,
-        action: () => router.push('/proteses'),
+        id: 'atalho_retorno',
+        label: 'Sem consulta há 30 dias',
+        sublabel: 'Pacientes para retorno',
+        icon: <Clock size={18} strokeWidth={1.75} />,
+        action: () => router.push('/pacientes?filtro=sem30'),
         category: 'navegacao',
-        module: 'controle_protese',
-      },
-      {
-        id: 'nav_inbox',
-        label: 'Notificações',
-        sublabel: 'Central de avisos',
-        icon: <Bell size={18} strokeWidth={1.75} />,
-        action: () => router.push('/inbox'),
-        category: 'navegacao',
-      },
-      {
-        id: 'nav_mensagens',
-        label: 'Mensagens',
-        sublabel: 'Central de mensagens',
-        icon: <Mail size={18} strokeWidth={1.75} />,
-        action: () => router.push('/mensagens'),
-        category: 'navegacao',
-      },
-      {
-        id: 'nav_trat_base',
-        label: 'Tratamentos base',
-        sublabel: 'Catálogo de procedimentos',
-        icon: <ClipboardList size={18} strokeWidth={1.75} />,
-        action: () => router.push('/ajustes/tratamentos'),
-        category: 'navegacao',
-        module: 'configuracoes',
-      },
-      {
-        id: 'nav_equipe',
-        label: 'Equipe',
-        sublabel: 'Profissionais e permissões',
-        icon: <ShieldCheck size={18} strokeWidth={1.75} />,
-        action: () => router.push('/ajustes/equipe'),
-        category: 'navegacao',
-        module: 'configuracoes',
-      },
-      {
-        id: 'nav_config',
-        label: 'Configurações',
-        sublabel: 'Clínicas e preferências',
-        icon: <Settings size={18} strokeWidth={1.75} />,
-        action: () => router.push('/configuracoes'),
-        category: 'navegacao',
-        module: 'configuracoes',
-      },
-      {
-        id: 'nav_relat',
-        label: 'Relatórios',
-        sublabel: 'Faturamento e estatísticas',
-        icon: <BarChart3 size={18} strokeWidth={1.75} />,
-        action: () => router.push('/relatorios'),
-        category: 'navegacao',
-        module: 'inteligencia',
+        module: 'ficha_paciente',
       },
     ];
     return base.filter((item) => canAccessModule(item.module));
-  }, [router, canAccessModule]);
+  }, [router, canAccessModule, openQuickCapture]);
+
+  useEffect(() => {
+    function abrir(evento: Event) {
+      const detalhe = (evento as CustomEvent<{ pacienteId?: string; pacienteNome?: string; clinicaId?: string }>).detail || {};
+      setOpen(false);
+      setAgenda({
+        pacienteId: detalhe.pacienteId,
+        pacienteNome: detalhe.pacienteNome,
+        clinicaId: detalhe.clinicaId,
+      });
+    }
+    window.addEventListener('ortus:novo-agendamento', abrir);
+    return () => window.removeEventListener('ortus:novo-agendamento', abrir);
+  }, []);
+
+  useEffect(() => {
+    if (!aviso) return;
+    const timer = window.setTimeout(() => setAviso(''), 2400);
+    return () => window.clearTimeout(timer);
+  }, [aviso]);
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -265,8 +223,6 @@ export default function Omnibar({ moduleAccess, isAdmin }: OmnibarProps) {
     }
   }
 
-  if (!open) return null;
-
   const grouped = {
     paciente: results.filter((r) => r.category === 'paciente'),
     navegacao: results.filter((r) => r.category === 'navegacao'),
@@ -306,7 +262,21 @@ export default function Omnibar({ moduleAccess, isAdmin }: OmnibarProps) {
   }
 
   return (
-    <Modal
+    <>
+    {aviso && (
+      <div className="pointer-events-none fixed inset-x-0 top-4 z-[10000] flex justify-center px-4">
+        <p className="rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-800 shadow-sm">{aviso}</p>
+      </div>
+    )}
+    <ModalNovoAgendamento
+      open={!!agenda}
+      onClose={() => setAgenda(null)}
+      pacienteId={agenda?.pacienteId}
+      pacienteNome={agenda?.pacienteNome}
+      clinicaId={agenda?.clinicaId}
+      onSaved={() => setAviso('Agendamento salvo.')}
+    />
+    {open && <Modal
       open={open}
       onClose={() => setOpen(false)}
       zIndex={100}
@@ -317,7 +287,7 @@ export default function Omnibar({ moduleAccess, isAdmin }: OmnibarProps) {
       <div className="flex shrink-0 items-start justify-between gap-3 border-b border-black/5 px-5 py-4 sm:px-6">
         <div>
           <h2 className="text-lg font-semibold text-neutral-900">Busca</h2>
-          <p className="mt-0.5 text-xs font-medium text-neutral-400">Pacientes e páginas da clínica.</p>
+          <p className="mt-0.5 text-xs font-medium text-neutral-400">Pacientes e atalhos da clínica.</p>
         </div>
         <button type="button" onClick={() => setOpen(false)} className="rounded-full p-2 text-neutral-400 hover:bg-neutral-100" aria-label="Fechar">
           <X size={18} />
@@ -333,7 +303,7 @@ export default function Omnibar({ moduleAccess, isAdmin }: OmnibarProps) {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyNav}
-            placeholder="Nome, telefone ou página"
+            placeholder="Nome, telefone ou atalho"
             className="box-border h-10 w-full rounded-md border border-neutral-200 bg-white pl-9 pr-3 text-sm text-neutral-900 outline-none focus:border-neutral-900"
           />
         </div>
@@ -353,11 +323,12 @@ export default function Omnibar({ moduleAccess, isAdmin }: OmnibarProps) {
 
         {grouped.navegacao.length > 0 && (
           <div>
-            <p className="px-2 pb-1 text-xs font-medium text-neutral-500">Páginas</p>
+            <p className="px-2 pb-1 text-xs font-medium text-neutral-500">Atalhos</p>
             <div className="space-y-0.5">{grouped.navegacao.map((r) => renderRow(r))}</div>
           </div>
         )}
       </div>
-    </Modal>
+    </Modal>}
+    </>
   );
 }
