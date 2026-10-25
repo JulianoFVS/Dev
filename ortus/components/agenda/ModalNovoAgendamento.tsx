@@ -286,7 +286,7 @@ export default function ModalNovoAgendamento({
             <label className="mb-1.5 block text-xs font-medium text-neutral-500">Desconto (R$)</label>
             <input type="number" step="1" value={form.desconto} onChange={(e) => setForm((p) => ({ ...p, desconto: e.target.value }))} className={`${inputClass} placeholder:text-neutral-400`} placeholder="0,00" />
           </div>
-          <div className="flex flex-col justify-center sm:text-right">
+          <div>
             <label className="mb-1.5 block text-xs font-medium text-neutral-500">Total</label>
             <p className="flex h-10 items-center text-sm font-medium text-neutral-900">R$ {(parseFloat(form.valor || '0') - parseFloat(form.desconto || '0')).toFixed(2)}</p>
           </div>

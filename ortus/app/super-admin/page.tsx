@@ -4,10 +4,13 @@ import { readRouteCache, writeRouteCache } from '@/lib/routeListCache';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import {
-    Loader2, Plus, X, Copy, Check, AlertTriangle, ArrowUpDown, Pencil, Trash2,
+    Loader2, Plus, X, Copy, Check, AlertTriangle, ArrowUpDown, Pencil, Trash2, Building2,
 } from 'lucide-react';
 import Modal from '@/components/ui/Modal';
+import CustomSelect from '@/components/ui/CustomSelect';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
+import { UF_OPTIONS } from '@/lib/formOptions';
+import { mascaraCep } from '@/lib/mascaras';
 
 type Rede = { id: string | number; nome: string; created_at?: string | null };
 
@@ -17,6 +20,11 @@ type Credenciais = {
     rede: string;
     email: string;
     senha: string;
+};
+
+const FORM_VAZIO = {
+    nomeRede: '', nomeMatriz: '', nomeDono: '', emailDono: '',
+    telefone: '', cep: '', rua: '', numero: '', complemento: '', bairro: '', cidade: '', uf: '',
 };
 
 const SA_CACHE_KEY = 'ortus:super-admin:v1';
@@ -36,14 +44,17 @@ export default function SuperAdminPage() {
     const [modalOpen, setModalOpen] = useState(false);
     const [salvando, setSalvando] = useState(false);
     const [erro, setErro] = useState<string | null>(null);
-    const [form, setForm] = useState({ nomeRede: '', nomeMatriz: '', nomeDono: '', emailDono: '' });
+    const [form, setForm] = useState(FORM_VAZIO);
+    const [clinicaEditId, setClinicaEditId] = useState<string | number | null>(null);
+    const [donoEdit, setDonoEdit] = useState<{ id: string | number; userId: string; email: string } | null>(null);
+    const [logoArquivo, setLogoArquivo] = useState<File | null>(null);
+    const [logoPreview, setLogoPreview] = useState('');
+    const [carregandoEdicao, setCarregandoEdicao] = useState(false);
 
     const [credenciais, setCredenciais] = useState<Credenciais | null>(null);
     const [copiado, setCopiado] = useState<'email' | 'senha' | 'tudo' | null>(null);
     const [ordem, setOrdem] = useState<{ campo: 'nome' | 'criada'; dir: 'asc' | 'desc' }>({ campo: 'nome', dir: 'asc' });
     const [editando, setEditando] = useState<Rede | null>(null);
-    const [nomeEdit, setNomeEdit] = useState('');
-    const pularBlur = useRef(false);
     const { showConfirm } = useCustomAlert();
 
     useEffect(() => { validar(); }, []);
@@ -97,10 +108,60 @@ export default function SuperAdminPage() {
         if (gen === fetchGen.current) setCarregando(false);
     }
 
+    function limparLogo() {
+        setLogoArquivo(null);
+        setLogoPreview((atual) => {
+            if (atual.startsWith('blob:')) URL.revokeObjectURL(atual);
+            return '';
+        });
+    }
+
     function abrirModal() {
         setErro(null);
-        setForm({ nomeRede: '', nomeMatriz: '', nomeDono: '', emailDono: '' });
+        setEditando(null);
+        setClinicaEditId(null);
+        setDonoEdit(null);
+        setForm(FORM_VAZIO);
+        limparLogo();
         setModalOpen(true);
+    }
+
+    function escolherFoto(arquivo?: File) {
+        if (!arquivo) return;
+        if (!['image/jpeg', 'image/png', 'image/webp'].includes(arquivo.type)) {
+            setErro('Use uma imagem JPG, PNG ou WebP.');
+            return;
+        }
+        if (arquivo.size > 2 * 1024 * 1024) {
+            setErro('A foto deve ter no máximo 2MB.');
+            return;
+        }
+        setErro(null);
+        setLogoArquivo(arquivo);
+        setLogoPreview((atual) => {
+            if (atual.startsWith('blob:')) URL.revokeObjectURL(atual);
+            return URL.createObjectURL(arquivo);
+        });
+    }
+
+    async function publicarLogo(token: string, redeId: string | number, clinicaId: string | number, arquivo: File) {
+        const ext = arquivo.name.split('.').pop() || 'png';
+        const filePath = `clinicas/${clinicaId}/logo-${Date.now()}.${ext}`;
+        const { error: uploadError } = await supabase.storage.from('arquivos_ortus').upload(filePath, arquivo, { upsert: true });
+        if (uploadError) throw uploadError;
+        const { data: { publicUrl } } = supabase.storage.from('arquivos_ortus').getPublicUrl(filePath);
+        const resp = await fetch('/api/super-admin/rede', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ id: redeId, nome: form.nomeRede.trim(), clinicaId, logo_url: publicUrl }),
+        });
+        const json = await resp.json().catch(() => ({}));
+        if (!resp.ok) throw new Error(json.error || 'A foto não foi salva.');
+    }
+
+    async function tokenAtual() {
+        const { data: { session } } = await supabase.auth.getSession();
+        return session?.access_token || '';
     }
 
     async function salvar(e: React.FormEvent) {
@@ -108,69 +169,129 @@ export default function SuperAdminPage() {
         setErro(null);
         setSalvando(true);
         try {
-            const { data: { session } } = await supabase.auth.getSession();
-            const token = session?.access_token;
+            const token = await tokenAtual();
             if (!token) { setErro('Sessão expirada.'); setSalvando(false); return; }
 
-            const resp = await fetch('/api/super-admin/criar-cliente', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                body: JSON.stringify({
-                    nomeRede: form.nomeRede.trim(),
-                    nomeMatriz: form.nomeMatriz.trim(),
-                    nomeDono: form.nomeDono.trim(),
-                    emailDono: form.emailDono.trim().toLowerCase(),
-                }),
+            if (editando) {
+                const resp = await fetch('/api/super-admin/rede', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                    body: JSON.stringify({
+                        id: editando.id,
+                        nome: form.nomeRede.trim(),
+                        clinica: clinicaEditId == null ? undefined : {
+                            id: clinicaEditId,
+                            nome: form.nomeMatriz.trim(),
+                            telefone: form.telefone,
+                            email: form.emailDono.trim().toLowerCase(),
+                            cep: form.cep,
+                            rua: form.rua,
+                            numero: form.numero,
+                            complemento: form.complemento,
+                            bairro: form.bairro,
+                            cidade: form.cidade,
+                            uf: form.uf,
+                        },
+                        dono: donoEdit ? {
+                            id: donoEdit.id,
+                            userId: donoEdit.userId,
+                            nome: form.nomeDono.trim(),
+                            email: form.emailDono.trim().toLowerCase(),
+                            emailAlterado: form.emailDono.trim().toLowerCase() !== donoEdit.email,
+                        } : undefined,
+                    }),
+                });
+                const json = await resp.json().catch(() => ({}));
+                if (!resp.ok) throw new Error(json.error || 'Não foi possível salvar.');
+                if (logoArquivo && clinicaEditId != null) await publicarLogo(token, editando.id, clinicaEditId, logoArquivo);
+                const nome = form.nomeRede.trim();
+                const proximas = redes.map((r) => String(r.id) === String(editando.id) ? { ...r, nome } : r);
+                setRedes(proximas);
+                writeRouteCache(SA_CACHE_KEY, SA_SCOPE, { redes: proximas, metricas });
+                setModalOpen(false);
+                setEditando(null);
+            } else {
+                const resp = await fetch('/api/super-admin/criar-cliente', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                    body: JSON.stringify({
+                        nomeRede: form.nomeRede.trim(),
+                        nomeMatriz: form.nomeMatriz.trim(),
+                        nomeDono: form.nomeDono.trim(),
+                        emailDono: form.emailDono.trim().toLowerCase(),
+                        telefone: form.telefone,
+                        cep: form.cep,
+                        rua: form.rua,
+                        numero: form.numero,
+                        complemento: form.complemento,
+                        bairro: form.bairro,
+                        cidade: form.cidade,
+                        uf: form.uf,
+                    }),
+                });
+                const json = await resp.json();
+                if (!resp.ok || !json.success) {
+                    setErro(json.error || 'Falha no onboarding.');
+                    setSalvando(false);
+                    return;
+                }
+                if (logoArquivo && json.clinica_id != null) {
+                    try {
+                        await publicarLogo(token, json.rede_id, json.clinica_id, logoArquivo);
+                    } catch (err: any) {
+                        setErro(err?.message || 'Cliente criado, mas a foto não foi enviada.');
+                    }
+                }
+                setModalOpen(false);
+                setCredenciais({ rede: json.rede_nome, email: json.email, senha: json.senha_temporaria });
+                await carregar();
+            }
+        } catch (err: any) {
+            setErro(err?.message || 'Erro inesperado.');
+        }
+        setSalvando(false);
+    }
+
+    async function abrirEdicao(rede: Rede) {
+        setErro(null);
+        setEditando(rede);
+        setClinicaEditId(null);
+        setDonoEdit(null);
+        setForm({ ...FORM_VAZIO, nomeRede: rede.nome });
+        limparLogo();
+        setModalOpen(true);
+        setCarregandoEdicao(true);
+        try {
+            const token = await tokenAtual();
+            if (!token) throw new Error('Sessão expirada.');
+            const resp = await fetch(`/api/super-admin/rede?id=${encodeURIComponent(String(rede.id))}`, {
+                headers: { Authorization: `Bearer ${token}` },
             });
             const json = await resp.json();
-            if (!resp.ok || !json.success) {
-                setErro(json.error || 'Falha no onboarding.');
-                setSalvando(false);
-                return;
-            }
-            setModalOpen(false);
-            setCredenciais({ rede: json.rede_nome, email: json.email, senha: json.senha_temporaria });
-            await carregar();
-        } catch (e: any) {
-            setErro(e?.message || 'Erro inesperado.');
-        }
-        setSalvando(false);
-    }
-
-    function abrirEdicao(rede: Rede) {
-        setErro(null);
-        pularBlur.current = false;
-        setEditando(rede);
-        setNomeEdit(rede.nome);
-    }
-
-    async function salvarEdicao(rede: Rede, nomeInformado?: string) {
-        const nome = (nomeInformado ?? nomeEdit).trim();
-        setEditando(null);
-        if (!nome || nome === rede.nome) return;
-        const anterior = redes;
-        const proximas = redes.map((r) => String(r.id) === String(rede.id) ? { ...r, nome } : r);
-        setRedes(proximas);
-        writeRouteCache(SA_CACHE_KEY, SA_SCOPE, { redes: proximas, metricas });
-        setSalvando(true);
-        setErro(null);
-        try {
-            const { data: { session } } = await supabase.auth.getSession();
-            const token = session?.access_token;
-            if (!token) throw new Error('Sessão expirada.');
-            const resp = await fetch('/api/super-admin/rede', {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                body: JSON.stringify({ id: rede.id, nome }),
+            if (!resp.ok) throw new Error(json.error || 'Não foi possível carregar a rede.');
+            const clinica = json.clinica;
+            const dono = json.dono;
+            setClinicaEditId(clinica?.id ?? null);
+            setDonoEdit(dono ? { id: dono.id, userId: dono.userId || '', email: dono.email || '' } : null);
+            setForm({
+                nomeRede: json.rede?.nome || rede.nome,
+                nomeMatriz: clinica?.nome || '',
+                nomeDono: dono?.nome || '',
+                emailDono: dono?.email || clinica?.email || '',
+                telefone: clinica?.telefone || '',
+                cep: clinica?.cep || '',
+                rua: clinica?.rua || '',
+                numero: clinica?.numero || '',
+                complemento: clinica?.complemento || '',
+                bairro: clinica?.bairro || '',
+                cidade: clinica?.cidade || '',
+                uf: clinica?.uf || '',
             });
-            const json = await resp.json().catch(() => ({}));
-            if (!resp.ok) throw new Error(json.error || 'Não foi possível renomear a rede.');
+            setLogoPreview(clinica?.logo_url || '');
         } catch (err: any) {
-            setRedes(anterior);
-            writeRouteCache(SA_CACHE_KEY, SA_SCOPE, { redes: anterior, metricas });
-            setErro(err?.message || 'Não foi possível renomear a rede.');
+            setErro(err?.message || 'Não foi possível carregar a rede.');
         }
-        setSalvando(false);
+        setCarregandoEdicao(false);
     }
 
     async function apagarRede(rede: Rede) {
@@ -260,7 +381,7 @@ export default function SuperAdminPage() {
                 </button>
             </div>
 
-            {erro && !modalOpen && !editando && (
+            {erro && !modalOpen && (
                 <p className="flex shrink-0 items-center gap-2 text-sm text-rose-600">
                     <AlertTriangle size={14} /> {erro}
                 </p>
@@ -306,24 +427,7 @@ export default function SuperAdminPage() {
                                                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#f3f4f1] text-[11px] font-medium text-neutral-500">
                                                     {r.nome.split(' ').map((n) => n[0]).slice(0, 2).join('').toUpperCase()}
                                                 </span>
-                                                {editando && String(editando.id) === String(r.id) ? (
-                                                    <input
-                                                        autoFocus
-                                                        value={nomeEdit}
-                                                        onChange={(e) => setNomeEdit(e.target.value)}
-                                                        onBlur={() => {
-                                                            if (pularBlur.current) { pularBlur.current = false; return; }
-                                                            void salvarEdicao(r);
-                                                        }}
-                                                        onKeyDown={(e) => {
-                                                            if (e.key === 'Enter') { e.preventDefault(); (e.target as HTMLInputElement).blur(); }
-                                                            if (e.key === 'Escape') { pularBlur.current = true; setEditando(null); }
-                                                        }}
-                                                        className="h-8 w-full min-w-0 rounded-md border border-neutral-200 bg-white px-2 text-sm text-neutral-900 outline-none focus:border-neutral-900"
-                                                    />
-                                                ) : (
-                                                    <span className="font-medium text-neutral-900">{r.nome}</span>
-                                                )}
+                                                <span className="font-medium text-neutral-900">{r.nome}</span>
                                             </div>
                                         </td>
                                         <td className="px-4 py-2.5 text-neutral-600 sm:px-5">{fmtData(r.created_at)}</td>
@@ -341,28 +445,87 @@ export default function SuperAdminPage() {
                 )}
             </section>
 
-            <Modal open={modalOpen} onClose={() => setModalOpen(false)} maxWidth="lg" hideCloseButton panelClassName="overflow-visible rounded-xl border border-neutral-200 bg-white">
-                <form onSubmit={salvar} className="px-5 py-4 sm:px-6 sm:py-5">
-                    <div className="mb-5 flex items-start justify-between gap-3 border-b border-black/5 pb-4">
+            <Modal open={modalOpen} onClose={() => { setModalOpen(false); setEditando(null); }} maxWidth="lg" hideCloseButton panelClassName="flex max-h-[85vh] flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white">
+                <form onSubmit={salvar} className="flex min-h-0 flex-1 flex-col">
+                    <div className="flex shrink-0 items-start justify-between gap-3 border-b border-black/5 px-5 py-4 sm:px-6">
                         <div>
-                            <h2 className="text-lg font-semibold text-neutral-900">Novo cliente</h2>
-                            <p className="mt-0.5 text-xs font-medium text-neutral-400">Rede, clínica inicial e acesso do dono.</p>
+                            <h2 className="text-lg font-semibold text-neutral-900">{editando ? 'Editar cliente' : 'Novo cliente'}</h2>
+                            <p className="mt-0.5 text-xs font-medium text-neutral-400">Rede, clínica e acesso do dono.</p>
                         </div>
-                        <button type="button" onClick={() => setModalOpen(false)} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-100" aria-label="Fechar"><X size={16}/></button>
+                        <button type="button" onClick={() => { setModalOpen(false); setEditando(null); }} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-100" aria-label="Fechar"><X size={16}/></button>
                     </div>
+                    <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 sm:px-6">
                     {erro && (
                         <p className="mb-3 flex items-center gap-2 text-xs font-medium text-rose-600">
                             <AlertTriangle size={14} /> {erro}
                         </p>
                     )}
-                    <div className="grid grid-cols-1 gap-x-3 gap-y-4 sm:grid-cols-2">
+                    <div className="grid grid-cols-1 gap-x-3 gap-y-2 sm:grid-cols-2">
+                        <label className="flex items-center gap-3 sm:col-span-2">
+                            <span className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full border border-neutral-200 bg-white text-neutral-400">
+                                {logoPreview ? <img src={logoPreview} alt="" className="h-full w-full object-cover" /> : <Building2 size={18} />}
+                            </span>
+                            <span>
+                                <span className={rotulo}>Foto da clínica</span>
+                                <span className="text-xs text-neutral-400">JPG, PNG ou WebP até 2MB</span>
+                            </span>
+                            <input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={(e) => { escolherFoto(e.target.files?.[0]); e.target.value = ''; }} />
+                        </label>
                         <label className="sm:col-span-2">
                             <span className={rotulo}>Nome da rede <span className="text-red-500">*</span></span>
                             <input value={form.nomeRede} onChange={(e) => setForm({ ...form, nomeRede: e.target.value })} className={campo} placeholder="Ex.: Clínica Sorrir" required />
                         </label>
-                        <label className="sm:col-span-2">
+                        <label>
                             <span className={rotulo}>Clínica inicial <span className="text-red-500">*</span></span>
                             <input value={form.nomeMatriz} onChange={(e) => setForm({ ...form, nomeMatriz: e.target.value })} className={campo} placeholder="Ex.: Sorrir Centro" required />
+                        </label>
+                        <label>
+                            <span className={rotulo}>Telefone</span>
+                            <input value={form.telefone} onChange={(e) => setForm({ ...form, telefone: e.target.value })} className={campo} placeholder="(11) 99999-0000" />
+                        </label>
+                        <label>
+                            <span className={rotulo}>CEP</span>
+                            <input inputMode="numeric" value={form.cep} onChange={(e) => {
+                                const cep = mascaraCep(e.target.value);
+                                setForm((atual) => ({ ...atual, cep }));
+                                const digitos = cep.replace(/\D/g, '');
+                                if (digitos.length !== 8) return;
+                                fetch(`https://viacep.com.br/ws/${digitos}/json/`).then((r) => r.json()).then((data) => {
+                                    if (!data || data.erro) return;
+                                    setForm((atual) => ({
+                                        ...atual,
+                                        cep,
+                                        rua: data.logradouro || atual.rua,
+                                        bairro: data.bairro || atual.bairro,
+                                        cidade: data.localidade || atual.cidade,
+                                        uf: data.uf || atual.uf,
+                                    }));
+                                }).catch(() => {});
+                            }} className={campo} placeholder="00000-000" />
+                        </label>
+                        <div>
+                            <span className={rotulo}>UF</span>
+                            <CustomSelect value={form.uf} onChange={(uf) => setForm((atual) => ({ ...atual, uf }))} options={UF_OPTIONS.filter((op) => op.value)} placeholder="Selecione..." size="md" />
+                        </div>
+                        <label className="sm:col-span-2">
+                            <span className={rotulo}>Rua</span>
+                            <input value={form.rua} onChange={(e) => setForm({ ...form, rua: e.target.value })} className={campo} />
+                        </label>
+                        <label>
+                            <span className={rotulo}>Número</span>
+                            <input value={form.numero} onChange={(e) => setForm({ ...form, numero: e.target.value })} className={campo} />
+                        </label>
+                        <label>
+                            <span className={rotulo}>Complemento</span>
+                            <input value={form.complemento} onChange={(e) => setForm({ ...form, complemento: e.target.value })} className={campo} />
+                        </label>
+                        <label>
+                            <span className={rotulo}>Bairro</span>
+                            <input value={form.bairro} onChange={(e) => setForm({ ...form, bairro: e.target.value })} className={campo} />
+                        </label>
+                        <label>
+                            <span className={rotulo}>Cidade</span>
+                            <input value={form.cidade} onChange={(e) => setForm({ ...form, cidade: e.target.value })} className={campo} />
                         </label>
                         <label>
                             <span className={rotulo}>Nome do dono <span className="text-red-500">*</span></span>
@@ -373,11 +536,11 @@ export default function SuperAdminPage() {
                             <input type="email" value={form.emailDono} onChange={(e) => setForm({ ...form, emailDono: e.target.value })} className={campo} placeholder="dono@clinica.com" required />
                         </label>
                     </div>
-                    <div className="mt-5 flex justify-end gap-2 border-t border-black/5 pt-4">
-                        <button type="button" onClick={() => setModalOpen(false)} className="inline-flex h-9 items-center rounded-md px-3 text-sm font-medium text-neutral-600 hover:bg-neutral-50">Cancelar</button>
-                        <button type="submit" disabled={salvando} className="inline-flex h-9 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-40">
-                            {salvando ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />}
-                            Criar
+                    </div>
+                    <div className="flex shrink-0 justify-end gap-2 border-t border-black/5 px-5 py-4 sm:px-6">
+                        <button type="button" onClick={() => { setModalOpen(false); setEditando(null); }} className="inline-flex h-9 items-center rounded-md px-3 text-sm font-medium text-neutral-600 hover:bg-neutral-50">Cancelar</button>
+                        <button type="submit" disabled={salvando || carregandoEdicao} className="inline-flex h-9 items-center rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-40">
+                            {salvando ? <Loader2 size={15} className="animate-spin" /> : (editando ? 'Salvar' : 'Criar')}
                         </button>
                     </div>
                 </form>

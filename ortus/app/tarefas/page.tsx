@@ -45,6 +45,38 @@ const TAREFAS_CACHE_KEY = 'ortus:tarefas:v1';
 const TAREFAS_CORES_KEY = 'ortus:tarefas:cores';
 const CORES_PASTEL = ['#fde68a', '#bbf7d0', '#bfdbfe', '#fbcfe8', '#ddd6fe', '#fed7aa'];
 
+function tintaSuave(hex?: string) {
+    if (!hex || !/^#[0-9a-fA-F]{6}$/.test(hex)) return null;
+    const n = parseInt(hex.slice(1), 16);
+    const r = (n >> 16) & 255;
+    const g = (n >> 8) & 255;
+    const b = n & 255;
+    return {
+        fundo: `rgba(${r}, ${g}, ${b}, 0.1)`,
+        borda: `rgba(${r}, ${g}, ${b}, 0.22)`,
+        marca: hex,
+    };
+}
+
+function DicaBotao({ texto, children }: { texto: string; children: React.ReactNode }) {
+    const [visivel, setVisivel] = useState(false);
+    return (
+        <span
+            className="relative inline-flex"
+            onMouseEnter={() => setVisivel(true)}
+            onMouseLeave={() => setVisivel(false)}
+            onPointerDown={() => setVisivel(false)}
+        >
+            {children}
+            {visivel && (
+                <span className="pointer-events-none absolute top-full left-1/2 z-30 mt-1.5 -translate-x-1/2 whitespace-nowrap rounded-md bg-neutral-900 px-2 py-1 text-[11px] font-medium text-white">
+                    {texto}
+                </span>
+            )}
+        </span>
+    );
+}
+
 function readCoresQuadro(): Record<string, string> {
     if (typeof localStorage === 'undefined') return {};
     try {
@@ -316,8 +348,12 @@ export default function Tarefas() {
                         )}
                     </div>
                     <div className="flex shrink-0 gap-0.5">
-                        <button type="button" disabled={t.status === 'a_fazer'} onClick={() => moverStatus(t.id, proximoStatus(t, 'voltar'))} className="inline-flex h-7 w-7 items-center justify-center rounded-md text-neutral-500 hover:bg-neutral-50 disabled:opacity-30" title="Voltar status"><ChevronLeft size={16} /></button>
-                        <button type="button" disabled={t.status === 'concluido'} onClick={() => moverStatus(t.id, proximoStatus(t, 'avancar'))} className="inline-flex h-7 w-7 items-center justify-center rounded-md text-neutral-500 hover:bg-neutral-50 disabled:opacity-30" title="Avançar status"><ChevronRight size={16} /></button>
+                        <DicaBotao texto="Voltar status">
+                            <button type="button" disabled={t.status === 'a_fazer'} onClick={() => moverStatus(t.id, proximoStatus(t, 'voltar'))} aria-label="Voltar status" className="inline-flex h-7 w-7 items-center justify-center rounded-md text-neutral-500 hover:bg-neutral-50 disabled:opacity-30"><ChevronLeft size={16} /></button>
+                        </DicaBotao>
+                        <DicaBotao texto="Avançar status">
+                            <button type="button" disabled={t.status === 'concluido'} onClick={() => moverStatus(t.id, proximoStatus(t, 'avancar'))} aria-label="Avançar status" className="inline-flex h-7 w-7 items-center justify-center rounded-md text-neutral-500 hover:bg-neutral-50 disabled:opacity-30"><ChevronRight size={16} /></button>
+                        </DicaBotao>
                     </div>
                 </div>
             </div>
@@ -337,10 +373,10 @@ export default function Tarefas() {
             <div className="mb-3 shrink-0">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0">
-                        <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 md:text-[2rem]">Tarefas</h1>
-                        <p className="mt-1 text-sm text-neutral-500 sm:text-base">
-                            {activeClinic ? getClinicLabel(activeClinic) : 'Todas as clínicas'}
-                        </p>
+                        <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 md:text-[2rem]">
+                            Tarefas
+                            <span className="text-neutral-400"> · {activeClinic ? getClinicLabel(activeClinic) : 'Todas as clínicas'}</span>
+                        </h1>
                     </div>
                     <button
                         type="button"
@@ -397,9 +433,10 @@ export default function Tarefas() {
             <div className="grid min-h-0 flex-1 grid-cols-1 gap-2 overflow-y-auto md:grid-cols-3 md:overflow-hidden">
                 {colunasKanban.map((col) => {
                     const items = tarefasFiltradas.filter((t) => t.status === col.id);
+                    const tinta = tintaSuave(coresQuadro[col.id]);
                     return (
-                        <section key={col.id} className="flex flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white md:min-h-0" style={coresQuadro[col.id] ? { backgroundColor: coresQuadro[col.id] } : undefined}>
-                            <div className="flex shrink-0 items-center justify-between gap-2 px-3 py-2.5">
+                        <section key={col.id} className="flex flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white md:min-h-0" style={tinta ? { borderColor: tinta.borda, boxShadow: `inset 0 2px 0 ${tinta.marca}` } : undefined}>
+                            <div className="flex shrink-0 items-center justify-between gap-2 px-3 py-2.5" style={tinta ? { backgroundColor: tinta.fundo } : undefined}>
                                 <h2 className="flex min-w-0 items-center gap-1.5 text-sm font-semibold text-neutral-900">
                                     <span className="truncate">{col.label}</span>
                                     <span className="text-xs font-medium tabular-nums text-neutral-400">{kpiLoading ? '—' : items.length}</span>
@@ -407,6 +444,18 @@ export default function Tarefas() {
                                 <div className="flex shrink-0 items-center gap-1">
                                     {pintando === col.id ? (
                                         <>
+                                            <button
+                                                type="button"
+                                                aria-label="Sem cor"
+                                                className="h-5 w-5 rounded-md border border-neutral-300 bg-white"
+                                                onClick={() => {
+                                                    const next = { ...coresQuadro };
+                                                    delete next[col.id];
+                                                    setCoresQuadro(next);
+                                                    localStorage.setItem(TAREFAS_CORES_KEY, JSON.stringify(next));
+                                                    setPintando(null);
+                                                }}
+                                            />
                                             {CORES_PASTEL.map((hex) => (
                                                 <button
                                                     key={hex}
@@ -427,7 +476,7 @@ export default function Tarefas() {
                                             </button>
                                         </>
                                     ) : (
-                                        <button type="button" aria-label="Cor do quadro" className="flex h-5 w-5 items-center justify-center rounded-md text-neutral-400 hover:bg-white/70 hover:text-neutral-900" onClick={() => setPintando(col.id)}>
+                                        <button type="button" aria-label="Cor do quadro" className={`flex h-5 w-5 items-center justify-center rounded-md hover:bg-white/70 hover:text-neutral-900 ${coresQuadro[col.id] ? 'text-neutral-700' : 'text-neutral-400'}`} onClick={() => setPintando(col.id)}>
                                             <Pipette size={13} />
                                         </button>
                                     )}

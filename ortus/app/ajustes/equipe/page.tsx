@@ -12,9 +12,9 @@ import CustomSelect from '@/components/ui/CustomSelect';
 import CampoHora from '@/components/ui/CampoHora';
 import Switch from '@/components/ui/Switch';
 import {
-    UserPlus, Loader2, X, ShieldCheck, Copy, Check,
+    Loader2, X, ShieldCheck, Copy, Check,
     AlertTriangle,
-    Trash2, Plus, ArrowUpDown, Edit,
+    Trash2, ArrowUpDown, Pencil,
 } from 'lucide-react';
 import type { ComissaoRegra, ModuleName } from '@/lib/types/permissions';
 import { MODULES, buildModuleAccessMap } from '@/lib/modules';
@@ -318,18 +318,11 @@ export default function EquipePage() {
 
     useEffect(() => {
         if (!editorAberto || !profissionalSelecionado) return;
-        if (abaEditor === 'permissoes' && !permissoesLoaded) carregarPermissoesProfissional();
-        if (abaEditor === 'horarios' && !horarioLoaded) carregarHorarioEditor();
-        if (abaEditor === 'comissao' && !comissoesLoaded) carregarComissoesProfissional();
+        carregarPermissoesProfissional();
+        carregarHorarioEditor();
+        carregarComissoesProfissional();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [editorAberto, profissionalSelecionado, abaEditor, permissoesLoaded, horarioLoaded, comissoesLoaded]);
-
-    useEffect(() => {
-        if (!editorAberto) return;
-        setPermissoesLoaded(false);
-        setHorarioLoaded(false);
-        setComissoesLoaded(false);
-    }, [editorAberto, activeClinicId]);
+    }, [editorAberto, profissionalSelecionado, activeClinicId]);
 
     useEffect(() => {
         const aba = searchParams.get('aba');
@@ -820,20 +813,21 @@ export default function EquipePage() {
                     </label>
                     <label>
                         <span className={rotuloClasse}>Valor</span>
-                        <input type="number" step="0.01" min={0} value={comissaoForm.valor} onChange={(e) => setComissaoForm((prev) => ({ ...prev, valor: e.target.value }))} className={campoClasse} placeholder={comissaoForm.tipo === 'percentual' ? '0 a 100' : '0,00'} />
+                        <input type="number" step="1" min={0} value={comissaoForm.valor} onChange={(e) => setComissaoForm((prev) => ({ ...prev, valor: e.target.value }))} className={campoClasse} placeholder={comissaoForm.tipo === 'percentual' ? '0 a 100' : '0,00'} />
                     </label>
-                    <div className="flex h-10 items-center justify-between gap-3 sm:col-span-2">
-                        <span className="text-sm text-neutral-700">Regra ativa</span>
-                        <Switch checked={comissaoForm.ativo} onChange={(ativo) => setComissaoForm((prev) => ({ ...prev, ativo }))} />
-                    </div>
-                    <div className="flex items-end justify-end gap-2 sm:col-span-2">
-                        <button type="button" onClick={cancelarEdicaoComissao} className="h-9 rounded-md px-3 text-sm font-medium text-neutral-500 hover:bg-neutral-50 hover:text-neutral-900">
-                            Cancelar
-                        </button>
-                        <button type="submit" disabled={comissaoSaving} className={acaoClasse}>
-                            {comissaoSaving ? <Loader2 size={15} className="animate-spin"/> : (comissaoEditandoId ? <Check size={15}/> : <Plus size={15}/>)}
-                            {comissaoEditandoId ? 'Salvar' : 'Adicionar'}
-                        </button>
+                    <div className="flex min-h-10 flex-wrap items-center justify-between gap-2 sm:col-span-2">
+                        <Switch checked={comissaoForm.ativo} onChange={(ativo) => setComissaoForm((prev) => ({ ...prev, ativo }))}>
+                            <span className="text-sm text-neutral-700">Regra ativa</span>
+                        </Switch>
+                        <div className="flex items-center gap-2">
+                            <button type="button" onClick={cancelarEdicaoComissao} className="h-9 rounded-md px-3 text-sm font-medium text-neutral-500 hover:bg-neutral-50 hover:text-neutral-900">
+                                Cancelar
+                            </button>
+                            <button type="submit" disabled={comissaoSaving} className={acaoClasse}>
+                                {comissaoSaving ? <Loader2 size={15} className="animate-spin"/> : null}
+                                {comissaoEditandoId ? 'Salvar' : 'Adicionar'}
+                            </button>
+                        </div>
                     </div>
                 </form>
                 <div className="min-h-0 flex-1 divide-y divide-black/5 overflow-y-auto border-t border-black/5">
@@ -843,7 +837,7 @@ export default function EquipePage() {
                         <p className="py-4 text-sm text-neutral-400">Nenhuma regra cadastrada para esta clínica.</p>
                     ) : (
                         comissoes.map((regra) => (
-                            <div key={regra.id} className={`flex flex-col gap-2 py-2.5 sm:flex-row sm:items-center sm:justify-between ${regra.ativo === false ? 'opacity-60' : ''}`}>
+                            <div key={regra.id} className={`flex flex-col gap-2 py-2.5 sm:flex-row sm:items-center sm:justify-between ${regra.ativo === false ? 'opacity-60' : ''} ${comissaoEditandoId === regra.id && comissoes.length > 1 ? '-mx-2 rounded-md bg-neutral-50 px-2' : ''}`}>
                                 <div className="min-w-0">
                                     <p className="text-sm font-medium text-neutral-900">{getGatilhoLabel(regra.gatilho)}</p>
                                     <p className="text-xs text-neutral-500">{regra.tipo === 'percentual' ? 'Percentual' : 'Valor fixo'} · {formatValorComissao(regra.tipo, regra.valor)}{regra.ativo === false ? ' · Inativa' : ''}</p>
@@ -852,8 +846,8 @@ export default function EquipePage() {
                                     <button type="button" onClick={() => toggleComissaoAtiva(regra)} className="h-8 rounded-md px-2 text-xs font-medium text-neutral-500 hover:bg-neutral-50 hover:text-neutral-900">
                                         {regra.ativo !== false ? 'Desativar' : 'Ativar'}
                                     </button>
-                                    <button type="button" onClick={() => editarComissaoRegra(regra)} className="inline-flex h-8 items-center gap-1 rounded-md px-2 text-xs font-medium text-neutral-500 hover:bg-neutral-50 hover:text-neutral-900">
-                                        <Edit size={13}/> Editar
+                                    <button type="button" onClick={() => editarComissaoRegra(regra)} aria-label="Editar" className="inline-flex h-8 w-8 items-center justify-center rounded-md text-neutral-500 hover:bg-neutral-50 hover:text-neutral-900">
+                                        <Pencil size={14}/>
                                     </button>
                                     <button
                                         type="button"
@@ -930,9 +924,9 @@ export default function EquipePage() {
                 <button
                     type="button"
                     onClick={abrirModal}
-                    className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-md bg-neutral-900 px-4 text-sm font-medium text-white hover:bg-neutral-800"
+                    className="inline-flex h-10 shrink-0 items-center justify-center rounded-md bg-neutral-900 px-4 text-sm font-medium text-white hover:bg-neutral-800"
                 >
-                    <UserPlus size={16} /> Adicionar
+                    Adicionar
                 </button>
             </div>
 

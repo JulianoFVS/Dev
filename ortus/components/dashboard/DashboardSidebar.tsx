@@ -50,8 +50,7 @@ function ProfileAvatar({
   }, [photoUrl]);
 
   const showPhoto = Boolean(photoUrl) && !photoFailed;
-  const sizeClass = 'h-9 w-9 rounded-full';
-  const collapsedPhoto = collapsed ? 'h-full w-full rounded-full' : sizeClass;
+  const collapsedPhoto = `rounded-full transition-[width,height] duration-200 ease-out ${collapsed ? 'h-11 w-11' : 'h-9 w-9'}`;
   const alt = profileName ? `Foto de ${profileName}` : 'Meu perfil';
 
   if (showPhoto) {
@@ -69,7 +68,7 @@ function ProfileAvatar({
 
   return (
     <span
-      className={`flex shrink-0 items-center justify-center rounded-full bg-[#c8f053] text-neutral-900 ${collapsed ? 'h-full w-full' : 'h-9 w-9'}`}
+      className={`flex shrink-0 items-center justify-center rounded-full bg-[#c8f053] text-neutral-900 transition-[width,height] duration-200 ease-out ${collapsed ? 'h-11 w-11' : 'h-9 w-9'}`}
     >
       <User size={18} strokeWidth={1.75} />
     </span>
@@ -203,14 +202,14 @@ export default function DashboardSidebar({
         <BentoSidebarTooltip label="Visão geral" show={collapsed}>
           <Link
             href="/dashboard"
-            className={`flex shrink-0 items-center transition-colors hover:opacity-90 ${
+            className={`flex shrink-0 items-center transition-all duration-200 ease-out hover:opacity-90 ${
               collapsed ? 'h-11 w-11 justify-center rounded-2xl' : 'gap-2 rounded-2xl px-1 py-1.5'
             }`}
           >
             <img
               src="/landing/ortus-mark.svg"
               alt=""
-              className={`shrink-0 brightness-0 invert ${collapsed ? 'h-9 w-9' : 'h-6 w-6'}`}
+              className={`shrink-0 brightness-0 invert transition-[width,height] duration-200 ease-out ${collapsed ? 'h-9 w-9' : 'h-6 w-6'}`}
             />
             {!collapsed && (
               <img src="/landing/ortus-wordmark.svg" alt="ortus" className="h-4 w-auto brightness-0 invert" />
@@ -292,7 +291,7 @@ export default function DashboardSidebar({
         <BentoSidebarTooltip label="Meu perfil" show={collapsed}>
           <Link
             href="/perfil"
-            className={`flex items-center ${collapsed ? 'h-11 w-11 justify-center overflow-hidden rounded-full ring-2 ring-neutral-800' : 'gap-3 rounded-2xl px-3 py-2 hover:bg-white/10'}`}
+            className={`flex items-center transition-all duration-200 ease-out ${collapsed ? 'h-11 w-11 justify-center overflow-hidden rounded-full ring-2 ring-neutral-800' : 'gap-3 rounded-2xl px-3 py-2 hover:bg-white/10'}`}
           >
             <ProfileAvatar photoUrl={profilePhotoUrl} profileName={profileName} collapsed={collapsed} />
             {!collapsed && <span className="truncate text-sm font-medium text-white/90">Meu perfil</span>}

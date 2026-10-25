@@ -950,10 +950,10 @@ export default function Configuracoes() {
     <>
     <div className="flex h-full min-h-0 flex-col overflow-hidden px-3 py-3 font-poppins">
       <div className="mb-3 shrink-0">
-        <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 md:text-[2rem]">Configurações</h1>
-        <p className="mt-1 text-sm text-neutral-500">
-          {activeClinic ? getClinicLabel(activeClinic) : 'Rede'} · Clínicas, preferências e integrações
-        </p>
+        <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 md:text-[2rem]">
+          Configurações
+          <span className="text-neutral-400"> · {activeClinic ? getClinicLabel(activeClinic) : 'Rede'}</span>
+        </h1>
       </div>
 
       {kpiLoading && clinicas.length === 0 ? (

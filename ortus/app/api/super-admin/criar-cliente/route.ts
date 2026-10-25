@@ -61,9 +61,12 @@ export async function POST(req: Request) {
 
     // -------- 2. Validação do payload --------
     const body = await req.json().catch(() => ({}));
-    const { nomeRede, nomeMatriz, nomeDono, emailDono } = body as {
+    const { nomeRede, nomeMatriz, nomeDono, emailDono, telefone, cep, rua, numero, complemento, bairro, cidade, uf } = body as {
         nomeRede?: string; nomeMatriz?: string; nomeDono?: string; emailDono?: string;
+        telefone?: string; cep?: string; rua?: string; numero?: string; complemento?: string;
+        bairro?: string; cidade?: string; uf?: string;
     };
+    const texto = (valor?: string) => (typeof valor === 'string' && valor.trim() ? valor.trim() : null);
 
     const erros: string[] = [];
     if (!nomeRede?.trim()) erros.push('Nome da rede é obrigatório.');
@@ -113,7 +116,20 @@ export async function POST(req: Request) {
         // -------- 4. Cria clínica matriz --------
         const { data: clinicaData, error: clinicaErr } = await supabaseAdmin
             .from('clinicas')
-            .insert([{ nome: nomeMatriz!.trim(), rede_id: redeId, is_matriz: true }])
+            .insert([{
+                nome: nomeMatriz!.trim(),
+                rede_id: redeId,
+                is_matriz: true,
+                telefone: texto(telefone),
+                email: emailDono!.trim().toLowerCase(),
+                cep: texto(cep),
+                rua: texto(rua),
+                numero: texto(numero),
+                complemento: texto(complemento),
+                bairro: texto(bairro),
+                cidade: texto(cidade),
+                uf: texto(uf),
+            }])
             .select('id, nome')
             .single();
         if (clinicaErr || !clinicaData) {

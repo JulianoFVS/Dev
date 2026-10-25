@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase';
 import { usePatientSlideOver } from '@/components/PatientSlideOver';
 import { useClinica } from '@/app/context/ClinicaContext';
 import { carregarConfig, salvarConfig } from '@/lib/configClinica';
-import { ChevronDown, ChevronRight, CircleDot, ClipboardList, Eye, Filter, FlaskConical, Gem, Heart, Loader2, Package, Paintbrush, Pipette, Plus, Scissors, Search, Shield, Smile, Sparkles, Star, Trash2, Truck, Wrench, X, Zap } from 'lucide-react';
+import { ChevronDown, ChevronRight, CircleDot, ClipboardList, Eye, Filter, FlaskConical, Gem, Heart, Loader2, Package, Paintbrush, Pipette, Plus, Scissors, Search, Shield, Smile, Sparkles, Star, Truck, Wrench, X, Zap } from 'lucide-react';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
 import CustomSelect from '@/components/ui/CustomSelect';
 import Modal from '@/components/ui/Modal';
@@ -176,7 +176,7 @@ const STATUS_TOKENS: Record<StatusKey, { label: string }> = {
   feito:   { label: 'Concluída' },
 };
 
-const COLUMN_SHELL = 'rounded-xl border border-neutral-200 bg-[#f3f4f1] text-neutral-800';
+const COLUMN_SHELL = 'rounded-xl border border-neutral-200 bg-white text-neutral-800';
 
 function dedupeColumnsByTitle(items: Column[]) {
   const seen = new Set<string>();
@@ -847,7 +847,7 @@ export default function KanbanProtesesInteligente() {
                       }}
                       onDragLeave={() => setDragOverColumn(null)}
                       onDrop={(event) => handleDrop(event, column)}
-                      className={`custom-scrollbar flex-1 space-y-3 overflow-y-auto p-3 transition-colors ${dragOverColumn === column.id ? 'bg-white/80 ring-2 ring-neutral-300 ring-inset' : ''}`}
+                      className={`custom-scrollbar flex-1 space-y-3 overflow-y-auto bg-white p-3 transition-colors ${dragOverColumn === column.id ? 'ring-2 ring-neutral-300 ring-inset' : ''}`}
                     >
                       {columnCards.map((card) => {
                         const status = cardStatus(card);
@@ -861,8 +861,7 @@ export default function KanbanProtesesInteligente() {
                             setDraggedCard(null);
                             setDragOverColumn(null);
                           }}
-                          onClick={() => openEditOrder(card)}
-                          className={`group cursor-pointer rounded-xl border border-neutral-200 bg-white p-3 transition-colors hover:bg-neutral-50 active:cursor-grabbing ${draggedCard?.id === card.id ? 'border-dashed opacity-50' : ''}`}
+                          className={`cursor-grab rounded-xl border border-neutral-200 bg-white p-3 transition-colors active:cursor-grabbing ${draggedCard?.id === card.id ? 'border-dashed opacity-50' : ''}`}
                         >
                           <div className="mb-1 flex items-start justify-between gap-2">
                             <div className="min-w-0">
@@ -872,15 +871,16 @@ export default function KanbanProtesesInteligente() {
                                 {card.cor_dente ? ` · ${card.cor_dente}` : ''}
                               </p>
                             </div>
-                            <div className="flex shrink-0 items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex shrink-0 items-center gap-1" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
                               <span className="rounded-md bg-neutral-100 px-1.5 py-0.5 text-xs font-medium text-neutral-600">{tokens.label}</span>
-                              <button
-                                onClick={(e) => { e.stopPropagation(); deleteCard(card.id); }}
-                                className="rounded-md p-1 text-neutral-300 opacity-0 transition-colors hover:bg-red-50 hover:text-red-500 group-hover:opacity-100"
-                                aria-label="Excluir pedido"
-                              >
-                                <Trash2 size={14} />
-                              </button>
+                              <MenuPontos
+                                tamanho={14}
+                                className="rounded-md p-1 text-neutral-400 hover:bg-neutral-50 hover:text-neutral-900"
+                                itens={[
+                                  { id: 'editar', label: 'Editar', onClick: () => openEditOrder(card) },
+                                  { id: 'excluir', label: 'Excluir', perigo: true, onClick: () => deleteCard(card.id) },
+                                ]}
+                              />
                             </div>
                           </div>
 
@@ -954,7 +954,7 @@ export default function KanbanProtesesInteligente() {
                     />
                   ))}
                   <label className={`relative flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-md border-2 ${columnCor && !CORES_QUADRO.includes(columnCor) ? 'border-neutral-900' : 'border-neutral-200'}`} style={{ background: columnCor && !CORES_QUADRO.includes(columnCor) ? columnCor : 'conic-gradient(#94a3b8, #60a5fa, #34d399, #fbbf24, #fb7185, #a78bfa, #94a3b8)' }} aria-label="Cor personalizada">
-                    <input type="color" value={/^#[0-9a-fA-F]{6}$/.test(columnCor) ? columnCor : '#94a3b8'} onChange={(event) => setColumnCor(event.target.value)} className="absolute inset-0 h-full w-full cursor-pointer opacity-0" />
+                    <input type="color" value={/^#[0-9a-fA-F]{6}$/.test(columnCor) ? columnCor : '#94a3b8'} onChange={(event) => setColumnCor(event.target.value)} onClick={(event) => event.stopPropagation()} className="absolute inset-0 h-full w-full cursor-pointer opacity-0" />
                     {columnCor && !CORES_QUADRO.includes(columnCor) && <Pipette size={12} className="pointer-events-none text-white mix-blend-difference" />}
                   </label>
                 </div>
@@ -976,7 +976,7 @@ export default function KanbanProtesesInteligente() {
                 </div>
               </div>
 
-              <div className="flex items-center justify-between rounded-xl border border-neutral-200 bg-[#f3f4f1] p-4">
+              <div className="flex items-center justify-between rounded-xl border border-neutral-200 bg-white p-4">
                 <div>
                   <p className="text-sm font-semibold text-neutral-900">Checklist clínico</p>
                   <p className="mt-0.5 text-xs font-medium text-neutral-500">Exibir checklist nos cards desta coluna</p>

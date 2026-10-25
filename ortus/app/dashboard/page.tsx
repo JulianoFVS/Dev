@@ -21,6 +21,26 @@ import {
 import { useInboxCounts } from '@/hooks/useInboxCounts';
 import PillMeter from '@/components/bento/PillMeter';
 import Aviso from '@/components/ui/Aviso';
+import type { ReactNode } from 'react';
+
+function DicaBotao({ texto, children }: { texto: string; children: ReactNode }) {
+  const [visivel, setVisivel] = useState(false);
+  return (
+    <span
+      className="relative inline-flex"
+      onMouseEnter={() => setVisivel(true)}
+      onMouseLeave={() => setVisivel(false)}
+      onPointerDown={() => setVisivel(false)}
+    >
+      {children}
+      {visivel && (
+        <span className="pointer-events-none absolute top-full left-1/2 z-30 mt-1.5 -translate-x-1/2 whitespace-nowrap rounded-md bg-neutral-900 px-2 py-1 text-[11px] font-medium text-white">
+          {texto}
+        </span>
+      )}
+    </span>
+  );
+}
 
 type AgendaItem = {
   id: string;
@@ -506,24 +526,28 @@ export default function Dashboard() {
             </p>
           </div>
           <div className="hidden shrink-0 items-center gap-2 self-start lg:flex">
-            <button
-              type="button"
-              onClick={abrirBusca}
-              className="flex h-11 w-11 items-center justify-center rounded-full border border-black/10 bg-white text-neutral-700 hover:bg-neutral-50"
-              title="Buscar"
-            >
-              <Search size={18} />
-            </button>
-            <Link
-              href="/mensagens"
-              className="relative flex h-11 w-11 items-center justify-center rounded-full border border-black/10 bg-white text-neutral-700 hover:bg-neutral-50"
-              title="Mensagens e notificações"
-            >
-              <Bell size={18} />
-              {(mensagensCount + notificacoesCount) > 0 && (
-                <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-red-500 ring-2 ring-white" aria-hidden />
-              )}
-            </Link>
+            <DicaBotao texto="Buscar">
+              <button
+                type="button"
+                onClick={abrirBusca}
+                aria-label="Buscar"
+                className="flex h-11 w-11 items-center justify-center rounded-full border border-black/10 bg-white text-neutral-700 hover:bg-neutral-50"
+              >
+                <Search size={18} />
+              </button>
+            </DicaBotao>
+            <DicaBotao texto="Mensagens e notificações">
+              <Link
+                href="/mensagens"
+                aria-label="Mensagens e notificações"
+                className="relative flex h-11 w-11 items-center justify-center rounded-full border border-black/10 bg-white text-neutral-700 hover:bg-neutral-50"
+              >
+                <Bell size={18} />
+                {(mensagensCount + notificacoesCount) > 0 && (
+                  <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-red-500 ring-2 ring-white" aria-hidden />
+                )}
+              </Link>
+            </DicaBotao>
             <button
               type="button"
               onClick={() => setModalAgenda(true)}
