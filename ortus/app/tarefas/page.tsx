@@ -5,7 +5,7 @@ import { clinicScope, readRouteCache, writeRouteCache } from '@/lib/routeListCac
 import {
     Plus, Search, Calendar,
     User, Loader2, X, Trash2,
-    ChevronLeft, ChevronRight, Pencil,
+    ChevronLeft, ChevronRight, Pencil, Pipette,
 } from 'lucide-react';
 import { useClinica, getClinicLabel } from '@/app/context/ClinicaContext';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
@@ -42,6 +42,18 @@ interface Paciente {
 }
 
 const TAREFAS_CACHE_KEY = 'ortus:tarefas:v1';
+const TAREFAS_CORES_KEY = 'ortus:tarefas:cores';
+const CORES_PASTEL = ['#fde68a', '#bbf7d0', '#bfdbfe', '#fbcfe8', '#ddd6fe', '#fed7aa'];
+
+function readCoresQuadro(): Record<string, string> {
+    if (typeof localStorage === 'undefined') return {};
+    try {
+        const raw = localStorage.getItem(TAREFAS_CORES_KEY);
+        return raw ? JSON.parse(raw) as Record<string, string> : {};
+    } catch {
+        return {};
+    }
+}
 
 type TarefasSnapshot = {
     tarefas: Tarefa[];
@@ -75,6 +87,8 @@ export default function Tarefas() {
     const [filtroBusca, setFiltroBusca] = useState('');
     // Modal
     const [modalOpen, setModalOpen] = useState(false);
+    const [coresQuadro, setCoresQuadro] = useState<Record<string, string>>(readCoresQuadro);
+    const [pintando, setPintando] = useState<string | null>(null);
     const [tarefaEditando, setTarefaEditando] = useState<Tarefa | null>(null);
     const [salvando, setSalvando] = useState(false);
     
@@ -384,10 +398,40 @@ export default function Tarefas() {
                 {colunasKanban.map((col) => {
                     const items = tarefasFiltradas.filter((t) => t.status === col.id);
                     return (
-                        <section key={col.id} className="flex flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white md:min-h-0">
-                            <div className="flex shrink-0 items-center justify-between px-3 py-2.5">
-                                <h2 className="text-sm font-semibold text-neutral-900">{col.label}</h2>
-                                <span className="text-xs tabular-nums text-neutral-400">{kpiLoading ? '—' : items.length}</span>
+                        <section key={col.id} className="flex flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white md:min-h-0" style={coresQuadro[col.id] ? { backgroundColor: coresQuadro[col.id] } : undefined}>
+                            <div className="flex shrink-0 items-center justify-between gap-2 px-3 py-2.5">
+                                <h2 className="flex min-w-0 items-center gap-1.5 text-sm font-semibold text-neutral-900">
+                                    <span className="truncate">{col.label}</span>
+                                    <span className="text-xs font-medium tabular-nums text-neutral-400">{kpiLoading ? '—' : items.length}</span>
+                                </h2>
+                                <div className="flex shrink-0 items-center gap-1">
+                                    {pintando === col.id ? (
+                                        <>
+                                            {CORES_PASTEL.map((hex) => (
+                                                <button
+                                                    key={hex}
+                                                    type="button"
+                                                    aria-label={hex}
+                                                    className="h-5 w-5 rounded-md border border-black/10"
+                                                    style={{ backgroundColor: hex }}
+                                                    onClick={() => {
+                                                        const next = { ...coresQuadro, [col.id]: hex };
+                                                        setCoresQuadro(next);
+                                                        localStorage.setItem(TAREFAS_CORES_KEY, JSON.stringify(next));
+                                                        setPintando(null);
+                                                    }}
+                                                />
+                                            ))}
+                                            <button type="button" aria-label="Fechar cores" className="flex h-5 w-5 items-center justify-center rounded-md text-neutral-500 hover:bg-white/70" onClick={() => setPintando(null)}>
+                                                <X size={12} />
+                                            </button>
+                                        </>
+                                    ) : (
+                                        <button type="button" aria-label="Cor do quadro" className="flex h-5 w-5 items-center justify-center rounded-md text-neutral-400 hover:bg-white/70 hover:text-neutral-900" onClick={() => setPintando(col.id)}>
+                                            <Pipette size={13} />
+                                        </button>
+                                    )}
+                                </div>
                             </div>
                             <div className="space-y-2 px-3 pb-3 md:min-h-0 md:flex-1 md:overflow-y-auto">
                                 {kpiLoading ? (

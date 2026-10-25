@@ -226,7 +226,7 @@ export default function ModalNovoAgendamento({
       <div className="flex-1 space-y-5 overflow-y-auto p-5 sm:p-6">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
-            <label className="mb-1.5 block text-xs font-medium text-neutral-500">Clínica <span className="text-neutral-900">*</span></label>
+            <label className="mb-1.5 block text-xs font-medium text-neutral-500">Clínica <span className="text-red-500">*</span></label>
             <CustomSelect
               value={form.clinica_id}
               onChange={(v) => setForm((p) => ({ ...p, clinica_id: v, profissional_id: nivel !== 'admin' ? meuProfissionalId : '' }))}
@@ -247,7 +247,7 @@ export default function ModalNovoAgendamento({
           </div>
         </div>
         <div>
-          <label className="mb-1.5 block text-xs font-medium text-neutral-500">Paciente <span className="text-neutral-900">*</span></label>
+          <label className="mb-1.5 block text-xs font-medium text-neutral-500">Paciente <span className="text-red-500">*</span></label>
           <CustomSelect
             value={form.paciente_id}
             onChange={(v) => setForm((p) => ({ ...p, paciente_id: v }))}
@@ -258,16 +258,16 @@ export default function ModalNovoAgendamento({
         </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
-            <label className="mb-1.5 block text-xs font-medium text-neutral-500">Data <span className="text-neutral-900">*</span></label>
+            <label className="mb-1.5 block text-xs font-medium text-neutral-500">Data <span className="text-red-500">*</span></label>
             <CampoData value={form.date} onChange={(v) => setForm((p) => ({ ...p, date: v }))} />
           </div>
           <div>
-            <label className="mb-1.5 block text-xs font-medium text-neutral-500">Hora <span className="text-neutral-900">*</span></label>
+            <label className="mb-1.5 block text-xs font-medium text-neutral-500">Hora <span className="text-red-500">*</span></label>
             <CampoHora value={form.time} onChange={(v) => setForm((p) => ({ ...p, time: v }))} passo={30} />
           </div>
         </div>
         <div>
-          <label className="mb-1.5 block text-xs font-medium text-neutral-500">Procedimento <span className="text-neutral-900">*</span></label>
+          <label className="mb-1.5 block text-xs font-medium text-neutral-500">Procedimento <span className="text-red-500">*</span></label>
           <ProcedureCombobox
             clinicaId={form.clinica_id}
             especialidades={especialidades}

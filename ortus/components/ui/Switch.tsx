@@ -21,7 +21,7 @@ export default function Switch({ checked, onChange, disabled = false, className 
           disabled={disabled}
           onChange={(event) => onChange(event.target.checked)}
         />
-        <span className="block h-5 w-9 rounded-full bg-slate-300 transition-colors duration-200 peer-checked:bg-neutral-900 peer-focus-visible:ring-2 peer-focus-visible:ring-neutral-400" />
+        <span className="block h-5 w-9 rounded-full bg-neutral-300 transition-colors duration-200 peer-checked:bg-neutral-900 peer-focus-visible:ring-2 peer-focus-visible:ring-neutral-400" />
         <span className="absolute left-0.5 top-0.5 h-[15.5px] w-[15.5px] rounded-full bg-white transition-transform duration-200 ease-out peer-checked:translate-x-4" />
       </span>
     </label>

@@ -32,6 +32,7 @@ export default function PatientContactButtons({
   channels = ['whatsapp', 'email', 'sms'],
 }: Props) {
   const [loading, setLoading] = useState<'whatsapp' | 'email' | 'sms' | null>(null);
+  const [legenda, setLegenda] = useState<'whatsapp' | 'email' | 'sms' | null>(null);
 
   async function enviar(canal: 'whatsapp' | 'email' | 'sms') {
     if (!clinicaId) {
@@ -61,17 +62,28 @@ export default function PatientContactButtons({
   }
 
   const iconBtn = (canal: 'whatsapp' | 'email' | 'sms', Icon: typeof MessageCircle, color: string, title: string) => (
-    <button
+    <span
       key={canal}
-      type="button"
-      onClick={() => enviar(canal)}
-      disabled={!!loading}
-      className={`p-2.5 rounded-xl text-white transition-colors shadow-sm disabled:opacity-50 ${color}`}
-      title={title}
-      aria-label={title}
+      className="relative inline-flex"
+      onMouseEnter={() => setLegenda(canal)}
+      onMouseLeave={() => setLegenda(null)}
     >
-      {loading === canal ? <Loader2 size={18} className="animate-spin" /> : <Icon size={18} />}
-    </button>
+      <button
+        type="button"
+        onClick={() => enviar(canal)}
+        onPointerDown={() => setLegenda(null)}
+        disabled={!!loading}
+        className={`rounded-xl p-2.5 text-white shadow-sm transition-colors disabled:opacity-50 ${color}`}
+        aria-label={title}
+      >
+        {loading === canal ? <Loader2 size={18} className="animate-spin" /> : <Icon size={18} />}
+      </button>
+      {legenda === canal && (
+        <span className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-1.5 -translate-x-1/2 whitespace-nowrap rounded-md bg-neutral-900 px-2 py-1 text-[11px] font-medium text-white">
+          {title}
+        </span>
+      )}
+    </span>
   );
 
   if (variant === 'icons') {

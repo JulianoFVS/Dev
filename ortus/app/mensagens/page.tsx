@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { supabase } from '@/lib/supabase';
 import { AlertTriangle, Bell, Calendar, Info, Mail } from 'lucide-react';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
@@ -31,17 +31,12 @@ function Painel({
   useEffect(() => {
     let cancelado = false;
     async function carregar() {
-      setLoading(true);
       const { data: { user } } = await supabase.auth.getUser();
       if (!user || cancelado) {
         if (!cancelado) setLoading(false);
         return;
       }
-      const agoraIso = new Date().toISOString();
-      let query = supabase.from('notificacoes').select('*').eq('user_id', user.id);
-      if (escopo === 'ativas') query = query.or(`expires_at.is.null,expires_at.gt.${agoraIso}`);
-      else query = query.or(`lida.eq.true,expires_at.lte.${agoraIso}`).limit(200);
-      const { data } = await query.order('created_at', { ascending: false });
+      const { data } = await supabase.from('notificacoes').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(200);
       if (!cancelado) {
         setTodos((data || []).filter((item) => modo === 'mensagem' ? item.tipo === 'mensagem' : TIPOS_ALERTA.has(String(item.tipo || ''))));
         setLoading(false);
@@ -49,7 +44,17 @@ function Painel({
     }
     carregar();
     return () => { cancelado = true; };
-  }, [escopo, modo]);
+  }, [modo]);
+
+  const visiveis = useMemo(() => {
+    const agora = Date.now();
+    return todos.filter((item) => {
+      const expira = item.expires_at ? new Date(item.expires_at).getTime() : null;
+      const ativa = expira == null || expira > agora;
+      if (escopo === 'ativas') return ativa;
+      return !!item.lida || (expira != null && expira <= agora);
+    });
+  }, [todos, escopo]);
 
   async function marcarLida(id: any) {
     setTodos((prev) => prev.map((n) => (n.id === id ? { ...n, lida: true } : n)));
@@ -72,7 +77,7 @@ function Painel({
       escopo={escopo}
       onEscopo={setEscopo}
       loading={loading}
-      items={todos}
+      items={visiveis}
       onMarkRead={marcarLida}
       onDelete={excluir}
       iconForItem={(n) => iconeItem(String((n as { tipo?: string }).tipo || ''))}
@@ -84,8 +89,8 @@ export default function Mensagens() {
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden px-2.5 py-2.5 sm:px-3 sm:py-3 md:px-4 md:py-3.5">
       <header className="mb-3 shrink-0">
-        <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 md:text-[2rem]">Mensagens</h1>
-        <p className="mt-1 text-sm text-neutral-500 sm:text-base">Comunicação da equipe de um lado e avisos da clínica do outro.</p>
+        <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 md:text-[2rem]">Mensagens e notificações</h1>
+        <p className="mt-1 text-xs text-neutral-400">Equipe e avisos da clínica.</p>
       </header>
       <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-hidden lg:grid-cols-2">
         <Painel

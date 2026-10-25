@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
@@ -6,12 +6,14 @@ import { supabase } from '@/lib/supabase';
 import { usePatientSlideOver } from '@/components/PatientSlideOver';
 import { useClinica } from '@/app/context/ClinicaContext';
 import { carregarConfig, salvarConfig } from '@/lib/configClinica';
-import { Check, ChevronDown, ChevronRight, CircleDot, ClipboardList, Edit3, Eye, Filter, FlaskConical, Gem, Heart, Loader2, Package, Paintbrush, Plus, Scissors, Search, Shield, Smile, Sparkles, Star, Trash2, Truck, Wrench, X, Zap } from 'lucide-react';
+import { ChevronDown, ChevronRight, CircleDot, ClipboardList, Eye, Filter, FlaskConical, Gem, Heart, Loader2, Package, Paintbrush, Pipette, Plus, Scissors, Search, Shield, Smile, Sparkles, Star, Trash2, Truck, Wrench, X, Zap } from 'lucide-react';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
 import CustomSelect from '@/components/ui/CustomSelect';
 import Modal from '@/components/ui/Modal';
 import Aviso from '@/components/ui/Aviso';
 import Switch from '@/components/ui/Switch';
+import MenuPontos from '@/components/ui/MenuPontos';
+import ModalPedidoProtese from '@/components/proteses/ModalPedidoProtese';
 
 type ColumnTitle = 'Solicitado' | 'No Laboratório' | 'Em Prova Clínica' | 'Aguardando Ajuste' | 'Finalizado / Entregue';
 type Category = 'Removível' | 'Fixa' | '';
@@ -212,8 +214,7 @@ export default function KanbanProtesesInteligente() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingCard, setEditingCard] = useState<Card | null>(null);
   const [targetColumnId, setTargetColumnId] = useState<number | null>(null);
-  const [form, setForm] = useState<CardForm>(EMPTY_FORM);
-  const [patientSearch, setPatientSearch] = useState('');
+  const [pacienteModal, setPacienteModal] = useState<PatientOption | null>(null);
   const [columnModalOpen, setColumnModalOpen] = useState(false);
   const [editingColumn, setEditingColumn] = useState<Column | null>(null);
   const [columnTitle, setColumnTitle] = useState('');
@@ -302,8 +303,7 @@ export default function KanbanProtesesInteligente() {
     const paciente = patients.find((p) => String(p.id) === String(pacientePreSelecionado));
     if (!paciente) return;
     const solicitado = columns.find((column) => column.titulo === 'Solicitado') || columns[0];
-    setForm({ ...EMPTY_FORM, paciente_id: String(paciente.id), paciente_nome: paciente.nome });
-    setPatientSearch(paciente.nome);
+    setPacienteModal(paciente);
     setEditingCard(null);
     setTargetColumnId(solicitado?.id || null);
     setModalOpen(true);
@@ -319,13 +319,6 @@ export default function KanbanProtesesInteligente() {
 
   const provaClinicaColumn = columns.find((column) => column.titulo === 'Em Prova Clínica');
   function isChecklistColumn(column: Column) { return column.checklist_ativo || column.id === provaClinicaColumn?.id; }
-  const visibleTypes = form.categoria === 'Removível' ? REMOVABLE_TYPES : form.categoria === 'Fixa' ? FIXED_TYPES : [];
-
-  const filteredPatients = useMemo(() => {
-    const search = patientSearch.trim().toLowerCase();
-    if (!search) return patients.slice(0, 8);
-    return patients.filter((patient) => patient.nome.toLowerCase().includes(search)).slice(0, 8);
-  }, [patients, patientSearch]);
 
   async function loadBoard(nextClinicId: string | null, opts?: { silent?: boolean }) {
     if (!opts?.silent) setLoading(true);
@@ -390,116 +383,26 @@ export default function KanbanProtesesInteligente() {
     return dedupeColumnsByTitle(refreshed);
   }
 
+  function fecharPedido() {
+    setModalOpen(false);
+    setEditingCard(null);
+    setTargetColumnId(null);
+    setPacienteModal(null);
+  }
+
   function openNewOrder(initialColumnId?: number) {
     const requestedColumn = initialColumnId ? columns.find((column) => column.id === initialColumnId) : columns.find((column) => column.titulo === 'Solicitado') || columns[0];
-    setForm({ ...EMPTY_FORM });
     setEditingCard(null);
+    setPacienteModal(null);
     setTargetColumnId(requestedColumn?.id || null);
-    setPatientSearch('');
     setModalOpen(true);
   }
 
   function openEditOrder(card: Card) {
-    const category = card.categoria === 'Removível' || card.categoria === 'Fixa' ? card.categoria : '';
-    const position = card.posicao === 'Superior' || card.posicao === 'Inferior' || card.posicao === 'Ambas' ? card.posicao : '';
-
+    setPacienteModal(null);
     setEditingCard(card);
     setTargetColumnId(card.coluna_id);
-    setPatientSearch(card.paciente_nome);
-    setForm({
-      paciente_id: card.paciente_id ? String(card.paciente_id) : null,
-      paciente_nome: card.paciente_nome || '',
-      categoria: category,
-      tipo_protese: card.tipo_protese || '',
-      cor_dente: card.cor_dente || '',
-      cor_gengiva: card.cor_gengiva || '',
-      posicao: position,
-      descricao: card.descricao || '',
-      status: cardStatus(card),
-    });
     setModalOpen(true);
-  }
-
-  function selectPatient(patient: PatientOption) {
-    setForm((current) => ({ ...current, paciente_id: String(patient.id), paciente_nome: patient.nome }));
-    setPatientSearch(patient.nome);
-  }
-
-  const [creatingPatient, setCreatingPatient] = useState(false);
-
-  async function quickCreatePatient() {
-    const nome = patientSearch.trim();
-    if (!nome || creatingPatient) return;
-
-    setCreatingPatient(true);
-    const payload: { nome: string; clinica_id?: string } = { nome };
-    if (clinicId) payload.clinica_id = clinicId;
-
-    const { data, error } = await supabase
-      .from('pacientes')
-      .insert([payload])
-      .select('id, nome, telefone, clinica_id')
-      .single();
-
-    setCreatingPatient(false);
-
-    if (error || !data) {
-      showToast('warning', 'Não foi possível criar o paciente: ' + (error?.message || 'erro desconhecido'));
-      return;
-    }
-
-    const novo = data as PatientOption;
-    setPatients((current) => [...current, novo].sort((a, b) => a.nome.localeCompare(b.nome)));
-    selectPatient(novo);
-
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('ortus:paciente-changed'));
-    }
-    showToast('success', `${novo.nome} cadastrado e selecionado.`);
-  }
-
-  function selectCategory(category: Category) {
-    setForm((current) => ({ ...current, categoria: category, tipo_protese: '' }));
-  }
-
-  async function createCard() {
-    const requestedColumn = targetColumnId ? columns.find((column) => column.id === targetColumnId) : columns.find((column) => column.titulo === 'Solicitado') || columns[0];
-    if (!requestedColumn || requestedColumn.id < 0) return showToast('warning', 'As etapas padrão ainda não foram carregadas.');
-    if (!form.paciente_nome.trim()) return showToast('warning', 'Selecione ou informe o paciente.');
-    if (!form.paciente_id) return showToast('warning', 'Selecione o paciente da lista ou clique em “Cadastrar como novo paciente”.');
-    if (!form.categoria) return showToast('warning', 'Escolha a categoria da prótese.');
-    if (!form.tipo_protese) return showToast('warning', 'Escolha o tipo da prótese.');
-    if (!editingCard && cards.length >= 2000) return showToast('warning', 'Limite de 2000 pedidos atingido.');
-
-    setSaving(true);
-    const payload = {
-      coluna_id: requestedColumn.id,
-      clinica_id: clinicId,
-      paciente_id: form.paciente_id,
-      paciente_nome: form.paciente_nome.trim(),
-      descricao: form.descricao.trim(),
-      categoria: form.categoria,
-      tipo_protese: form.tipo_protese,
-      cor_dente: form.cor_dente.trim(),
-      cor_gengiva: form.cor_gengiva.trim(),
-      posicao: form.posicao,
-      status: form.status,
-      checklist: editingCard?.tipo_protese === form.tipo_protese && Array.isArray(editingCard.checklist) ? editingCard.checklist : buildChecklist(form.tipo_protese),
-    };
-
-    const { error } = editingCard
-      ? await supabase.from('kanban_cartoes').update(payload).eq('id', editingCard.id)
-      : await supabase.from('kanban_cartoes').insert([payload]);
-    setSaving(false);
-
-    if (error) return showToast('warning', `Erro ao ${editingCard ? 'atualizar' : 'criar'} pedido: ${error.message}`);
-
-    setModalOpen(false);
-    setEditingCard(null);
-    setTargetColumnId(null);
-    setForm({ ...EMPTY_FORM });
-    showToast('success', editingCard ? 'Pedido atualizado.' : 'Pedido de prótese criado.');
-    loadBoard(clinicId);
   }
 
   const [columnIcon, setColumnIcon] = useState<string>('package');
@@ -837,7 +740,7 @@ export default function KanbanProtesesInteligente() {
                     onClick={() => document.getElementById(`coluna-${col.id}`)?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })}
                     className="flex items-center gap-2 rounded-md border border-transparent px-3 py-2 text-xs font-medium text-neutral-600 transition-colors hover:border-neutral-200 hover:bg-[#f3f4f1] hover:text-neutral-900"
                   >
-                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-600" style={tinta ? { backgroundColor: tinta.marca, borderColor: tinta.marca, color: tinta.texto } : undefined}>{getColumnIcon(col)}</span>
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-600" style={tinta ? { color: tinta.marca } : undefined}>{getColumnIcon(col)}</span>
                     <span className="hidden sm:inline whitespace-nowrap">{col.titulo}</span>
                     <span className="shrink-0 rounded-md bg-neutral-100 px-1.5 py-0.5 text-xs font-medium text-neutral-500">{count}</span>
                   </button>
@@ -926,12 +829,14 @@ export default function KanbanProtesesInteligente() {
                         {hasChecklist && (
                           <span className="rounded-md border border-neutral-200 bg-white px-2 py-0.5 text-xs font-medium text-neutral-600">Checklist</span>
                         )}
-                        <button type="button" onClick={() => openEditColumn(column)} className="rounded-lg p-1.5 text-neutral-400 transition-colors hover:bg-white hover:text-neutral-900" aria-label="Editar quadro">
-                          <Edit3 size={13} />
-                        </button>
-                        <button type="button" onClick={() => deleteColumn(column)} className="rounded-lg p-1.5 text-neutral-400 transition-colors hover:bg-white hover:text-red-600" aria-label="Remover quadro">
-                          <Trash2 size={13} />
-                        </button>
+                        <MenuPontos
+                          tamanho={14}
+                          className="rounded-md p-1.5 text-neutral-400 hover:bg-white hover:text-neutral-900"
+                          itens={[
+                            { id: 'editar', label: 'Editar quadro', onClick: () => openEditColumn(column) },
+                            { id: 'remover', label: 'Remover quadro', perigo: true, onClick: () => deleteColumn(column) },
+                          ]}
+                        />
                       </div>
                     </div>
 
@@ -991,9 +896,9 @@ export default function KanbanProtesesInteligente() {
                       })}
 
                       {columnCards.length === 0 && (
-                        <div className="flex h-32 items-center justify-center rounded-xl border border-dashed border-neutral-200 bg-white/60 text-xs font-medium text-neutral-400">Arraste pedidos para cá</div>
+                        <div className="flex h-32 items-center justify-center rounded-xl border border-dashed border-neutral-100 bg-white text-xs font-medium text-neutral-300">Arraste pedidos para cá</div>
                       )}
-                      <button type="button" onClick={() => openNewOrder(column.id)} className="flex w-full items-center justify-center gap-1 rounded-md border border-dashed border-neutral-300 bg-white/70 py-2.5 text-xs font-medium text-neutral-600 transition-colors hover:bg-white">
+                      <button type="button" onClick={() => openNewOrder(column.id)} className="flex w-full items-center justify-center gap-1 rounded-md border border-dashed border-neutral-200 bg-white py-2.5 text-xs font-medium text-neutral-400 transition-colors hover:bg-neutral-50">
                         <Plus size={13} /> Adicionar pedido
                       </button>
                     </div>
@@ -1005,136 +910,20 @@ export default function KanbanProtesesInteligente() {
         )}
       </div>
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} maxWidth="2xl" zIndex={85} hideCloseButton panelClassName="flex max-h-[92vh] flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white">
-          <div className="flex shrink-0 items-start justify-between gap-4 border-b border-neutral-200 bg-white p-5">
-              <div>
-                <p className="text-xs font-medium text-neutral-500">{editingCard ? 'Editar pedido' : 'Novo pedido'}</p>
-                <h2 className="text-base font-semibold text-neutral-900">{editingCard ? 'Editar pedido' : 'Novo pedido'}</h2>
-              </div>
-              <button onClick={() => setModalOpen(false)} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-100" aria-label="Fechar"><X size={16} /></button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto custom-scrollbar p-5 space-y-5">
-              <section className="rounded-xl border border-neutral-200 bg-[#f3f4f1] p-4">
-                <div className="mb-3 flex items-center gap-3">
-                  <span className="flex h-7 w-7 items-center justify-center rounded-md border border-[#d7dece] bg-[#eef2e8] text-xs font-medium text-neutral-800">A</span>
-                  <h3 className="text-sm font-semibold text-neutral-900">Selecionar paciente</h3>
-                </div>
-                <div className="relative">
-                  <Search size={16} className="absolute left-3 top-2.5 text-neutral-400" />
-                  <input value={patientSearch} onChange={(event) => { const v = event.target.value; setPatientSearch(v); setForm((current) => ({ ...current, paciente_nome: v, paciente_id: current.paciente_nome === v ? current.paciente_id : null })); }} className="h-10 w-full rounded-md border border-neutral-200 bg-white pl-10 pr-3 text-sm font-medium text-neutral-900 outline-none focus:border-neutral-900" placeholder="Buscar ou digitar nome do paciente" />
-                </div>
-                {patientSearch.trim() && filteredPatients.length === 0 && !patients.some((p) => p.nome.toLowerCase() === patientSearch.trim().toLowerCase()) && (
-                  <button
-                    onClick={quickCreatePatient}
-                    disabled={creatingPatient}
-                    className="mt-3 flex w-full items-center justify-center gap-2 rounded-md border border-dashed border-neutral-300 bg-white px-3 py-2.5 text-sm font-medium text-neutral-800 hover:border-neutral-900 disabled:cursor-wait disabled:opacity-60"
-                    title="Cadastrar este paciente rapidamente"
-                  >
-                    {creatingPatient ? (
-                      <><Loader2 size={16} className="animate-spin"/> Cadastrando...</>
-                    ) : (
-                      <><Plus size={16}/> Cadastrar &quot;<span className="font-semibold">{patientSearch.trim()}</span>&quot; como novo paciente</>
-                    )}
-                  </button>
-                )}
-                {patientSearch && filteredPatients.length > 0 && (
-                  <div className="mt-3 grid sm:grid-cols-2 gap-2">
-                    {filteredPatients.map((patient) => (
-                      <button key={patient.id} onClick={() => selectPatient(patient)} className={`rounded-md border p-3 text-left ${form.paciente_nome === patient.nome ? 'border-neutral-900 bg-white text-neutral-900' : 'border-neutral-200 bg-white hover:bg-neutral-50'}`}>
-                        <p className="truncate text-sm font-semibold">{patient.nome}</p>
-                        <p className="truncate text-xs font-medium text-neutral-500">{patient.telefone || 'Sem telefone'}</p>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </section>
-
-              <section className="rounded-xl border border-neutral-200 bg-white p-4">
-                <div className="mb-3 flex items-center gap-3">
-                  <span className="flex h-7 w-7 items-center justify-center rounded-md border border-[#d7dece] bg-[#eef2e8] text-xs font-medium text-neutral-800">●</span>
-                  <h3 className="text-sm font-semibold text-neutral-900">Status atual</h3>
-                </div>
-                <CustomSelect
-                  value={form.status}
-                  onChange={(v) => setForm((current) => ({ ...current, status: v as StatusKey }))}
-                  options={(['espera', 'lab', 'clinica', 'feito'] as StatusKey[]).map((key) => ({ value: key, label: STATUS_TOKENS[key].label }))}
-                  size="lg"
-                />
-                <p className="mt-2 text-xs font-medium text-neutral-500">O status acompanha o pedido independente do quadro onde ele esteja.</p>
-              </section>
-
-              {form.paciente_nome && (
-                <section className="rounded-xl border border-neutral-200 bg-white p-4">
-                  <div className="mb-3 flex items-center gap-3">
-                    <span className="flex h-7 w-7 items-center justify-center rounded-md border border-[#d7dece] bg-[#eef2e8] text-xs font-medium text-neutral-800">B</span>
-                    <h3 className="text-sm font-semibold text-neutral-900">Escolher categoria</h3>
-                  </div>
-                  <div className="grid sm:grid-cols-2 gap-3">
-                    {(['Removível', 'Fixa'] as Category[]).map((category) => (
-                      <button key={category} onClick={() => selectCategory(category)} className={`rounded-xl border p-4 text-left ${form.categoria === category ? 'border-neutral-900 bg-[#f3f4f1]' : 'border-neutral-200 bg-white hover:bg-neutral-50'}`}>
-                        <p className="text-base font-semibold text-neutral-900">{category}</p>
-                        <p className="mt-1 text-sm font-medium text-neutral-500">{category === 'Removível' ? 'PPR, PT e flexíveis' : 'Coroas, protocolo e adesivas'}</p>
-                      </button>
-                    ))}
-                  </div>
-                </section>
-              )}
-
-              {form.categoria && (
-                <section className="rounded-xl border border-neutral-200 bg-white p-4">
-                  <div className="mb-3 flex items-center gap-3">
-                    <span className="flex h-7 w-7 items-center justify-center rounded-md border border-[#d7dece] bg-[#eef2e8] text-xs font-medium text-neutral-800">C</span>
-                    <h3 className="text-sm font-semibold text-neutral-900">Escolher tipo</h3>
-                  </div>
-                  <div className="grid sm:grid-cols-2 gap-2">
-                    {visibleTypes.map((type) => (
-                      <button key={type} onClick={() => setForm((current) => ({ ...current, tipo_protese: type }))} className={`rounded-md border px-3 py-2.5 text-left text-sm font-medium ${form.tipo_protese === type ? 'border-neutral-900 bg-[#f3f4f1] text-neutral-900' : 'border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50'}`}>
-                        {type}
-                      </button>
-                    ))}
-                  </div>
-                </section>
-              )}
-
-              {form.tipo_protese && (
-                <section className="rounded-xl border border-neutral-200 bg-white p-4">
-                  <div className="mb-3 flex items-center gap-3">
-                    <span className="flex h-7 w-7 items-center justify-center rounded-md border border-[#d7dece] bg-[#eef2e8] text-xs font-medium text-neutral-800">D</span>
-                    <h3 className="text-sm font-semibold text-neutral-900">Detalhamentos rápidos</h3>
-                  </div>
-                  <div className="grid sm:grid-cols-2 gap-3">
-                    <input value={form.cor_dente} onChange={(event) => setForm((current) => ({ ...current, cor_dente: event.target.value }))} className="h-10 rounded-md border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-900 outline-none focus:border-neutral-900" placeholder="Cor do dente: A2, B1..." />
-                    <input value={form.cor_gengiva} onChange={(event) => setForm((current) => ({ ...current, cor_gengiva: event.target.value }))} className="h-10 rounded-md border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-900 outline-none focus:border-neutral-900" placeholder="Cor da gengiva / STG" />
-                  </div>
-                  <div className="mt-3 grid grid-cols-3 gap-2">
-                    {(['Superior', 'Inferior', 'Ambas'] as Position[]).map((position) => (
-                      <button key={position} onClick={() => setForm((current) => ({ ...current, posicao: position }))} className={`rounded-md border px-3 py-2.5 text-xs font-medium ${form.posicao === position ? 'border-neutral-900 bg-[#f3f4f1] text-neutral-900' : 'border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50'}`}>
-                        {position}
-                      </button>
-                    ))}
-                  </div>
-                  <textarea value={form.descricao} onChange={(event) => setForm((current) => ({ ...current, descricao: event.target.value }))} rows={3} className="mt-3 w-full resize-none rounded-md border border-neutral-200 bg-white p-3 text-sm font-medium text-neutral-900 outline-none focus:border-neutral-900" placeholder="Observações rápidas para laboratório" />
-                  <div className="mt-3 rounded-md border border-neutral-200 bg-[#f3f4f1] p-3">
-                    <p className="mb-2 text-xs font-medium text-neutral-500">Checklist que será criado</p>
-                    <div className="space-y-1">
-                      {buildChecklist(form.tipo_protese).map((item) => (
-                        <p key={item.tarefa} className="flex items-center gap-2 text-xs font-medium text-neutral-700"><Check size={13} className="text-neutral-700" /> {item.tarefa}</p>
-                      ))}
-                    </div>
-                  </div>
-                </section>
-              )}
-            </div>
-
-            <div className="flex gap-2 border-t border-neutral-200 bg-white p-5">
-              <button type="button" onClick={() => setModalOpen(false)} className="h-9 rounded-md px-3 text-sm font-medium text-neutral-500 hover:bg-neutral-50">Cancelar</button>
-              <button type="button" onClick={createCard} disabled={saving || !form.paciente_nome || !form.categoria || !form.tipo_protese} className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400">
-                {saving ? <Loader2 className="animate-spin" size={18} /> : <Plus size={18} />} {editingCard ? 'Salvar Pedido' : 'Criar Pedido'}
-              </button>
-            </div>
-      </Modal>
-
+      <ModalPedidoProtese
+        open={modalOpen}
+        onClose={fecharPedido}
+        clinicId={clinicId}
+        colunaId={targetColumnId}
+        columns={columns}
+        patients={patients}
+        pedido={editingCard}
+        pacienteInicial={pacienteModal}
+        totalPedidos={cards.length}
+        onSaved={() => loadBoard(clinicId, { silent: true })}
+        onPatientCreated={(paciente) => setPatients((current) => [...current, paciente].sort((a, b) => a.nome.localeCompare(b.nome)))}
+        onAviso={showToast}
+      />
       <Modal open={columnModalOpen} onClose={() => setColumnModalOpen(false)} maxWidth="md" zIndex={86} closeOnBackdrop={false} hideCloseButton panelClassName="flex max-h-[85vh] flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white">
           <div className="flex shrink-0 items-start justify-between gap-4 border-b border-neutral-200 p-5">
               <div>
@@ -1164,8 +953,9 @@ export default function KanbanProtesesInteligente() {
                       aria-label={hex}
                     />
                   ))}
-                  <label className={`relative h-7 w-7 cursor-pointer overflow-hidden rounded-md border-2 ${columnCor && !CORES_QUADRO.includes(columnCor) ? 'border-neutral-900' : 'border-neutral-200'}`} style={{ background: columnCor && !CORES_QUADRO.includes(columnCor) ? columnCor : 'conic-gradient(#94a3b8, #60a5fa, #34d399, #fbbf24, #fb7185, #a78bfa, #94a3b8)' }} aria-label="Cor personalizada">
-                    <input type="color" value={/^#[0-9a-fA-F]{6}$/.test(columnCor) ? columnCor : '#94a3b8'} onChange={(event) => setColumnCor(event.target.value)} className="absolute inset-0 cursor-pointer opacity-0" />
+                  <label className={`relative flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-md border-2 ${columnCor && !CORES_QUADRO.includes(columnCor) ? 'border-neutral-900' : 'border-neutral-200'}`} style={{ background: columnCor && !CORES_QUADRO.includes(columnCor) ? columnCor : 'conic-gradient(#94a3b8, #60a5fa, #34d399, #fbbf24, #fb7185, #a78bfa, #94a3b8)' }} aria-label="Cor personalizada">
+                    <input type="color" value={/^#[0-9a-fA-F]{6}$/.test(columnCor) ? columnCor : '#94a3b8'} onChange={(event) => setColumnCor(event.target.value)} className="absolute inset-0 h-full w-full cursor-pointer opacity-0" />
+                    {columnCor && !CORES_QUADRO.includes(columnCor) && <Pipette size={12} className="pointer-events-none text-white mix-blend-difference" />}
                   </label>
                 </div>
               </div>

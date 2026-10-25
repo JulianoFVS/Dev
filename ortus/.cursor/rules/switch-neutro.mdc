@@ -1,0 +1,14 @@
+---
+description: O switch desligado usa cinza neutro, sem fundo azulado
+alwaysApply: true
+---
+
+# Switch
+
+O trilho desligado do switch é `bg-neutral-300`. O ligado é `bg-neutral-900`. O foco é `ring-neutral-400`.
+
+Não use `slate`, `blue` ou `sky` no trilho, no anel ou no polegar. `slate` lê como azul.
+
+```tsx
+<span className="block h-5 w-9 rounded-full bg-neutral-300 peer-checked:bg-neutral-900" />
+```

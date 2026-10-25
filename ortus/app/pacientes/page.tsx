@@ -8,9 +8,8 @@ import { usePatientActionModal } from '@/components/PatientActionModal';
 import { useClinica } from '@/app/context/ClinicaContext';
 import { fetchUserClinicas } from '@/lib/clinicScoped';
 import CustomSelect from '@/components/ui/CustomSelect';
-import Modal from '@/components/ui/Modal';
 import Aviso from '@/components/ui/Aviso';
-import ProsthesisForm from '@/components/forms/ProsthesisForm';
+import ModalPedidoProtese from '@/components/proteses/ModalPedidoProtese';
 import SegmentedControl from '@/components/ui/SegmentedControl';
 import PatientContactButtons from '@/components/PatientContactButtons';
 import { buildDocumentoContexto } from '@/lib/documentVariables';
@@ -226,29 +225,17 @@ export default function Pacientes() {
   return (
     <div className="w-full space-y-3 px-2.5 py-2.5 pb-12 font-poppins sm:px-3 sm:py-3 md:px-4 md:py-3.5">
       <Aviso mensagem={aviso} />
-      <Modal open={!!protese} onClose={() => setProtese(null)} maxWidth="md" hideCloseButton panelClassName="flex max-h-[85vh] flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white">
-        {protese && (
-          <>
-            <div className="flex shrink-0 items-start justify-between gap-3 border-b border-neutral-200 px-5 py-4">
-              <div>
-                <h2 className="text-base font-semibold text-neutral-900">Nova prótese</h2>
-                <p className="mt-0.5 text-xs font-medium text-neutral-400">{protese.nome}</p>
-              </div>
-              <button type="button" onClick={() => setProtese(null)} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-100" aria-label="Fechar"><X size={16} /></button>
-            </div>
-            <ProsthesisForm
-              key={protese.id}
-              paciente={protese}
-              onCancel={() => setProtese(null)}
-              onSuccess={() => {
-                setProtese(null);
-                setAviso('Pedido criado.');
-                window.setTimeout(() => setAviso(null), 2400);
-              }}
-            />
-          </>
-        )}
-      </Modal>
+      <ModalPedidoProtese
+        open={!!protese}
+        onClose={() => setProtese(null)}
+        clinicId={protese?.clinica_id ? String(protese.clinica_id) : (!activeClinicId || activeClinicId === 'all' ? null : String(activeClinicId))}
+        pacienteInicial={protese}
+        onAviso={(_tipo, mensagem) => {
+          setAviso(mensagem);
+          window.setTimeout(() => setAviso(null), 2400);
+        }}
+        onSaved={() => setProtese(null)}
+      />
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 md:text-[2rem]">Pacientes</h1>

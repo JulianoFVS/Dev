@@ -7,10 +7,10 @@ alwaysApply: true
 
 Todo campo que o salvamento exige leva um asterisco no rótulo. Campo opcional fica sem asterisco.
 
-O asterisco entra no fim do rótulo, na mesma linha, em `text-neutral-900`.
+O asterisco entra no fim do rótulo, na mesma linha, em `text-red-500`.
 
 ```tsx
 <label className="mb-1.5 block text-xs font-medium text-neutral-500">
-  Paciente <span className="text-neutral-900">*</span>
+  Paciente <span className="text-red-500">*</span>
 </label>
 ```

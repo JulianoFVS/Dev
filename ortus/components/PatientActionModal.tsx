@@ -6,7 +6,6 @@ import { supabase } from '@/lib/supabase';
 import { AlertCircle, ArrowLeft, Calendar, Camera, CheckCircle2, DollarSign, FileText, FolderOpen, Loader2, Smile, Sparkles, User, X } from 'lucide-react';
 import { useClinica } from '@/app/context/ClinicaContext';
 import AppointmentForm from '@/components/forms/AppointmentForm';
-import ProsthesisForm from '@/components/forms/ProsthesisForm';
 import TreatmentForm from '@/components/forms/TreatmentForm';
 import { validarPaciente, isMenorDeIdade } from '@/lib/pacienteValidation';
 import { buildDocumentoContexto } from '@/lib/documentVariables';

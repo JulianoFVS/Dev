@@ -1,0 +1,19 @@
+---
+description: Modelo 1 e modelo 2 de legenda ao passar o mouse
+alwaysApply: true
+---
+
+# Legendas do cursor
+
+Quando o pedido falar em legenda de mouse:
+
+- **Modelo 1** é o `title` nativo do navegador.
+- **Modelo 2** é a pílula escura desenhada no sistema, acima do botão, que some ao sair ou ao pressionar.
+
+```tsx
+<span className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-1.5 -translate-x-1/2 whitespace-nowrap rounded-md bg-neutral-900 px-2 py-1 text-[11px] font-medium text-white">
+  WhatsApp
+</span>
+```
+
+Modelo 2 não usa `title`.

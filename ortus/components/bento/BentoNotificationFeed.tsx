@@ -1,8 +1,9 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { CheckSquare, History, Trash2 } from 'lucide-react';
+import { History } from 'lucide-react';
 import BentoPageShell from '@/components/bento/BentoPageShell';
+import MenuPontos from '@/components/ui/MenuPontos';
 import { bentoCard, bentoPill } from '@/lib/bentoUi';
 
 type Item = {
@@ -85,26 +86,12 @@ export default function BentoNotificationFeed({
                     </p>
                   ) : null}
                 </div>
-                <div className="flex shrink-0 gap-1">
-                  {!n.lida && (
-                    <button
-                      type="button"
-                      onClick={() => onMarkRead(n.id)}
-                      className="rounded-full p-2 text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900"
-                      title="Marcar como lida"
-                    >
-                      <CheckSquare size={18} />
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => onDelete(n.id)}
-                    className="rounded-full p-2 text-neutral-500 hover:bg-red-50 hover:text-red-600"
-                    title="Excluir"
-                  >
-                    <Trash2 size={18} />
-                  </button>
-                </div>
+                <MenuPontos
+                  itens={[
+                    ...(!n.lida ? [{ id: 'lida', label: 'Marcar como lida', onClick: () => onMarkRead(n.id) }] : []),
+                    { id: 'excluir', label: 'Excluir', perigo: true, onClick: () => onDelete(n.id) },
+                  ]}
+                />
               </li>
             ))}
           </ul>
