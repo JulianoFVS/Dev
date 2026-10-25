@@ -10,6 +10,7 @@ import { Check, ChevronDown, ChevronRight, CircleDot, ClipboardList, Edit3, Eye,
 import { useCustomAlert } from '@/components/ui/CustomAlert';
 import CustomSelect from '@/components/ui/CustomSelect';
 import Modal from '@/components/ui/Modal';
+import Aviso from '@/components/ui/Aviso';
 import Switch from '@/components/ui/Switch';
 
 type ColumnTitle = 'Solicitado' | 'No Laboratório' | 'Em Prova Clínica' | 'Aguardando Ajuste' | 'Finalizado / Entregue';
@@ -92,10 +93,12 @@ function tintaQuadro(hex?: string | null) {
   const r = (n >> 16) & 255;
   const g = (n >> 8) & 255;
   const b = n & 255;
+  const claro = (r * 299 + g * 587 + b * 114) / 1000 > 170;
   return {
     fundo: `rgba(${r}, ${g}, ${b}, 0.08)`,
     borda: `rgba(${r}, ${g}, ${b}, 0.22)`,
     marca: hex,
+    texto: claro ? '#171717' : '#fff',
   };
 }
 
@@ -701,11 +704,7 @@ export default function KanbanProtesesInteligente() {
         </div>
       </div>
 
-      {toast && (
-        <div className="pointer-events-none fixed inset-x-0 top-4 z-[90] flex justify-center px-4">
-          <p className="rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-800 shadow-sm">{toast.message}</p>
-        </div>
-      )}
+      <Aviso mensagem={toast?.message ?? null} />
 
       <div className={`${cardShell} flex shrink-0 flex-col gap-2 p-3 sm:flex-row sm:items-center sm:p-4`}>
         <div className="flex min-w-0 flex-1 flex-col gap-2 lg:flex-row lg:items-center">
@@ -830,6 +829,7 @@ export default function KanbanProtesesInteligente() {
           <div ref={flowBarRef} className="flex items-center gap-1 flex-wrap">
             {columns.slice(0, maxVisibleFlow).map((col, idx) => {
               const count = cardsByColumn(col.id).length;
+              const tinta = tintaQuadro(coresQuadro[String(col.id)]);
               return (
                 <div key={col.id} className="flex items-center">
                   <button
@@ -837,7 +837,7 @@ export default function KanbanProtesesInteligente() {
                     onClick={() => document.getElementById(`coluna-${col.id}`)?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })}
                     className="flex items-center gap-2 rounded-md border border-transparent px-3 py-2 text-xs font-medium text-neutral-600 transition-colors hover:border-neutral-200 hover:bg-[#f3f4f1] hover:text-neutral-900"
                   >
-                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-600">{getColumnIcon(col)}</span>
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-600" style={tinta ? { backgroundColor: tinta.marca, borderColor: tinta.marca, color: tinta.texto } : undefined}>{getColumnIcon(col)}</span>
                     <span className="hidden sm:inline whitespace-nowrap">{col.titulo}</span>
                     <span className="shrink-0 rounded-md bg-neutral-100 px-1.5 py-0.5 text-xs font-medium text-neutral-500">{count}</span>
                   </button>
@@ -1017,7 +1017,7 @@ export default function KanbanProtesesInteligente() {
             <div className="flex-1 overflow-y-auto custom-scrollbar p-5 space-y-5">
               <section className="rounded-xl border border-neutral-200 bg-[#f3f4f1] p-4">
                 <div className="mb-3 flex items-center gap-3">
-                  <span className="flex h-7 w-7 items-center justify-center rounded-md bg-neutral-900 text-xs font-medium text-white">A</span>
+                  <span className="flex h-7 w-7 items-center justify-center rounded-md border border-[#d7dece] bg-[#eef2e8] text-xs font-medium text-neutral-800">A</span>
                   <h3 className="text-sm font-semibold text-neutral-900">Selecionar paciente</h3>
                 </div>
                 <div className="relative">
@@ -1052,7 +1052,7 @@ export default function KanbanProtesesInteligente() {
 
               <section className="rounded-xl border border-neutral-200 bg-white p-4">
                 <div className="mb-3 flex items-center gap-3">
-                  <span className="flex h-7 w-7 items-center justify-center rounded-md bg-neutral-900 text-xs font-medium text-white">●</span>
+                  <span className="flex h-7 w-7 items-center justify-center rounded-md border border-[#d7dece] bg-[#eef2e8] text-xs font-medium text-neutral-800">●</span>
                   <h3 className="text-sm font-semibold text-neutral-900">Status atual</h3>
                 </div>
                 <CustomSelect
@@ -1067,7 +1067,7 @@ export default function KanbanProtesesInteligente() {
               {form.paciente_nome && (
                 <section className="rounded-xl border border-neutral-200 bg-white p-4">
                   <div className="mb-3 flex items-center gap-3">
-                    <span className="flex h-7 w-7 items-center justify-center rounded-md bg-neutral-900 text-xs font-medium text-white">B</span>
+                    <span className="flex h-7 w-7 items-center justify-center rounded-md border border-[#d7dece] bg-[#eef2e8] text-xs font-medium text-neutral-800">B</span>
                     <h3 className="text-sm font-semibold text-neutral-900">Escolher categoria</h3>
                   </div>
                   <div className="grid sm:grid-cols-2 gap-3">
@@ -1084,7 +1084,7 @@ export default function KanbanProtesesInteligente() {
               {form.categoria && (
                 <section className="rounded-xl border border-neutral-200 bg-white p-4">
                   <div className="mb-3 flex items-center gap-3">
-                    <span className="flex h-7 w-7 items-center justify-center rounded-md bg-neutral-900 text-xs font-medium text-white">C</span>
+                    <span className="flex h-7 w-7 items-center justify-center rounded-md border border-[#d7dece] bg-[#eef2e8] text-xs font-medium text-neutral-800">C</span>
                     <h3 className="text-sm font-semibold text-neutral-900">Escolher tipo</h3>
                   </div>
                   <div className="grid sm:grid-cols-2 gap-2">
@@ -1100,7 +1100,7 @@ export default function KanbanProtesesInteligente() {
               {form.tipo_protese && (
                 <section className="rounded-xl border border-neutral-200 bg-white p-4">
                   <div className="mb-3 flex items-center gap-3">
-                    <span className="flex h-7 w-7 items-center justify-center rounded-md bg-neutral-900 text-xs font-medium text-white">D</span>
+                    <span className="flex h-7 w-7 items-center justify-center rounded-md border border-[#d7dece] bg-[#eef2e8] text-xs font-medium text-neutral-800">D</span>
                     <h3 className="text-sm font-semibold text-neutral-900">Detalhamentos rápidos</h3>
                   </div>
                   <div className="grid sm:grid-cols-2 gap-3">
@@ -1153,7 +1153,7 @@ export default function KanbanProtesesInteligente() {
               <div>
                 <label className="mb-2 block text-xs font-medium text-neutral-500">Cor</label>
                 <div className="flex flex-wrap gap-1.5">
-                  <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setColumnCor(''); }} className={`h-7 w-7 rounded-md border bg-[#f3f4f1] ${columnCor ? 'border-neutral-200' : 'border-neutral-900'}`} title="Padrão" aria-label="Sem cor" />
+                  <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setColumnCor(''); }} className={`h-7 w-7 rounded-md border bg-[#f3f4f1] ${columnCor ? 'border-neutral-200' : 'border-neutral-900'}`} aria-label="Sem cor" />
                   {CORES_QUADRO.map((hex) => (
                     <button
                       key={hex}
@@ -1164,6 +1164,9 @@ export default function KanbanProtesesInteligente() {
                       aria-label={hex}
                     />
                   ))}
+                  <label className={`relative h-7 w-7 cursor-pointer overflow-hidden rounded-md border-2 ${columnCor && !CORES_QUADRO.includes(columnCor) ? 'border-neutral-900' : 'border-neutral-200'}`} style={{ background: columnCor && !CORES_QUADRO.includes(columnCor) ? columnCor : 'conic-gradient(#94a3b8, #60a5fa, #34d399, #fbbf24, #fb7185, #a78bfa, #94a3b8)' }} aria-label="Cor personalizada">
+                    <input type="color" value={/^#[0-9a-fA-F]{6}$/.test(columnCor) ? columnCor : '#94a3b8'} onChange={(event) => setColumnCor(event.target.value)} className="absolute inset-0 cursor-pointer opacity-0" />
+                  </label>
                 </div>
               </div>
 
@@ -1176,7 +1179,6 @@ export default function KanbanProtesesInteligente() {
                       type="button"
                       onClick={() => setColumnIcon(slug)}
                       className={`flex h-9 w-9 items-center justify-center rounded-md ${columnIcon === slug ? 'bg-neutral-900 text-white' : 'border border-neutral-200 bg-white text-neutral-500 hover:bg-neutral-50'}`}
-                      title={slug}
                     >
                       {ICON_MAP[slug]}
                     </button>

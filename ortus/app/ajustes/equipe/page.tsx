@@ -7,6 +7,7 @@ import { useClinica, getClinicLabel } from '@/app/context/ClinicaContext';
 import { fetchUserEquipe } from '@/lib/clinicScoped';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
 import Modal from '@/components/ui/Modal';
+import Aviso from '@/components/ui/Aviso';
 import CustomSelect from '@/components/ui/CustomSelect';
 import CampoHora from '@/components/ui/CampoHora';
 import Switch from '@/components/ui/Switch';
@@ -912,11 +913,7 @@ export default function EquipePage() {
 
     return (
         <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden px-2.5 py-2.5 font-poppins sm:px-3 sm:py-3 md:px-4 md:py-3.5">
-            {aviso && (
-                <div className="pointer-events-none fixed inset-x-0 top-4 z-[10000] flex justify-center px-4">
-                    <p className="rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-800 shadow-sm">{aviso}</p>
-                </div>
-            )}
+            <Aviso mensagem={aviso} />
             <div className="flex shrink-0 flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                 <div className="min-w-0">
                     <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 md:text-[2rem]">Equipe</h1>

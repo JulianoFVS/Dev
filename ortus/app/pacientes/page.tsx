@@ -8,6 +8,9 @@ import { usePatientActionModal } from '@/components/PatientActionModal';
 import { useClinica } from '@/app/context/ClinicaContext';
 import { fetchUserClinicas } from '@/lib/clinicScoped';
 import CustomSelect from '@/components/ui/CustomSelect';
+import Modal from '@/components/ui/Modal';
+import Aviso from '@/components/ui/Aviso';
+import ProsthesisForm from '@/components/forms/ProsthesisForm';
 import SegmentedControl from '@/components/ui/SegmentedControl';
 import PatientContactButtons from '@/components/PatientContactButtons';
 import { buildDocumentoContexto } from '@/lib/documentVariables';
@@ -68,6 +71,12 @@ export default function Pacientes() {
 
   const router = useRouter();
   const { openQuickCapture } = usePatientActionModal();
+  const [protese, setProtese] = useState<{ id: string; nome: string; clinica_id?: string | null } | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
+
+  function abrirProtese(p: { id: string | number; nome: string; clinica_id?: string | null }) {
+    setProtese({ id: String(p.id), nome: p.nome, clinica_id: p.clinica_id ?? null });
+  }
 
   // Sincroniza filtro de clínica com contexto global
   useEffect(() => {
@@ -216,6 +225,30 @@ export default function Pacientes() {
 
   return (
     <div className="w-full space-y-3 px-2.5 py-2.5 pb-12 font-poppins sm:px-3 sm:py-3 md:px-4 md:py-3.5">
+      <Aviso mensagem={aviso} />
+      <Modal open={!!protese} onClose={() => setProtese(null)} maxWidth="md" hideCloseButton panelClassName="flex max-h-[85vh] flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white">
+        {protese && (
+          <>
+            <div className="flex shrink-0 items-start justify-between gap-3 border-b border-neutral-200 px-5 py-4">
+              <div>
+                <h2 className="text-base font-semibold text-neutral-900">Nova prótese</h2>
+                <p className="mt-0.5 text-xs font-medium text-neutral-400">{protese.nome}</p>
+              </div>
+              <button type="button" onClick={() => setProtese(null)} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-100" aria-label="Fechar"><X size={16} /></button>
+            </div>
+            <ProsthesisForm
+              key={protese.id}
+              paciente={protese}
+              onCancel={() => setProtese(null)}
+              onSuccess={() => {
+                setProtese(null);
+                setAviso('Pedido criado.');
+                window.setTimeout(() => setAviso(null), 2400);
+              }}
+            />
+          </>
+        )}
+      </Modal>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 md:text-[2rem]">Pacientes</h1>
@@ -363,7 +396,7 @@ export default function Pacientes() {
                         })}
                       />
                       <DicaAcao label="Agendar consulta"><button type="button" onClick={() => window.dispatchEvent(new CustomEvent('ortus:novo-agendamento', { detail: { pacienteId: String(p.id), pacienteNome: p.nome, clinicaId: p.clinica_id ? String(p.clinica_id) : undefined } }))} className="rounded-full p-2 text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900"><Calendar size={15}/></button></DicaAcao>
-                      <DicaAcao label="Nova prótese"><button type="button" onClick={() => router.push(`/proteses?paciente=${p.id}`)} className="rounded-full p-2 text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900"><Smile size={15}/></button></DicaAcao>
+                      <DicaAcao label="Nova prótese"><button type="button" onClick={() => abrirProtese(p)} className="rounded-full p-2 text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900"><Smile size={15}/></button></DicaAcao>
                       <ChevronRight size={16} className="text-neutral-300" />
                     </div>
                   </div>
@@ -387,7 +420,7 @@ export default function Pacientes() {
                     <div className="flex items-center gap-1" onClick={stopRowClick}>
                         <PatientContactButtons variant="icons" channels={['whatsapp']} telefone={p.telefone} email={p.email} clinicaId={p.clinica_id} evento="pos_consulta" contexto={buildDocumentoContexto({ paciente_nome: p.nome?.split(' ')[0], clinica_nome: p.nome_clinica })} />
                         <DicaAcao label="Agendar consulta"><button type="button" onClick={() => window.dispatchEvent(new CustomEvent('ortus:novo-agendamento', { detail: { pacienteId: String(p.id), pacienteNome: p.nome, clinicaId: p.clinica_id ? String(p.clinica_id) : undefined } }))} className="rounded-full p-2 text-neutral-500 hover:bg-white hover:text-neutral-900"><Calendar size={16}/></button></DicaAcao>
-                        <DicaAcao label="Nova prótese"><button type="button" onClick={() => router.push(`/proteses?paciente=${p.id}`)} className="rounded-full p-2 text-neutral-500 hover:bg-white hover:text-neutral-900"><Smile size={16}/></button></DicaAcao>
+                        <DicaAcao label="Nova prótese"><button type="button" onClick={() => abrirProtese(p)} className="rounded-full p-2 text-neutral-500 hover:bg-white hover:text-neutral-900"><Smile size={16}/></button></DicaAcao>
                     </div>
                 </div>
                 <div className="space-y-2">

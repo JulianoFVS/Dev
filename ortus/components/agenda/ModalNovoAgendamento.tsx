@@ -69,6 +69,17 @@ export default function ModalNovoAgendamento({
     desconto: '0',
     observacoes: '',
   });
+  const [pacienteVisto, setPacienteVisto] = useState(pacienteId);
+  if (open && pacienteId !== pacienteVisto) {
+    setPacienteVisto(pacienteId);
+    setForm((atual) => ({ ...atual, paciente_id: pacienteId }));
+    setPacientes((lista) => {
+      if (lista.some((p) => String(p.id) === String(pacienteId))) {
+        return lista.map((p) => String(p.id) === String(pacienteId) ? { ...p, nome: pacienteNome || p.nome } : p);
+      }
+      return [{ id: pacienteId, nome: pacienteNome || 'Paciente', clinica_id: clinicaId || '' }, ...lista];
+    });
+  }
 
   useEffect(() => {
     if (!open) return;
@@ -76,6 +87,21 @@ export default function ModalNovoAgendamento({
     const hoje = isoLocal(new Date());
     const dataSugerida = data && data >= hoje ? data : hoje;
     const clinicaInicial = clinicaTravada ? String(activeClinicId) : (clinicaId || '');
+    setForm((atual) => ({
+      ...atual,
+      clinica_id: clinicaInicial || atual.clinica_id,
+      paciente_id: pacienteId,
+      date: dataSugerida,
+      title: procedimento,
+      observacoes,
+    }));
+    if (pacienteId) {
+      setPacientes((lista) => {
+        const jaExiste = lista.some((p) => String(p.id) === String(pacienteId));
+        if (jaExiste) return lista.map((p) => String(p.id) === String(pacienteId) ? { ...p, nome: pacienteNome || p.nome } : p);
+        return [{ id: pacienteId, nome: pacienteNome || 'Paciente', clinica_id: clinicaInicial }, ...lista];
+      });
+    }
 
     async function carregar() {
       const [{ data: { user } }, listaClinicas, equipe] = await Promise.all([
@@ -112,7 +138,7 @@ export default function ModalNovoAgendamento({
 
     carregar();
     return () => { cancelado = true; };
-  }, [open, pacienteId, clinicaId, procedimento, observacoes, data, clinicaTravada, activeClinicId]);
+  }, [open, pacienteId, pacienteNome, clinicaId, procedimento, observacoes, data, clinicaTravada, activeClinicId]);
 
   useEffect(() => {
     if (!open || !form.clinica_id) return;

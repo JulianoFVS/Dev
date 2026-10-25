@@ -319,19 +319,19 @@ export default function Tarefas() {
     const kpiLoading = loading && !jaCarregou.current;
 
     return (
-        <div className="flex h-full min-h-0 flex-col overflow-hidden px-3 py-3 font-poppins">
+        <div className="flex h-full min-h-0 flex-col overflow-hidden px-2.5 py-2.5 font-poppins sm:px-3 sm:py-3 md:px-4 md:py-3.5">
             <div className="mb-3 shrink-0">
-                <div className="flex items-start justify-between gap-3">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0">
                         <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 md:text-[2rem]">Tarefas</h1>
-                        <p className="mt-1 text-sm text-neutral-500">
+                        <p className="mt-1 text-sm text-neutral-500 sm:text-base">
                             {activeClinic ? getClinicLabel(activeClinic) : 'Todas as clínicas'}
                         </p>
                     </div>
                     <button
                         type="button"
                         onClick={abrirNovaTarefa}
-                        className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800"
+                        className="inline-flex h-10 shrink-0 items-center gap-1.5 self-start rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 sm:self-auto"
                     >
                         <Plus size={14} /> Nova tarefa
                     </button>
@@ -380,37 +380,33 @@ export default function Tarefas() {
                 )}
             </div>
 
-            <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white">
-                {kpiLoading ? (
-                    <div className="space-y-2 p-3">
-                        {Array.from({ length: 6 }).map((_, i) => (
-                            <div key={i} className="h-12 animate-pulse rounded-md bg-neutral-50" />
-                        ))}
-                    </div>
-                ) : tarefasFiltradas.length === 0 ? (
-                    <p className="p-8 text-center text-sm text-neutral-400">Nenhuma tarefa encontrada.</p>
-                ) : (
-                    <div className="grid min-h-0 flex-1 grid-cols-1 overflow-y-auto md:grid-cols-3 md:divide-x md:divide-neutral-200 md:overflow-hidden">
-                        {colunasKanban.map((col) => {
-                            const items = tarefasFiltradas.filter((t) => t.status === col.id);
-                            return (
-                                <div key={col.id} className="flex flex-col md:min-h-0">
-                                    <div className="flex shrink-0 items-center justify-between px-3 py-2.5">
-                                        <h2 className="text-sm font-semibold text-neutral-900">{col.label}</h2>
-                                        <span className="text-xs tabular-nums text-neutral-400">{items.length}</span>
-                                    </div>
-                                    <div className="space-y-2 px-3 pb-3 md:min-h-0 md:flex-1 md:overflow-y-auto">
+            <div className="grid min-h-0 flex-1 grid-cols-1 gap-2 overflow-y-auto md:grid-cols-3 md:overflow-hidden">
+                {colunasKanban.map((col) => {
+                    const items = tarefasFiltradas.filter((t) => t.status === col.id);
+                    return (
+                        <section key={col.id} className="flex flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white md:min-h-0">
+                            <div className="flex shrink-0 items-center justify-between px-3 py-2.5">
+                                <h2 className="text-sm font-semibold text-neutral-900">{col.label}</h2>
+                                <span className="text-xs tabular-nums text-neutral-400">{kpiLoading ? '—' : items.length}</span>
+                            </div>
+                            <div className="space-y-2 px-3 pb-3 md:min-h-0 md:flex-1 md:overflow-y-auto">
+                                {kpiLoading ? (
+                                    Array.from({ length: 2 }).map((_, i) => (
+                                        <div key={i} className="h-12 animate-pulse rounded-md bg-neutral-50" />
+                                    ))
+                                ) : (
+                                    <>
                                         {items.map((t) => renderTarefaCard(t))}
                                         {items.length === 0 && (
                                             <p className="py-6 text-center text-xs text-neutral-400">Nenhuma tarefa</p>
                                         )}
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                )}
-            </section>
+                                    </>
+                                )}
+                            </div>
+                        </section>
+                    );
+                })}
+            </div>
 
                         {/* Modal Criar/Editar */}
             <Modal open={modalOpen} onClose={() => setModalOpen(false)} maxWidth="lg" hideCloseButton panelClassName="flex max-h-[85vh] flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white">

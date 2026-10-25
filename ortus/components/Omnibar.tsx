@@ -18,6 +18,7 @@ import {
   X,
 } from 'lucide-react';
 import ModalNovoAgendamento from '@/components/agenda/ModalNovoAgendamento';
+import Aviso from '@/components/ui/Aviso';
 import type { ModuleName } from '@/lib/types/permissions';
 
 type OmniResult = {
@@ -263,11 +264,7 @@ export default function Omnibar({ moduleAccess, isAdmin }: OmnibarProps) {
 
   return (
     <>
-    {aviso && (
-      <div className="pointer-events-none fixed inset-x-0 top-4 z-[10000] flex justify-center px-4">
-        <p className="rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-800 shadow-sm">{aviso}</p>
-      </div>
-    )}
+    <Aviso mensagem={aviso || null} />
     <ModalNovoAgendamento
       open={!!agenda}
       onClose={() => setAgenda(null)}

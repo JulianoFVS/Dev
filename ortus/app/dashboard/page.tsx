@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { useInboxCounts } from '@/hooks/useInboxCounts';
 import PillMeter from '@/components/bento/PillMeter';
+import Aviso from '@/components/ui/Aviso';
 
 type AgendaItem = {
   id: string;
@@ -489,11 +490,7 @@ export default function Dashboard() {
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-x-hidden overflow-y-auto px-2.5 py-2.5 sm:px-3 sm:py-3 md:px-4 md:py-3.5 lg:overflow-y-hidden">
-      {aviso && (
-        <div className="pointer-events-none fixed inset-x-0 top-4 z-[10000] flex justify-center px-4">
-          <p className="rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-800 shadow-sm">{aviso}</p>
-        </div>
-      )}
+      <Aviso mensagem={aviso} />
       <header className="relative z-20 mb-3 shrink-0">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0">
@@ -524,7 +521,7 @@ export default function Dashboard() {
             >
               <Bell size={18} />
               {(mensagensCount + notificacoesCount) > 0 && (
-                <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-neutral-900 ring-2 ring-white" aria-hidden />
+                <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-red-500 ring-2 ring-white" aria-hidden />
               )}
             </Link>
             <button

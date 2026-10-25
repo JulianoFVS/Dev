@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Loader2, Plus, Smile, Sparkles, User } from 'lucide-react';
+import { Loader2, Plus, Sparkles, User } from 'lucide-react';
 
 export type ProsthesisPatient = {
   id: string | number;
@@ -107,28 +107,28 @@ export default function ProsthesisForm({ paciente, onSuccess, onCancel }: Prosth
     onSuccess?.();
   }
 
+  const marca = 'flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-[#d7dece] bg-[#eef2e8] text-xs font-medium text-neutral-800';
+
   return (
-    <div className="flex-1 flex flex-col min-h-0">
-      <div className="flex-1 overflow-y-auto custom-scrollbar p-5 space-y-5">
-        <div className="flex items-center gap-3 p-3 rounded-2xl bg-pink-50 border border-pink-100">
-          <div className="w-9 h-9 rounded-xl bg-pink-600 text-white flex items-center justify-center shrink-0">
-            <User size={16} />
-          </div>
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="custom-scrollbar flex-1 space-y-4 overflow-y-auto p-5">
+        <div className="flex items-center gap-3 rounded-xl border border-neutral-200 bg-[#f3f4f1] p-3">
+          <span className={marca}><User size={14} /></span>
           <div className="min-w-0">
-            <p className="text-[10px] font-black uppercase tracking-wider text-pink-700">Paciente</p>
-            <p className="font-black text-slate-800 truncate">{paciente.nome}</p>
+            <p className="text-xs font-medium text-neutral-500">Paciente</p>
+            <p className="truncate text-sm font-medium text-neutral-900">{paciente.nome}</p>
           </div>
         </div>
 
         <section>
-          <h3 className="text-[11px] font-black uppercase tracking-wider text-slate-500 mb-2 flex items-center gap-1.5"><Smile size={12} /> Categoria <span className="text-rose-500">*</span></h3>
+          <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold text-neutral-900"><span className={marca}>A</span> Categoria <span className="text-neutral-900">*</span></h3>
           <div className="grid grid-cols-2 gap-2">
             {(['Removível', 'Fixa'] as const).map((cat) => (
               <button
                 key={cat}
                 type="button"
                 onClick={() => setForm({ ...form, categoria: cat, tipo_protese: '' })}
-                className={`p-4 rounded-2xl border-2 text-sm font-black transition-all ${form.categoria === cat ? 'border-pink-600 bg-pink-50 text-pink-800' : 'border-slate-100 bg-white hover:border-pink-200 hover:bg-pink-50/40 text-slate-700'}`}
+                className={`rounded-md border p-3 text-left text-sm font-medium ${form.categoria === cat ? 'border-neutral-900 bg-[#f3f4f1] text-neutral-900' : 'border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50'}`}
               >
                 {cat}
               </button>
@@ -138,14 +138,14 @@ export default function ProsthesisForm({ paciente, onSuccess, onCancel }: Prosth
 
         {visibleTypes.length > 0 && (
           <section>
-            <h3 className="text-[11px] font-black uppercase tracking-wider text-slate-500 mb-2">Tipo <span className="text-rose-500">*</span></h3>
+            <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold text-neutral-900"><span className={marca}>B</span> Tipo <span className="text-neutral-900">*</span></h3>
             <div className="grid grid-cols-2 gap-2">
               {visibleTypes.map((type) => (
                 <button
                   key={type}
                   type="button"
                   onClick={() => setForm({ ...form, tipo_protese: type })}
-                  className={`p-3 rounded-2xl border text-xs font-black transition-all ${form.tipo_protese === type ? 'border-pink-600 bg-pink-50 text-pink-800' : 'border-slate-100 bg-white hover:border-pink-200 hover:bg-pink-50/40 text-slate-700'}`}
+                  className={`rounded-md border px-3 py-2.5 text-left text-sm font-medium ${form.tipo_protese === type ? 'border-neutral-900 bg-[#f3f4f1] text-neutral-900' : 'border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50'}`}
                 >
                   {type}
                 </button>
@@ -155,46 +155,46 @@ export default function ProsthesisForm({ paciente, onSuccess, onCancel }: Prosth
         )}
 
         <section>
-          <h3 className="text-[11px] font-black uppercase tracking-wider text-slate-500 mb-2 flex items-center gap-1.5"><Sparkles size={12} /> Detalhamento</h3>
-          <div className="grid grid-cols-2 gap-3">
-            <input value={form.cor_dente} onChange={(e) => setForm({ ...form, cor_dente: e.target.value })} className="p-3 rounded-2xl bg-slate-50 border border-slate-200 font-bold outline-none focus:ring-2 focus:ring-pink-500" placeholder="Cor do dente (A2, B1...)" />
-            <input value={form.cor_gengiva} onChange={(e) => setForm({ ...form, cor_gengiva: e.target.value })} className="p-3 rounded-2xl bg-slate-50 border border-slate-200 font-bold outline-none focus:ring-2 focus:ring-pink-500" placeholder="Cor da gengiva / STG" />
+          <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold text-neutral-900"><span className={marca}><Sparkles size={13} /></span> Detalhamento</h3>
+          <div className="grid grid-cols-2 gap-2">
+            <input value={form.cor_dente} onChange={(e) => setForm({ ...form, cor_dente: e.target.value })} className="h-10 rounded-md border border-neutral-200 bg-white px-3 text-sm text-neutral-900 outline-none placeholder:text-neutral-400 focus:border-neutral-900" placeholder="Cor do dente: A2, B1..." />
+            <input value={form.cor_gengiva} onChange={(e) => setForm({ ...form, cor_gengiva: e.target.value })} className="h-10 rounded-md border border-neutral-200 bg-white px-3 text-sm text-neutral-900 outline-none placeholder:text-neutral-400 focus:border-neutral-900" placeholder="Cor da gengiva / STG" />
           </div>
-          <div className="grid grid-cols-3 gap-2 mt-3">
+          <div className="mt-2 grid grid-cols-3 gap-2">
             {(['Superior', 'Inferior', 'Ambas'] as const).map((pos) => (
               <button
                 key={pos}
                 type="button"
                 onClick={() => setForm({ ...form, posicao: pos })}
-                className={`p-3 rounded-2xl border text-xs font-black transition-all ${form.posicao === pos ? 'border-pink-600 bg-pink-50 text-pink-800' : 'border-slate-100 bg-white hover:border-pink-200 text-slate-600'}`}
+                className={`rounded-md border px-3 py-2.5 text-xs font-medium ${form.posicao === pos ? 'border-neutral-900 bg-[#f3f4f1] text-neutral-900' : 'border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50'}`}
               >
                 {pos}
               </button>
             ))}
           </div>
-          <textarea value={form.descricao} onChange={(e) => setForm({ ...form, descricao: e.target.value })} rows={2} className="mt-3 w-full p-3 rounded-2xl bg-slate-50 border border-slate-200 font-medium outline-none focus:ring-2 focus:ring-pink-500" placeholder="Observações rápidas para o laboratório" />
+          <textarea value={form.descricao} onChange={(e) => setForm({ ...form, descricao: e.target.value })} rows={2} className="mt-2 w-full resize-none rounded-md border border-neutral-200 bg-white p-3 text-sm text-neutral-900 outline-none placeholder:text-neutral-400 focus:border-neutral-900" placeholder="Observações rápidas para o laboratório" />
         </section>
 
         {form.tipo_protese && (
-          <div className="rounded-2xl bg-slate-50 border border-slate-100 p-3">
-            <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2">Checklist que será criado</p>
+          <div className="rounded-md border border-neutral-200 bg-[#f3f4f1] p-3">
+            <p className="mb-2 text-xs font-medium text-neutral-500">Checklist que será criado</p>
             <div className="space-y-1">
               {buildChecklist(form.tipo_protese).map((item) => (
-                <div key={item.tarefa} className="text-xs font-bold text-slate-600 flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-pink-400" />{item.tarefa}</div>
+                <p key={item.tarefa} className="flex items-center gap-2 text-xs font-medium text-neutral-700"><span className="h-1.5 w-1.5 rounded-full bg-[#9aab78]" />{item.tarefa}</p>
               ))}
             </div>
           </div>
         )}
 
-        {error && <div className="p-3 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold">{error}</div>}
-        {loadingDeps && <div className="text-xs text-slate-400 italic flex items-center gap-2"><Loader2 size={14} className="animate-spin" /> Carregando etapas do kanban...</div>}
+        {error && <p className="text-xs font-medium text-red-600">{error}</p>}
+        {loadingDeps && <p className="flex items-center gap-2 text-xs text-neutral-400"><Loader2 size={14} className="animate-spin" /> Carregando etapas</p>}
       </div>
 
-      <div className="p-4 border-t border-slate-100 bg-white flex gap-2 shrink-0">
-        <button type="button" onClick={onCancel} disabled={saving} className="flex-1 py-3 rounded-xl font-bold text-slate-500 hover:bg-slate-100 transition-colors disabled:opacity-50">
-          Voltar
+      <div className="flex shrink-0 gap-2 border-t border-neutral-200 bg-white p-4">
+        <button type="button" onClick={onCancel} disabled={saving} className="h-9 rounded-md px-3 text-sm font-medium text-neutral-500 hover:bg-neutral-50 disabled:opacity-50">
+          Cancelar
         </button>
-        <button type="button" onClick={submit} disabled={saving || !form.categoria || !form.tipo_protese} className="flex-1 py-3 rounded-xl bg-pink-600 text-white font-black hover:bg-pink-700 transition-colors disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+        <button type="button" onClick={submit} disabled={saving || !form.categoria || !form.tipo_protese} className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400">
           {saving ? <Loader2 className="animate-spin" size={16} /> : <><Plus size={16} /> Criar pedido</>}
         </button>
       </div>
