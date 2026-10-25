@@ -94,6 +94,7 @@ function MenuFiltro({
   const [aberto, setAberto] = useState(false);
   const [pos, setPos] = useState({ top: 0, left: 0, width: 180, maxHeight: 240 });
   const ativo = valor !== 'todos';
+  const titulo = ativo ? (opcoes.find((opcao) => opcao.value === valor)?.label || rotulo) : rotulo;
 
   function abrir() {
     const rect = botao.current?.getBoundingClientRect();
@@ -132,10 +133,17 @@ function MenuFiltro({
         ref={botao}
         type="button"
         onClick={abrir}
-        className={`inline-flex h-8 items-center gap-1.5 rounded-md border bg-white px-2.5 text-sm text-neutral-700 hover:bg-neutral-50 ${ativo ? 'border-neutral-900' : 'border-neutral-200'}`}
+        title={ativo ? titulo : undefined}
+        className={`relative inline-flex h-8 items-center rounded-md border bg-white text-sm text-neutral-700 hover:bg-neutral-50 ${ativo ? 'border-neutral-900' : 'border-neutral-200'}`}
       >
-        <ChevronDown size={13} className={`text-neutral-500 transition-transform ${aberto ? 'rotate-180' : ''}`} />
-        {rotulo}
+        <span className="invisible inline-flex items-center gap-1.5 px-2.5">
+          <ChevronDown size={13} />
+          {rotulo}
+        </span>
+        <span className="absolute inset-0 flex items-center gap-1.5 px-2.5">
+          <ChevronDown size={13} className={`shrink-0 text-neutral-500 transition-transform ${aberto ? 'rotate-180' : ''}`} />
+          <span className="truncate">{titulo}</span>
+        </span>
       </button>
       {aberto && typeof document !== 'undefined' && createPortal(
         <>
@@ -186,7 +194,7 @@ export default function Agenda() {
   const [loading, setLoading] = useState(false);
   const [lembretesPendentes, setLembretesPendentes] = useState<LembreteAgendamento[]>([]);
   const [lembretesLoading, setLembretesLoading] = useState(false);
-  const [visao, setVisao] = useState<Visao>('mes');
+  const [visao, setVisao] = useState<Visao>('semana');
   const [cursor, setCursor] = useState(() => new Date());
   const [busca, setBusca] = useState('');
   const [filtroStatus, setFiltroStatus] = useState('todos');
@@ -657,6 +665,14 @@ export default function Agenda() {
               onChange={setFiltroProfissional}
               opcoes={[{ value: 'todos', label: 'Todos' }, ...profissionais.map((profissional: any) => ({ value: String(profissional.id), label: profissional.nome }))]}
             />
+            <button
+              type="button"
+              onClick={() => { setFiltroStatus('todos'); setFiltroProfissional('todos'); }}
+              disabled={filtroStatus === 'todos' && filtroProfissional === 'todos'}
+              className="inline-flex h-8 items-center rounded-md border border-neutral-200 bg-white px-2.5 text-sm text-neutral-700 hover:bg-neutral-50 disabled:opacity-40"
+            >
+              Limpar
+            </button>
             <SegmentedControl
               fit
               className="shrink-0 bg-white"

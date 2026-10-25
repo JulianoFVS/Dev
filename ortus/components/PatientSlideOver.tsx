@@ -1,11 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { flushSync } from 'react-dom';
+import { createContext, useCallback, useContext, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { ExternalLink, Loader2, X } from 'lucide-react';
+import { ExternalLink, X } from 'lucide-react';
 import Modal from '@/components/ui/Modal';
-import { receberAgendamento } from '@/lib/recebimentoAgendamento';
 
 type PatientSlideOverContextValue = {
   openPatient: (patientId: string | number | null | undefined) => void;
@@ -96,7 +96,6 @@ const STATUS: Record<string, string> = {
 export function PatientSlideOverProvider({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [receiving, setReceiving] = useState(false);
   const [openedAt, setOpenedAt] = useState(0);
   const [patient, setPatient] = useState<PatientData | null>(null);
   const [kanbanProstheses, setKanbanProstheses] = useState<ProsthesisItem[]>([]);
@@ -108,18 +107,26 @@ export function PatientSlideOverProvider({ children }: { children: React.ReactNo
 
   const openPatient = useCallback(async (patientId: string | number | null | undefined) => {
     if (!patientId) return;
-    setOpen(true);
-    setLoading(true);
-    setOpenedAt(Date.now());
-    setError(null);
-    setPatient(null);
-    setKanbanProstheses([]);
+    flushSync(() => {
+      setOpen(true);
+      setLoading(true);
+      setOpenedAt(Date.now());
+      setError(null);
+      setPatient(null);
+      setKanbanProstheses([]);
+    });
 
-    const { data, error: fetchError } = await supabase
+    const ficha = supabase
       .from('pacientes')
       .select('id, nome, telefone, email, data_nascimento, clinica_id, ficha_medica, clinicas(nome), planos(nome, tipo), agendamentos(id, data_hora, procedimento, status, valor, valor_final, profissional_id)')
       .eq('id', patientId)
       .single();
+    const cartoes = supabase
+      .from('kanban_cartoes')
+      .select('id, tipo_protese, coluna_id')
+      .eq('paciente_id', String(patientId))
+      .limit(4);
+    const [{ data, error: fetchError }, { data: cards }] = await Promise.all([ficha, cartoes]);
 
     if (fetchError) {
       setError('Não foi possível abrir a ficha.');
@@ -130,14 +137,6 @@ export function PatientSlideOverProvider({ children }: { children: React.ReactNo
 
     setPatient(data as PatientData);
     setLoading(false);
-
-    let cartoes = supabase
-      .from('kanban_cartoes')
-      .select('id, tipo_protese, coluna_id')
-      .eq('paciente_id', String(patientId))
-      .limit(4);
-    if (data?.clinica_id) cartoes = cartoes.eq('clinica_id', data.clinica_id);
-    const { data: cards } = await cartoes;
 
     if (cards?.length) {
       const colunaIds = [...new Set(cards.map((card: { coluna_id?: string | number | null }) => card.coluna_id).filter(Boolean))];
@@ -169,33 +168,6 @@ export function PatientSlideOverProvider({ children }: { children: React.ReactNo
   const openBalance = debtAppointments.reduce((sum, item) => sum + Number(item.valor_final || item.valor || 0), 0);
   const anos = idade(patient?.data_nascimento);
   const subtitulo = [getClinicName(patient), anos != null ? `${anos} anos` : '', patient ? planoNome(patient.planos) : ''].filter(Boolean).join(' · ');
-
-  async function receiveOpenBalance() {
-    if (!debtAppointments.length || !patient?.clinica_id) return;
-    setReceiving(true);
-    setError(null);
-    try {
-      for (const item of debtAppointments) {
-        await receberAgendamento({
-          id: item.id,
-          clinica_id: patient.clinica_id,
-          profissional_id: item.profissional_id,
-          paciente_id: String(patient.id),
-          procedimento: item.procedimento ?? undefined,
-          valor_final: item.valor_final ?? item.valor,
-        });
-      }
-      setPatient((current) => current ? {
-        ...current,
-        agendamentos: (current.agendamentos || []).map((item) =>
-          debtAppointments.some((d) => d.id === item.id) ? { ...item, status: 'concluido' } : item,
-        ),
-      } : current);
-    } catch {
-      setError('Não foi possível registrar o recebimento.');
-    }
-    setReceiving(false);
-  }
 
   return (
     <PatientSlideOverContext.Provider value={value}>
@@ -232,50 +204,52 @@ export function PatientSlideOverProvider({ children }: { children: React.ReactNo
           )}
 
           {!loading && patient && (
-            <div className="grid grid-cols-1 gap-x-3 gap-y-3 sm:grid-cols-2">
-              <div>
-                <p className="mb-1.5 text-xs font-medium text-neutral-500">Telefone</p>
-                <p className="text-sm text-neutral-900">{patient.telefone || 'Sem telefone'}</p>
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 gap-3 rounded-md border border-neutral-200 p-3 sm:grid-cols-2">
+                <div>
+                  <p className="mb-1.5 text-xs font-medium text-neutral-500">Telefone</p>
+                  <p className="text-sm text-neutral-900">{patient.telefone || 'Sem telefone'}</p>
+                </div>
+                <div>
+                  <p className="mb-1.5 text-xs font-medium text-neutral-500">E-mail</p>
+                  <p className="truncate text-sm text-neutral-900">{patient.email || 'Sem e-mail'}</p>
+                </div>
+                <div className="sm:col-span-2">
+                  <p className="mb-1.5 text-xs font-medium text-neutral-500">Alergias</p>
+                  <p className="text-sm text-neutral-900">{alergiasDe(patient.ficha_medica)}</p>
+                </div>
               </div>
-              <div>
-                <p className="mb-1.5 text-xs font-medium text-neutral-500">E-mail</p>
-                <p className="truncate text-sm text-neutral-900">{patient.email || 'Sem e-mail'}</p>
-              </div>
-              <div className="sm:col-span-2">
-                <p className="mb-1.5 text-xs font-medium text-neutral-500">Alergias</p>
-                <p className="text-sm text-neutral-900">{alergiasDe(patient.ficha_medica)}</p>
-              </div>
-              <div>
-                <p className="mb-1.5 text-xs font-medium text-neutral-500">Saldo em aberto</p>
-                <p className={`text-sm font-medium ${openBalance > 0 ? 'text-rose-600' : 'text-neutral-900'}`}>{currency(openBalance)}</p>
-                <p className="mt-0.5 text-xs text-neutral-400">
-                  {debtAppointments.length > 0 ? `${debtAppointments.length} débito(s)` : 'Nenhum débito'}
-                </p>
-                {openBalance > 0 && (
-                  <button
-                    type="button"
-                    onClick={receiveOpenBalance}
-                    disabled={receiving}
-                    className="mt-2 inline-flex h-8 items-center rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-60"
+              <div className="grid grid-cols-1 gap-3 rounded-md border border-neutral-200 p-3 sm:grid-cols-2">
+                <div>
+                  <p className="mb-1.5 text-xs font-medium text-neutral-500">Saldo em aberto</p>
+                  <p className={`text-sm font-medium ${openBalance > 0 ? 'text-rose-600' : 'text-neutral-900'}`}>{currency(openBalance)}</p>
+                  <p className="mt-0.5 text-xs text-neutral-400">
+                    {debtAppointments.length > 0 ? `${debtAppointments.length} débito(s)` : 'Nenhum débito'}
+                  </p>
+                  <Link
+                    href={`/pacientes/${patient.id}?tab=debitos`}
+                    onClick={closePatient}
+                    className="mt-1.5 inline-flex items-center gap-1 text-sm font-medium text-neutral-900 underline-offset-2 hover:underline"
                   >
-                    {receiving ? <Loader2 size={14} className="animate-spin" /> : 'Receber'}
-                  </button>
-                )}
+                    Débitos
+                    <ExternalLink size={13} />
+                  </Link>
+                </div>
+                <div>
+                  <p className="mb-1.5 text-xs font-medium text-neutral-500">Próxima consulta</p>
+                  {nextAppointment ? (
+                    <>
+                      <p className="truncate text-sm font-medium text-neutral-900">{nextAppointment.procedimento || 'Consulta'}</p>
+                      <p className="mt-0.5 text-xs text-neutral-500">
+                        {dateTime(nextAppointment.data_hora)} · {STATUS[nextAppointment.status || ''] || 'Agendado'}
+                      </p>
+                    </>
+                  ) : (
+                    <p className="text-sm text-neutral-500">Nenhuma consulta futura</p>
+                  )}
+                </div>
               </div>
-              <div>
-                <p className="mb-1.5 text-xs font-medium text-neutral-500">Próxima consulta</p>
-                {nextAppointment ? (
-                  <>
-                    <p className="truncate text-sm font-medium text-neutral-900">{nextAppointment.procedimento || 'Consulta'}</p>
-                    <p className="mt-0.5 text-xs text-neutral-500">
-                      {dateTime(nextAppointment.data_hora)} · {STATUS[nextAppointment.status || ''] || 'Agendado'}
-                    </p>
-                  </>
-                ) : (
-                  <p className="text-sm text-neutral-500">Nenhuma consulta futura</p>
-                )}
-              </div>
-              <div className="sm:col-span-2">
+              <div className="rounded-md border border-neutral-200 p-3">
                 <p className="mb-1.5 text-xs font-medium text-neutral-500">Próteses</p>
                 {kanbanProstheses.length > 0 ? (
                   <ul className="divide-y divide-black/5 rounded-md border border-neutral-200">
@@ -290,7 +264,7 @@ export function PatientSlideOverProvider({ children }: { children: React.ReactNo
                   <p className="text-sm text-neutral-500">Nenhuma prótese em andamento</p>
                 )}
               </div>
-              {error && <p className="text-sm text-rose-600 sm:col-span-2">{error}</p>}
+              {error && <p className="text-sm text-rose-600">{error}</p>}
             </div>
           )}
         </div>
@@ -299,6 +273,7 @@ export function PatientSlideOverProvider({ children }: { children: React.ReactNo
           <div className="flex shrink-0 justify-end border-t border-black/5 px-5 py-4 sm:px-6">
             <Link
               href={`/pacientes/${patient.id}`}
+              onClick={closePatient}
               className="inline-flex h-10 items-center gap-2 rounded-md bg-neutral-900 px-4 text-sm font-medium text-white hover:bg-neutral-800"
             >
               Abrir prontuário
