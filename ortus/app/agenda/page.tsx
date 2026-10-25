@@ -1,19 +1,13 @@
 'use client';
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import FullCalendar from '@fullcalendar/react';
-import dayGridPlugin from '@fullcalendar/daygrid';
-import timeGridPlugin from '@fullcalendar/timegrid';
-import interactionPlugin from '@fullcalendar/interaction';
-import listPlugin from '@fullcalendar/list';
-import ptBrLocale from '@fullcalendar/core/locales/pt-br';
-import { usePatientSlideOver } from '@/components/PatientSlideOver';
 import { usePatientActionModal } from '@/components/PatientActionModal';
-import { getClinicLabel, useClinica } from '@/app/context/ClinicaContext';
+import { useClinica } from '@/app/context/ClinicaContext';
 import { fetchUserClinicas, fetchUserEquipe } from '@/lib/clinicScoped';
 
-import { Plus, X, Loader2, UserPlus, Trash2, Clock, Bell, ChevronDown } from 'lucide-react';
+import { Plus, X, Loader2, UserPlus, Trash2, Bell, ChevronDown, ChevronLeft, ChevronRight, Search, Calendar, LayoutGrid, Clock, List } from 'lucide-react';
 import CustomSelect from '@/components/ui/CustomSelect';
 import CampoData from '@/components/ui/CampoData';
 import CampoHora from '@/components/ui/CampoHora';
@@ -21,6 +15,7 @@ import { useCustomAlert } from '@/components/ui/CustomAlert';
 import { validarAgendamentoCompleto } from '@/lib/horarioProfissional';
 import PatientContactButtons from '@/components/PatientContactButtons';
 import Modal from '@/components/ui/Modal';
+import SegmentedControl from '@/components/ui/SegmentedControl';
 import ProcedureCombobox from '@/components/forms/ProcedureCombobox';
 import {
   buscarAgendamentosLembrete24h,
@@ -31,13 +26,149 @@ import {
 } from '@/lib/lembretesAgenda';
 import { lerPrefillAgenda, limparPrefillAgenda } from '@/lib/agendaPrefill';
 
+type Visao = 'mes' | 'semana' | 'dia' | 'lista';
+
+const DIAS_CURTOS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+const STATUS_OPCOES = [
+  { value: 'todos', label: 'Todas' },
+  { value: 'agendado', label: 'Agendado' },
+  { value: 'concluido', label: 'Concluído' },
+  { value: 'fiado', label: 'Fiado' },
+  { value: 'cancelado', label: 'Cancelado' },
+];
+
+function inicioDoDia(data: Date) {
+  return new Date(data.getFullYear(), data.getMonth(), data.getDate());
+}
+
+function inicioSemana(data: Date) {
+  const dia = inicioDoDia(data);
+  dia.setDate(dia.getDate() - dia.getDay());
+  return dia;
+}
+
+function somarDias(data: Date, dias: number) {
+  const proxima = new Date(data);
+  proxima.setDate(proxima.getDate() + dias);
+  return proxima;
+}
+
+function mesmoDia(a: Date, b: Date) {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
+function chaveLocal(data: Date) {
+  const mes = String(data.getMonth() + 1).padStart(2, '0');
+  const dia = String(data.getDate()).padStart(2, '0');
+  return `${data.getFullYear()}-${mes}-${dia}`;
+}
+
+function capitalizar(texto: string) {
+  return texto ? texto.charAt(0).toUpperCase() + texto.slice(1) : texto;
+}
+
+function nomePaciente(props: any) {
+  return Array.isArray(props?.pacientes) ? props.pacientes[0]?.nome : props?.pacientes?.nome;
+}
+
+function corStatus(status?: string) {
+  if (status === 'concluido') return 'bg-emerald-500';
+  if (status === 'fiado') return 'bg-amber-500';
+  if (status === 'cancelado') return 'bg-rose-500';
+  return 'bg-neutral-900';
+}
+
+function MenuFiltro({
+  rotulo,
+  valor,
+  opcoes,
+  onChange,
+}: {
+  rotulo: string;
+  valor: string;
+  opcoes: { value: string; label: string }[];
+  onChange: (valor: string) => void;
+}) {
+  const botao = useRef<HTMLButtonElement>(null);
+  const menu = useRef<HTMLDivElement>(null);
+  const [aberto, setAberto] = useState(false);
+  const [pos, setPos] = useState({ top: 0, left: 0, width: 180, maxHeight: 240 });
+  const ativo = valor !== 'todos';
+
+  function abrir() {
+    const rect = botao.current?.getBoundingClientRect();
+    if (!rect) return;
+    const abaixo = window.innerHeight - rect.bottom;
+    const acima = rect.top;
+    const abreAbaixo = abaixo >= 160 || abaixo >= acima;
+    const maxHeight = Math.max(120, Math.min(240, (abreAbaixo ? abaixo : acima) - 12));
+    setPos({
+      top: abreAbaixo ? rect.bottom + 4 : Math.max(8, rect.top - maxHeight - 4),
+      left: rect.left,
+      width: Math.max(rect.width, 180),
+      maxHeight,
+    });
+    setAberto((atual) => !atual);
+  }
+
+  useEffect(() => {
+    if (!aberto) return;
+    const fechar = (event: Event) => {
+      const alvo = event.target as Node | null;
+      if (alvo && menu.current?.contains(alvo)) return;
+      setAberto(false);
+    };
+    window.addEventListener('scroll', fechar, true);
+    window.addEventListener('resize', fechar);
+    return () => {
+      window.removeEventListener('scroll', fechar, true);
+      window.removeEventListener('resize', fechar);
+    };
+  }, [aberto]);
+
+  return (
+    <>
+      <button
+        ref={botao}
+        type="button"
+        onClick={abrir}
+        className={`inline-flex h-8 items-center gap-1.5 rounded-md border bg-white px-2.5 text-sm text-neutral-700 hover:bg-neutral-50 ${ativo ? 'border-neutral-900' : 'border-neutral-200'}`}
+      >
+        <ChevronDown size={13} className={`text-neutral-500 transition-transform ${aberto ? 'rotate-180' : ''}`} />
+        {rotulo}
+      </button>
+      {aberto && typeof document !== 'undefined' && createPortal(
+        <>
+          <button type="button" aria-label="Fechar filtro" className="fixed inset-0 z-[80] cursor-default" onClick={() => setAberto(false)} />
+          <div
+            ref={menu}
+            className="fixed z-[81] overflow-y-auto overscroll-contain rounded-md border border-neutral-200 bg-white py-1"
+            style={{ top: pos.top, left: pos.left, width: pos.width, maxHeight: pos.maxHeight }}
+            onWheel={(event) => event.stopPropagation()}
+          >
+            {opcoes.map((opcao) => (
+              <button
+                key={opcao.value}
+                type="button"
+                onClick={() => { onChange(opcao.value); setAberto(false); }}
+                className={`block w-full px-3 py-1.5 text-left text-sm hover:bg-neutral-50 ${valor === opcao.value ? 'font-medium text-neutral-900' : 'text-neutral-600'}`}
+              >
+                {opcao.label}
+              </button>
+            ))}
+          </div>
+        </>,
+        document.body,
+      )}
+    </>
+  );
+}
+
 export default function Agenda() {
-  const calendarRef = useRef(null);
   const searchParams = useSearchParams();
   const pacientePreSelecionado = searchParams?.get('paciente');
-  const { openPatient } = usePatientSlideOver();
   const { openQuickCapture } = usePatientActionModal();
-  const { activeClinicId, activeClinic, loading: clinicLoading } = useClinica();
+  const { activeClinicId, loading: clinicLoading } = useClinica();
   const clinicaFiltro =
     !activeClinicId || activeClinicId === 'all' ? 'todas' : String(activeClinicId);
   const { showAlert, showConfirm } = useCustomAlert();
@@ -55,6 +186,13 @@ export default function Agenda() {
   const [loading, setLoading] = useState(false);
   const [lembretesPendentes, setLembretesPendentes] = useState<LembreteAgendamento[]>([]);
   const [lembretesLoading, setLembretesLoading] = useState(false);
+  const [visao, setVisao] = useState<Visao>('mes');
+  const [cursor, setCursor] = useState(() => new Date());
+  const [busca, setBusca] = useState('');
+  const [filtroStatus, setFiltroStatus] = useState('todos');
+  const [filtroProfissional, setFiltroProfissional] = useState('todos');
+  const [agora, setAgora] = useState(() => new Date());
+  const gradeHorasRef = useRef<HTMLDivElement>(null);
 
   const [formData, setFormData] = useState({ 
       id: null, title: '', date: '', time: '08:00', theme: 'blue', 
@@ -253,23 +391,33 @@ export default function Agenda() {
       } else setEvents([]); 
   }
 
-  const handleDateClick = (arg:any) => { 
-      const d = arg.date; 
-      const h = String(d.getHours()).padStart(2, '0'); 
-      const min = String(d.getMinutes()).padStart(2, '0'); 
-      const preClinica = clinicaFiltro !== 'todas' ? clinicaFiltro : ''; 
-      const preProfissional = (usuarioAtual?.nivel !== 'admin' && usuarioAtual?.profissional_id) ? usuarioAtual.profissional_id : ''; 
-      setFormData(prev => ({ ...prev, id: null, title: '', date: d.toISOString().split('T')[0], time: `${h}:${min}`, status: 'agendado', desconto: '0', valor: '0', clinica_id: preClinica, profissional_id: preProfissional }));
-      setOpenModal(true); 
-  };
+  function abrirNoDia(dia: Date, hora = '08:00') {
+      const preClinica = clinicaFiltro !== 'todas' ? clinicaFiltro : '';
+      const preProfissional = (usuarioAtual?.nivel !== 'admin' && usuarioAtual?.profissional_id) ? usuarioAtual.profissional_id : '';
+      setFormData({
+          id: null,
+          title: '',
+          date: chaveLocal(dia),
+          time: hora,
+          theme: 'blue',
+          paciente_id: '',
+          valor: '0',
+          desconto: '0',
+          observacoes: '',
+          status: 'agendado',
+          clinica_id: preClinica,
+          profissional_id: preProfissional,
+      });
+      setOpenModal(true);
+  }
 
-  const handleEventClick = (info:any) => { 
-      const r = info.event.extendedProps; 
+  function abrirEvento(registro: any) { 
+      const r = registro; 
       const localDate = new Date(r.data_hora); 
       setFormData({
           id: r.id, 
           title: r.procedimento, 
-          date: localDate.toISOString().split('T')[0], 
+          date: chaveLocal(localDate), 
           time: localDate.toTimeString().slice(0,5), 
           theme: r.cor || 'blue', 
           paciente_id: r.paciente_id, 
@@ -340,7 +488,7 @@ export default function Agenda() {
   }
 
   function abrirNovoAgendamento() {
-      const hoje = new Date().toISOString().split('T')[0];
+      const hoje = chaveLocal(new Date());
       const preClinica = clinicaFiltro !== 'todas' ? clinicaFiltro : '';
       const preProfissional =
           usuarioAtual?.nivel !== 'admin' && usuarioAtual?.profissional_id ? usuarioAtual.profissional_id : '';
@@ -363,127 +511,176 @@ export default function Agenda() {
 
   const cardShell = 'rounded-xl bg-white';
 
-  const renderEventContent = (eventInfo: any) => {
-      const props = eventInfo.event.extendedProps;
-      const status = props.status as string;
-      const compact = eventInfo.view.type === 'listWeek' || eventInfo.view.type === 'dayGridMonth';
-      const patientName = Array.isArray(props.pacientes) ? props.pacientes[0]?.nome : props.pacientes?.nome;
-      const procedure = props.procedimento || eventInfo.event.title;
+  const eventosVisiveis = useMemo(() => {
+    const termo = busca.trim().toLowerCase();
+    return events.filter((evento) => {
+      const props = evento.extendedProps || {};
+      const nome = String(nomePaciente(props) || '');
+      const procedimento = String(props.procedimento || '');
+      if (termo && !nome.toLowerCase().includes(termo) && !procedimento.toLowerCase().includes(termo)) return false;
+      if (filtroStatus !== 'todos' && (props.status || 'agendado') !== filtroStatus) return false;
+      if (filtroProfissional !== 'todos' && String(props.profissional_id || '') !== filtroProfissional) return false;
+      return true;
+    });
+  }, [events, busca, filtroStatus, filtroProfissional]);
 
-      const shell =
-          status === 'cancelado'
-              ? 'bg-rose-50 text-rose-800 border-rose-200'
-              : status === 'concluido'
-                ? 'bg-emerald-50 text-emerald-900 border-emerald-200'
-                : status === 'fiado'
-                  ? 'bg-amber-50 text-amber-900 border-amber-200'
-                  : 'bg-neutral-900 text-white border-neutral-800';
+  const eventosPorDia = useMemo(() => {
+    const mapa = new Map<string, any[]>();
+    eventosVisiveis.forEach((evento) => {
+      const chave = chaveLocal(new Date(evento.start));
+      const lista = mapa.get(chave) || [];
+      lista.push(evento);
+      mapa.set(chave, lista);
+    });
+    mapa.forEach((lista) => lista.sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime()));
+    return mapa;
+  }, [eventosVisiveis]);
 
-      return (
-        <div
-          className={`flex w-full overflow-hidden border ${shell} ${
-              compact ? 'items-center gap-1.5 rounded-lg px-2 py-1' : 'h-full flex-col justify-center rounded-xl px-2 py-1.5'
-          }`}
-        >
-          {!compact && eventInfo.timeText && (
-            <span className="flex items-center gap-1 text-[10px] font-medium opacity-80">
-              <Clock size={10} />
-              {eventInfo.timeText}
-            </span>
-          )}
-          <span className={`truncate text-[11px] font-semibold sm:text-xs ${status === 'cancelado' ? 'line-through opacity-80' : ''}`}>
-            {compact && eventInfo.timeText && <span className="mr-1 opacity-70">{eventInfo.timeText}</span>}
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                openPatient(props.paciente_id);
-              }}
-              className="font-semibold hover:underline underline-offset-2"
-              title="Abrir paciente"
-            >
-              {patientName || 'Paciente'}
-            </button>
-            <span className="opacity-80"> · {procedure}</span>
-          </span>
-        </div>
-      );
-  };
-
-  const subtituloUnidade =
-    clinicaFiltro === 'todas'
-      ? 'Todas as clínicas'
-      : activeClinic
-        ? getClinicLabel(activeClinic)
-        : clinicas.find((c: any) => String(c.id) === clinicaFiltro)?.nome || 'Unidade';
-
-  const fcProps = {
-    plugins: [dayGridPlugin, timeGridPlugin, interactionPlugin, listPlugin],
-    locale: ptBrLocale,
-    slotMinTime: '00:00:00',
-    slotMaxTime: '24:00:00',
-    allDaySlot: false as const,
-    events,
-    eventContent: renderEventContent,
-    dateClick: handleDateClick,
-    eventClick: handleEventClick,
-    height: '100%' as const,
-    slotDuration: '00:30:00',
-    dayHeaderFormat: { weekday: 'short' as const, day: 'numeric' as const },
-    nowIndicator: true,
-    navLinks: true,
-    buttonText: { today: 'Hoje', month: 'Mês', week: 'Semana', day: 'Dia', list: 'Lista' },
-    buttonHints: { prev: () => '', next: () => '', today: () => '' },
-    viewHint: () => '',
-  };
+  const horasGrade = useMemo(() => {
+    let min = 7;
+    let max = 20;
+    eventosVisiveis.forEach((evento) => {
+      const hora = new Date(evento.start).getHours();
+      if (Number.isNaN(hora)) return;
+      if (hora < min) min = hora;
+      if (hora > max) max = hora;
+    });
+    return Array.from({ length: max - min + 1 }, (_, indice) => min + indice);
+  }, [eventosVisiveis]);
 
   useEffect(() => {
-    const root = document.querySelector('.bento-calendar');
-    if (!root) return;
-    const limpar = () => {
-      root.querySelectorAll('.fc-header-toolbar [title]').forEach((el) => el.removeAttribute('title'));
-    };
-    limpar();
-    const obs = new MutationObserver(limpar);
-    obs.observe(root, { subtree: true, attributes: true, attributeFilter: ['title'] });
-    return () => obs.disconnect();
+    const id = window.setInterval(() => setAgora(new Date()), 30000);
+    return () => window.clearInterval(id);
   }, []);
+
+  useEffect(() => {
+    if (visao !== 'semana' && visao !== 'dia') return;
+    const grade = gradeHorasRef.current;
+    const linha = grade?.querySelector('[data-agora]') as HTMLElement | null;
+    if (!grade || !linha) return;
+    const gradeRect = grade.getBoundingClientRect();
+    const linhaRect = linha.getBoundingClientRect();
+    grade.scrollTop += linhaRect.top - gradeRect.top - grade.clientHeight / 2;
+  }, [visao, cursor]);
+
+  const hoje = inicioDoDia(new Date());
+  const titulo = visao === 'dia'
+    ? capitalizar(cursor.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' }))
+    : visao === 'semana'
+      ? `${inicioSemana(cursor).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short' })} – ${somarDias(inicioSemana(cursor), 6).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short', year: 'numeric' })}`
+      : `${capitalizar(cursor.toLocaleDateString('pt-BR', { month: 'long' }))} ${cursor.getFullYear()}`;
+
+  function mover(direcao: -1 | 1) {
+    const proxima = new Date(cursor);
+    if (visao === 'dia') proxima.setDate(proxima.getDate() + direcao);
+    else if (visao === 'semana') proxima.setDate(proxima.getDate() + direcao * 7);
+    else proxima.setMonth(proxima.getMonth() + direcao);
+    setCursor(proxima);
+  }
+
+  function ChipEvento({ evento }: { evento: any }) {
+    const props = evento.extendedProps || {};
+    const hora = new Date(evento.start).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    return (
+      <button
+        type="button"
+        onClick={(event) => { event.stopPropagation(); abrirEvento(props); }}
+        className="flex w-full min-w-0 items-center gap-1 rounded px-1 py-0.5 text-left text-[11px] text-neutral-700 hover:bg-neutral-100"
+      >
+        <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${corStatus(props.status)}`} />
+        <span className={`truncate ${props.status === 'cancelado' ? 'line-through text-neutral-400' : ''}`}>
+          <span className="text-neutral-400">{hora}</span> {nomePaciente(props) || 'Paciente'}
+        </span>
+      </button>
+    );
+  }
 
   const inputClass =
     'box-border h-10 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm text-neutral-900 outline-none focus:border-neutral-900';
 
+  const diasMes = Array.from({ length: 42 }, (_, indice) => somarDias(inicioSemana(new Date(cursor.getFullYear(), cursor.getMonth(), 1)), indice));
+  const diasSemana = Array.from({ length: 7 }, (_, indice) => somarDias(inicioSemana(cursor), indice));
+  const visoes: { id: Visao; label: string; Icone: typeof Calendar }[] = [
+    { id: 'dia', label: 'Dia', Icone: Clock },
+    { id: 'semana', label: 'Semana', Icone: LayoutGrid },
+    { id: 'mes', label: 'Mês', Icone: Calendar },
+    { id: 'lista', label: 'Lista', Icone: List },
+  ];
+
+  function dentroDoPeriodo(data: Date) {
+    if (visao === 'dia') return mesmoDia(data, cursor);
+    if (visao === 'semana') {
+      const inicio = inicioSemana(cursor);
+      return data >= inicio && data < somarDias(inicio, 7);
+    }
+    return data.getMonth() === cursor.getMonth() && data.getFullYear() === cursor.getFullYear();
+  }
+
+  const eventosLista = eventosVisiveis
+    .filter((evento) => dentroDoPeriodo(new Date(evento.start)))
+    .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
+
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden px-2.5 py-2.5 font-poppins sm:px-3 sm:py-3 md:px-4 md:py-3.5 max-sm:overflow-y-auto">
       <header className="mb-3 shrink-0 space-y-3">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0">
-            <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 md:text-[2rem]">Agenda</h1>
-            <p className="mt-1 truncate text-sm text-neutral-500 sm:text-base">{subtituloUnidade}</p>
-          </div>
-          <button
-            type="button"
-            onClick={abrirNovoAgendamento}
-            className="inline-flex h-9 w-full shrink-0 items-center justify-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 sm:w-auto"
-          >
-            <Plus size={14} />
-            Novo agendamento
-          </button>
+        <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 md:text-[2rem]">{titulo}</h1>
+
+        <div className="relative">
+          <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
+          <input
+            value={busca}
+            onChange={(event) => setBusca(event.target.value)}
+            placeholder="Buscar paciente ou procedimento..."
+            className="h-10 w-full rounded-md border border-neutral-200 bg-white pl-9 pr-3 text-sm text-neutral-900 outline-none placeholder:text-neutral-400 focus:border-neutral-900"
+          />
         </div>
 
-        <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-end">
-          <div className="hidden flex-wrap items-center gap-3 text-[11px] font-medium text-neutral-500 lg:flex">
-            <span className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-neutral-900" /> Agendado
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-emerald-500" /> Concluído
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-amber-500" /> Fiado
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-rose-500" /> Cancelado
-            </span>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="inline-flex items-center gap-1">
+              <button type="button" aria-label="Anterior" onClick={() => mover(-1)} className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50">
+                <ChevronLeft size={16} />
+              </button>
+              <button type="button" onClick={() => setCursor(new Date())} className="h-8 rounded-md border border-neutral-200 bg-white px-3 text-sm text-neutral-700 hover:bg-neutral-50">
+                Hoje
+              </button>
+              <button type="button" aria-label="Próximo" onClick={() => mover(1)} className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50">
+                <ChevronRight size={16} />
+              </button>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <MenuFiltro rotulo="Status" valor={filtroStatus} onChange={setFiltroStatus} opcoes={STATUS_OPCOES} />
+            <MenuFiltro
+              rotulo="Profissional"
+              valor={filtroProfissional}
+              onChange={setFiltroProfissional}
+              opcoes={[{ value: 'todos', label: 'Todos' }, ...profissionais.map((profissional: any) => ({ value: String(profissional.id), label: profissional.nome }))]}
+            />
+            <SegmentedControl
+              fit
+              className="shrink-0 bg-white"
+              value={visao}
+              onChange={setVisao}
+              options={visoes.map(({ id, label, Icone }) => ({
+                value: id,
+                ariaLabel: label,
+                label: (
+                  <>
+                    <Icone size={14} />
+                    <span className="hidden sm:inline">{label}</span>
+                  </>
+                ),
+              }))}
+            />
+            <button
+              type="button"
+              onClick={abrirNovoAgendamento}
+              className="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800"
+            >
+              <Plus size={14} />
+              Novo agendamento
+            </button>
           </div>
         </div>
 
@@ -544,25 +741,106 @@ export default function Agenda() {
         )}
       </header>
 
-      <div className={`${cardShell} bento-calendar min-h-0 flex-1 overflow-hidden p-2 sm:p-4`}>
-        <div className="hidden h-full min-h-[320px] lg:block">
-          <FullCalendar
-            ref={calendarRef}
-            {...fcProps}
-            initialView="timeGridWeek"
-            headerToolbar={{ left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,timeGridDay,listWeek' }}
-          />
+      {visao === 'mes' && (
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white">
+          <div className="grid shrink-0 grid-cols-7 border-b border-neutral-200">
+            {DIAS_CURTOS.map((dia) => (
+              <div key={dia} className="py-2 text-center text-xs font-medium text-neutral-500">{dia}</div>
+            ))}
+          </div>
+          <div className="grid min-h-[280px] flex-1 grid-cols-7 grid-rows-6">
+            {diasMes.map((dia, indice) => {
+              const lista = eventosPorDia.get(chaveLocal(dia)) || [];
+              const fora = dia.getMonth() !== cursor.getMonth();
+              return (
+                <div
+                  key={`${chaveLocal(dia)}-${indice}`}
+                  onClick={() => abrirNoDia(dia)}
+                  className={`flex min-h-0 cursor-pointer flex-col p-1 text-left hover:bg-neutral-50 sm:p-1.5 ${indice % 7 !== 6 ? 'border-r border-neutral-200' : ''} ${indice < 35 ? 'border-b border-neutral-200' : ''}`}
+                >
+                  <span className={`text-xs sm:text-sm ${mesmoDia(dia, hoje) ? 'font-medium text-amber-700' : fora ? 'text-neutral-300' : 'text-neutral-700'}`}>{dia.getDate()}</span>
+                  <div className="mt-0.5 min-h-0 space-y-0.5 overflow-hidden">
+                    {lista.slice(0, 2).map((evento) => <ChipEvento key={evento.id} evento={evento} />)}
+                    {lista.length > 2 && <span className="px-1 text-[11px] text-neutral-400">+{lista.length - 2}</span>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
-        <div className="h-full min-h-[360px] lg:hidden">
-          <FullCalendar
-            ref={calendarRef}
-            {...fcProps}
-            initialView="listWeek"
-            headerToolbar={{ left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridDay,listWeek' }}
-            titleFormat={{ year: 'numeric', month: 'long' }}
-          />
+      )}
+
+      {(visao === 'semana' || visao === 'dia') && (
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white">
+          <div className={`grid shrink-0 border-b border-neutral-200 ${visao === 'dia' ? 'grid-cols-[3.25rem_minmax(0,1fr)]' : 'grid-cols-[3.25rem_repeat(7,minmax(0,1fr))]'}`}>
+            <div />
+            {(visao === 'dia' ? [inicioDoDia(cursor)] : diasSemana).map((dia) => (
+              <div key={chaveLocal(dia)} className="py-2 text-center">
+                <div className="text-[11px] text-neutral-400">{DIAS_CURTOS[dia.getDay()]}</div>
+                <div className={`text-sm ${mesmoDia(dia, hoje) ? 'font-medium text-amber-700' : 'text-neutral-800'}`}>{dia.getDate()}</div>
+              </div>
+            ))}
+          </div>
+          <div ref={gradeHorasRef} className="relative min-h-0 flex-1 overflow-y-auto">
+            {horasGrade.map((hora) => {
+              const dias = visao === 'dia' ? [inicioDoDia(cursor)] : diasSemana;
+              const rotulo = `${String(hora).padStart(2, '0')}:00`;
+              return (
+                <div key={hora} className={`grid min-h-12 border-b border-neutral-100 last:border-b-0 ${visao === 'dia' ? 'grid-cols-[3.25rem_minmax(0,1fr)]' : 'grid-cols-[3.25rem_repeat(7,minmax(0,1fr))]'}`}>
+                  <div className="px-1 pt-1 text-right text-[11px] text-neutral-400">{rotulo}</div>
+                  {dias.map((dia) => {
+                    const lista = (eventosPorDia.get(chaveLocal(dia)) || []).filter((evento) => new Date(evento.start).getHours() === hora);
+                    const mostraAgora = mesmoDia(dia, agora) && agora.getHours() === hora;
+                    return (
+                      <div
+                        key={`${chaveLocal(dia)}-${hora}`}
+                        onClick={() => abrirNoDia(dia, rotulo)}
+                        className="relative min-h-12 cursor-pointer border-l border-neutral-100 p-0.5 hover:bg-neutral-50"
+                      >
+                        {mostraAgora && (
+                          <div
+                            data-agora=""
+                            className="pointer-events-none absolute inset-x-0 z-10"
+                            style={{ top: `${(agora.getMinutes() / 60) * 100}%` }}
+                          >
+                            <span className="absolute left-0 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-red-500" />
+                            <span className="absolute left-0 right-0 h-0.5 -translate-y-1/2 bg-red-500" />
+                          </div>
+                        )}
+                        {lista.map((evento) => <ChipEvento key={evento.id} evento={evento} />)}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
         </div>
-      </div>
+      )}
+
+      {visao === 'lista' && (
+        <div className="min-h-0 flex-1 overflow-y-auto rounded-xl border border-neutral-200 bg-white">
+          {eventosLista.length === 0 ? (
+            <p className="px-4 py-10 text-center text-sm text-neutral-400">Nenhum agendamento neste período.</p>
+          ) : eventosLista.map((evento) => {
+            const props = evento.extendedProps || {};
+            const data = new Date(evento.start);
+            return (
+              <button
+                key={evento.id}
+                type="button"
+                onClick={() => abrirEvento(props)}
+                className="flex w-full items-center gap-3 border-b border-neutral-100 px-4 py-2.5 text-left last:border-b-0 hover:bg-neutral-50"
+              >
+                <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${corStatus(props.status)}`} />
+                <span className="w-28 shrink-0 text-sm text-neutral-500">{data.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })} · {data.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+                <span className={`min-w-0 truncate text-sm text-neutral-900 ${props.status === 'cancelado' ? 'line-through text-neutral-400' : ''}`}>{nomePaciente(props) || 'Paciente'}</span>
+                <span className="hidden min-w-0 truncate text-sm text-neutral-500 sm:block">{props.procedimento}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       <Modal
         open={openModal}
@@ -629,11 +907,11 @@ export default function Agenda() {
                           </label>
                           <label>
                               <span className="mb-1.5 block text-xs font-medium text-neutral-500">Valor (R$)</span>
-                              <input type="number" step="0.01" value={formData.valor} onChange={e => setFormData({...formData, valor: e.target.value})} className={inputClass} placeholder="0,00" />
+                              <input type="number" step="1" value={formData.valor} onChange={e => setFormData({...formData, valor: e.target.value})} className={inputClass} placeholder="0,00" />
                           </label>
                           <label>
                               <span className="mb-1.5 block text-xs font-medium text-neutral-500">Desconto (R$)</span>
-                              <input type="number" step="0.01" value={formData.desconto} onChange={e => setFormData({...formData, desconto: e.target.value})} className={inputClass} placeholder="0,00" />
+                              <input type="number" step="1" value={formData.desconto} onChange={e => setFormData({...formData, desconto: e.target.value})} className={inputClass} placeholder="0,00" />
                           </label>
                           <label className="sm:col-span-2">
                               <span className="mb-1.5 block text-xs font-medium text-neutral-500">Total</span>
