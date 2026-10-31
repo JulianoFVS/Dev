@@ -212,13 +212,14 @@ export default function Configuracoes() {
       carregarConfig(cid, 'categorias_financeiro', 'ortus_categorias_financeiro', CATEGORIAS_FINANCEIRAS_PADRAO).then(c => setCatsFin(normalizarCategoriasFinanceiras(c)));
       carregarConfig(cid, 'modelos_documentos', 'ortus_modelos_documentos', DOCS_PADRAO).then(d => setDocs(d && d.length ? d : DOCS_PADRAO));
       carregarConfig(cid, 'templates_comunicacao', 'ortus_templates_comunicacao', TEMPLATES_COMUNICACAO_PADRAO).then(t => setTemplatesComunicacao(Array.isArray(t) && t.length ? t : TEMPLATES_COMUNICACAO_PADRAO));
-      carregarConfig(cid, 'taxas_maquininha', 'ortus_taxas_maquininha', TAXAS_MAQUININHA_PADRAO).then(t => {
+      const cidTaxas = activeClinic && activeClinic.id !== 'all' ? activeClinic.id : cid;
+      carregarConfig(cidTaxas, 'taxas_maquininha', 'ortus_taxas_maquininha', TAXAS_MAQUININHA_PADRAO).then(t => {
           const norm = normalizarTaxasMaquininha(t);
           setTaxasMaquininha(norm);
-          if (JSON.stringify(t) !== JSON.stringify(norm)) salvarConfig(cid, 'taxas_maquininha', norm);
+          if (JSON.stringify(t) !== JSON.stringify(norm)) salvarConfig(cidTaxas, 'taxas_maquininha', norm);
       });
       carregarModelosAsync(cid).then(setModelos);
-  }, [clinicas]);
+  }, [clinicas, activeClinic]);
 
   async function persistirModelosAnamnese(novos: ModeloAnamnese[]) {
       setModelos(novos);
@@ -361,7 +362,8 @@ export default function Configuracoes() {
 
   function salvarTaxas(lista: TaxaMaquininha[]) {
       setTaxasMaquininha(lista);
-      salvarConfig(clinicas[0]?.id || '0', 'taxas_maquininha', lista);
+      const cidTaxas = activeClinic && activeClinic.id !== 'all' ? activeClinic.id : (clinicas[0]?.id || '0');
+      salvarConfig(cidTaxas, 'taxas_maquininha', lista);
   }
 
   function abrirNovoTemplateCom() {
