@@ -9,6 +9,7 @@ import Modal from '@/components/ui/Modal';
 import CustomSelect from '@/components/ui/CustomSelect';
 import { PARENTESCO_OPTIONS, SEXO_OPTIONS, UF_OPTIONS } from '@/lib/formOptions';
 import { prepararFotoPaciente } from '@/lib/prepararFotoPaciente';
+import { enviarArquivoClinica } from '@/lib/armazenamento';
 import { cpfValido, mascaraCep, mascaraCpf, mascaraNumero, mascaraTelefone, variantesCpf } from '@/lib/mascaras';
 import CampoData from '@/components/ui/CampoData';
 
@@ -206,14 +207,15 @@ export function PatientActionModalProvider({ children }: { children: React.React
     let avisoFoto = '';
     if (qcFotoBlob) {
       const caminho = `pacientes/${data.id}/avatar.jpg`;
-      const { error: uploadErr } = await supabase.storage.from('arquivos_ortus').upload(caminho, qcFotoBlob, {
+      const enviou = await enviarArquivoClinica(caminho, qcFotoBlob, {
         contentType: 'image/jpeg',
         upsert: true,
         cacheControl: '3600',
+      }).then(() => true, (err: unknown) => {
+        avisoFoto = ` A foto não foi salva${err instanceof Error && err.message ? `: ${err.message}` : '.'}`;
+        return false;
       });
-      if (uploadErr) {
-        avisoFoto = ' A foto não foi salva.';
-      } else {
+      if (enviou) {
         const { data: urlData } = supabase.storage.from('arquivos_ortus').getPublicUrl(caminho);
         const publicUrl = `${urlData.publicUrl}?v=${Date.now()}`;
         const { error: updErr } = await supabase.from('pacientes').update({ foto_url: publicUrl }).eq('id', data.id);

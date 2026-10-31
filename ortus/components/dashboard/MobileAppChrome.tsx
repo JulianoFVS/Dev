@@ -15,6 +15,7 @@ import {
   House,
   LayoutDashboard,
   Mail,
+  MessageCircle,
   Settings,
   ShieldAlert,
   ShieldCheck,
@@ -24,6 +25,7 @@ import {
 } from 'lucide-react';
 import BentoClinicSwitcher from '@/components/dashboard/BentoClinicSwitcher';
 import type { DashboardSidebarNavOptions } from '@/components/dashboard/DashboardSidebar';
+import { WHATSAPP_ATIVO } from '@/lib/whatsappCliente';
 
 type Item = {
   href: string;
@@ -100,6 +102,7 @@ export default function MobileAppChrome({
     ...(showTarefas ? [{ href: '/tarefas', label: 'Tarefas', icon: CheckSquare, badge: tarefasBadge }] : []),
     ...(showEquipe ? [{ href: '/ajustes/equipe', label: 'Equipe', icon: ShieldCheck }] : []),
     ...(showTratamentosBase ? [{ href: '/ajustes/tratamentos', label: 'Tratamentos', icon: ClipboardList }] : []),
+    ...(WHATSAPP_ATIVO ? [{ href: '/whatsapp', label: 'WhatsApp', icon: MessageCircle }] : []),
     { href: '/mensagens', label: 'Mensagens', icon: Mail },
     ...(showPainelSaas ? [{ href: '/super-admin', label: 'Painel SaaS', icon: ShieldAlert }] : []),
     { href: '/configuracoes', label: 'Configurações', icon: Settings },

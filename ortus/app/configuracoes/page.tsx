@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+import { enviarArquivoClinica } from '@/lib/armazenamento';
 import { Building2, Users, Plus, Trash2, MapPin, Check, X, Loader2, Edit, UserPlus, Shield, User, FileText, Phone, Mail, Save, Lock, ClipboardList, HelpCircle, FileSignature, Tag, SlidersHorizontal, Database, Download, Upload, Bell, Palette, RotateCcw, AlertTriangle, Clock, DollarSign, MessageCircle, CreditCard, Eye, Search, Filter, LayoutGrid, List, ChevronDown, Camera } from 'lucide-react';
 import { carregarModelos, carregarModelosAsync, salvarModelos, salvarModelosAsync, novoIdModelo, novoIdPergunta, type ModeloAnamnese, type PerguntaAnamnese, type TipoPergunta } from '@/lib/anamnese';
 import { listarBackups, criarBackupAgora, baixarBackupComoJson, excluirBackup as deletarBackupServer, restaurarBackup } from '@/lib/backup';
@@ -835,8 +836,7 @@ export default function Configuracoes() {
       try {
           const fileExt = file.name.split('.').pop() || 'png';
           const filePath = `clinicas/${clinicaId}/logo-${Date.now()}.${fileExt}`;
-          const { error: uploadError } = await supabase.storage.from('arquivos_ortus').upload(filePath, file, { upsert: true });
-          if (uploadError) throw uploadError;
+          await enviarArquivoClinica(filePath, file, { upsert: true });
           const { data: { publicUrl } } = supabase.storage.from('arquivos_ortus').getPublicUrl(filePath);
           const { error } = await supabase.from('clinicas').update({ logo_url: publicUrl }).eq('id', clinicaId);
           if (error) throw error;

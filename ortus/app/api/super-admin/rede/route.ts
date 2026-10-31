@@ -51,7 +51,7 @@ export async function GET(req: Request) {
 
     const { data: clinica } = await supabaseAdmin
         .from('clinicas')
-        .select('id, nome, telefone, email, cep, rua, numero, complemento, bairro, cidade, uf, logo_url')
+        .select('id, nome, telefone, email, cep, rua, numero, complemento, bairro, cidade, uf, logo_url, limite_armazenamento_mb')
         .eq('rede_id', id)
         .order('is_matriz', { ascending: false })
         .limit(1)
@@ -119,6 +119,9 @@ export async function PATCH(req: Request) {
             cidade: texto(clinica.cidade),
             uf: texto(clinica.uf),
             ...(typeof clinica.logo_url === 'string' ? { logo_url: clinica.logo_url || null } : {}),
+            ...(Number.isInteger(clinica.limite_armazenamento_mb) && clinica.limite_armazenamento_mb >= 100 && clinica.limite_armazenamento_mb <= 1024 * 1024
+                ? { limite_armazenamento_mb: clinica.limite_armazenamento_mb }
+                : {}),
         }).eq('id', clinicaId).eq('rede_id', id);
         if (clinicaErr) return NextResponse.json({ error: clinicaErr.message }, { status: 400 });
     }

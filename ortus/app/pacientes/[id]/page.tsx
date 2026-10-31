@@ -21,6 +21,7 @@ import { useCustomAlert } from '@/components/ui/CustomAlert';
 import { validarPaciente, isMenorDeIdade } from '@/lib/pacienteValidation';
 import { cpfValido, mascaraCep, mascaraCpf, mascaraNumero, mascaraTelefone, variantesCpf } from '@/lib/mascaras';
 import { prepararFotoPaciente } from '@/lib/prepararFotoPaciente';
+import { apagarArquivosClinica, enviarArquivoClinica } from '@/lib/armazenamento';
 import CampoData from '@/components/ui/CampoData';
 import HofPreviewRosto from '@/components/clinico/HofPreviewRosto';
 import { carregarConfig } from '@/lib/configClinica';
@@ -659,8 +660,7 @@ export default function PacienteDetalhe() {
       try {
           const blob = await prepararFotoPaciente(arquivo);
           const caminho = `pacientes/${id}/avatar.jpg`;
-          const { error: uploadErr } = await supabase.storage.from('arquivos_ortus').upload(caminho, blob, { contentType: 'image/jpeg', upsert: true, cacheControl: '3600' });
-          if (uploadErr) throw uploadErr;
+          await enviarArquivoClinica(caminho, blob, { contentType: 'image/jpeg', upsert: true, cacheControl: '3600' });
           const { data: urlData } = supabase.storage.from('arquivos_ortus').getPublicUrl(caminho);
           const publicUrl = `${urlData.publicUrl}?v=${Date.now()}`;
           const { error: updErr } = await supabase.from('pacientes').update({ foto_url: publicUrl }).eq('id', id);
@@ -1079,14 +1079,11 @@ export default function PacienteDetalhe() {
       try {
           const blobComprimido = await comprimirImagem(file);
           const caminhoArquivo = `pacientes/${id}/hof/${Date.now()}_${angulo.replace(/[°\s]/g, '')}.jpg`;
-          const { error: uploadErr } = await supabase.storage.from('arquivos_ortus').upload(caminhoArquivo, blobComprimido, { contentType: 'image/jpeg' });
-          if (uploadErr) {
-              console.error('[HOF Upload] Erro Supabase Storage:', uploadErr);
-              if (uploadErr.message?.includes('row-level security') || uploadErr.message?.includes('security policy')) {
-                  showAlert('Erro de permissão: Verifique as configurações de segurança (RLS) do bucket de fotos HOF no Supabase.', { type: 'error', title: 'Permissão Negada' });
-              } else {
-                  showAlert('Erro ao enviar foto: ' + uploadErr.message, { type: 'error' });
-              }
+          try {
+              await enviarArquivoClinica(caminhoArquivo, blobComprimido, { contentType: 'image/jpeg' });
+          } catch (uploadErr: any) {
+              console.error('[HOF Upload] Erro ao enviar:', uploadErr);
+              showAlert('Erro ao enviar foto: ' + (uploadErr?.message || uploadErr), { type: 'error' });
               setEnviandoFoto(null); return;
           }
           const nova: HofFoto = { id: Date.now().toString(), sessao: hofSessaoAtiva, angulo, dataUrl: URL.createObjectURL(blobComprimido), storagePath: caminhoArquivo, criado_em: new Date().toISOString() };
@@ -1121,7 +1118,7 @@ export default function PacienteDetalhe() {
   async function excluirHofFoto(fid: string) {
       const foto = hofFotos.find(f => f.id === fid);
       if (foto?.storagePath) {
-          await supabase.storage.from('arquivos_ortus').remove([foto.storagePath]);
+          await apagarArquivosClinica([foto.storagePath]);
       }
       const novasFotos = hofFotos.filter(f => f.id !== fid);
       setHofFotos(novasFotos);
@@ -1625,8 +1622,12 @@ export default function PacienteDetalhe() {
           }
 
           const caminhoArquivo = `pacientes/${id}/documentos/${timestamp}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_').substring(0, 60)}.${finalExt}`;
-          const { error: uploadErr } = await supabase.storage.from('arquivos_ortus').upload(caminhoArquivo, blob, { contentType });
-          if (uploadErr) { showAlert('Erro ao enviar: ' + uploadErr.message, { type: 'error' }); setUploadingDoc(false); e.target.value = ''; return; }
+          try {
+              await enviarArquivoClinica(caminhoArquivo, blob, { contentType });
+          } catch (uploadErr: any) {
+              showAlert('Erro ao enviar: ' + (uploadErr?.message || uploadErr), { type: 'error' });
+              setUploadingDoc(false); e.target.value = ''; return;
+          }
 
           const salvo = await criarDocumento(String(id), {
               nome: file.name,
@@ -1650,7 +1651,7 @@ export default function PacienteDetalhe() {
       try {
           const { storage_path } = await excluirDocumentoDb(did);
           const path = storage_path || doc?.storagePath;
-          if (path) await supabase.storage.from('arquivos_ortus').remove([path]);
+          if (path) await apagarArquivosClinica([path]);
           if (doc?.previewUrl) URL.revokeObjectURL(doc.previewUrl);
           setDocumentos(documentos.filter(d => d.id !== did));
       } catch (e: any) {

@@ -17,12 +17,14 @@ import {
   CircleHelp,
   ShieldAlert,
   ShieldCheck,
+  MessageCircle,
   Smile,
   User,
   Users,
 } from 'lucide-react';
 import BentoClinicSwitcher from '@/components/dashboard/BentoClinicSwitcher';
 import { useImagemSdr } from '@/lib/imagemSdr';
+import { WHATSAPP_ATIVO } from '@/lib/whatsappCliente';
 import BentoSidebarTooltip from '@/components/bento/BentoSidebarTooltip';
 
 export type DashboardSidebarNavOptions = {
@@ -86,7 +88,8 @@ const LINKS = [
   { href: '/proteses', label: 'Laboratório', icon: Smile },
   { href: '/financeiro', label: 'Financeiro', icon: DollarSign },
   { href: '/relatorios', label: 'Relatórios', icon: BarChart3 },
-] as const;
+  ...(WHATSAPP_ATIVO ? [{ href: '/whatsapp', label: 'WhatsApp', icon: MessageCircle }] : []),
+];
 
 function isNavActive(pathname: string, href: string) {
   if (href === '/dashboard') return pathname === '/dashboard';

@@ -1,8 +1,10 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Loader2, Mail, MessageCircle, Smartphone } from 'lucide-react';
-import { abrirComunicacaoCliente, type EventoComunicacao } from '@/lib/comunicacao';
+import { abrirComunicacaoCliente, montarMensagemEvento, type EventoComunicacao } from '@/lib/comunicacao';
+import { whatsappConectado } from '@/lib/whatsappCliente';
 import type { DocumentoContexto } from '@/lib/documentVariables';
 
 type Variant = 'icons' | 'buttons' | 'row';
@@ -33,6 +35,7 @@ export default function PatientContactButtons({
 }: Props) {
   const [loading, setLoading] = useState<'whatsapp' | 'email' | 'sms' | null>(null);
   const [legenda, setLegenda] = useState<'whatsapp' | 'email' | 'sms' | null>(null);
+  const router = useRouter();
 
   async function enviar(canal: 'whatsapp' | 'email' | 'sms') {
     if (!clinicaId) {
@@ -50,6 +53,12 @@ export default function PatientContactButtons({
 
     setLoading(canal);
     try {
+      if (canal === 'whatsapp' && await whatsappConectado(clinicaId)) {
+        const { mensagem } = await montarMensagemEvento(clinicaId, evento, 'whatsapp', contexto);
+        router.push(`/whatsapp?${new URLSearchParams({ telefone: telefone || '', texto: mensagem, clinica: String(clinicaId) }).toString()}`);
+        onEnviado?.(canal);
+        return;
+      }
       const ok = await abrirComunicacaoCliente(canal, { telefone, email }, clinicaId, evento, contexto);
       if (!ok) {
         alert(canal === 'email' ? 'Não foi possível abrir o e-mail.' : 'Não foi possível abrir a mensagem.');

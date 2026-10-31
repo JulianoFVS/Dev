@@ -10,10 +10,12 @@ import {
   Lock,
   Mail,
   Upload,
+  HardDrive,
 } from 'lucide-react';
 import { bentoInput } from '@/lib/bentoUi';
 import { prepararFotoPaciente } from '@/lib/prepararFotoPaciente';
 import { useImagemSdr } from '@/lib/imagemSdr';
+import { carregarUsoArmazenamento, EVENTO_ARMAZENAMENTO, formatarBytes, type UsoArmazenamento } from '@/lib/armazenamento';
 import { useRouter } from 'next/navigation';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
 import { useClinica, getClinicLabel } from '@/app/context/ClinicaContext';
@@ -53,7 +55,7 @@ function bootProf(): ProfRow | null {
 export default function Perfil() {
   const boot = bootProf();
   const jaCarregou = useRef(!!boot);
-  const { activeClinic } = useClinica();
+  const { activeClinic, activeClinicId } = useClinica();
   const [loading, setLoading] = useState(() => !boot);
   const [salvando, setSalvando] = useState(false);
   const [form, setForm] = useState(() => ({
@@ -360,8 +362,78 @@ export default function Perfil() {
             </div>
           </section>
 
+          <ArmazenamentoSecao clinicaId={activeClinicId && activeClinicId !== 'all' ? activeClinicId : null} />
         </div>
       </div>
     </div>
+  );
+}
+
+function ArmazenamentoSecao({ clinicaId }: { clinicaId: string | null }) {
+  const [usos, setUsos] = useState<UsoArmazenamento[] | null>(null);
+  const [erro, setErro] = useState('');
+
+  useEffect(() => {
+    let ativo = true;
+    const atualizar = () => {
+      carregarUsoArmazenamento(clinicaId)
+        .then((dados) => { if (ativo) { setUsos(dados); setErro(''); } })
+        .catch((err: unknown) => { if (ativo) setErro(err instanceof Error ? err.message : 'Falha ao medir.'); });
+    };
+    atualizar();
+    window.addEventListener(EVENTO_ARMAZENAMENTO, atualizar);
+    return () => {
+      ativo = false;
+      window.removeEventListener(EVENTO_ARMAZENAMENTO, atualizar);
+    };
+  }, [clinicaId]);
+
+  if (usos && usos.length === 0 && !erro) return null;
+
+  return (
+    <section className={sectionPad}>
+      <div className="mb-3 flex items-center gap-2">
+        <HardDrive size={16} className="text-neutral-500" />
+        <h2 className="text-sm font-semibold text-neutral-900">Armazenamento</h2>
+      </div>
+      {erro ? (
+        <p className="text-sm text-neutral-500">{erro}</p>
+      ) : !usos ? (
+        <div className="h-12 animate-pulse rounded-xl bg-neutral-50" />
+      ) : (
+        <div className="space-y-4">
+          {usos.map((uso) => {
+            const proporcao = uso.limite > 0 ? Math.min(1, uso.usado / uso.limite) : 1;
+            const cor = proporcao >= 0.95 ? 'bg-red-500' : proporcao >= 0.8 ? 'bg-amber-500' : 'bg-neutral-900';
+            return (
+              <div key={uso.clinicaId}>
+                <div className="mb-1.5 flex items-baseline justify-between gap-3 text-sm">
+                  <span className="min-w-0 truncate text-neutral-700">{usos.length > 1 ? uso.nome : 'Fotos e documentos da clínica'}</span>
+                  <span className="shrink-0 tabular-nums text-neutral-500">
+                    {formatarBytes(uso.usado)} de {formatarBytes(uso.limite)}
+                  </span>
+                </div>
+                <div
+                  className="h-2.5 w-full overflow-hidden rounded-full bg-neutral-100"
+                  role="progressbar"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={Math.round(proporcao * 100)}
+                >
+                  <div className={`h-full rounded-full transition-[width] duration-500 ${cor}`} style={{ width: `${Math.max(proporcao * 100, uso.usado > 0 ? 1 : 0)}%` }} />
+                </div>
+                {proporcao >= 0.8 && (
+                  <p className={`mt-1.5 text-xs ${proporcao >= 0.95 ? 'text-red-600' : 'text-amber-700'}`}>
+                    {proporcao >= 1
+                      ? 'Espaço esgotado: novos envios estão bloqueados. Apague arquivos antigos ou fale com o suporte.'
+                      : 'Espaço quase no fim. Apague arquivos antigos ou fale com o suporte para aumentar o limite.'}
+                  </p>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </section>
   );
 }

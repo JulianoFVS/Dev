@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { readRouteCache, writeRouteCache } from '@/lib/routeListCache';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+import { enviarArquivoClinica } from '@/lib/armazenamento';
 import {
     Loader2, Plus, X, Copy, Check, AlertTriangle, ArrowUpDown, Pencil, Trash2, Building2,
 } from 'lucide-react';
@@ -25,6 +26,7 @@ type Credenciais = {
 const FORM_VAZIO = {
     nomeRede: '', nomeMatriz: '', nomeDono: '', emailDono: '',
     telefone: '', cep: '', rua: '', numero: '', complemento: '', bairro: '', cidade: '', uf: '',
+    limiteGb: '1',
 };
 
 const SA_CACHE_KEY = 'ortus:super-admin:v1';
@@ -147,8 +149,7 @@ export default function SuperAdminPage() {
     async function publicarLogo(token: string, redeId: string | number, clinicaId: string | number, arquivo: File) {
         const ext = arquivo.name.split('.').pop() || 'png';
         const filePath = `clinicas/${clinicaId}/logo-${Date.now()}.${ext}`;
-        const { error: uploadError } = await supabase.storage.from('arquivos_ortus').upload(filePath, arquivo, { upsert: true });
-        if (uploadError) throw uploadError;
+        await enviarArquivoClinica(filePath, arquivo, { upsert: true });
         const { data: { publicUrl } } = supabase.storage.from('arquivos_ortus').getPublicUrl(filePath);
         const resp = await fetch('/api/super-admin/rede', {
             method: 'PATCH',
@@ -191,6 +192,7 @@ export default function SuperAdminPage() {
                             bairro: form.bairro,
                             cidade: form.cidade,
                             uf: form.uf,
+                            limite_armazenamento_mb: Math.round(Number(form.limiteGb.replace(',', '.')) * 1024) || undefined,
                         },
                         dono: donoEdit ? {
                             id: donoEdit.id,
@@ -286,6 +288,7 @@ export default function SuperAdminPage() {
                 bairro: clinica?.bairro || '',
                 cidade: clinica?.cidade || '',
                 uf: clinica?.uf || '',
+                limiteGb: String(Number(clinica?.limite_armazenamento_mb || 1024) / 1024).replace('.', ','),
             });
             setLogoPreview(clinica?.logo_url || '');
         } catch (err: any) {
@@ -535,6 +538,12 @@ export default function SuperAdminPage() {
                             <span className={rotulo}>E-mail do dono <span className="text-red-500">*</span></span>
                             <input type="email" value={form.emailDono} onChange={(e) => setForm({ ...form, emailDono: e.target.value })} className={campo} placeholder="dono@clinica.com" required />
                         </label>
+                        {editando && clinicaEditId != null && (
+                            <label>
+                                <span className={rotulo}>Armazenamento (GB)</span>
+                                <input inputMode="decimal" value={form.limiteGb} onChange={(e) => setForm({ ...form, limiteGb: e.target.value.replace(/[^\d.,]/g, '') })} className={campo} placeholder="1" />
+                            </label>
+                        )}
                     </div>
                     </div>
                     <div className="flex shrink-0 justify-end gap-2 border-t border-black/5 px-5 py-4 sm:px-6">
