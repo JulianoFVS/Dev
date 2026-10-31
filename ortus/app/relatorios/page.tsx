@@ -513,10 +513,11 @@ export default function Relatorios() {
                             <ArrowLeft size={16} /> Relatórios
                         </button>
                     )}
-                    <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 md:text-[2rem]">{titulo}</h1>
-                    <p className="mt-1 text-sm text-neutral-500 sm:text-base">
-                        {activeClinic ? getClinicLabel(activeClinic) : 'Todas as suas clínicas'} · {periodo.label}
-                    </p>
+                    <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 md:text-[2rem]">
+                        {titulo}
+                        <span className="text-neutral-400"> · {activeClinic ? getClinicLabel(activeClinic) : 'Todas as suas clínicas'}</span>
+                    </h1>
+                    <p className="mt-1 text-sm text-neutral-500 sm:text-base">{periodo.label}</p>
                 </div>
                 {tipo !== 'painel' && (
                     <button type="button" onClick={imprimir} className="inline-flex h-10 items-center justify-center gap-2 self-start rounded-md border border-neutral-200 bg-white px-4 text-sm font-medium text-neutral-800 hover:bg-neutral-50">

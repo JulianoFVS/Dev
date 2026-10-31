@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { Loader2, Plus, X } from 'lucide-react';
 import CustomSelect from '@/components/ui/CustomSelect';
 import Modal from '@/components/ui/Modal';
+import { garantirLinhaParticular } from '@/lib/precoTratamento';
 
 export type TratamentoCriado = {
   id: number | string;
@@ -156,6 +157,18 @@ export default function QuickTratamentoModal({ open, onClose, clinicaId, variant
         .single();
 
       if (error) throw error;
+
+      try {
+        await garantirLinhaParticular(supabase, Number(clinicaId), {
+          id: data.id,
+          valor_sugerido: data.valor_sugerido,
+          custo_padrao: custo ?? 0,
+          codigo_tuss_padrao: variant === 'full' ? form.codigo_tuss.trim() || null : null,
+          aceita_faces: variant === 'full' ? form.aceita_faces : false,
+        });
+      } catch {
+        /* o catálogo já foi gravado */
+      }
 
       onCreated({
         id: data.id,

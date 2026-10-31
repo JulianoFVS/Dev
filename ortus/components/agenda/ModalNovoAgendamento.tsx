@@ -12,8 +12,9 @@ import CampoData from '@/components/ui/CampoData';
 import CampoHora from '@/components/ui/CampoHora';
 import Modal from '@/components/ui/Modal';
 import ProcedureCombobox from '@/components/forms/ProcedureCombobox';
+import { tratamentosVisiveis, valorNaAgenda, type LinhaPreco, type PlanoTipo } from '@/lib/precoTratamento';
 
-type PacienteOpcao = { id: string | number; nome: string; clinica_id?: string | number | null; telefone?: string | null; email?: string | null };
+type PacienteOpcao = { id: string | number; nome: string; clinica_id?: string | number | null; telefone?: string | null; email?: string | null; plano_id?: string | null };
 
 type Props = {
   open: boolean;
@@ -54,6 +55,8 @@ export default function ModalNovoAgendamento({
   const [profissionais, setProfissionais] = useState<ProfissionalEquipe[]>([]);
   const [pacientes, setPacientes] = useState<PacienteOpcao[]>([]);
   const [tratamentos, setTratamentos] = useState<{ id: string | number; nome: string; valor_sugerido?: number | string | null; especialidade_id?: string | null }[]>([]);
+  const [planosPreco, setPlanosPreco] = useState<PlanoTipo[]>([]);
+  const [linhasPreco, setLinhasPreco] = useState<LinhaPreco[]>([]);
   const [especialidades, setEspecialidades] = useState<{ id: string; nome: string }[]>([]);
   const [nivel, setNivel] = useState<string>('admin');
   const [meuProfissionalId, setMeuProfissionalId] = useState('');
@@ -144,13 +147,17 @@ export default function ModalNovoAgendamento({
     if (!open || !form.clinica_id) return;
     let cancelado = false;
     async function carregarClinica() {
-      const [tr, esp, pac] = await Promise.all([
+      const [tr, esp, pac, planos, linhas] = await Promise.all([
         supabase.from('tratamentos_base').select('id, nome, valor_sugerido, especialidade_id').eq('clinica_id', form.clinica_id).eq('ativo', true).order('nome'),
         supabase.from('especialidades').select('id, nome').eq('clinica_id', Number(form.clinica_id)).eq('ativo', true).order('nome'),
-        supabase.from('pacientes').select('id, nome, clinica_id, telefone').eq('clinica_id', form.clinica_id).order('nome'),
+        supabase.from('pacientes').select('id, nome, clinica_id, telefone, plano_id').eq('clinica_id', form.clinica_id).order('nome'),
+        supabase.from('planos').select('id, tipo').eq('clinica_id', Number(form.clinica_id)),
+        supabase.from('planos_tratamentos').select('plano_id, tratamento_id, valor, ativo').eq('clinica_id', Number(form.clinica_id)),
       ]);
       if (cancelado) return;
       setTratamentos(tr.data || []);
+      setPlanosPreco((planos.data || []) as PlanoTipo[]);
+      setLinhasPreco((linhas.data || []) as LinhaPreco[]);
       setEspecialidades((esp.data || []) as { id: string; nome: string }[]);
       const lista = (pac.data || []) as PacienteOpcao[];
       if (pacienteId && !lista.some((p) => String(p.id) === String(pacienteId))) {
@@ -163,6 +170,12 @@ export default function ModalNovoAgendamento({
   }, [open, form.clinica_id, pacienteId, pacienteNome]);
 
   const profissionaisDaClinica = profissionais.filter((p) => p.clinicas?.some((c) => String(c.id) === String(form.clinica_id)));
+  const planoDoPaciente = (() => {
+    const pac = pacientes.find((p) => String(p.id) === String(form.paciente_id));
+    if (!pac?.plano_id) return null;
+    return planosPreco.find((p) => p.id === pac.plano_id) ?? null;
+  })();
+  const tratamentosAgenda = tratamentosVisiveis(tratamentos, planoDoPaciente, linhasPreco);
 
   async function salvar() {
     if (!form.title || !form.paciente_id || !form.clinica_id || !form.date || !form.time) {
@@ -250,7 +263,13 @@ export default function ModalNovoAgendamento({
           <label className="mb-1.5 block text-xs font-medium text-neutral-500">Paciente <span className="text-red-500">*</span></label>
           <CustomSelect
             value={form.paciente_id}
-            onChange={(v) => setForm((p) => ({ ...p, paciente_id: v }))}
+            onChange={(v) => {
+              const pac = pacientes.find((p) => String(p.id) === String(v));
+              const plano = pac?.plano_id ? planosPreco.find((item) => item.id === pac.plano_id) ?? null : null;
+              const tratamento = tratamentos.find((item) => item.nome === form.title);
+              const preco = valorNaAgenda(tratamento, plano, linhasPreco);
+              setForm((p) => ({ ...p, paciente_id: v, valor: preco ?? p.valor }));
+            }}
             options={pacientes.map((p) => ({ value: String(p.id), label: p.nome }))}
             placeholder={pacienteNome || 'Selecione...'}
             searchable
@@ -271,9 +290,12 @@ export default function ModalNovoAgendamento({
           <ProcedureCombobox
             clinicaId={form.clinica_id}
             especialidades={especialidades}
-            tratamentos={tratamentos}
+            tratamentos={tratamentosAgenda}
             value={form.title}
-            onChange={(nome, t) => setForm((p) => ({ ...p, title: nome, valor: t ? String(t.valor_sugerido ?? p.valor) : p.valor }))}
+            onChange={(nome, t) => {
+              const preco = valorNaAgenda(t, planoDoPaciente, linhasPreco);
+              setForm((p) => ({ ...p, title: nome, valor: preco ?? p.valor }));
+            }}
             disabled={!form.clinica_id}
           />
         </div>

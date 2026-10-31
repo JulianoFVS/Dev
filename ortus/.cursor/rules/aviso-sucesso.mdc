@@ -1,0 +1,12 @@
+---
+description: Aviso de sucesso ao concluir um popup de alteração
+alwaysApply: true
+---
+
+# Aviso ao salvar
+
+Todo popup de criar, editar ou excluir confirma o resultado na hora.
+
+- Se gravou, mostre a notificação de sucesso e feche o popup.
+- Se o nome já existe, avise na hora e mantenha o popup aberto.
+- Falha ao gravar também deixa o popup aberto, com o aviso de erro.

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { usePatientSlideOver } from '@/components/PatientSlideOver';
-import { useClinica } from '@/app/context/ClinicaContext';
+import { useClinica, getClinicLabel } from '@/app/context/ClinicaContext';
 import { carregarConfig, salvarConfig } from '@/lib/configClinica';
 import { ChevronDown, ChevronRight, CircleDot, ClipboardList, Eye, Filter, FlaskConical, Gem, Heart, Loader2, Package, Paintbrush, Pipette, Plus, Scissors, Search, Shield, Smile, Sparkles, Star, Truck, Wrench, X, Zap } from 'lucide-react';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
@@ -192,7 +192,7 @@ export default function KanbanProtesesInteligente() {
   const searchParams = useSearchParams();
   const pacientePreSelecionado = searchParams?.get('paciente');
   const { openPatient } = usePatientSlideOver();
-  const { activeClinicId, loading: clinicLoading } = useClinica();
+  const { activeClinicId, activeClinic, loading: clinicLoading } = useClinica();
   const { showConfirm } = useCustomAlert();
   const clinicKeyBoot = normalizeClinicId(
     activeClinicId === 'all' || !activeClinicId ? null : activeClinicId,
@@ -584,7 +584,10 @@ export default function KanbanProtesesInteligente() {
     <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden px-2.5 py-2.5 font-poppins sm:px-3 sm:py-3 md:px-4 md:py-3.5">
       <div className="flex shrink-0 flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 md:text-[2rem]">Laboratório</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 md:text-[2rem]">
+            Laboratório
+            <span className="text-neutral-400"> · {activeClinic ? getClinicLabel(activeClinic) : 'Todas as clínicas'}</span>
+          </h1>
           <p className="mt-1 text-sm text-neutral-500 sm:text-base">
             {filteredCards.length} pedido(s) · fluxo de próteses · arraste entre colunas
           </p>

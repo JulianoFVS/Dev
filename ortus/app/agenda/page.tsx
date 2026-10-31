@@ -25,6 +25,7 @@ import {
   type LembreteAgendamento,
 } from '@/lib/lembretesAgenda';
 import { lerPrefillAgenda, limparPrefillAgenda } from '@/lib/agendaPrefill';
+import { tratamentosVisiveis, valorNaAgenda, type LinhaPreco, type PlanoTipo } from '@/lib/precoTratamento';
 
 type Visao = 'mes' | 'semana' | 'dia' | 'lista';
 
@@ -134,7 +135,7 @@ function MenuFiltro({
         type="button"
         onClick={abrir}
         title={ativo ? titulo : undefined}
-        className={`relative inline-flex h-8 items-center rounded-md border bg-white text-sm text-neutral-700 hover:bg-neutral-50 ${ativo ? 'border-neutral-900' : 'border-neutral-200'}`}
+        className={`relative inline-flex h-8 items-center rounded-md border bg-white text-sm text-neutral-700 hover:bg-neutral-50 ${ativo ? 'border-red-500' : 'border-neutral-200'}`}
       >
         <span className="invisible inline-flex items-center gap-1.5 px-2.5">
           <ChevronDown size={13} />
@@ -176,7 +177,7 @@ export default function Agenda() {
   const searchParams = useSearchParams();
   const pacientePreSelecionado = searchParams?.get('paciente');
   const { openQuickCapture } = usePatientActionModal();
-  const { activeClinicId, loading: clinicLoading } = useClinica();
+  const { activeClinicId, loading: clinicLoading, clinicaNome } = useClinica();
   const clinicaFiltro =
     !activeClinicId || activeClinicId === 'all' ? 'todas' : String(activeClinicId);
   const { showAlert, showConfirm } = useCustomAlert();
@@ -188,6 +189,8 @@ export default function Agenda() {
   const [profissionaisFiltrados, setProfissionaisFiltrados] = useState<any[]>([]);
   const [pacientes, setPacientes] = useState<any[]>([]);
   const [tratamentosBase, setTratamentosBase] = useState<any[]>([]);
+  const [planosPreco, setPlanosPreco] = useState<PlanoTipo[]>([]);
+  const [linhasPreco, setLinhasPreco] = useState<LinhaPreco[]>([]);
   const [especialidades, setEspecialidades] = useState<{ id: string; nome: string }[]>([]);
   const [openModal, setOpenModal] = useState(false);
   const [lembretesAbertos, setLembretesAbertos] = useState(true);
@@ -298,7 +301,7 @@ export default function Agenda() {
       if (idsPermitidos.length > 0) {
           const { data: pac } = await supabase
               .from('pacientes')
-              .select('id, nome, clinica_id, telefone')
+              .select('id, nome, clinica_id, telefone, plano_id')
               .in('clinica_id', idsPermitidos as any)
               .order('nome');
           if (pac) setPacientes(pac);
@@ -308,13 +311,14 @@ export default function Agenda() {
   }, []);
 
   async function carregarTratamentosBase(clinicaId: string) {
-      const { data } = await supabase
-          .from('tratamentos_base')
-          .select('id, nome, valor_sugerido, especialidade_id')
-          .eq('clinica_id', clinicaId)
-          .eq('ativo', true)
-          .order('nome');
-      setTratamentosBase(data || []);
+      const [tr, planos, linhas] = await Promise.all([
+          supabase.from('tratamentos_base').select('id, nome, valor_sugerido, especialidade_id').eq('clinica_id', clinicaId).eq('ativo', true).order('nome'),
+          supabase.from('planos').select('id, tipo').eq('clinica_id', Number(clinicaId)),
+          supabase.from('planos_tratamentos').select('plano_id, tratamento_id, valor, ativo').eq('clinica_id', Number(clinicaId)),
+      ]);
+      setTratamentosBase(tr.data || []);
+      setPlanosPreco((planos.data || []) as PlanoTipo[]);
+      setLinhasPreco((linhas.data || []) as LinhaPreco[]);
   }
 
   async function carregarEspecialidades(clinicaId: string) {
@@ -367,7 +371,7 @@ export default function Agenda() {
       if (idsPermitidos.length > 0) {
           const { data: pac } = await supabase
               .from('pacientes')
-              .select('id, nome, clinica_id, telefone')
+              .select('id, nome, clinica_id, telefone, plano_id')
               .in('clinica_id', idsPermitidos as any)
               .order('nome');
           if (pac) setPacientes(pac);
@@ -556,6 +560,17 @@ export default function Agenda() {
     return Array.from({ length: max - min + 1 }, (_, indice) => min + indice);
   }, [eventosVisiveis]);
 
+  const planoDoPaciente = useMemo(() => {
+    const pac = pacientes.find((p: any) => String(p.id) === String(formData.paciente_id));
+    if (!pac?.plano_id) return null;
+    return planosPreco.find((p) => p.id === pac.plano_id) ?? null;
+  }, [pacientes, formData.paciente_id, planosPreco]);
+
+  const tratamentosAgenda = useMemo(
+    () => tratamentosVisiveis(tratamentosBase, planoDoPaciente, linhasPreco),
+    [tratamentosBase, planoDoPaciente, linhasPreco],
+  );
+
   useEffect(() => {
     const id = window.setInterval(() => setAgora(new Date()), 30000);
     return () => window.clearInterval(id);
@@ -631,7 +646,10 @@ export default function Agenda() {
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden px-2.5 py-2.5 font-poppins sm:px-3 sm:py-3 md:px-4 md:py-3.5 max-sm:overflow-y-auto">
       <header className="mb-3 shrink-0 space-y-3">
-        <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 md:text-[2rem]">{titulo}</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 md:text-[2rem]">
+          {titulo}
+          <span className="text-neutral-400"> · {clinicaNome}</span>
+        </h1>
 
         <div className="relative">
           <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
@@ -658,6 +676,16 @@ export default function Agenda() {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            {(filtroStatus !== 'todos' || filtroProfissional !== 'todos') && (
+              <button
+                type="button"
+                aria-label="Limpar filtros"
+                onClick={() => { setFiltroStatus('todos'); setFiltroProfissional('todos'); }}
+                className="inline-flex h-8 w-8 items-center justify-center text-red-500"
+              >
+                <X size={16} />
+              </button>
+            )}
             <MenuFiltro rotulo="Status" valor={filtroStatus} onChange={setFiltroStatus} opcoes={STATUS_OPCOES} />
             <MenuFiltro
               rotulo="Profissional"
@@ -665,14 +693,6 @@ export default function Agenda() {
               onChange={setFiltroProfissional}
               opcoes={[{ value: 'todos', label: 'Todos' }, ...profissionais.map((profissional: any) => ({ value: String(profissional.id), label: profissional.nome }))]}
             />
-            <button
-              type="button"
-              onClick={() => { setFiltroStatus('todos'); setFiltroProfissional('todos'); }}
-              disabled={filtroStatus === 'todos' && filtroProfissional === 'todos'}
-              className="inline-flex h-8 items-center rounded-md border border-neutral-200 bg-white px-2.5 text-sm text-neutral-700 hover:bg-neutral-50 disabled:opacity-40"
-            >
-              Limpar
-            </button>
             <SegmentedControl
               fit
               className="shrink-0 bg-white"
@@ -774,7 +794,7 @@ export default function Agenda() {
                   onClick={() => abrirNoDia(dia)}
                   className={`flex min-h-0 cursor-pointer flex-col p-1 text-left hover:bg-neutral-50 sm:p-1.5 ${indice % 7 !== 6 ? 'border-r border-neutral-200' : ''} ${indice < 35 ? 'border-b border-neutral-200' : ''}`}
                 >
-                  <span className={`text-xs sm:text-sm ${mesmoDia(dia, hoje) ? 'font-medium text-amber-700' : fora ? 'text-neutral-300' : 'text-neutral-700'}`}>{dia.getDate()}</span>
+                  <span className={`inline-flex h-6 min-w-6 items-center justify-center rounded-full px-1 text-xs sm:text-sm ${mesmoDia(dia, hoje) ? 'bg-amber-500 font-semibold text-white' : fora ? 'text-neutral-300' : 'text-neutral-700'}`}>{dia.getDate()}</span>
                   <div className="mt-0.5 min-h-0 space-y-0.5 overflow-hidden">
                     {lista.slice(0, 2).map((evento) => <ChipEvento key={evento.id} evento={evento} />)}
                     {lista.length > 2 && <span className="px-1 text-[11px] text-neutral-400">+{lista.length - 2}</span>}
@@ -793,7 +813,7 @@ export default function Agenda() {
             {(visao === 'dia' ? [inicioDoDia(cursor)] : diasSemana).map((dia) => (
               <div key={chaveLocal(dia)} className="py-2 text-center">
                 <div className="text-[11px] text-neutral-400">{DIAS_CURTOS[dia.getDay()]}</div>
-                <div className={`text-sm ${mesmoDia(dia, hoje) ? 'font-medium text-amber-700' : 'text-neutral-800'}`}>{dia.getDate()}</div>
+                <div className={`mx-auto flex h-6 w-6 items-center justify-center rounded-full text-sm ${mesmoDia(dia, hoje) ? 'bg-amber-500 font-semibold text-white' : 'text-neutral-800'}`}>{dia.getDate()}</div>
               </div>
             ))}
           </div>
@@ -894,7 +914,13 @@ export default function Agenda() {
                                   Paciente
                                   <button type="button" onClick={abrirCadastroPaciente} className="inline-flex items-center gap-1 font-medium text-neutral-700 hover:text-neutral-900"><UserPlus size={12}/> Novo</button>
                               </span>
-                              <CustomSelect value={formData.paciente_id} onChange={v => setFormData({...formData, paciente_id: v})} options={pacientes.filter((p:any) => !formData.clinica_id || p.clinica_id == formData.clinica_id).map((p:any) => ({ value: String(p.id), label: p.nome }))} placeholder="Selecione..." searchable size="md"/>
+                              <CustomSelect value={formData.paciente_id} onChange={v => {
+                                  const pac = pacientes.find((p: any) => String(p.id) === String(v));
+                                  const plano = pac?.plano_id ? planosPreco.find((p) => p.id === pac.plano_id) ?? null : null;
+                                  const tratamento = tratamentosBase.find((item: any) => item.nome === formData.title);
+                                  const preco = valorNaAgenda(tratamento, plano, linhasPreco);
+                                  setFormData({ ...formData, paciente_id: v, valor: preco ?? formData.valor });
+                              }} options={pacientes.filter((p:any) => !formData.clinica_id || p.clinica_id == formData.clinica_id).map((p:any) => ({ value: String(p.id), label: p.nome }))} placeholder="Selecione..." searchable size="md"/>
                           </label>
                           <label>
                               <span className="mb-1.5 block text-xs font-medium text-neutral-500">Data</span>
@@ -909,13 +935,14 @@ export default function Agenda() {
                               <ProcedureCombobox
                                   clinicaId={formData.clinica_id}
                                   especialidades={especialidades}
-                                  tratamentos={tratamentosBase}
+                                  tratamentos={tratamentosAgenda}
                                   value={formData.title}
                                   onChange={(nome, t) => {
+                                      const preco = valorNaAgenda(t, planoDoPaciente, linhasPreco);
                                       setFormData((p) => ({
                                           ...p,
                                           title: nome,
-                                          valor: t ? String(t.valor_sugerido ?? p.valor) : p.valor,
+                                          valor: preco ?? p.valor,
                                       }));
                                   }}
                                   disabled={!formData.clinica_id}

@@ -7,11 +7,13 @@ import { Building2, Calendar, Clock, DollarSign, Loader2, Save, User } from 'luc
 import { fetchUserClinicas } from '@/lib/clinicScoped';
 import CustomSelect from '@/components/ui/CustomSelect';
 import { validarAgendamentoCompleto } from '@/lib/horarioProfissional';
+import { tratamentosVisiveis, valorNaAgenda, type LinhaPreco, type PlanoTipo } from '@/lib/precoTratamento';
 
 export type AppointmentPatient = {
   id: string | number;
   nome: string;
   clinica_id?: string | null;
+  plano_id?: string | null;
 };
 
 type TratamentoBase = { id: string | number; nome: string; valor_sugerido?: number | string | null; especialidade_id?: string | null };
@@ -33,6 +35,9 @@ type AppointmentFormProps = {
 
 export default function AppointmentForm({ paciente, defaultDate, defaultTime, onSuccess, onCancel }: AppointmentFormProps) {
   const [tratamentosBase, setTratamentosBase] = useState<TratamentoBase[]>([]);
+  const [planosPreco, setPlanosPreco] = useState<PlanoTipo[]>([]);
+  const [linhasPreco, setLinhasPreco] = useState<LinhaPreco[]>([]);
+  const [planoPacienteId, setPlanoPacienteId] = useState<string | null>(paciente.plano_id ?? null);
   const [especialidades, setEspecialidades] = useState<{ id: string; nome: string }[]>([]);
   const [clinicas, setClinicas] = useState<Clinica[]>([]);
   const [profissionais, setProfissionais] = useState<Profissional[]>([]);
@@ -89,13 +94,19 @@ export default function AppointmentForm({ paciente, defaultDate, defaultTime, on
   }, []);
 
   const carregarCatalogo = useCallback(async (clinicaId: string) => {
-    const [{ data: tr }, { data: esp }] = await Promise.all([
+    const [{ data: tr }, { data: esp }, { data: pac }, { data: planos }, { data: linhas }] = await Promise.all([
       supabase.from('tratamentos_base').select('id, nome, valor_sugerido, especialidade_id').eq('clinica_id', clinicaId).eq('ativo', true).order('nome'),
       supabase.from('especialidades').select('id, nome').eq('clinica_id', Number(clinicaId)).eq('ativo', true).order('nome'),
+      supabase.from('pacientes').select('plano_id').eq('id', paciente.id).maybeSingle(),
+      supabase.from('planos').select('id, tipo').eq('clinica_id', Number(clinicaId)),
+      supabase.from('planos_tratamentos').select('plano_id, tratamento_id, valor, ativo').eq('clinica_id', Number(clinicaId)),
     ]);
     setTratamentosBase(tr || []);
     setEspecialidades(esp || []);
-  }, []);
+    setPlanosPreco((planos || []) as PlanoTipo[]);
+    setLinhasPreco((linhas || []) as LinhaPreco[]);
+    setPlanoPacienteId(pac?.plano_id ?? paciente.plano_id ?? null);
+  }, [paciente.id, paciente.plano_id]);
 
   useEffect(() => {
     if (!form.clinica_id) {
@@ -182,13 +193,18 @@ export default function AppointmentForm({ paciente, defaultDate, defaultTime, on
           <ProcedureCombobox
             clinicaId={form.clinica_id}
             especialidades={especialidades}
-            tratamentos={tratamentosBase}
+            tratamentos={tratamentosVisiveis(
+              tratamentosBase,
+              planosPreco.find((p) => p.id === planoPacienteId) ?? null,
+              linhasPreco,
+            )}
             value={form.procedimento}
             onChange={(nome, t) => {
+              const preco = valorNaAgenda(t, planosPreco.find((p) => p.id === planoPacienteId) ?? null, linhasPreco);
               setForm((current) => ({
                 ...current,
                 procedimento: nome,
-                valor: t ? String(t.valor_sugerido ?? current.valor) : current.valor,
+                valor: preco ?? current.valor,
               }));
             }}
             disabled={!form.clinica_id}

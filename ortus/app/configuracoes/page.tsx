@@ -2,8 +2,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import { Building2, Users, Plus, Trash2, MapPin, Check, X, Loader2, Edit, UserPlus, Shield, User, FileText, Phone, Mail, Save, Lock, ClipboardList, HelpCircle, FileSignature, Tag, SlidersHorizontal, Database, Download, Upload, Bell, Palette, RotateCcw, AlertTriangle, Clock, DollarSign, Layers3, MessageCircle, CreditCard, Eye, Search, Filter, LayoutGrid, List, ChevronDown, Camera } from 'lucide-react';
-import { PlanosContent } from '@/app/planos/page';
+import { Building2, Users, Plus, Trash2, MapPin, Check, X, Loader2, Edit, UserPlus, Shield, User, FileText, Phone, Mail, Save, Lock, ClipboardList, HelpCircle, FileSignature, Tag, SlidersHorizontal, Database, Download, Upload, Bell, Palette, RotateCcw, AlertTriangle, Clock, DollarSign, MessageCircle, CreditCard, Eye, Search, Filter, LayoutGrid, List, ChevronDown, Camera } from 'lucide-react';
 import { carregarModelos, carregarModelosAsync, salvarModelos, salvarModelosAsync, novoIdModelo, novoIdPergunta, type ModeloAnamnese, type PerguntaAnamnese, type TipoPergunta } from '@/lib/anamnese';
 import { listarBackups, criarBackupAgora, baixarBackupComoJson, excluirBackup as deletarBackupServer, restaurarBackup } from '@/lib/backup';
 import { fetchUserClinicas } from '@/lib/clinicScoped';
@@ -28,6 +27,7 @@ import { DOCUMENTO_VARIAVEIS, inserirTokenVariavel, tokenVariavelLabel, aplicarV
 import { applyTheme, THEME_OPTIONS, type ThemeId } from '@/lib/themePresets';
 import { FUSO_HORARIO_OPTIONS, UF_OPTIONS } from '@/lib/formOptions';
 import { useClinica, getClinicLabel } from '@/app/context/ClinicaContext';
+import { baixarTabelaTratamentos } from '@/lib/exportarTratamentos';
 import { bentoPrimaryBtn, bentoGhostBtn, bentoInput, bentoChip, bentoChipOutline, bentoToggleTrackOn, bentoToggleTrackOff, bentoModalPanel } from '@/lib/bentoUi';
 
 const cardShell = 'rounded-xl bg-white';
@@ -37,7 +37,6 @@ const CONFIG_NAVS = [
   { key: 'clinicas', label: 'Clínicas', icon: Building2 },
   { key: 'anamnese', label: 'Anamnese', icon: ClipboardList },
   { key: 'documentos', label: 'Docs', icon: FileSignature },
-  { key: 'planos', label: 'Planos', icon: Layers3 },
   { key: 'categorias', label: 'Categorias', icon: Tag },
   { key: 'taxas', label: 'Taxas', icon: CreditCard },
   { key: 'comunicacao', label: 'Comunicação', icon: MessageCircle },
@@ -946,6 +945,18 @@ export default function Configuracoes() {
       }
   }
 
+  async function exportarTabelaTratamentos() {
+    if (!activeClinic || activeClinic.id === 'all') {
+      await showAlert('Selecione uma clínica para exportar a tabela.', { type: 'warning' });
+      return;
+    }
+    try {
+      await baixarTabelaTratamentos(supabase, Number(activeClinic.id));
+    } catch {
+      await showAlert('Não foi possível exportar a tabela.', { type: 'error' });
+    }
+  }
+
   return (
     <>
     <div className="flex h-full min-h-0 flex-col overflow-hidden px-3 py-3 font-poppins">
@@ -1018,18 +1029,6 @@ export default function Configuracoes() {
                 </section>
             )}
 
-            {/* ABA PLANOS */}
-            {abaAtiva === 'planos' && (perfilCaller?.nivel_acesso === 'admin' || perfilCaller?.is_super_admin) && (
-                <section className={sectionPad}>
-                    <PlanosContent embedded />
-                </section>
-            )}
-            {abaAtiva === 'planos' && !(perfilCaller?.nivel_acesso === 'admin' || perfilCaller?.is_super_admin) && (
-                <section className={`${sectionPad} text-sm text-amber-800`}>
-                  <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 sm:p-5">Apenas administradores podem gerenciar planos.</div>
-                </section>
-            )}
-
             {/* ABA ANAMNESE */}
             {abaAtiva === 'anamnese' && (
                 <section className={sectionPad}>
@@ -1087,6 +1086,12 @@ export default function Configuracoes() {
                             <div className="col-span-2"><label className={campoLabel}>Slogan</label><input value={prefs.slogan} onChange={e => atualizarPref('slogan', e.target.value)} className={campoInput} placeholder="Ex: Odontologia Integrada"/></div>
                             <div className="col-span-2"><label className={campoLabel}>Cabeçalho dos documentos</label><textarea value={prefs.cabecalho_documentos} onChange={e => atualizarPref('cabecalho_documentos', e.target.value)} className="h-16 w-full resize-none rounded-md border border-neutral-200 bg-white p-2.5 text-sm text-neutral-900 outline-none focus:border-neutral-900" placeholder="Endereço, telefone e responsável técnico..."/></div>
                             <div className="col-span-2"><label className={campoLabel}>Rodapé dos documentos</label><input value={prefs.rodape_documentos} onChange={e => atualizarPref('rodape_documentos', e.target.value)} className={campoInput}/></div>
+                            <div className="col-span-2 flex items-center justify-between gap-3 rounded-md border border-neutral-200 px-3 py-2">
+                                <span className="text-sm font-medium text-neutral-800">Tabela de tratamentos</span>
+                                <button type="button" onClick={() => void exportarTabelaTratamentos()} className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-neutral-200 bg-white px-2.5 text-xs font-medium text-neutral-700">
+                                    <Download size={14} /> Exportar
+                                </button>
+                            </div>
                         </div>
                     </section>
                     <section className="min-h-0 space-y-3 overflow-hidden">

@@ -241,7 +241,7 @@ export default function DashboardSidebar({
           <NavItem href="/ajustes/equipe" label="Equipe" Icon={ShieldCheck} collapsed={collapsed} />
         )}
         {showTratamentosBase && (
-          <NavItem href="/ajustes/tratamentos" label="Tratamentos base" Icon={ClipboardList} collapsed={collapsed} />
+          <NavItem href="/ajustes/tratamentos" label="Tratamentos" Icon={ClipboardList} collapsed={collapsed} />
         )}
       </nav>
 

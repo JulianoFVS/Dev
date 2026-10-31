@@ -14,7 +14,7 @@ import Switch from '@/components/ui/Switch';
 import {
     Loader2, X, ShieldCheck, Copy, Check,
     AlertTriangle,
-    Trash2, ArrowUpDown, Pencil,
+    Trash2, ArrowUpDown, Pencil, Plus,
 } from 'lucide-react';
 import type { ComissaoRegra, ModuleName } from '@/lib/types/permissions';
 import { MODULES, buildModuleAccessMap } from '@/lib/modules';
@@ -910,10 +910,11 @@ export default function EquipePage() {
             <Aviso mensagem={aviso} />
             <div className="flex shrink-0 flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                 <div className="min-w-0">
-                    <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 md:text-[2rem]">Equipe</h1>
+                    <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 md:text-[2rem]">
+                        Equipe
+                        <span className="text-neutral-400"> · {activeClinic ? getClinicLabel(activeClinic) : 'Todas as clínicas'}</span>
+                    </h1>
                     <p className="mt-1 text-sm text-neutral-500 sm:text-base">
-                        {activeClinic ? getClinicLabel(activeClinic) : 'Todas as clínicas'}
-                        {' · '}
                         <span className="tabular-nums text-neutral-900">{totalAtivos}</span> {totalAtivos === 1 ? 'profissional' : 'profissionais'}
                         {' · '}
                         <span className="tabular-nums text-neutral-900">{totalAdmins}</span> {totalAdmins === 1 ? 'gestor' : 'gestores'}
@@ -924,9 +925,9 @@ export default function EquipePage() {
                 <button
                     type="button"
                     onClick={abrirModal}
-                    className="inline-flex h-10 shrink-0 items-center justify-center rounded-md bg-neutral-900 px-4 text-sm font-medium text-white hover:bg-neutral-800"
+                    className="inline-flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-md bg-neutral-900 px-4 text-sm font-medium text-white hover:bg-neutral-800"
                 >
-                    Adicionar
+                    <Plus size={16} /> Adicionar
                 </button>
             </div>
 

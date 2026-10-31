@@ -537,10 +537,11 @@ export default function Financeiro() {
     <div className="w-full space-y-3 px-2.5 py-2.5 pb-12 font-poppins sm:px-3 sm:py-3 md:px-4 md:py-3.5">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 md:text-[2rem]">Financeiro</h1>
-          <p className="mt-1 text-sm text-neutral-500 sm:text-base">
-            {activeClinic ? getClinicLabel(activeClinic) : 'Todas as clínicas'} · caixa e lançamentos
-          </p>
+          <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 md:text-[2rem]">
+            Financeiro
+            <span className="text-neutral-400"> · {activeClinic ? getClinicLabel(activeClinic) : 'Todas as clínicas'}</span>
+          </h1>
+          <p className="mt-1 text-sm text-neutral-500 sm:text-base">Caixa e lançamentos</p>
         </div>
         <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
           <button
