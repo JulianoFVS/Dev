@@ -119,21 +119,21 @@ export default function PatientContactButtons({
     );
   }
 
-  const pill = 'inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-xs font-medium transition-colors disabled:opacity-50';
+  const pill = 'inline-flex h-8 items-center justify-center gap-1.5 rounded-full text-xs font-medium transition-colors disabled:opacity-50 max-sm:w-8 sm:px-3';
 
   return (
     <div className={`flex flex-wrap items-center gap-1.5 ${className}`}>
-      <button type="button" onClick={() => enviar('whatsapp')} disabled={!!loading} className={`${pill} bg-neutral-900 text-white hover:bg-neutral-800`}>
+      <button type="button" onClick={() => enviar('whatsapp')} disabled={!!loading} aria-label="WhatsApp" className={`${pill} bg-neutral-900 text-white hover:bg-neutral-800`}>
         {loading === 'whatsapp' ? <Loader2 size={14} className="animate-spin" /> : <MessageCircle size={14} />}
-        WhatsApp
+        <span className="max-sm:hidden">WhatsApp</span>
       </button>
-      <button type="button" onClick={() => enviar('email')} disabled={!!loading} className={`${pill} border border-black/10 bg-white text-neutral-800 hover:bg-neutral-50`}>
+      <button type="button" onClick={() => enviar('email')} disabled={!!loading} aria-label="E-mail" className={`${pill} border border-black/10 bg-white text-neutral-800 hover:bg-neutral-50`}>
         {loading === 'email' ? <Loader2 size={14} className="animate-spin" /> : <Mail size={14} />}
-        E-mail
+        <span className="max-sm:hidden">E-mail</span>
       </button>
-      <button type="button" onClick={() => enviar('sms')} disabled={!!loading} className={`${pill} border border-black/10 bg-white text-neutral-800 hover:bg-neutral-50`}>
+      <button type="button" onClick={() => enviar('sms')} disabled={!!loading} aria-label="SMS" className={`${pill} border border-black/10 bg-white text-neutral-800 hover:bg-neutral-50`}>
         {loading === 'sms' ? <Loader2 size={14} className="animate-spin" /> : <Smartphone size={14} />}
-        SMS
+        <span className="max-sm:hidden">SMS</span>
       </button>
     </div>
   );

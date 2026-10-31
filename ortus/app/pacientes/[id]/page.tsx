@@ -1953,8 +1953,8 @@ export default function PacienteDetalhe() {
 
   return (
     <div className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden bg-white font-poppins">
-        <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-black/10 px-3 py-2.5 sm:gap-3 sm:px-4">
-            <div className="flex min-w-0 items-center gap-2.5">
+        <div className="flex shrink-0 items-center justify-between gap-2 border-b border-black/10 px-3 py-2.5 sm:gap-3 sm:px-4">
+            <div className="flex min-w-0 flex-1 items-center gap-2.5">
                 <Link href="/pacientes" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-black/10 bg-[#f8f8f6] text-neutral-600 transition-colors hover:bg-white"><ArrowLeft size={16}/></Link>
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-neutral-900 text-[11px] font-semibold text-white">
                     {form.foto_url ? <img src={form.foto_url} alt="" className="h-full w-full object-cover" /> : (form.nome || 'P').trim().split(/\s+/).slice(0, 2).map((parte: string) => parte[0] || '').join('').toUpperCase()}
@@ -1964,8 +1964,8 @@ export default function PacienteDetalhe() {
                     <p className="text-[11px] font-medium text-neutral-400">Prontuário digital</p>
                 </div>
             </div>
-            <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
-                {form.nome && <button onClick={handleExportarDados} className="inline-flex h-8 items-center gap-1.5 rounded-full border border-black/10 bg-white px-3 text-xs font-medium text-neutral-700 hover:bg-neutral-50" title="Exportar prontuário (LGPD)"><Download size={14}/> LGPD</button>}
+            <div className="flex shrink-0 items-center justify-end gap-1.5">
+                {form.nome && <button onClick={handleExportarDados} className="inline-flex h-8 items-center justify-center gap-1.5 rounded-full border border-black/10 bg-white text-xs font-medium text-neutral-700 hover:bg-neutral-50 max-sm:w-8 sm:px-3" title="Exportar prontuário (LGPD)" aria-label="Exportar prontuário (LGPD)"><Download size={14}/> <span className="max-sm:hidden">LGPD</span></button>}
                 <PatientContactButtons
                     variant="buttons"
                     telefone={form.telefone}
@@ -2163,9 +2163,9 @@ export default function PacienteDetalhe() {
                 })}
             </nav>
 
-            <div className={abaAtiva === 'dados' || abaAtiva === 'anamnese' || abaAtiva === 'odontograma' ? 'flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden' : 'min-h-0 min-w-0 flex-1 overflow-y-auto px-3 py-3 sm:px-5 sm:py-4'}>
+            <div className={abaAtiva === 'dados' || abaAtiva === 'anamnese' || abaAtiva === 'odontograma' ? 'flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden' : 'min-h-0 min-w-0 flex-1 overflow-y-auto px-3 pb-24 pt-3 sm:px-5 sm:pt-4 lg:pb-4'}>
                 {abaAtiva === 'dados' && (
-                    <div className="flex h-full min-h-0 flex-col overflow-y-auto px-3 py-3 sm:px-5 sm:py-4">
+                    <div className="flex h-full min-h-0 flex-col overflow-y-auto px-3 pb-24 pt-3 sm:px-5 sm:pt-4 lg:pb-4">
                         <div className="mb-3 flex shrink-0 items-center justify-between gap-2">
                             <h3 className="text-base font-semibold text-neutral-900">Informações do paciente</h3>
                             <div className="flex gap-1.5">
@@ -2322,7 +2322,7 @@ export default function PacienteDetalhe() {
                 )}
 
                 {abaAtiva === 'anamnese' && (
-                    <div className="flex h-full min-h-0 flex-col overflow-y-auto px-3 py-3 sm:px-5 sm:py-4 lg:overflow-hidden">
+                    <div className="flex h-full min-h-0 flex-col overflow-y-auto px-3 pb-24 pt-3 sm:px-5 sm:pt-4 lg:overflow-hidden lg:pb-4">
                         <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-2">
                             <h3 className="text-base font-semibold text-neutral-900">Anamnese</h3>
                             <div className="flex items-center gap-2">
@@ -2567,32 +2567,33 @@ export default function PacienteDetalhe() {
                 )}
 
                 {abaAtiva === 'odontograma' && (
-                    <div className="flex h-full min-h-0 flex-col overflow-y-auto px-3 py-3 sm:px-5 sm:py-4 lg:overflow-hidden">
-                        <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-2">
+                    <div className="flex h-full min-h-0 flex-col overflow-y-auto px-3 pb-24 pt-3 sm:px-5 sm:pt-4 lg:overflow-hidden lg:pb-4">
+                        <div className="mb-3 grid shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 sm:flex sm:flex-wrap">
                             <h3 className="text-base font-semibold text-neutral-900">Odontograma</h3>
-                            <div className="flex flex-wrap items-center gap-2">
-                                <SegmentedControl
-                                    value={visaoOdonto}
-                                    onChange={setVisaoOdonto}
-                                    size="sm"
-                                    className="w-fit"
-                                    options={[
-                                        { value: 'anatomica', label: 'Anatômica' },
-                                        { value: 'esquematica', label: 'Esquemática' },
-                                        { value: 'livre', label: 'Texto livre' },
-                                    ]}
-                                />
-                                <button type="button" onClick={imprimirOrcamento} className="inline-flex h-8 items-center gap-1.5 rounded-md border border-neutral-200 bg-white px-2.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"><Printer size={13}/> PDF</button>
+                            <SegmentedControl
+                                value={visaoOdonto}
+                                onChange={setVisaoOdonto}
+                                size="sm"
+                                className="col-span-2 row-start-2 w-full sm:order-1 sm:ml-auto sm:w-fit"
+                                options={[
+                                    { value: 'anatomica', label: 'Anatômica' },
+                                    { value: 'esquematica', label: 'Esquemática' },
+                                    { value: 'livre', label: 'Texto livre' },
+                                ]}
+                            />
+                            <div className="flex items-center justify-end gap-1.5 sm:order-2 sm:gap-2">
+                                {savingOdo && <span className="flex items-center gap-1 text-xs font-medium text-neutral-400"><Loader2 size={12} className="animate-spin"/> <span className="max-sm:hidden">Salvando</span></span>}
+                                <button type="button" onClick={imprimirOrcamento} aria-label="PDF" className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-neutral-200 bg-white text-xs font-medium text-neutral-700 hover:bg-neutral-50 max-sm:w-8 sm:px-2.5"><Printer size={14}/> <span className="max-sm:hidden">PDF</span></button>
                                 <button
                                     type="button"
+                                    aria-label="Limpar odontograma"
                                     onClick={async () => {
                                         if (await showConfirm('Limpar todo o odontograma?', { title: 'Limpar', type: 'warning', confirmLabel: 'Limpar' })) resetOdontogramAll();
                                     }}
-                                    className="inline-flex h-8 items-center gap-1.5 rounded-md border border-neutral-200 bg-white px-2.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+                                    className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-neutral-200 bg-white text-xs font-medium text-neutral-700 hover:bg-neutral-50 max-sm:w-8 sm:px-2.5"
                                 >
-                                    <Eraser size={13}/> Limpar
+                                    <Eraser size={14}/> <span className="max-sm:hidden">Limpar</span>
                                 </button>
-                                {savingOdo && <span className="flex items-center gap-1 text-xs font-medium text-neutral-400"><Loader2 size={12} className="animate-spin"/> Salvando</span>}
                             </div>
                         </div>
 
@@ -2608,8 +2609,8 @@ export default function PacienteDetalhe() {
                                 </div>
                             ) : (
                             <>
-                            <div className="mb-2 flex shrink-0 items-center gap-1.5 overflow-x-auto">
-                                <div className="w-36 shrink-0">
+                            <div className="-mx-3 mb-2 flex shrink-0 items-center gap-1.5 overflow-x-auto px-3 [scrollbar-width:none] sm:mx-0 sm:px-0 [&::-webkit-scrollbar]:hidden">
+                                <div className="w-32 shrink-0 sm:w-36">
                                     <CustomSelect
                                         value={tipoArcada}
                                         onChange={(v) => setTipoArcada(v as 'permanente' | 'leite')}
@@ -2640,7 +2641,7 @@ export default function PacienteDetalhe() {
                             </div>
 
                             <div className={`shrink-0 ${mostrar3D ? 'grid grid-cols-1 items-stretch gap-2 lg:min-h-0 lg:flex-1 lg:shrink lg:grid-cols-[minmax(0,7fr)_minmax(0,3fr)] lg:overflow-hidden' : ''}`}>
-                            <div ref={medirOdonto} className="flex min-h-0 min-w-0 items-center justify-center overflow-hidden rounded-xl border border-neutral-200 bg-white px-1 py-3">
+                            <div ref={medirOdonto} className="flex min-h-0 min-w-0 items-center justify-center overflow-hidden rounded-xl border border-neutral-200 bg-white px-1 py-2 sm:py-3">
                                 {(() => {
                                     const isEsq = visaoOdonto === 'esquematica';
                                     const quad = tipoArcada === 'permanente' ? QUAD_PERM : QUAD_LEITE;
@@ -2659,11 +2660,11 @@ export default function PacienteDetalhe() {
                                             {porQuadrante ? (
                                                 <div className="inline-flex min-w-max select-none flex-col items-center">
                                                     <div className={`flex justify-center ${alinharSup}`}>{dentes(quad.sup[0], true)}</div>
-                                                    <div className="my-3 w-full border-t-2 border-dashed border-neutral-300" />
+                                                    <div className="my-2 w-full border-t-2 border-dashed border-neutral-300" />
                                                     <div className={`flex justify-center ${alinharSup}`}>{dentes(quad.sup[1], true)}</div>
-                                                    <div className="my-4 h-px w-full bg-neutral-400" />
+                                                    <div className="my-3 h-px w-full bg-neutral-400" />
                                                     <div className={`flex justify-center ${alinharInf}`}>{dentes(quad.inf[0], false)}</div>
-                                                    <div className="my-3 w-full border-t-2 border-dashed border-neutral-300" />
+                                                    <div className="my-2 w-full border-t-2 border-dashed border-neutral-300" />
                                                     <div className={`flex justify-center ${alinharInf}`}>{dentes(quad.inf[1], false)}</div>
                                                 </div>
                                             ) : (
@@ -2892,24 +2893,28 @@ export default function PacienteDetalhe() {
                             as="image"
                             href={faceHofAtiva === 'feminina' ? '/hof/imagem_feminina.png' : '/hof/imagem_masculina.png'}
                         />
-                        <h3 className="mb-3 text-base font-semibold text-neutral-900">Harmonização</h3>
+                        <div className="mb-3 flex items-center justify-between gap-2">
+                            <h3 className="text-base font-semibold text-neutral-900">Harmonização</h3>
+                            <button type="button" aria-label="Limpar marcações" onClick={async () => { if(marcacoesHof.length && await showConfirm('Limpar todas as marcações?', { title: 'Limpar', type: 'warning', confirmLabel: 'Limpar' })) setMarcacoesHof([]); }} className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-neutral-200 bg-white text-xs font-medium text-neutral-700 hover:bg-neutral-50 max-sm:w-8 sm:px-2.5"><Eraser size={14}/> <span className="max-sm:hidden">Limpar</span></button>
+                        </div>
                         <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(18rem,0.85fr)]">
-                        <div>
-                        <div className="mb-3 flex flex-wrap items-center gap-2">
+                        <div className="min-w-0">
+                        <div className="mb-3 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
                             <SegmentedControl
                                 value={faceHofAtiva}
                                 onChange={setFaceHofAtiva}
                                 size="sm"
+                                className="w-full sm:w-auto"
                                 options={[
                                     { value: 'feminina', label: 'Feminino' },
                                     { value: 'masculina', label: 'Masculino' },
                                 ]}
                             />
-                            <button type="button" onClick={async () => { if(marcacoesHof.length && await showConfirm('Limpar todas as marcações?', { title: 'Limpar', type: 'warning', confirmLabel: 'Limpar' })) setMarcacoesHof([]); }} className="inline-flex h-8 items-center gap-1.5 rounded-md border border-neutral-200 bg-white px-2.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"><Eraser size={13}/> Limpar</button>
                             <SegmentedControl
                                 value={hofModo}
                                 onChange={(modo) => { setHofModo(modo); if (modo === 'visualizar') setHofPopover({ x: 0, y: 0, open: false }); }}
                                 size="sm"
+                                className="w-full sm:w-auto"
                                 options={[
                                     { value: 'visualizar', label: 'Visualizar' },
                                     { value: 'alterar', label: 'Alterar' },
@@ -2919,6 +2924,7 @@ export default function PacienteDetalhe() {
                                 value={hofVista}
                                 onChange={(vista) => { setHofVista(vista); if (vista !== 'mapa') setHofPopover({ x: 0, y: 0, open: false }); }}
                                 size="sm"
+                                className="col-span-2 w-full sm:w-auto"
                                 options={[
                                     { value: 'mapa', label: 'Mapa' },
                                     { value: 'demo', label: 'Demonstração' },
@@ -2928,7 +2934,17 @@ export default function PacienteDetalhe() {
                         </div>
                         <p className="mb-3 text-xs text-neutral-400">{hofVista === 'demo' ? 'Ilustração na foto fixa, para demonstrar. Não é o resultado clínico.' : hofVista === 'frontal' ? 'Ilustração na foto frontal desta sessão. Não é o resultado clínico.' : hofModo === 'alterar' ? 'Clique no rosto para marcar.' : 'Visualizar não cria pontos novos.'}</p>
 
-                        {/* Canvas Facial */}
+                        {hofVista === 'mapa' && hofModo === 'alterar' && (
+                            <div className="-mx-3 mb-3 flex gap-1.5 overflow-x-auto px-3 [scrollbar-width:none] sm:-mx-5 sm:px-5 lg:hidden [&::-webkit-scrollbar]:hidden">
+                                {HOF_TIPOS.map(t => (
+                                    <button key={t.key} type="button" onClick={() => setHofTipoAtivo(t.key)} className={`inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium ${hofTipoAtivo === t.key ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-200 bg-white text-neutral-700'}`}>
+                                        <span className="h-2.5 w-2.5 rounded-sm border border-black/10" style={{ background: t.color }}/>
+                                        {t.label}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+
                         <div className="flex justify-center">
                             <div
                                 ref={hofSurfaceRef}
@@ -3044,8 +3060,8 @@ export default function PacienteDetalhe() {
 
                         </div>
                         <aside className="flex min-w-0 flex-col lg:min-h-[28rem]">
-                            <h4 className="mb-2 text-sm font-semibold text-neutral-900">Procedimentos</h4>
-                            <div className="flex flex-wrap gap-1.5">
+                            <h4 className="mb-2 hidden text-sm font-semibold text-neutral-900 lg:block">Procedimentos</h4>
+                            <div className="hidden flex-wrap gap-1.5 lg:flex">
                                 {HOF_TIPOS.map(t => (
                                     <button key={t.key} type="button" onClick={() => setHofTipoAtivo(t.key)} className={`inline-flex h-8 items-center gap-1.5 rounded-md border px-2 text-xs font-medium ${hofTipoAtivo === t.key ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50'}`}>
                                         <span className="h-2.5 w-2.5 rounded-sm border border-black/10" style={{ background: t.color }}/>
@@ -3053,7 +3069,7 @@ export default function PacienteDetalhe() {
                                     </button>
                                 ))}
                             </div>
-                            <div className="mt-4 border-t border-neutral-200 pt-3">
+                            <div className="border-t border-neutral-200 pt-3 lg:mt-4">
                                 <h4 className="mb-2 text-sm font-semibold text-neutral-900">Aplicação atual</h4>
                                 {hofAlertas.length === 0 ? <p className="text-xs text-neutral-400">Nenhuma reaplicação prevista.</p> : hofAlertas.map(alerta => (
                                     <div key={alerta.tipo} className="flex items-start justify-between gap-3 border-b border-neutral-100 py-2 text-sm text-neutral-800">
@@ -3067,7 +3083,7 @@ export default function PacienteDetalhe() {
                                 <button type="button" onClick={() => setModalProtocolo(true)} className="inline-flex h-8 items-center gap-1 rounded-md px-2 text-xs font-medium text-neutral-500 hover:bg-neutral-50"><Zap size={12}/> Protocolos</button>
                                 <button type="button" onClick={gerarTermoConsentimentoHof} className="inline-flex h-8 items-center gap-1 rounded-md px-2 text-xs font-medium text-neutral-500 hover:bg-neutral-50"><ShieldCheck size={12}/> Termo</button>
                                 <button type="button" onClick={imprimirMapaHof} className="inline-flex h-8 items-center gap-1 rounded-md px-2 text-xs font-medium text-neutral-500 hover:bg-neutral-50"><Printer size={12}/> PDF</button>
-                                <button type="button" onClick={salvarHof} disabled={savingHof} className="ml-auto inline-flex h-8 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-xs font-medium text-white hover:bg-neutral-800 disabled:opacity-50">{savingHof ? <Loader2 size={12} className="animate-spin"/> : <Save size={12}/>} {savingHof ? 'Salvando...' : 'Salvar procedimento HOF'}</button>
+                                <button type="button" onClick={salvarHof} disabled={savingHof} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md bg-neutral-900 px-3 text-xs font-medium text-white hover:bg-neutral-800 disabled:opacity-50 max-sm:w-full sm:ml-auto sm:h-8">{savingHof ? <Loader2 size={12} className="animate-spin"/> : <Save size={12}/>} {savingHof ? 'Salvando...' : 'Salvar procedimento HOF'}</button>
                             </div>
                         </aside>
                         </div>

@@ -3,7 +3,7 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   BarChart3,
   Calendar,
@@ -38,8 +38,6 @@ const ABAS: Item[] = [
   { href: '/pacientes', label: 'Pacientes', icon: Users },
 ];
 
-const SAIDA_MS = 220;
-
 function ativo(pathname: string, href: string) {
   if (href === '/dashboard') return pathname === '/dashboard';
   return pathname === href || pathname.startsWith(`${href}/`);
@@ -69,27 +67,13 @@ export default function MobileAppChrome({
 }: DashboardSidebarNavOptions & { children: ReactNode }) {
   const pathname = usePathname();
   const [aberto, setAberto] = useState(false);
-  const [painel, setPainel] = useState(false);
-  const fecharTimer = useRef<number | null>(null);
 
   function abrirMenu() {
-    if (fecharTimer.current) {
-      window.clearTimeout(fecharTimer.current);
-      fecharTimer.current = null;
-    }
-    setPainel(true);
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => setAberto(true));
-    });
+    setAberto(true);
   }
 
   function fecharMenu() {
     setAberto(false);
-    if (fecharTimer.current) window.clearTimeout(fecharTimer.current);
-    fecharTimer.current = window.setTimeout(() => {
-      setPainel(false);
-      fecharTimer.current = null;
-    }, SAIDA_MS);
   }
 
   const itens: Item[] = [
@@ -112,11 +96,10 @@ export default function MobileAppChrome({
 
   useEffect(() => {
     setAberto(false);
-    setPainel(false);
   }, [pathname]);
 
   useEffect(() => {
-    if (!painel) return;
+    if (!aberto) return;
     const anterior = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     const tecla = (event: KeyboardEvent) => {
@@ -132,7 +115,7 @@ export default function MobileAppChrome({
       window.removeEventListener('keydown', tecla);
       window.removeEventListener('resize', largura);
     };
-  }, [painel]);
+  }, [aberto]);
 
   const [modalAberto, setModalAberto] = useState(false);
   useEffect(() => {
@@ -150,7 +133,10 @@ export default function MobileAppChrome({
   return (
     <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       <header className={`${pathname === '/dashboard' ? 'hidden' : 'flex'} shrink-0 items-center gap-3 border-b border-black/5 bg-[#f3f4f1] px-4 pb-2.5 pt-[max(0.75rem,env(safe-area-inset-top))] lg:hidden`}>
-        <img src="/landing/ortus-wordmark.svg" alt="ortus" className="h-5 w-auto shrink-0" />
+        <Link href="/dashboard" aria-label="Visão geral" className="flex shrink-0 items-center gap-2">
+          <img src="/landing/ortus-mark.svg" alt="" className="h-6 w-6 shrink-0 brightness-0" />
+          <img src="/landing/ortus-wordmark.svg" alt="ortus" className="h-4 w-auto brightness-0" />
+        </Link>
         <BentoClinicSwitcher className="ml-auto min-w-0 max-w-[58%]" />
         <Link
           href="/perfil"
@@ -169,34 +155,25 @@ export default function MobileAppChrome({
         {children}
       </div>
 
-      {painel && (
-        <button
-          type="button"
-          tabIndex={-1}
-          aria-hidden
-          onClick={fecharMenu}
-          className={`fixed inset-0 z-[84] bg-black/15 transition-opacity duration-200 ease-out lg:hidden ${aberto ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
-        />
-      )}
+      <button
+        type="button"
+        tabIndex={-1}
+        aria-hidden
+        onClick={fecharMenu}
+        className={`fixed inset-0 z-[84] bg-black/15 transition-opacity duration-200 ease-out lg:hidden ${aberto ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
+      />
 
       <div
         className={`pointer-events-none absolute inset-x-0 bottom-0 z-[110] flex flex-col items-center px-4 pb-[max(0.6rem,env(safe-area-inset-bottom))] transition-[opacity,transform,visibility] duration-200 ease-out lg:hidden ${
-          modalAberto && !painel ? 'invisible translate-y-4 opacity-0' : ''
+          modalAberto && !aberto ? 'invisible translate-y-4 opacity-0' : ''
         }`}
       >
-        {painel && (
-          <div
-            id="menu-mobile"
-            className="w-full max-w-sm overflow-hidden"
-            style={{
-              maxHeight: aberto ? 560 : 0,
-              opacity: aberto ? 1 : 0,
-              transform: aberto ? 'translateY(0)' : 'translateY(12px)',
-              transition: 'max-height 220ms ease-out, opacity 200ms ease-out, transform 200ms ease-out',
-              pointerEvents: aberto ? 'auto' : 'none',
-            }}
-          >
-            <div className={`mb-2 max-h-[calc(100dvh-8rem)] overflow-y-auto overscroll-contain rounded-[1.6rem] p-2 ${vidro}`}>
+            <div
+              id="menu-mobile"
+              className={`mb-2 max-h-[calc(100dvh-8rem)] w-full max-w-sm origin-bottom overflow-y-auto overscroll-contain rounded-[1.6rem] p-2 transition-[opacity,transform,visibility] ease-out will-change-transform ${vidro} ${
+                aberto ? 'pointer-events-auto visible translate-y-0 scale-100 opacity-100 duration-200' : 'pointer-events-none invisible translate-y-3 scale-[0.97] opacity-0 duration-150'
+              }`}
+            >
               <button
                 type="button"
                 onClick={() => {
@@ -245,8 +222,6 @@ export default function MobileAppChrome({
                 <span className="text-xs text-neutral-400">Meu perfil</span>
               </Link>
             </div>
-          </div>
-        )}
 
         <nav aria-label="Navegação principal" className={`pointer-events-auto relative flex items-center gap-2 rounded-full p-1.5 ${vidro}`}>
           <span
