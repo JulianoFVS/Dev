@@ -3,7 +3,7 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   BarChart3,
   Calendar,
@@ -37,7 +37,7 @@ const ABAS: Item[] = [
   { href: '/pacientes', label: 'Pacientes', icon: Users },
 ];
 
-const EASE = 'cubic-bezier(0.32, 0.72, 0, 1)';
+const SAIDA_MS = 220;
 
 function ativo(pathname: string, href: string) {
   if (href === '/dashboard') return pathname === '/dashboard';
@@ -45,10 +45,10 @@ function ativo(pathname: string, href: string) {
 }
 
 function Hamburguer({ aberto }: { aberto: boolean }) {
-  const linha = 'absolute left-0 h-[1.75px] w-5 rounded-full bg-current';
-  const trans = { transition: `transform 220ms ${EASE}, opacity 140ms ease, top 220ms ${EASE}` };
+  const linha = 'absolute left-0 h-[1.75px] w-[18px] rounded-full bg-current';
+  const trans = { transition: 'transform 200ms ease-out, opacity 200ms ease-out, top 200ms ease-out' };
   return (
-    <span className="relative block h-[14px] w-5" aria-hidden>
+    <span className="relative block h-3.5 w-[18px]" aria-hidden>
       <span className={linha} style={{ ...trans, top: aberto ? 6 : 0, transform: aberto ? 'rotate(45deg)' : 'none' }} />
       <span className={linha} style={{ ...trans, top: 6, opacity: aberto ? 0 : 1 }} />
       <span className={linha} style={{ ...trans, top: aberto ? 6 : 12, transform: aberto ? 'rotate(-45deg)' : 'none' }} />
@@ -68,6 +68,28 @@ export default function MobileAppChrome({
 }: DashboardSidebarNavOptions & { children: ReactNode }) {
   const pathname = usePathname();
   const [aberto, setAberto] = useState(false);
+  const [painel, setPainel] = useState(false);
+  const fecharTimer = useRef<number | null>(null);
+
+  function abrirMenu() {
+    if (fecharTimer.current) {
+      window.clearTimeout(fecharTimer.current);
+      fecharTimer.current = null;
+    }
+    setPainel(true);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => setAberto(true));
+    });
+  }
+
+  function fecharMenu() {
+    setAberto(false);
+    if (fecharTimer.current) window.clearTimeout(fecharTimer.current);
+    fecharTimer.current = window.setTimeout(() => {
+      setPainel(false);
+      fecharTimer.current = null;
+    }, SAIDA_MS);
+  }
 
   const itens: Item[] = [
     { href: '/dashboard', label: 'Visão Geral', icon: LayoutDashboard },
@@ -89,17 +111,18 @@ export default function MobileAppChrome({
 
   useEffect(() => {
     setAberto(false);
+    setPainel(false);
   }, [pathname]);
 
   useEffect(() => {
-    if (!aberto) return;
+    if (!painel) return;
     const anterior = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     const tecla = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setAberto(false);
+      if (event.key === 'Escape') fecharMenu();
     };
     const largura = () => {
-      if (window.innerWidth >= 1024) setAberto(false);
+      if (window.innerWidth >= 1024) fecharMenu();
     };
     window.addEventListener('keydown', tecla);
     window.addEventListener('resize', largura);
@@ -108,18 +131,11 @@ export default function MobileAppChrome({
       window.removeEventListener('keydown', tecla);
       window.removeEventListener('resize', largura);
     };
-  }, [aberto]);
+  }, [painel]);
 
-  const total = itens.length + 1;
-  const entrada = (indice: number) => {
-    const atraso = aberto ? 40 + (total - indice) * 12 : 0;
-    return {
-      transition: `opacity 160ms ease ${atraso}ms, transform 240ms ${EASE} ${atraso}ms`,
-      opacity: aberto ? 1 : 0,
-      transform: aberto ? 'translateY(0)' : 'translateY(6px)',
-    };
-  };
-  const vidro = 'border border-white/60 bg-white/65 shadow-[0_10px_40px_rgba(0,0,0,0.12)] backdrop-blur-xl backdrop-saturate-150';
+  const indiceAba = ABAS.findIndex((item) => ativo(pathname, item.href));
+  const indicePolegar = aberto || menuAtivo ? ABAS.length : Math.max(0, indiceAba);
+  const vidro = 'border border-black/[0.04] bg-white/70 shadow-[0_4px_16px_rgba(0,0,0,0.08)] backdrop-blur-md';
 
   return (
     <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
@@ -139,40 +155,36 @@ export default function MobileAppChrome({
         </Link>
       </header>
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto overscroll-contain max-lg:pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:overflow-y-hidden">
+      <div className="flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto overscroll-contain lg:overflow-y-hidden">
         {children}
       </div>
 
-      <button
-        type="button"
-        tabIndex={-1}
-        aria-hidden
-        onClick={() => setAberto(false)}
-        className={`fixed inset-0 z-[84] bg-black/20 backdrop-blur-[3px] transition-opacity duration-200 lg:hidden ${aberto ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
-      />
+      {painel && (
+        <button
+          type="button"
+          tabIndex={-1}
+          aria-hidden
+          onClick={fecharMenu}
+          className={`fixed inset-0 z-[84] bg-black/15 transition-opacity duration-200 ease-out lg:hidden ${aberto ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
+        />
+      )}
 
-      <div className={`pointer-events-none absolute inset-x-0 bottom-0 flex flex-col items-center px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] lg:hidden ${aberto ? 'z-[85]' : 'z-40'}`}>
-        <div
-          id="menu-mobile"
-          className="grid w-full max-w-md"
-          style={{
-            gridTemplateRows: aberto ? '1fr' : '0fr',
-            transition: `grid-template-rows ${aberto ? 260 : 200}ms ${EASE}`,
-          }}
-          inert={aberto ? undefined : true}
-        >
-          <div className="min-h-0 overflow-hidden">
-            <div
-              className={`pointer-events-auto mb-2 max-h-[calc(100dvh-10rem)] overflow-y-auto overscroll-contain rounded-[1.75rem] p-2 ${vidro}`}
-              style={{
-                opacity: aberto ? 1 : 0,
-                transform: aberto ? 'translateY(0) scale(1)' : 'translateY(12px) scale(0.98)',
-                transformOrigin: 'bottom center',
-                transition: `opacity 160ms ease, transform 260ms ${EASE}`,
-              }}
-            >
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[110] flex flex-col items-center px-4 pb-[max(0.6rem,env(safe-area-inset-bottom))] lg:hidden">
+        {painel && (
+          <div
+            id="menu-mobile"
+            className="w-full max-w-sm overflow-hidden"
+            style={{
+              maxHeight: aberto ? 560 : 0,
+              opacity: aberto ? 1 : 0,
+              transform: aberto ? 'translateY(0)' : 'translateY(12px)',
+              transition: 'max-height 220ms ease-out, opacity 200ms ease-out, transform 200ms ease-out',
+              pointerEvents: aberto ? 'auto' : 'none',
+            }}
+          >
+            <div className={`mb-2 max-h-[calc(100dvh-8rem)] overflow-y-auto overscroll-contain rounded-[1.6rem] p-2 ${vidro}`}>
               <nav aria-label="Todas as telas" className="grid grid-cols-2 gap-1">
-                {itens.map((item, indice) => {
+                {itens.map((item) => {
                   const Icon = item.icon;
                   const on = ativo(pathname, item.href);
                   const temBadge = typeof item.badge === 'number' && item.badge > 0;
@@ -180,8 +192,7 @@ export default function MobileAppChrome({
                     <Link
                       key={item.href}
                       href={item.href}
-                      onClick={() => setAberto(false)}
-                      style={entrada(indice)}
+                      onClick={fecharMenu}
                       className={`flex h-11 min-w-0 items-center gap-2.5 rounded-2xl px-3 text-sm font-medium ${
                         on ? 'bg-neutral-900 text-white' : 'text-neutral-800 active:bg-black/5'
                       }`}
@@ -199,8 +210,7 @@ export default function MobileAppChrome({
               </nav>
               <Link
                 href="/perfil"
-                onClick={() => setAberto(false)}
-                style={entrada(total - 1)}
+                onClick={fecharMenu}
                 className="mt-1 flex h-12 items-center gap-3 rounded-2xl border-t border-black/5 px-3 text-sm font-medium text-neutral-800 active:bg-black/5"
               >
                 <span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#c8f053] text-neutral-900">
@@ -211,9 +221,14 @@ export default function MobileAppChrome({
               </Link>
             </div>
           </div>
-        </div>
+        )}
 
-        <nav aria-label="Navegação principal" className={`pointer-events-auto flex items-center gap-3 rounded-full p-2 ${vidro}`}>
+        <nav aria-label="Navegação principal" className={`pointer-events-auto relative flex items-center gap-2 rounded-full p-1.5 ${vidro}`}>
+          <span
+            aria-hidden
+            className="pointer-events-none absolute left-1.5 top-1.5 h-10 w-10 rounded-full bg-neutral-900 transition-transform duration-200 ease-out"
+            style={{ transform: `translateX(calc(${indicePolegar} * (2.5rem + 0.5rem)))` }}
+          />
           {ABAS.map((item) => {
             const Icon = item.icon;
             const on = !aberto && ativo(pathname, item.href);
@@ -223,22 +238,22 @@ export default function MobileAppChrome({
                 href={item.href}
                 aria-label={item.label}
                 aria-current={on ? 'page' : undefined}
-                className={`flex h-12 w-12 items-center justify-center rounded-full transition-colors duration-200 ${
-                  on ? 'bg-neutral-900 text-white' : 'text-neutral-800 active:bg-black/5'
+                className={`relative z-10 flex h-10 w-10 items-center justify-center rounded-full transition-colors duration-200 ease-out ${
+                  on ? 'text-white' : 'text-neutral-800'
                 }`}
               >
-                <Icon size={22} strokeWidth={1.6} />
+                <Icon size={20} strokeWidth={1.6} />
               </Link>
             );
           })}
           <button
             type="button"
-            onClick={() => setAberto((atual) => !atual)}
+            onClick={() => (aberto ? fecharMenu() : abrirMenu())}
             aria-expanded={aberto}
             aria-controls="menu-mobile"
             aria-label={aberto ? 'Fechar menu' : 'Abrir menu'}
-            className={`flex h-12 w-12 items-center justify-center rounded-full transition-colors duration-200 ${
-              aberto || menuAtivo ? 'bg-neutral-900 text-white' : 'text-neutral-800 active:bg-black/5'
+            className={`relative z-10 flex h-10 w-10 items-center justify-center rounded-full transition-colors duration-200 ease-out ${
+              aberto || menuAtivo ? 'text-white' : 'text-neutral-800'
             }`}
           >
             <Hamburguer aberto={aberto} />
