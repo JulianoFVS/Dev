@@ -84,11 +84,13 @@ function MenuFiltro({
   valor,
   opcoes,
   onChange,
+  cheio = false,
 }: {
   rotulo: string;
   valor: string;
   opcoes: { value: string; label: string }[];
   onChange: (valor: string) => void;
+  cheio?: boolean;
 }) {
   const botao = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
@@ -135,9 +137,9 @@ function MenuFiltro({
         type="button"
         onClick={abrir}
         title={ativo ? titulo : undefined}
-        className={`relative inline-flex h-8 items-center rounded-md border bg-white text-sm text-neutral-700 hover:bg-neutral-50 ${ativo ? 'border-red-500' : 'border-neutral-200'}`}
+        className={`relative inline-flex h-8 items-center rounded-md border bg-white text-sm text-neutral-700 hover:bg-neutral-50 ${cheio ? 'w-full min-w-0' : ''} ${ativo ? 'border-red-500' : 'border-neutral-200'}`}
       >
-        <span className="invisible inline-flex items-center gap-1.5 px-2.5">
+        <span className={`invisible inline-flex items-center gap-1.5 px-2.5 ${cheio ? 'min-w-0 overflow-hidden' : ''}`}>
           <ChevronDown size={13} />
           {rotulo}
         </span>
@@ -648,7 +650,10 @@ export default function Agenda() {
       <header className="mb-3 shrink-0 space-y-3">
         <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 md:text-[2rem]">
           {titulo}
-          <span className="text-neutral-400"> · {clinicaNome}</span>
+          <span className="text-neutral-400">
+            <span className="max-sm:hidden"> · </span>
+            <span className="max-sm:mt-0.5 max-sm:block max-sm:text-base max-sm:font-medium">{clinicaNome}</span>
+          </span>
         </h1>
 
         <div className="relative">
@@ -661,7 +666,69 @@ export default function Agenda() {
           />
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="grid gap-2 lg:hidden">
+          <div className="flex items-center gap-2">
+            <div className="inline-flex shrink-0 items-center gap-1">
+              <button type="button" aria-label="Anterior" onClick={() => mover(-1)} className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50">
+                <ChevronLeft size={16} />
+              </button>
+              <button type="button" onClick={() => setCursor(new Date())} className="h-8 rounded-md border border-neutral-200 bg-white px-3 text-sm text-neutral-700 hover:bg-neutral-50">
+                Hoje
+              </button>
+              <button type="button" aria-label="Próximo" onClick={() => mover(1)} className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50">
+                <ChevronRight size={16} />
+              </button>
+            </div>
+            <SegmentedControl
+              size="sm"
+              className="min-w-0 flex-1 bg-white"
+              value={visao}
+              onChange={setVisao}
+              options={visoes.map(({ id, label, Icone }) => ({
+                value: id,
+                ariaLabel: label,
+                label: (
+                  <>
+                    <Icone size={14} className="shrink-0" />
+                    <span className="hidden truncate sm:inline">{label}</span>
+                  </>
+                ),
+              }))}
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            {(filtroStatus !== 'todos' || filtroProfissional !== 'todos') && (
+              <button
+                type="button"
+                aria-label="Limpar filtros"
+                onClick={() => { setFiltroStatus('todos'); setFiltroProfissional('todos'); }}
+                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-red-200 bg-white text-red-500"
+              >
+                <X size={16} />
+              </button>
+            )}
+            <div className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)_minmax(0,1fr)] gap-2">
+              <MenuFiltro cheio rotulo="Status" valor={filtroStatus} onChange={setFiltroStatus} opcoes={STATUS_OPCOES} />
+              <MenuFiltro
+                cheio
+                rotulo="Profissional"
+                valor={filtroProfissional}
+                onChange={setFiltroProfissional}
+                opcoes={[{ value: 'todos', label: 'Todos' }, ...profissionais.map((profissional: any) => ({ value: String(profissional.id), label: profissional.nome }))]}
+              />
+              <button
+                type="button"
+                onClick={abrirNovoAgendamento}
+                className="inline-flex h-8 min-w-0 items-center justify-center gap-1.5 rounded-md bg-neutral-900 px-2 text-sm font-medium text-white hover:bg-neutral-800"
+              >
+                <Plus size={14} className="shrink-0" />
+                <span className="truncate">Novo</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-2 max-lg:hidden">
           <div className="flex flex-wrap items-center gap-2">
             <div className="inline-flex items-center gap-1">
               <button type="button" aria-label="Anterior" onClick={() => mover(-1)} className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50">
@@ -778,7 +845,7 @@ export default function Agenda() {
       </header>
 
       {visao === 'mes' && (
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white max-sm:min-h-[22rem]">
           <div className="grid shrink-0 grid-cols-7 border-b border-neutral-200">
             {DIAS_CURTOS.map((dia) => (
               <div key={dia} className="py-2 text-center text-xs font-medium text-neutral-500">{dia}</div>
@@ -791,14 +858,29 @@ export default function Agenda() {
               return (
                 <div
                   key={`${chaveLocal(dia)}-${indice}`}
-                  onClick={() => abrirNoDia(dia)}
-                  className={`flex min-h-0 cursor-pointer flex-col p-1 text-left hover:bg-neutral-50 sm:p-1.5 ${indice % 7 !== 6 ? 'border-r border-neutral-200' : ''} ${indice < 35 ? 'border-b border-neutral-200' : ''}`}
+                  onClick={() => {
+                    if (window.matchMedia('(max-width: 639px)').matches) {
+                      setCursor(dia);
+                      setVisao('dia');
+                      return;
+                    }
+                    abrirNoDia(dia);
+                  }}
+                  className={`flex min-h-0 cursor-pointer flex-col p-1 text-left hover:bg-neutral-50 max-sm:items-center sm:p-1.5 ${indice % 7 !== 6 ? 'border-r border-neutral-200' : ''} ${indice < 35 ? 'border-b border-neutral-200' : ''}`}
                 >
                   <span className={`inline-flex h-6 min-w-6 items-center justify-center rounded-full px-1 text-xs sm:text-sm ${mesmoDia(dia, hoje) ? 'bg-amber-500 font-semibold text-white' : fora ? 'text-neutral-300' : 'text-neutral-700'}`}>{dia.getDate()}</span>
-                  <div className="mt-0.5 min-h-0 space-y-0.5 overflow-hidden">
+                  <div className="mt-0.5 min-h-0 space-y-0.5 overflow-hidden max-sm:hidden">
                     {lista.slice(0, 2).map((evento) => <ChipEvento key={evento.id} evento={evento} />)}
                     {lista.length > 2 && <span className="px-1 text-[11px] text-neutral-400">+{lista.length - 2}</span>}
                   </div>
+                  {lista.length > 0 && (
+                    <div className="mt-1 flex flex-wrap justify-center gap-0.5 sm:hidden">
+                      {lista.slice(0, 3).map((evento) => (
+                        <span key={evento.id} className={`h-1.5 w-1.5 rounded-full ${corStatus(evento.extendedProps?.status)}`} />
+                      ))}
+                      {lista.length > 3 && <span className="text-[9px] leading-none text-neutral-400">+{lista.length - 3}</span>}
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -807,9 +889,9 @@ export default function Agenda() {
       )}
 
       {(visao === 'semana' || visao === 'dia') && (
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white">
-          <div className={`grid shrink-0 border-b border-neutral-200 ${visao === 'dia' ? 'grid-cols-[3.25rem_minmax(0,1fr)]' : 'grid-cols-[3.25rem_repeat(7,minmax(0,1fr))]'}`}>
-            <div />
+        <div className={`flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white max-sm:min-h-[26rem] ${visao === 'semana' ? 'max-md:overflow-x-auto' : ''}`}>
+          <div className={`grid shrink-0 border-b border-neutral-200 ${visao === 'dia' ? 'grid-cols-[3.25rem_minmax(0,1fr)]' : 'grid-cols-[3.25rem_repeat(7,minmax(0,1fr))] max-md:min-w-[42rem]'}`}>
+            <div className="max-md:sticky max-md:left-0 max-md:z-[5] max-md:bg-white" />
             {(visao === 'dia' ? [inicioDoDia(cursor)] : diasSemana).map((dia) => (
               <div key={chaveLocal(dia)} className="py-2 text-center">
                 <div className="text-[11px] text-neutral-400">{DIAS_CURTOS[dia.getDay()]}</div>
@@ -817,13 +899,13 @@ export default function Agenda() {
               </div>
             ))}
           </div>
-          <div ref={gradeHorasRef} className="relative min-h-0 flex-1 overflow-y-auto">
+          <div ref={gradeHorasRef} className={`relative min-h-0 flex-1 overflow-y-auto ${visao === 'semana' ? 'max-md:min-w-[42rem]' : ''}`}>
             {horasGrade.map((hora) => {
               const dias = visao === 'dia' ? [inicioDoDia(cursor)] : diasSemana;
               const rotulo = `${String(hora).padStart(2, '0')}:00`;
               return (
                 <div key={hora} className={`grid min-h-12 border-b border-neutral-100 last:border-b-0 ${visao === 'dia' ? 'grid-cols-[3.25rem_minmax(0,1fr)]' : 'grid-cols-[3.25rem_repeat(7,minmax(0,1fr))]'}`}>
-                  <div className="px-1 pt-1 text-right text-[11px] text-neutral-400">{rotulo}</div>
+                  <div className="px-1 pt-1 text-right text-[11px] text-neutral-400 max-md:sticky max-md:left-0 max-md:z-[5] max-md:bg-white">{rotulo}</div>
                   {dias.map((dia) => {
                     const lista = (eventosPorDia.get(chaveLocal(dia)) || []).filter((evento) => new Date(evento.start).getHours() === hora);
                     const mostraAgora = mesmoDia(dia, agora) && agora.getHours() === hora;
@@ -855,7 +937,7 @@ export default function Agenda() {
       )}
 
       {visao === 'lista' && (
-        <div className="min-h-0 flex-1 overflow-y-auto rounded-xl border border-neutral-200 bg-white">
+        <div className="min-h-0 flex-1 overflow-y-auto rounded-xl border border-neutral-200 bg-white max-sm:min-h-[22rem]">
           {eventosLista.length === 0 ? (
             <p className="px-4 py-10 text-center text-sm text-neutral-400">Nenhum agendamento neste período.</p>
           ) : eventosLista.map((evento) => {
@@ -883,17 +965,17 @@ export default function Agenda() {
         onClose={() => setOpenModal(false)}
         maxWidth="lg"
         hideCloseButton
-        panelClassName="flex max-h-[85vh] flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white"
+        panelClassName="flex max-h-[85vh] flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white max-sm:max-h-[92dvh]"
       >
-                  <div className="flex shrink-0 items-start justify-between gap-3 border-b border-black/5 px-5 py-4 sm:px-6">
+                  <div className="flex shrink-0 items-start justify-between gap-3 border-b border-black/5 px-4 py-3 sm:px-6 sm:py-4">
                       <div>
                           <h2 className="text-lg font-semibold text-neutral-900">{formData.id ? 'Editar agendamento' : 'Novo agendamento'}</h2>
                           <p className="mt-0.5 text-xs font-medium text-neutral-400">Paciente, horário e procedimento.</p>
                       </div>
                       <button type="button" onClick={() => setOpenModal(false)} className="rounded-full p-2 text-neutral-400 hover:bg-neutral-100" aria-label="Fechar"><X size={18}/></button>
                   </div>
-                  <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto px-5 py-4 sm:px-6">
-                      <div className="grid grid-cols-1 gap-x-3 gap-y-2.5 sm:grid-cols-2">
+                  <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto px-4 py-3 sm:px-6 sm:py-4">
+                      <div className="grid grid-cols-2 gap-x-2 gap-y-2.5 sm:gap-x-3">
                           <label>
                               <span className="mb-1.5 block text-xs font-medium text-neutral-500">Clínica</span>
                               <CustomSelect
@@ -909,7 +991,7 @@ export default function Agenda() {
                               <span className="mb-1.5 block text-xs font-medium text-neutral-500">Profissional</span>
                               <CustomSelect value={formData.profissional_id} onChange={v => setFormData({...formData,profissional_id: v})} disabled={usuarioAtual?.nivel !== 'admin'} options={profissionaisFiltrados.map((p:any) => ({ value: String(p.id), label: p.nome }))} placeholder="Qualquer um..." size="md"/>
                           </label>
-                          <label className="sm:col-span-2">
+                          <label className="col-span-2">
                               <span className="mb-1.5 flex items-center justify-between text-xs font-medium text-neutral-500">
                                   Paciente
                                   <button type="button" onClick={abrirCadastroPaciente} className="inline-flex items-center gap-1 font-medium text-neutral-700 hover:text-neutral-900"><UserPlus size={12}/> Novo</button>
@@ -930,7 +1012,7 @@ export default function Agenda() {
                               <span className="mb-1.5 block text-xs font-medium text-neutral-500">Hora</span>
                               <CampoHora value={formData.time} onChange={(v) => setFormData({ ...formData, time: v })} passo={30} />
                           </label>
-                          <label className="sm:col-span-2">
+                          <label className="col-span-2">
                               <span className="mb-1.5 block text-xs font-medium text-neutral-500">Procedimento</span>
                               <ProcedureCombobox
                                   clinicaId={formData.clinica_id}
@@ -956,7 +1038,7 @@ export default function Agenda() {
                               <span className="mb-1.5 block text-xs font-medium text-neutral-500">Desconto (R$)</span>
                               <input type="number" step="1" value={formData.desconto} onChange={e => setFormData({...formData, desconto: e.target.value})} className={inputClass} placeholder="0,00" />
                           </label>
-                          <label className="sm:col-span-2">
+                          <label className="col-span-2">
                               <span className="mb-1.5 block text-xs font-medium text-neutral-500">Total</span>
                               <p className="flex h-10 items-center text-sm font-medium text-neutral-900">R$ {(parseFloat(formData.valor || '0') - parseFloat(formData.desconto || '0')).toFixed(2)}</p>
                           </label>
@@ -979,7 +1061,7 @@ export default function Agenda() {
                       )}
                       
                   </div>
-                  <div className="flex shrink-0 items-center justify-between gap-3 border-t border-black/5 px-5 py-4 sm:px-6">
+                  <div className="flex shrink-0 items-center justify-between gap-3 border-t border-black/5 px-4 py-3 sm:px-6 sm:py-4">
                       {formData.id ? (
                         <button type="button" onClick={excluirAgendamento} className="inline-flex h-9 items-center gap-1.5 rounded-md px-3 text-sm font-medium text-rose-600 hover:bg-rose-50" title="Excluir">
                           <Trash2 size={14} /> Excluir
