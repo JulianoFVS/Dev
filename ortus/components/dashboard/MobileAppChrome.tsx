@@ -3,7 +3,7 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   BarChart3,
   Calendar,
@@ -38,6 +38,8 @@ const ABAS: Item[] = [
   { href: '/pacientes', label: 'Pacientes', icon: Users },
 ];
 
+const SAIDA_MS = 150;
+
 function ativo(pathname: string, href: string) {
   if (href === '/dashboard') return pathname === '/dashboard';
   return pathname === href || pathname.startsWith(`${href}/`);
@@ -67,13 +69,25 @@ export default function MobileAppChrome({
 }: DashboardSidebarNavOptions & { children: ReactNode }) {
   const pathname = usePathname();
   const [aberto, setAberto] = useState(false);
+  const [painel, setPainel] = useState(false);
+  const fecharTimer = useRef<number | null>(null);
 
   function abrirMenu() {
+    if (fecharTimer.current) {
+      window.clearTimeout(fecharTimer.current);
+      fecharTimer.current = null;
+    }
+    setPainel(true);
     setAberto(true);
   }
 
   function fecharMenu() {
     setAberto(false);
+    if (fecharTimer.current) window.clearTimeout(fecharTimer.current);
+    fecharTimer.current = window.setTimeout(() => {
+      setPainel(false);
+      fecharTimer.current = null;
+    }, SAIDA_MS);
   }
 
   const itens: Item[] = [
@@ -96,10 +110,11 @@ export default function MobileAppChrome({
 
   useEffect(() => {
     setAberto(false);
+    setPainel(false);
   }, [pathname]);
 
   useEffect(() => {
-    if (!aberto) return;
+    if (!painel) return;
     const anterior = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     const tecla = (event: KeyboardEvent) => {
@@ -115,7 +130,7 @@ export default function MobileAppChrome({
       window.removeEventListener('keydown', tecla);
       window.removeEventListener('resize', largura);
     };
-  }, [aberto]);
+  }, [painel]);
 
   const [modalAberto, setModalAberto] = useState(false);
   useEffect(() => {
@@ -155,23 +170,26 @@ export default function MobileAppChrome({
         {children}
       </div>
 
-      <button
-        type="button"
-        tabIndex={-1}
-        aria-hidden
-        onClick={fecharMenu}
-        className={`fixed inset-0 z-[84] bg-black/15 transition-opacity duration-200 ease-out lg:hidden ${aberto ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
-      />
+      {painel && (
+        <button
+          type="button"
+          tabIndex={-1}
+          aria-hidden
+          onClick={fecharMenu}
+          className={`fixed inset-0 z-[84] bg-black/15 lg:hidden ${aberto ? 'ortus-veu-in' : 'ortus-veu-out pointer-events-none'}`}
+        />
+      )}
 
       <div
         className={`pointer-events-none absolute inset-x-0 bottom-0 z-[110] flex flex-col items-center px-4 pb-[max(0.6rem,env(safe-area-inset-bottom))] transition-[opacity,transform,visibility] duration-200 ease-out lg:hidden ${
-          modalAberto && !aberto ? 'invisible translate-y-4 opacity-0' : ''
+          modalAberto && !painel ? 'invisible translate-y-4 opacity-0' : ''
         }`}
       >
+        {painel && (
             <div
               id="menu-mobile"
-              className={`mb-2 max-h-[calc(100dvh-8rem)] w-full max-w-sm origin-bottom overflow-y-auto overscroll-contain rounded-[1.6rem] p-2 transition-[opacity,transform,visibility] ease-out will-change-transform ${vidro} ${
-                aberto ? 'pointer-events-auto visible translate-y-0 scale-100 opacity-100 duration-200' : 'pointer-events-none invisible translate-y-3 scale-[0.97] opacity-0 duration-150'
+              className={`mb-2 max-h-[calc(100dvh-8rem)] w-full max-w-sm overflow-y-auto overscroll-contain rounded-[1.6rem] border border-black/[0.06] bg-white p-2 shadow-[0_8px_30px_rgba(0,0,0,0.12)] ${
+                aberto ? 'ortus-menu-in pointer-events-auto' : 'ortus-menu-out pointer-events-none'
               }`}
             >
               <button
@@ -222,6 +240,7 @@ export default function MobileAppChrome({
                 <span className="text-xs text-neutral-400">Meu perfil</span>
               </Link>
             </div>
+        )}
 
         <nav aria-label="Navegação principal" className={`pointer-events-auto relative flex items-center gap-2 rounded-full p-1.5 ${vidro}`}>
           <span
