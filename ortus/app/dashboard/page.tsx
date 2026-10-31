@@ -26,6 +26,7 @@ import {
 import { useInboxCounts } from '@/hooks/useInboxCounts';
 import PillMeter from '@/components/bento/PillMeter';
 import Aviso from '@/components/ui/Aviso';
+import BentoClinicSwitcher from '@/components/dashboard/BentoClinicSwitcher';
 import type { ReactNode } from 'react';
 
 function DicaBotao({ texto, children }: { texto: string; children: ReactNode }) {
@@ -238,7 +239,7 @@ function linhasDaTaxa(grupo: string, lista: TaxaMaquininha[]): LinhaTaxa[] {
 
 function FotoPaciente({ nome, url, claro = false, grande = false }: { nome?: string | null; url?: string | null; claro?: boolean; grande?: boolean }) {
   return (
-    <span className={`flex shrink-0 items-center justify-center overflow-hidden rounded-full font-semibold ${grande ? 'h-12 w-12 text-sm' : 'h-8 w-8 text-[10px]'} ${claro ? 'bg-white/10 text-white' : 'bg-neutral-100 text-neutral-500'}`}>
+    <span className={`flex shrink-0 items-center justify-center overflow-hidden rounded-full font-semibold ${grande ? 'h-12 w-12 text-sm' : 'h-8 w-8 text-[10px]'} ${claro ? 'bg-neutral-100 text-neutral-500 lg:bg-white/10 lg:text-white' : 'bg-neutral-100 text-neutral-500'}`}>
       {url ? <img src={url} alt="" className="h-full w-full object-cover" /> : iniciais(nome)}
     </span>
   );
@@ -863,14 +864,25 @@ export default function Dashboard() {
     <div className="flex h-full min-h-0 flex-col overflow-x-hidden overflow-y-auto px-2.5 py-2.5 sm:px-3 sm:py-3 md:px-4 md:py-3.5 lg:overflow-hidden">
       <Aviso mensagem={aviso} />
       <div className="grid gap-2.5 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_17.75rem] lg:grid-rows-[auto_auto_minmax(0,1fr)] lg:gap-3">
-        <header className="order-1 flex shrink-0 items-center justify-between gap-3 lg:col-start-1 lg:row-start-1">
-          <div className="min-w-0">
-            <h1 className="text-2xl font-semibold leading-none tracking-tight text-neutral-900 md:text-[2rem]">
-              {saudacaoAgora()}{primeiroNome ? `, ${primeiroNome}` : ''}
-              <span className="text-neutral-400"> · {clinicaNome}</span>
+        <div className="relative order-1 -mx-2.5 -mt-2.5 flex flex-col gap-3 overflow-hidden rounded-b-[2rem] bg-[#141816] px-3 pb-3 pt-[max(2rem,calc(env(safe-area-inset-top)+1.25rem))] sm:-mx-3 sm:-mt-3 md:-mx-4 md:-mt-3.5 lg:contents">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_60%_0%,rgba(190,220,90,0.32),transparent_60%)] lg:hidden" />
+        <header className="relative order-1 flex shrink-0 items-center justify-between gap-3 max-lg:flex-col max-lg:gap-5 lg:col-start-1 lg:row-start-1">
+          <div className="min-w-0 max-lg:text-center">
+            <h1 className="text-2xl font-semibold leading-none tracking-tight text-neutral-900 max-lg:text-white md:text-[2rem]">
+              <span className={primeiroNome ? 'max-lg:block max-lg:text-sm max-lg:font-medium max-lg:tracking-normal max-lg:text-white/60' : ''}>
+                {saudacaoAgora()}{primeiroNome ? ',' : ''}
+              </span>
+              {primeiroNome && (
+                <span className="max-lg:mt-2 max-lg:block max-lg:text-[1.75rem]">
+                  <span className="max-lg:hidden"> </span>
+                  {primeiroNome}
+                </span>
+              )}
+              <span className="text-neutral-400 max-lg:hidden"> · {clinicaNome}</span>
             </h1>
           </div>
-          <div className="flex shrink-0 items-center gap-1.5">
+          <BentoClinicSwitcher variant="sidebar" className="w-full lg:hidden" />
+          <div className="flex shrink-0 items-center gap-1.5 max-lg:hidden">
             <DicaBotao texto="Mensagens e notificações">
               <Link
                 href="/mensagens"
@@ -905,8 +917,8 @@ export default function Dashboard() {
           </div>
         </header>
 
-        <section className="relative order-2 flex min-h-[8.5rem] flex-col justify-between overflow-hidden rounded-[1.35rem] bg-[#141816] p-4 text-white lg:col-start-1 lg:row-start-2">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_60%_0%,rgba(190,220,90,0.32),transparent_60%)]" />
+        <section className="relative order-2 flex min-h-[8.5rem] flex-col justify-between overflow-hidden rounded-[1.35rem] bg-white p-4 text-neutral-900 shadow-[0_8px_24px_rgba(0,0,0,0.18)] lg:col-start-1 lg:row-start-2 lg:bg-[#141816] lg:text-white lg:shadow-none">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_60%_0%,rgba(190,220,90,0.32),transparent_60%)] max-lg:hidden" />
           <div className="relative z-[1] flex items-center gap-3">
             {(emAtendimento || proximoAgendamento) && (
               <FotoPaciente
@@ -919,20 +931,20 @@ export default function Dashboard() {
             <div className="min-w-0">
               {emAtendimento ? (
                 <>
-                  <p className="text-sm text-neutral-300">Em atendimento · {hora(emAtendimento.data_hora)}</p>
-                  <h2 className="mt-1 truncate text-xl font-semibold text-white">{pacienteCurso?.nome || 'Paciente'}</h2>
-                  <p className="mt-0.5 truncate text-sm text-neutral-300">
+                  <p className="text-sm text-neutral-500 lg:text-neutral-300">Em atendimento · {hora(emAtendimento.data_hora)}</p>
+                  <h2 className="mt-1 truncate text-xl font-semibold text-neutral-900 lg:text-white">{pacienteCurso?.nome || 'Paciente'}</h2>
+                  <p className="mt-0.5 truncate text-sm text-neutral-500 lg:text-neutral-300">
                     {emAtendimento.procedimento || 'Consulta'}
                     {anosCurso != null ? ` · ${anosCurso} anos` : ''}
                   </p>
                 </>
               ) : (
                 <>
-                  <p className="text-sm text-neutral-300">Nenhum atendimento agora</p>
-                  <h2 className="mt-1 truncate text-xl font-semibold text-white">
+                  <p className="text-sm text-neutral-500 lg:text-neutral-300">Nenhum atendimento agora</p>
+                  <h2 className="mt-1 truncate text-xl font-semibold text-neutral-900 lg:text-white">
                     {proximoAgendamento?.pacientes?.nome || 'Nenhum paciente em curso'}
                   </h2>
-                  <p className="mt-0.5 text-sm text-neutral-300">
+                  <p className="mt-0.5 text-sm text-neutral-500 lg:text-neutral-300">
                     {proximoAgendamento
                       ? `Próxima consulta · ${hora(proximoAgendamento.data_hora)} · ${proximoAgendamento.procedimento || 'Consulta'}`
                       : 'Abra a agenda e encaixe o próximo paciente.'}
@@ -948,7 +960,7 @@ export default function Dashboard() {
                   type="button"
                   onClick={concluirAtual}
                   disabled={concluindo}
-                  className="inline-flex h-9 items-center gap-1.5 rounded-full bg-white px-4 text-sm font-medium text-neutral-900 disabled:opacity-60"
+                  className="inline-flex h-9 items-center gap-1.5 rounded-full bg-neutral-900 px-4 text-sm font-medium text-white lg:bg-white lg:text-neutral-900 disabled:opacity-60"
                 >
                   {concluindo ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}
                   Concluir
@@ -956,19 +968,20 @@ export default function Dashboard() {
                 <button
                   type="button"
                   onClick={() => openPatient(pacienteCurso?.id)}
-                  className="inline-flex h-9 items-center gap-1.5 rounded-full border border-white/25 px-4 text-sm font-medium text-white"
+                  className="inline-flex h-9 items-center gap-1.5 rounded-full border border-neutral-200 px-4 text-sm font-medium text-neutral-900 lg:border-white/25 lg:text-white"
                 >
                   <FileText size={15} />
                   Ficha
                 </button>
               </>
             ) : (
-              <Link href="/agenda" className="inline-flex h-9 items-center rounded-full bg-white px-4 text-sm font-medium text-neutral-900">
+              <Link href="/agenda" className="inline-flex h-9 items-center rounded-full bg-neutral-900 px-4 text-sm font-medium text-white lg:bg-white lg:text-neutral-900">
                 Ver agenda
               </Link>
             )}
           </div>
         </section>
+        </div>
 
         <aside className="order-3 flex flex-col lg:col-start-2 lg:row-span-3 lg:row-start-1 lg:min-h-0">
           <div className="flex items-center justify-between gap-1">

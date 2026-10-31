@@ -10,6 +10,7 @@ import {
   CheckSquare,
   CircleHelp,
   ClipboardList,
+  Compass,
   DollarSign,
   House,
   LayoutDashboard,
@@ -133,13 +134,22 @@ export default function MobileAppChrome({
     };
   }, [painel]);
 
+  const [modalAberto, setModalAberto] = useState(false);
+  useEffect(() => {
+    const checar = () => setModalAberto(!!document.querySelector('[role="dialog"][aria-modal="true"]'));
+    checar();
+    const obs = new MutationObserver(checar);
+    obs.observe(document.body, { childList: true });
+    return () => obs.disconnect();
+  }, []);
+
   const indiceAba = ABAS.findIndex((item) => ativo(pathname, item.href));
   const indicePolegar = aberto || menuAtivo ? ABAS.length : Math.max(0, indiceAba);
   const vidro = 'border border-black/[0.04] bg-white/70 shadow-[0_4px_16px_rgba(0,0,0,0.08)] backdrop-blur-md';
 
   return (
     <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-      <header className="flex shrink-0 items-center gap-3 border-b border-black/5 bg-[#f3f4f1] px-4 pb-2.5 pt-[max(0.75rem,env(safe-area-inset-top))] lg:hidden">
+      <header className={`${pathname === '/dashboard' ? 'hidden' : 'flex'} shrink-0 items-center gap-3 border-b border-black/5 bg-[#f3f4f1] px-4 pb-2.5 pt-[max(0.75rem,env(safe-area-inset-top))] lg:hidden`}>
         <img src="/landing/ortus-wordmark.svg" alt="ortus" className="h-5 w-auto shrink-0" />
         <BentoClinicSwitcher className="ml-auto min-w-0 max-w-[58%]" />
         <Link
@@ -169,7 +179,11 @@ export default function MobileAppChrome({
         />
       )}
 
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[110] flex flex-col items-center px-4 pb-[max(0.6rem,env(safe-area-inset-bottom))] lg:hidden">
+      <div
+        className={`pointer-events-none absolute inset-x-0 bottom-0 z-[110] flex flex-col items-center px-4 pb-[max(0.6rem,env(safe-area-inset-bottom))] transition-[opacity,transform,visibility] duration-200 ease-out lg:hidden ${
+          modalAberto && !painel ? 'invisible translate-y-4 opacity-0' : ''
+        }`}
+      >
         {painel && (
           <div
             id="menu-mobile"
@@ -183,6 +197,17 @@ export default function MobileAppChrome({
             }}
           >
             <div className={`mb-2 max-h-[calc(100dvh-8rem)] overflow-y-auto overscroll-contain rounded-[1.6rem] p-2 ${vidro}`}>
+              <button
+                type="button"
+                onClick={() => {
+                  fecharMenu();
+                  window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, ctrlKey: true, bubbles: true }));
+                }}
+                className="mb-1 flex h-11 w-full items-center gap-2.5 rounded-2xl bg-black/[0.04] px-3 text-left text-sm font-medium text-neutral-500 active:bg-black/[0.07]"
+              >
+                <Compass size={18} strokeWidth={1.75} className="shrink-0 text-neutral-800" />
+                Pesquisar paciente, tela ou ação
+              </button>
               <nav aria-label="Todas as telas" className="grid grid-cols-2 gap-1">
                 {itens.map((item) => {
                   const Icon = item.icon;
