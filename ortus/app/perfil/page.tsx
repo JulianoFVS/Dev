@@ -12,6 +12,7 @@ import {
   Upload,
 } from 'lucide-react';
 import { bentoInput } from '@/lib/bentoUi';
+import { prepararFotoPaciente } from '@/lib/prepararFotoPaciente';
 import { useRouter } from 'next/navigation';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
 import { useClinica, getClinicLabel } from '@/app/context/ClinicaContext';
@@ -114,13 +115,13 @@ export default function Perfil() {
     if (!e.target.files?.length || !userId) return;
     setSalvando(true);
     const file = e.target.files[0];
-    const fileExt = file.name.split('.').pop() || 'jpg';
-    const filePath = `${userId}/avatar.${fileExt}`;
+    const filePath = `${userId}/avatar.jpg`;
 
     try {
+      const foto = await prepararFotoPaciente(file);
       const { error: uploadError } = await supabase.storage
         .from('avatars')
-        .upload(filePath, file, { upsert: true, contentType: file.type || 'image/jpeg' });
+        .upload(filePath, foto, { upsert: true, contentType: 'image/jpeg' });
       if (uploadError) throw uploadError;
 
       const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(filePath);
@@ -288,7 +289,7 @@ export default function Perfil() {
                   <label className="absolute inset-0 flex cursor-pointer flex-col items-center justify-center bg-black/50 text-white opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
                     {salvando ? <Loader2 className="animate-spin" size={22} /> : <Upload size={22} />}
                     <span className="mt-1 text-[10px] font-semibold">Alterar foto</span>
-                    <input type="file" accept="image/*" className="hidden" onChange={handleFotoUpload} disabled={salvando} />
+                    <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleFotoUpload} disabled={salvando} />
                   </label>
                 </div>
                 <p className="mt-2 max-w-[8rem] text-center text-[11px] text-neutral-500 md:text-left">

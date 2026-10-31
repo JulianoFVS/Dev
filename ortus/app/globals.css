@@ -56,6 +56,13 @@ body.ortus-dashboard-fixed {
   color-scheme: only light;
 }
 
+/* Fotos Ultra HDR do celular aumentam o brilho da tela e escurecem todo o resto da página. */
+img,
+video,
+canvas {
+  dynamic-range-limit: standard;
+}
+
 html {
   scrollbar-width: thin;
   scrollbar-color: #c7c7cc transparent;
