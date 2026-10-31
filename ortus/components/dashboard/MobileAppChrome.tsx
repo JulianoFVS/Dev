@@ -176,7 +176,7 @@ export default function MobileAppChrome({
           tabIndex={-1}
           aria-hidden
           onClick={fecharMenu}
-          className={`fixed inset-0 z-[84] bg-black/15 lg:hidden ${aberto ? 'ortus-veu-in' : 'ortus-veu-out pointer-events-none'}`}
+          className={`fixed inset-0 z-[84] lg:hidden ${aberto ? '' : 'pointer-events-none'}`}
         />
       )}
 
