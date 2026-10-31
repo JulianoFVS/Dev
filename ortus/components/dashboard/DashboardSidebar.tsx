@@ -22,6 +22,7 @@ import {
   Users,
 } from 'lucide-react';
 import BentoClinicSwitcher from '@/components/dashboard/BentoClinicSwitcher';
+import { useImagemSdr } from '@/lib/imagemSdr';
 import BentoSidebarTooltip from '@/components/bento/BentoSidebarTooltip';
 
 export type DashboardSidebarNavOptions = {
@@ -35,7 +36,7 @@ export type DashboardSidebarNavOptions = {
 };
 
 function ProfileAvatar({
-  photoUrl,
+  photoUrl: photoUrlOriginal,
   profileName,
   collapsed,
 }: {
@@ -43,6 +44,7 @@ function ProfileAvatar({
   profileName?: string | null;
   collapsed: boolean;
 }) {
+  const photoUrl = useImagemSdr(photoUrlOriginal);
   const [photoFailed, setPhotoFailed] = useState(false);
 
   useEffect(() => {

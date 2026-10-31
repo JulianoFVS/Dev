@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { bentoInput } from '@/lib/bentoUi';
 import { prepararFotoPaciente } from '@/lib/prepararFotoPaciente';
+import { useImagemSdr } from '@/lib/imagemSdr';
 import { useRouter } from 'next/navigation';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
 import { useClinica, getClinicLabel } from '@/app/context/ClinicaContext';
@@ -64,6 +65,7 @@ export default function Perfil() {
   const [userId, setUserId] = useState<string | null>(null);
   const [perfil, setPerfil] = useState<ProfRow | null>(() => boot);
   const [fotoUrl, setFotoUrl] = useState<string | null>(() => boot?.foto_url ?? null);
+  const fotoExibida = useImagemSdr(fotoUrl);
   const router = useRouter();
   const { showAlert } = useCustomAlert();
 
@@ -279,8 +281,8 @@ export default function Perfil() {
             <div className="flex flex-col gap-6 md:flex-row md:items-start">
               <div className="flex shrink-0 flex-col items-center md:items-start">
                 <div className="group relative h-28 w-28 overflow-hidden rounded-2xl bg-[#c8f053] ring-2 ring-black/5 sm:h-32 sm:w-32">
-                  {fotoUrl ? (
-                    <img src={fotoUrl} alt="" className="h-full w-full object-cover" />
+                  {fotoExibida ? (
+                    <img src={fotoExibida} alt="" className="h-full w-full object-cover" />
                   ) : (
                     <span className="flex h-full w-full items-center justify-center text-2xl font-bold text-neutral-900">
                       {iniciais !== '—' ? iniciais : <User size={40} />}

@@ -7,6 +7,7 @@ import { PatientSlideOverProvider } from '@/components/PatientSlideOver';
 import { PatientActionModalProvider } from '@/components/PatientActionModal';
 import Omnibar from '@/components/Omnibar';
 import BentoShell from '@/components/dashboard/BentoShell';
+import { useImagemSdr } from '@/lib/imagemSdr';
 import { useClinica } from '@/app/context/ClinicaContext';
 import type { ModuleName } from '@/lib/types/permissions';
 import { buildModuleAccessMap } from '@/lib/modules';
@@ -40,6 +41,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const [tarefasPendentes, setTarefasPendentes] = useState(0);
   const [moduleAccess, setModuleAccess] = useState<Record<ModuleName, boolean>>(() => readModuleAccessMapFromCookie(false));
   const [permissoesResolvidas, setPermissoesResolvidas] = useState(false);
+  const fotoPerfil = useImagemSdr(perfil?.foto_url);
   
   const router = useRouter();
   const pathname = usePathname();
@@ -332,7 +334,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
               showTratamentosBase: !permissoesResolvidas || canAccessModule('configuracoes'),
               showPainelSaas: perfil?.is_super_admin === true || readSuperAdminCache(),
               tarefasBadge: tarefasPendentes,
-              profilePhotoUrl: perfil?.foto_url ?? null,
+              profilePhotoUrl: fotoPerfil,
               profileName: perfil?.nome ?? null,
             }}
           >
