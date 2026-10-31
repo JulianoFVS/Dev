@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Inter, Poppins } from 'next/font/google';
 import './globals.css';
 import AuthGuard from '@/components/AuthGuard';
@@ -29,6 +29,11 @@ export const metadata: Metadata = {
     apple: '/apple-icon.png',
     shortcut: '/favicon-32.png',
   },
+};
+
+export const viewport: Viewport = {
+  colorScheme: 'only light',
+  themeColor: '#f3f4f1',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

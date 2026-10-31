@@ -1059,7 +1059,7 @@ export default function Dashboard() {
             ) : listaDia.length === 0 ? (
               <p className="rounded-xl bg-white px-3 py-3 text-sm text-neutral-400">Nenhuma consulta neste dia.</p>
             ) : (
-              <ul ref={listaRef} className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-contain">
+              <ul ref={listaRef} className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto lg:overscroll-contain">
                 {listaDia.map((ag) => {
                   const aberto = selecionado?.id === ag.id;
                   const ehAtual = emAtendimento?.id === ag.id;
@@ -1216,7 +1216,7 @@ export default function Dashboard() {
                 </Link>
               </div>
               <p className="shrink-0 text-xs text-neutral-500">Hoje e próximas a vencer</p>
-              <ul className="mt-2 min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain">
+              <ul className="mt-2 min-h-0 flex-1 space-y-1 overflow-y-auto lg:overscroll-contain">
                 {tarefasCarregando ? (
                   <li className="space-y-2">
                     <div className="h-10 animate-pulse rounded-xl bg-neutral-100" />
@@ -1296,7 +1296,7 @@ export default function Dashboard() {
                 <span className="text-right">Você recebe</span>
                 <span className="text-right">Cobrar</span>
               </div>
-              <ul className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+              <ul className="min-h-0 flex-1 overflow-y-auto lg:overscroll-contain">
                 {formasCalc.length === 0 ? (
                   <li className="px-1 py-2 text-sm text-neutral-400">Cadastre as taxas em Configurações.</li>
                 ) : (
