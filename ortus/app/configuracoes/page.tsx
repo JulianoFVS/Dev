@@ -834,10 +834,10 @@ export default function Configuracoes() {
   async function publicarLogo(clinicaId: string | number, file: File) {
       setUploadingLogo(true);
       try {
-          const fileExt = file.name.split('.').pop() || 'png';
+          const fileExt = file.type === 'image/jpeg' ? 'jpg' : file.type === 'image/webp' ? 'webp' : 'png';
           const filePath = `clinicas/${clinicaId}/logo-${Date.now()}.${fileExt}`;
-          await enviarArquivoClinica(filePath, file, { upsert: true });
-          const { data: { publicUrl } } = supabase.storage.from('arquivos_ortus').getPublicUrl(filePath);
+          const publicUrl = await enviarArquivoClinica(filePath, file, { upsert: true, contentType: file.type || undefined });
+          if (!publicUrl) throw new Error('Não foi possível publicar a logo.');
           const { error } = await supabase.from('clinicas').update({ logo_url: publicUrl }).eq('id', clinicaId);
           if (error) throw error;
           setClinicaForm((prev) => ({ ...prev, logo_url: publicUrl }));
@@ -896,9 +896,10 @@ export default function Configuracoes() {
 
       try {
           const url = editandoProf ? '/api/editar-usuario' : '/api/criar-usuario';
+          const { data: { session } } = await supabase.auth.getSession();
           const res = await fetch(url, {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token || ''}` },
               body: JSON.stringify(dados)
           });
 

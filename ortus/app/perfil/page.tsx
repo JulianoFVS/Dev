@@ -15,7 +15,7 @@ import {
 import { bentoInput } from '@/lib/bentoUi';
 import { prepararFotoPaciente } from '@/lib/prepararFotoPaciente';
 import { useImagemSdr } from '@/lib/imagemSdr';
-import { carregarUsoArmazenamento, EVENTO_ARMAZENAMENTO, formatarBytes, type UsoArmazenamento } from '@/lib/armazenamento';
+import { carregarUsoArmazenamento, enviarAvatarPerfil, EVENTO_ARMAZENAMENTO, formatarBytes, formatarBytesDecimais, type ResumoArmazenamento } from '@/lib/armazenamento';
 import { useRouter } from 'next/navigation';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
 import { useClinica, getClinicLabel } from '@/app/context/ClinicaContext';
@@ -119,17 +119,10 @@ export default function Perfil() {
     if (!e.target.files?.length || !userId) return;
     setSalvando(true);
     const file = e.target.files[0];
-    const filePath = `${userId}/avatar.jpg`;
 
     try {
       const foto = await prepararFotoPaciente(file);
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(filePath, foto, { upsert: true, contentType: 'image/jpeg' });
-      if (uploadError) throw uploadError;
-
-      const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(filePath);
-      const publicUrl = `${urlData.publicUrl}?v=${Date.now()}`;
+      const publicUrl = await enviarAvatarPerfil(userId, foto);
 
       const { error: updErr } = await supabase
         .from('profissionais')
@@ -370,14 +363,14 @@ export default function Perfil() {
 }
 
 function ArmazenamentoSecao({ clinicaId }: { clinicaId: string | null }) {
-  const [usos, setUsos] = useState<UsoArmazenamento[] | null>(null);
+  const [resumo, setResumo] = useState<ResumoArmazenamento | null>(null);
   const [erro, setErro] = useState('');
 
   useEffect(() => {
     let ativo = true;
     const atualizar = () => {
       carregarUsoArmazenamento(clinicaId)
-        .then((dados) => { if (ativo) { setUsos(dados); setErro(''); } })
+        .then((dados) => { if (ativo) { setResumo(dados); setErro(''); } })
         .catch((err: unknown) => { if (ativo) setErro(err instanceof Error ? err.message : 'Falha ao medir.'); });
     };
     atualizar();
@@ -388,6 +381,7 @@ function ArmazenamentoSecao({ clinicaId }: { clinicaId: string | null }) {
     };
   }, [clinicaId]);
 
+  const usos = resumo?.clinicas ?? null;
   if (usos && usos.length === 0 && !erro) return null;
 
   return (
@@ -432,6 +426,11 @@ function ArmazenamentoSecao({ clinicaId }: { clinicaId: string | null }) {
               </div>
             );
           })}
+          {resumo && (
+            <p className="text-xs text-neutral-500">
+              Conta inteira: {formatarBytesDecimais(resumo.total)} de {formatarBytesDecimais(resumo.teto)}. O envio para ao chegar nesse teto.
+            </p>
+          )}
         </div>
       )}
     </section>

@@ -1,32 +1,19 @@
-import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
+import { identificarChamador } from '@/lib/chamadorApi';
 
 export async function POST(req: Request) {
   try {
-    // Usa a chave de serviço (Service Role) para ignorar as regras de segurança (RLS)
-    // Isso garante que vamos ver TUDO que está no banco
-    const supabaseAdmin = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      { auth: { autoRefreshToken: false, persistSession: false } }
-    );
+    const chamador = await identificarChamador(req);
+    if (!chamador) return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
+    const supabaseAdmin = chamador.admin;
 
-    const { userId } = await req.json();
-
-    if (!userId) {
-        return NextResponse.json({ error: 'UserID ausente' }, { status: 400 });
-    }
-
-    // 1. Pega dados do profissional (apenas para saudação + flag super admin)
     const { data: prof } = await supabaseAdmin
         .from('profissionais')
-        .select('*')
-        .eq('user_id', userId)
+        .select('id, nome, cargo, foto_url, nivel_acesso, is_super_admin')
+        .eq('id', chamador.prof.id)
         .single();
 
-    // 2. BUSCA AS CLÍNICAS DO USUÁRIO (multi-tenant)
-    //    - super admin: visão global (todas as clínicas)
-    //    - usuário comum: apenas as vinculadas via profissionais_clinicas
+    // super admin vê todas as clínicas; os demais, só as vinculadas
     let clinicas: any[] = [];
     if (prof?.is_super_admin) {
         const { data: todas } = await supabaseAdmin

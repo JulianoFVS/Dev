@@ -81,13 +81,27 @@ export async function POST(req: Request, { params }: RouteParams) {
     const body = await req.json().catch(() => ({}));
     const { respostas } = body as { respostas?: Record<string, unknown> };
 
-    if (!respostas || typeof respostas !== 'object') {
+    if (!respostas || typeof respostas !== 'object' || Array.isArray(respostas)) {
       return NextResponse.json({ error: 'Respostas inválidas.' }, { status: 400 });
+    }
+    if (JSON.stringify(respostas).length > 64_000) {
+      return NextResponse.json({ error: 'Respostas longas demais.' }, { status: 413 });
     }
 
     const modelo = await buscarModelo(admin, link.clinica_id ? Number(link.clinica_id) : null, link.modelo_id);
     if (!modelo) {
       return NextResponse.json({ error: 'Modelo de anamnese não encontrado.' }, { status: 404 });
+    }
+
+    const { data: reservado } = await admin
+      .from('anamnese_links')
+      .update({ usado_em: new Date().toISOString() })
+      .eq('id', link.id)
+      .is('usado_em', null)
+      .select('id')
+      .maybeSingle();
+    if (!reservado) {
+      return NextResponse.json({ error: 'Este formulário já foi preenchido.' }, { status: 410 });
     }
 
     const hoje = new Date().toISOString().slice(0, 10);
@@ -103,13 +117,9 @@ export async function POST(req: Request, { params }: RouteParams) {
     });
 
     if (anamErr) {
+      await admin.from('anamnese_links').update({ usado_em: null }).eq('id', link.id);
       return NextResponse.json({ error: anamErr.message }, { status: 500 });
     }
-
-    await admin
-      .from('anamnese_links')
-      .update({ usado_em: new Date().toISOString() })
-      .eq('id', link.id);
 
     return NextResponse.json({ ok: true });
   } catch (err: any) {

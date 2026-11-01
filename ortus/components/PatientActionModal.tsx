@@ -207,17 +207,15 @@ export function PatientActionModalProvider({ children }: { children: React.React
     let avisoFoto = '';
     if (qcFotoBlob) {
       const caminho = `pacientes/${data.id}/avatar.jpg`;
-      const enviou = await enviarArquivoClinica(caminho, qcFotoBlob, {
+      const publicUrl = await enviarArquivoClinica(caminho, qcFotoBlob, {
         contentType: 'image/jpeg',
         upsert: true,
         cacheControl: '3600',
-      }).then(() => true, (err: unknown) => {
+      }).catch((err: unknown) => {
         avisoFoto = ` A foto não foi salva${err instanceof Error && err.message ? `: ${err.message}` : '.'}`;
-        return false;
+        return null;
       });
-      if (enviou) {
-        const { data: urlData } = supabase.storage.from('arquivos_ortus').getPublicUrl(caminho);
-        const publicUrl = `${urlData.publicUrl}?v=${Date.now()}`;
+      if (publicUrl) {
         const { error: updErr } = await supabase.from('pacientes').update({ foto_url: publicUrl }).eq('id', data.id);
         if (updErr) avisoFoto = ' A foto não foi salva.';
       }

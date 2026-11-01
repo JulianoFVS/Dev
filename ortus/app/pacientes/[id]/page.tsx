@@ -21,7 +21,7 @@ import { useCustomAlert } from '@/components/ui/CustomAlert';
 import { validarPaciente, isMenorDeIdade } from '@/lib/pacienteValidation';
 import { cpfValido, mascaraCep, mascaraCpf, mascaraNumero, mascaraTelefone, variantesCpf } from '@/lib/mascaras';
 import { prepararFotoPaciente } from '@/lib/prepararFotoPaciente';
-import { apagarArquivosClinica, enviarArquivoClinica } from '@/lib/armazenamento';
+import { apagarArquivosClinica, baixarArquivoClinica, enviarArquivoClinica, extrairCaminhoArquivo } from '@/lib/armazenamento';
 import CampoData from '@/components/ui/CampoData';
 import HofPreviewRosto from '@/components/clinico/HofPreviewRosto';
 import { carregarConfig } from '@/lib/configClinica';
@@ -660,9 +660,8 @@ export default function PacienteDetalhe() {
       try {
           const blob = await prepararFotoPaciente(arquivo);
           const caminho = `pacientes/${id}/avatar.jpg`;
-          await enviarArquivoClinica(caminho, blob, { contentType: 'image/jpeg', upsert: true, cacheControl: '3600' });
-          const { data: urlData } = supabase.storage.from('arquivos_ortus').getPublicUrl(caminho);
-          const publicUrl = `${urlData.publicUrl}?v=${Date.now()}`;
+          const publicUrl = await enviarArquivoClinica(caminho, blob, { contentType: 'image/jpeg', upsert: true, cacheControl: '3600' });
+          if (!publicUrl) throw new Error('Não foi possível salvar a foto.');
           const { error: updErr } = await supabase.from('pacientes').update({ foto_url: publicUrl }).eq('id', id);
           if (updErr) throw updErr;
           setForm((atual: any) => ({ ...atual, foto_url: publicUrl }));
@@ -674,12 +673,7 @@ export default function PacienteDetalhe() {
   }
 
   function caminhoBucket(url?: string | null, storagePath?: string | null) {
-      if (storagePath) return storagePath;
-      if (!url || url.startsWith('blob:')) return null;
-      const marca = '/arquivos_ortus/';
-      const i = url.indexOf(marca);
-      if (i < 0) return null;
-      return decodeURIComponent(url.slice(i + marca.length).split('?')[0]);
+      return extrairCaminhoArquivo(url, storagePath);
   }
 
   function fotosHofParaSalvar(fotos: HofFoto[]) {
@@ -696,9 +690,12 @@ export default function PacienteDetalhe() {
       return Promise.all(fotos.map(async (f) => {
           const path = caminhoBucket(f.dataUrl, f.storagePath);
           if (!path) return { ...f, dataUrl: f.dataUrl?.startsWith('blob:') ? f.dataUrl : '' };
-          const { data, error } = await supabase.storage.from('arquivos_ortus').download(path);
-          if (error || !data) return { ...f, storagePath: path, dataUrl: '' };
-          return { ...f, storagePath: path, dataUrl: URL.createObjectURL(data) };
+          try {
+              const data = await baixarArquivoClinica(path);
+              return { ...f, storagePath: path, dataUrl: URL.createObjectURL(data) };
+          } catch {
+              return { ...f, storagePath: path, dataUrl: '' };
+          }
       }));
   }
 
@@ -1662,8 +1659,7 @@ export default function PacienteDetalhe() {
   async function blobDoDocumento(d: any) {
       const path = d.storagePath || d.storage_path;
       if (path) {
-          const { data, error } = await supabase.storage.from('arquivos_ortus').download(path);
-          if (!error && data) return data;
+          return await baixarArquivoClinica(path);
       }
       if (d.dataUrl && !String(d.dataUrl).startsWith('blob:')) {
           const resposta = await fetch(d.dataUrl);

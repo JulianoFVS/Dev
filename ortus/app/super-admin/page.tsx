@@ -147,10 +147,10 @@ export default function SuperAdminPage() {
     }
 
     async function publicarLogo(token: string, redeId: string | number, clinicaId: string | number, arquivo: File) {
-        const ext = arquivo.name.split('.').pop() || 'png';
+        const ext = arquivo.type === 'image/jpeg' ? 'jpg' : arquivo.type === 'image/webp' ? 'webp' : 'png';
         const filePath = `clinicas/${clinicaId}/logo-${Date.now()}.${ext}`;
-        await enviarArquivoClinica(filePath, arquivo, { upsert: true });
-        const { data: { publicUrl } } = supabase.storage.from('arquivos_ortus').getPublicUrl(filePath);
+        const publicUrl = await enviarArquivoClinica(filePath, arquivo, { upsert: true, contentType: arquivo.type || undefined });
+        if (!publicUrl) throw new Error('Não foi possível publicar a foto.');
         const resp = await fetch('/api/super-admin/rede', {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },

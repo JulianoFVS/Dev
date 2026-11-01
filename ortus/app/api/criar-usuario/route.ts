@@ -1,22 +1,49 @@
-import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
+import { createSupabaseAdmin } from '@/lib/supabaseAdmin';
+import { clinicasDoChamador, ehGestor, identificarChamador } from '@/lib/chamadorApi';
+
+const NIVEIS_EQUIPE = new Set(['admin', 'comum', 'padrao']);
 
 export async function POST(req: Request) {
   try {
-    const supabaseAdmin = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!, 
-      { auth: { autoRefreshToken: false, persistSession: false } }
-    );
-
-    const body = await req.json();
-    const { email, password, nome, cargo, nivel_acesso, clinicas, cpf, cro, telefone, foto_url, conselho, uf, sexo, endereco } = body;
+    const body = await req.json().catch(() => ({}));
+    const { email, password, nome, cargo, nivel_acesso, clinicas, cpf, cro, telefone, conselho, uf, sexo, endereco } = body;
 
     if (!email || !password) {
         return NextResponse.json({ error: 'Email e senha são obrigatórios' }, { status: 400 });
     }
+    if (String(password).length < 8) {
+        return NextResponse.json({ error: 'A senha precisa ter pelo menos 8 caracteres.' }, { status: 400 });
+    }
 
-    // 1. Cria Login no Auth
+    const temToken = (req.headers.get('authorization') || '').startsWith('Bearer ');
+    const chamador = temToken ? await identificarChamador(req) : null;
+    if (temToken && !chamador) return NextResponse.json({ error: 'Sessão inválida.' }, { status: 401 });
+    if (chamador && !ehGestor(chamador)) {
+        return NextResponse.json({ error: 'Apenas administradores podem cadastrar profissionais.' }, { status: 403 });
+    }
+
+    let perfil: Record<string, unknown>;
+    let vinculos: string[] = [];
+    if (!chamador) {
+        // Cadastro público: só cria a conta. Clínica e rede vêm depois, pelo suporte.
+        perfil = { nome: String(nome || '').slice(0, 120), cargo: 'Administrador', nivel_acesso: 'admin' };
+    } else {
+        const nivel = NIVEIS_EQUIPE.has(nivel_acesso) ? nivel_acesso : 'padrao';
+        perfil = { nome, cargo, nivel_acesso: nivel, cpf, cro, telefone, conselho, uf, sexo, endereco };
+        const pedidas = Array.isArray(clinicas) ? clinicas.map(String) : [];
+        if (chamador.prof.is_super_admin) {
+            vinculos = pedidas;
+        } else {
+            const minhas = await clinicasDoChamador(chamador);
+            if (pedidas.some((id) => !minhas.has(id))) {
+                return NextResponse.json({ error: 'Você só pode vincular profissionais às suas clínicas.' }, { status: 403 });
+            }
+            vinculos = pedidas;
+        }
+    }
+
+    const supabaseAdmin = createSupabaseAdmin();
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
@@ -25,24 +52,10 @@ export async function POST(req: Request) {
 
     if (authError) throw authError;
 
-    // 2. Cria Dados no Banco (Completo)
     const { data: profData, error: profError } = await supabaseAdmin
         .from('profissionais')
-        .insert([{
-            user_id: authData.user.id,
-            nome,
-            cargo,
-            nivel_acesso: nivel_acesso || 'padrao',
-            cpf,
-            cro,      // Equivalente ao Nº Conselho
-            telefone, // Equivalente ao Contato
-            conselho,
-            uf,
-            sexo,
-            endereco,
-            foto_url
-        }])
-        .select()
+        .insert([{ user_id: authData.user.id, ...perfil }])
+        .select('id')
         .single();
 
     if (profError) {
@@ -50,16 +63,13 @@ export async function POST(req: Request) {
         throw profError;
     }
 
-    // 3. Vínculos
-    if (clinicas && clinicas.length > 0 && profData) {
-        const vinculos = clinicas.map((clinica_id: any) => ({
-            profissional_id: profData.id,
-            clinica_id: clinica_id
-        }));
-        await supabaseAdmin.from('profissionais_clinicas').insert(vinculos);
+    if (vinculos.length > 0 && profData) {
+        await supabaseAdmin.from('profissionais_clinicas').insert(
+            vinculos.map((clinica_id) => ({ profissional_id: profData.id, clinica_id })),
+        );
     }
 
-    return NextResponse.json({ success: true, user: authData.user });
+    return NextResponse.json({ success: true, user: { id: authData.user.id, email: authData.user.email } });
 
   } catch (error: any) {
     console.error('Erro API Criar:', error);

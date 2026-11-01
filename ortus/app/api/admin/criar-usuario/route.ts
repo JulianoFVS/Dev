@@ -60,14 +60,14 @@ export async function POST(req: Request) {
 
         const { data: perfilCaller, error: perfilErr } = await supabaseAdmin
             .from('profissionais')
-            .select('id, nivel_acesso')
+            .select('id, nivel_acesso, is_super_admin')
             .eq('user_id', caller.user.id)
             .single();
 
         if (perfilErr || !perfilCaller) {
             return NextResponse.json({ error: 'Perfil profissional do solicitante não encontrado.' }, { status: 403 });
         }
-        if (perfilCaller.nivel_acesso !== 'admin') {
+        if (perfilCaller.nivel_acesso !== 'admin' && !perfilCaller.is_super_admin) {
             return NextResponse.json({ error: 'Apenas administradores podem criar funcionários.' }, { status: 403 });
         }
 
@@ -93,7 +93,7 @@ export async function POST(req: Request) {
         const idsPermitidos = new Set((vinculosAdmin || []).map((v: any) => String(v.clinica_id)));
         const idsPedidos = clinicas.map((c) => String(c));
         const fora = idsPedidos.filter((id) => !idsPermitidos.has(id));
-        if (fora.length > 0 && idsPermitidos.size > 0) {
+        if (fora.length > 0 && !perfilCaller.is_super_admin) {
             return NextResponse.json(
                 { error: 'Você não tem permissão para vincular este usuário a clínicas fora da sua rede.' },
                 { status: 403 },

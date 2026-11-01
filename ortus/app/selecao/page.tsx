@@ -38,11 +38,11 @@ export default function SelecaoClinica() {
         try {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) { router.push('/login'); return; }
+            const { data: { session } } = await supabase.auth.getSession();
 
             const res = await fetch('/api/listar-clinicas', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userId: user.id }),
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token || ''}` },
             });
 
             const json = await res.json();
