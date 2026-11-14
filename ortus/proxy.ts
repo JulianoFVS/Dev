@@ -28,6 +28,10 @@ const PUBLIC_PREFIXES = [
   // cai no fallback sem motivo. O uso real continua exigindo sessão, porque
   // só o app autenticado abre a tela de captura.
   '/mediapipe',
+  // Rotina do Vercel Cron: não carrega cookie de sessão. A barreira real é a
+  // própria rota, que exige `Authorization: Bearer $CRON_SECRET` e falha
+  // fechada (401) quando a variável não existe.
+  '/api/lembretes/processar',
 ];
 
 /**
