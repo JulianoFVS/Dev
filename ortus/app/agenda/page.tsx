@@ -7,7 +7,7 @@ import { usePatientActionModal } from '@/components/PatientActionModal';
 import { useClinica } from '@/app/context/ClinicaContext';
 import { fetchUserClinicas, fetchUserEquipe } from '@/lib/clinicScoped';
 
-import { Plus, X, Loader2, UserPlus, Trash2, Bell, ChevronDown, ChevronLeft, ChevronRight, Search, Calendar, LayoutGrid, Clock, List, Users } from 'lucide-react';
+import { Plus, X, Loader2, UserPlus, Trash2, Bell, ChevronDown, ChevronLeft, ChevronRight, Search, Calendar, LayoutGrid, Clock, List } from 'lucide-react';
 import CustomSelect from '@/components/ui/CustomSelect';
 import CampoData from '@/components/ui/CampoData';
 import CampoHora from '@/components/ui/CampoHora';
@@ -17,10 +17,6 @@ import PatientContactButtons from '@/components/PatientContactButtons';
 import Modal from '@/components/ui/Modal';
 import SegmentedControl from '@/components/ui/SegmentedControl';
 import ProcedureCombobox from '@/components/forms/ProcedureCombobox';
-import ChipsProfissionais, { type ChipProfissional } from '@/components/agenda/ChipsProfissionais';
-import ChipEvento from '@/components/agenda/ChipEvento';
-import GradeProfissional, { type ColunaProfissional } from '@/components/agenda/GradeProfissional';
-import { COR_PROFISSIONAL_PADRAO, corProfissional } from '@/components/agenda/estilos';
 import {
   buscarAgendamentosLembrete24h,
   filtrarPendentesLembrete,
@@ -31,7 +27,7 @@ import {
 import { lerPrefillAgenda, limparPrefillAgenda } from '@/lib/agendaPrefill';
 import { tratamentosVisiveis, valorNaAgenda, type LinhaPreco, type PlanoTipo } from '@/lib/precoTratamento';
 
-type Visao = 'mes' | 'semana' | 'dia' | 'profissionais' | 'lista';
+type Visao = 'mes' | 'semana' | 'dia' | 'lista';
 
 const DIAS_CURTOS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 const STATUS_OPCOES = [
@@ -207,7 +203,7 @@ export default function Agenda() {
   const [cursor, setCursor] = useState(() => new Date());
   const [busca, setBusca] = useState('');
   const [filtroStatus, setFiltroStatus] = useState('todos');
-  const [filtroProfissionais, setFiltroProfissionais] = useState<string[]>([]);
+  const [filtroProfissional, setFiltroProfissional] = useState('todos');
   const [agora, setAgora] = useState(() => new Date());
   const gradeHorasRef = useRef<HTMLDivElement>(null);
 
@@ -369,34 +365,8 @@ export default function Agenda() {
       const equipe = await fetchUserEquipe();
       const equipeNormalizada = equipe.map((p: any) => ({
           ...p,
-          cor_agenda: p.cor_agenda ?? null,
           profissionais_clinicas: (p.clinicas || []).map((c: any) => ({ clinica_id: c.id })),
       }));
-
-      // `cor_agenda` pode não vir no helper da equipe; busca dedicada para
-      // colorir os chips e as colunas por profissional.
-      const idsEquipe = equipeNormalizada
-          .map((p: any) => p.id)
-          .filter((id: any) => id !== null && id !== undefined);
-      if (idsEquipe.length > 0) {
-          try {
-              const { data: cores, error } = await supabase
-                  .from('profissionais')
-                  .select('id, cor_agenda')
-                  .in('id', idsEquipe as any);
-              if (!error && cores) {
-                  const mapa = new Map<string, string | null>();
-                  (cores as Array<{ id: string | number; cor_agenda?: string | null }>).forEach((linha) => {
-                      mapa.set(String(linha.id), linha.cor_agenda ?? null);
-                  });
-                  equipeNormalizada.forEach((p: any) => {
-                      p.cor_agenda = mapa.get(String(p.id)) ?? p.cor_agenda ?? null;
-                  });
-              }
-          } catch {
-              /* paleta determinística cobre a ausência da coluna */
-          }
-      }
       setProfissionais(equipeNormalizada as any);
 
       // Pacientes apenas das clínicas permitidas
@@ -435,7 +405,7 @@ export default function Agenda() {
       } else setEvents([]); 
   }
 
-  function abrirNoDia(dia: Date, hora = '08:00', profissionalId?: string) {
+  function abrirNoDia(dia: Date, hora = '08:00') {
       const preClinica = clinicaFiltro !== 'todas' ? clinicaFiltro : '';
       const preProfissional = (usuarioAtual?.nivel !== 'admin' && usuarioAtual?.profissional_id) ? usuarioAtual.profissional_id : '';
       setFormData({
@@ -450,7 +420,7 @@ export default function Agenda() {
           observacoes: '',
           status: 'agendado',
           clinica_id: preClinica,
-          profissional_id: profissionalId ?? preProfissional,
+          profissional_id: preProfissional,
       });
       setOpenModal(true);
   }
@@ -555,64 +525,18 @@ export default function Agenda() {
 
   const cardShell = 'rounded-xl bg-white';
 
-  const profissionaisVisiveis = useMemo(() => {
-    const base = clinicaFiltro === 'todas'
-      ? profissionais
-      : profissionais.filter((p: any) =>
-        p.profissionais_clinicas?.some((vinculo: any) => String(vinculo.clinica_id) === clinicaFiltro),
-      );
-    if (usuarioAtual?.nivel !== 'admin' && usuarioAtual?.profissional_id != null) {
-      return base.filter((p: any) => String(p.id) === String(usuarioAtual.profissional_id));
-    }
-    return base;
-  }, [profissionais, clinicaFiltro, usuarioAtual]);
-
-  // Remove seleções que deixaram de existir (troca de clínica/equipe).
-  useEffect(() => {
-    setFiltroProfissionais((atuais) => {
-      if (!atuais.length) return atuais;
-      const validos = atuais.filter((id) => profissionaisVisiveis.some((p: any) => String(p.id) === id));
-      return validos.length === atuais.length ? atuais : validos;
-    });
-  }, [profissionaisVisiveis]);
-
-  const chipsProfissionais = useMemo<ChipProfissional[]>(
-    () => profissionaisVisiveis.map((profissional: any) => ({
-      id: String(profissional.id),
-      nome: profissional.nome,
-      cor: corProfissional(profissional),
-    })),
-    [profissionaisVisiveis],
-  );
-
-  const alternarProfissional = useCallback((id: string) => {
-    setFiltroProfissionais((atuais) => (
-      atuais.includes(id) ? atuais.filter((item) => item !== id) : [...atuais, id]
-    ));
-  }, []);
-
-  const limparProfissionais = useCallback(() => setFiltroProfissionais([]), []);
-
-  const limparFiltros = useCallback(() => {
-    setFiltroStatus('todos');
-    setFiltroProfissionais([]);
-  }, []);
-
-  const filtrosAtivos = filtroStatus !== 'todos' || filtroProfissionais.length > 0;
-
   const eventosVisiveis = useMemo(() => {
     const termo = busca.trim().toLowerCase();
-    const selecionados = filtroProfissionais.length ? new Set(filtroProfissionais) : null;
     return events.filter((evento) => {
       const props = evento.extendedProps || {};
       const nome = String(nomePaciente(props) || '');
       const procedimento = String(props.procedimento || '');
       if (termo && !nome.toLowerCase().includes(termo) && !procedimento.toLowerCase().includes(termo)) return false;
       if (filtroStatus !== 'todos' && (props.status || 'agendado') !== filtroStatus) return false;
-      if (selecionados && !selecionados.has(String(props.profissional_id ?? ''))) return false;
+      if (filtroProfissional !== 'todos' && String(props.profissional_id || '') !== filtroProfissional) return false;
       return true;
     });
-  }, [events, busca, filtroStatus, filtroProfissionais]);
+  }, [events, busca, filtroStatus, filtroProfissional]);
 
   const eventosPorDia = useMemo(() => {
     const mapa = new Map<string, any[]>();
@@ -655,7 +579,7 @@ export default function Agenda() {
   }, []);
 
   useEffect(() => {
-    if (visao !== 'semana' && visao !== 'dia' && visao !== 'profissionais') return;
+    if (visao !== 'semana' && visao !== 'dia') return;
     const grade = gradeHorasRef.current;
     const linha = grade?.querySelector('[data-agora]') as HTMLElement | null;
     if (!grade || !linha) return;
@@ -665,8 +589,7 @@ export default function Agenda() {
   }, [visao, cursor]);
 
   const hoje = inicioDoDia(new Date());
-  const diaSelecionado = inicioDoDia(cursor);
-  const titulo = visao === 'dia' || visao === 'profissionais'
+  const titulo = visao === 'dia'
     ? capitalizar(cursor.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' }))
     : visao === 'semana'
       ? `${inicioSemana(cursor).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short' })} – ${somarDias(inicioSemana(cursor), 6).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short', year: 'numeric' })}`
@@ -674,10 +597,27 @@ export default function Agenda() {
 
   function mover(direcao: -1 | 1) {
     const proxima = new Date(cursor);
-    if (visao === 'dia' || visao === 'profissionais') proxima.setDate(proxima.getDate() + direcao);
+    if (visao === 'dia') proxima.setDate(proxima.getDate() + direcao);
     else if (visao === 'semana') proxima.setDate(proxima.getDate() + direcao * 7);
     else proxima.setMonth(proxima.getMonth() + direcao);
     setCursor(proxima);
+  }
+
+  function ChipEvento({ evento }: { evento: any }) {
+    const props = evento.extendedProps || {};
+    const hora = new Date(evento.start).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    return (
+      <button
+        type="button"
+        onClick={(event) => { event.stopPropagation(); abrirEvento(props); }}
+        className="flex w-full min-w-0 items-center gap-1 rounded px-1 py-0.5 text-left text-[11px] text-neutral-700 hover:bg-neutral-100"
+      >
+        <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${corStatus(props.status)}`} />
+        <span className={`truncate ${props.status === 'cancelado' ? 'line-through text-neutral-400' : ''}`}>
+          <span className="text-neutral-400">{hora}</span> {nomePaciente(props) || 'Paciente'}
+        </span>
+      </button>
+    );
   }
 
   const inputClass =
@@ -689,12 +629,11 @@ export default function Agenda() {
     { id: 'dia', label: 'Dia', Icone: Clock },
     { id: 'semana', label: 'Semana', Icone: LayoutGrid },
     { id: 'mes', label: 'Mês', Icone: Calendar },
-    { id: 'profissionais', label: 'Profissionais', Icone: Users },
     { id: 'lista', label: 'Lista', Icone: List },
   ];
 
   function dentroDoPeriodo(data: Date) {
-    if (visao === 'dia' || visao === 'profissionais') return mesmoDia(data, cursor);
+    if (visao === 'dia') return mesmoDia(data, cursor);
     if (visao === 'semana') {
       const inicio = inicioSemana(cursor);
       return data >= inicio && data < somarDias(inicio, 7);
@@ -705,53 +644,6 @@ export default function Agenda() {
   const eventosLista = eventosVisiveis
     .filter((evento) => dentroDoPeriodo(new Date(evento.start)))
     .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
-
-  const colunasProfissionais = useMemo<ColunaProfissional[]>(() => {
-    let base = profissionaisVisiveis;
-    if (filtroProfissionais.length) {
-      const selecionados = new Set(filtroProfissionais);
-      base = base.filter((p: any) => selecionados.has(String(p.id)));
-    }
-    const colunas: ColunaProfissional[] = base.map((p: any) => ({
-      id: String(p.id),
-      nome: p.nome,
-      cor: corProfissional(p),
-    }));
-
-    const eventosDoDia = eventosPorDia.get(chaveLocal(diaSelecionado)) || [];
-
-    // Profissionais que aparecem em atendimentos mas não estão na equipe
-    // visível (ex.: desligados) continuam com coluna própria para não
-    // esconder nenhum atendimento.
-    const idsConhecidos = new Set(colunas.map((coluna) => coluna.id));
-    eventosDoDia.forEach((evento: any) => {
-      const profissionalId = evento.extendedProps?.profissional_id;
-      if (profissionalId == null || profissionalId === '') return;
-      const id = String(profissionalId);
-      if (idsConhecidos.has(id)) return;
-      if (filtroProfissionais.length && !filtroProfissionais.includes(id)) return;
-      idsConhecidos.add(id);
-      colunas.push({
-        id,
-        nome: `Profissional #${id}`,
-        cor: corProfissional({ id }),
-        desconhecido: true,
-      });
-    });
-
-    if (!filtroProfissionais.length) {
-      const temSemProfissional = eventosDoDia.some((evento: any) => evento.extendedProps?.profissional_id == null);
-      if (temSemProfissional) {
-        colunas.push({
-          id: '__sem_profissional__',
-          nome: 'Sem profissional',
-          cor: COR_PROFISSIONAL_PADRAO,
-          semProfissional: true,
-        });
-      }
-    }
-    return colunas;
-  }, [profissionaisVisiveis, filtroProfissionais, eventosPorDia, diaSelecionado]);
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden px-2.5 py-2.5 font-poppins sm:px-3 sm:py-3 md:px-4 md:py-3.5 max-sm:overflow-y-auto">
@@ -805,18 +697,25 @@ export default function Agenda() {
             />
           </div>
           <div className="flex items-center gap-2">
-            {filtrosAtivos && (
+            {(filtroStatus !== 'todos' || filtroProfissional !== 'todos') && (
               <button
                 type="button"
                 aria-label="Limpar filtros"
-                onClick={limparFiltros}
+                onClick={() => { setFiltroStatus('todos'); setFiltroProfissional('todos'); }}
                 className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-red-200 bg-white text-red-500"
               >
                 <X size={16} />
               </button>
             )}
-            <div className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-2">
+            <div className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)_minmax(0,1fr)] gap-2">
               <MenuFiltro cheio rotulo="Status" valor={filtroStatus} onChange={setFiltroStatus} opcoes={STATUS_OPCOES} />
+              <MenuFiltro
+                cheio
+                rotulo="Profissional"
+                valor={filtroProfissional}
+                onChange={setFiltroProfissional}
+                opcoes={[{ value: 'todos', label: 'Todos' }, ...profissionais.map((profissional: any) => ({ value: String(profissional.id), label: profissional.nome }))]}
+              />
               <button
                 type="button"
                 onClick={abrirNovoAgendamento}
@@ -844,17 +743,23 @@ export default function Agenda() {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            {filtrosAtivos && (
+            {(filtroStatus !== 'todos' || filtroProfissional !== 'todos') && (
               <button
                 type="button"
                 aria-label="Limpar filtros"
-                onClick={limparFiltros}
+                onClick={() => { setFiltroStatus('todos'); setFiltroProfissional('todos'); }}
                 className="inline-flex h-8 w-8 items-center justify-center text-red-500"
               >
                 <X size={16} />
               </button>
             )}
             <MenuFiltro rotulo="Status" valor={filtroStatus} onChange={setFiltroStatus} opcoes={STATUS_OPCOES} />
+            <MenuFiltro
+              rotulo="Profissional"
+              valor={filtroProfissional}
+              onChange={setFiltroProfissional}
+              opcoes={[{ value: 'todos', label: 'Todos' }, ...profissionais.map((profissional: any) => ({ value: String(profissional.id), label: profissional.nome }))]}
+            />
             <SegmentedControl
               fit
               className="shrink-0 bg-white"
@@ -881,13 +786,6 @@ export default function Agenda() {
             </button>
           </div>
         </div>
-
-        <ChipsProfissionais
-          profissionais={chipsProfissionais}
-          selecionados={filtroProfissionais}
-          onToggle={alternarProfissional}
-          onLimpar={limparProfissionais}
-        />
 
         {lembretesPendentes.length > 0 && (
           <section className={`${cardShell} border border-amber-200/80 bg-amber-50/80 p-3 sm:p-4`}>
@@ -972,7 +870,7 @@ export default function Agenda() {
                 >
                   <span className={`inline-flex h-6 min-w-6 items-center justify-center rounded-full px-1 text-xs sm:text-sm ${mesmoDia(dia, hoje) ? 'bg-amber-500 font-semibold text-white' : fora ? 'text-neutral-300' : 'text-neutral-700'}`}>{dia.getDate()}</span>
                   <div className="mt-0.5 min-h-0 space-y-0.5 overflow-hidden max-sm:hidden">
-                    {lista.slice(0, 2).map((evento) => <ChipEvento key={evento.id} evento={evento} onOpen={abrirEvento} />)}
+                    {lista.slice(0, 2).map((evento) => <ChipEvento key={evento.id} evento={evento} />)}
                     {lista.length > 2 && <span className="px-1 text-[11px] text-neutral-400">+{lista.length - 2}</span>}
                   </div>
                   {lista.length > 0 && (
@@ -1027,7 +925,7 @@ export default function Agenda() {
                             <span className="absolute left-0 right-0 h-0.5 -translate-y-1/2 bg-red-500" />
                           </div>
                         )}
-                        {lista.map((evento) => <ChipEvento key={evento.id} evento={evento} onOpen={abrirEvento} />)}
+                        {lista.map((evento) => <ChipEvento key={evento.id} evento={evento} />)}
                       </div>
                     );
                   })}
@@ -1036,19 +934,6 @@ export default function Agenda() {
             })}
           </div>
         </div>
-      )}
-
-      {visao === 'profissionais' && (
-        <GradeProfissional
-          dia={diaSelecionado}
-          horas={horasGrade}
-          colunas={colunasProfissionais}
-          eventosPorDia={eventosPorDia}
-          agora={agora}
-          gradeRef={gradeHorasRef}
-          onAbrirNoDia={abrirNoDia}
-          onAbrirEvento={abrirEvento}
-        />
       )}
 
       {visao === 'lista' && (
