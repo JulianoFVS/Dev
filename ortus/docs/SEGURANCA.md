@@ -130,7 +130,8 @@ WHATSAPP_GATEWAY_SECRET=        # gateway do WhatsApp
       `20261114_saas_painel`,
       `20261114_saas_auditoria`,
       `20261114_saas_clinicas`,
-      `20261114_agenda_preservar`.
+      `20261114_agenda_preservar`,
+      `20261115_normalizar_urls`.
 - [ ] `npm test` com 100% OK (`test:rls`).
 - [ ] `CRON_SECRET` definido no ambiente da Vercel.
 - [ ] Confirmar que `SUPABASE_SERVICE_ROLE_KEY` existe **apenas** no servidor.
