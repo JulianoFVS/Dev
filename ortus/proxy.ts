@@ -22,12 +22,24 @@ const PUBLIC_PREFIXES = [
   '/favicon',
   '/icon',
   '/apple-icon',
+  // Modelo e WASM do MediaPipe (análise da foto do paciente). São arquivos
+  // estáticos sem dado de cliente; se ficarem atrás do login, o navegador
+  // recebe um 307 para /login ao carregar o modelo e a captura com análise
+  // cai no fallback sem motivo. O uso real continua exigindo sessão, porque
+  // só o app autenticado abre a tela de captura.
+  '/mediapipe',
 ];
+
+/**
+ * Extensões de arquivo estático que nunca precisam de sessão.
+ * Inclui `.task` e `.wasm` do MediaPipe e os ícones/manifest do PWA.
+ */
+const EXTENSAO_ESTATICA = /\.(svg|png|jpg|jpeg|gif|webp|ico|avif|task|wasm|webmanifest|txt|xml)$/i;
 
 function isPublicPath(pathname: string): boolean {
   if (PUBLIC_EXACT.has(pathname)) return true;
   if (PUBLIC_PREFIXES.some((p) => pathname.startsWith(p))) return true;
-  if (/\.(svg|png|jpg|jpeg|gif|webp|ico)$/i.test(pathname)) return true;
+  if (EXTENSAO_ESTATICA.test(pathname)) return true;
   return false;
 }
 
