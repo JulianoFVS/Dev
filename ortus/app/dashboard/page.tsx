@@ -2,6 +2,7 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { clinicScope, readRouteCache, writeRouteCache } from '@/lib/routeListCache';
 import { useClinica } from '@/app/context/ClinicaContext';
@@ -14,6 +15,7 @@ import { usePatientSlideOver } from '@/components/PatientSlideOver';
 import ModalNovoAgendamento from '@/components/agenda/ModalNovoAgendamento';
 import {
   Bell,
+  CalendarPlus,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -26,7 +28,9 @@ import {
 import { useInboxCounts } from '@/hooks/useInboxCounts';
 import PillMeter from '@/components/bento/PillMeter';
 import Aviso from '@/components/ui/Aviso';
+import MenuPontos from '@/components/ui/MenuPontos';
 import BentoClinicSwitcher from '@/components/dashboard/BentoClinicSwitcher';
+import ChartBars from '@/components/charts/ChartBars';
 import type { ReactNode } from 'react';
 
 function DicaBotao({ texto, children }: { texto: string; children: ReactNode }) {
@@ -239,7 +243,7 @@ function linhasDaTaxa(grupo: string, lista: TaxaMaquininha[]): LinhaTaxa[] {
 
 function FotoPaciente({ nome, url, claro = false, grande = false }: { nome?: string | null; url?: string | null; claro?: boolean; grande?: boolean }) {
   return (
-    <span className={`flex shrink-0 items-center justify-center overflow-hidden rounded-full font-semibold ${grande ? 'h-12 w-12 text-sm' : 'h-8 w-8 text-[10px]'} ${claro ? 'bg-neutral-100 text-neutral-500 lg:bg-white/10 lg:text-white' : 'bg-neutral-100 text-neutral-500'}`}>
+    <span className={`flex shrink-0 items-center justify-center overflow-hidden rounded-full font-semibold ${grande ? 'h-12 w-12 text-sm' : 'h-8 w-8 text-[11px]'} ${claro ? 'bg-neutral-100 text-neutral-500 lg:bg-white/10 lg:text-white' : 'bg-neutral-100 text-neutral-500'}`}>
       {url ? <img src={url} alt="" className="h-full w-full object-cover" /> : iniciais(nome)}
     </span>
   );
@@ -249,6 +253,29 @@ const SELECT_AGENDA = 'id, data_hora, procedimento, status, valor_final, observa
 
 function moeda(valor: number) {
   return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+/** Célula de indicador: número grande, rótulo curto e detalhe opcional. */
+function KpiCelula({
+  rotulo,
+  valor,
+  detalhe,
+  tom = 'neutro',
+}: {
+  rotulo: string;
+  valor: string;
+  detalhe?: string;
+  tom?: 'neutro' | 'alerta' | 'positivo';
+}) {
+  const corValor =
+    tom === 'alerta' ? 'text-rose-600' : tom === 'positivo' ? 'text-emerald-700' : 'text-neutral-900';
+  return (
+    <div className="min-w-0 rounded-[1.35rem] bg-white p-3.5 sm:p-4">
+      <p className="truncate text-[11px] font-semibold uppercase tracking-wide text-neutral-400">{rotulo}</p>
+      <p className={`mt-1.5 text-base font-semibold leading-tight tracking-tight tabular-nums sm:text-lg ${corValor}`}>{valor}</p>
+      {detalhe ? <p className="mt-1 truncate text-xs text-neutral-500">{detalhe}</p> : null}
+    </div>
+  );
 }
 
 function alergiaDe(ficha: any) {
@@ -348,6 +375,7 @@ export default function Dashboard() {
   const [fiados, setFiados] = useState<{ id: string; valor_final?: number | null; pacientes?: { id?: string; nome?: string } | null }[]>(() => boot?.fiados ?? []);
   const { activeClinicId, activeClinic, clinics, loading: clinicLoading } = useClinica();
   const { openPatient } = usePatientSlideOver();
+  const router = useRouter();
   const { mensagensCount, notificacoesCount } = useInboxCounts();
   const jaCarregou = useRef(!!boot);
   const reqId = useRef(0);
@@ -827,6 +855,8 @@ export default function Dashboard() {
   const consultasDia = listaDia.length;
   const concluidasDia = listaDia.filter((item) => item.status === 'concluido').length;
   const ratioConsultas = consultasDia > 0 ? concluidasDia / consultasDia : 0;
+  const kpiPronto = !(loading && !jaCarregou.current);
+  const rotuloBarras = barras.length === 7 ? 'Recebido por dia' : barras.length === 4 ? 'Recebido por semana' : 'Recebido por hora';
   const hojeTarefa = hojeISO;
   const valorCalc = lerValor(calcValor);
   const gruposTaxa = [
@@ -837,7 +867,32 @@ export default function Dashboard() {
   const formasCalc = linhasDaTaxa(calcGrupo, taxas);
   const rotulo = 'mb-1.5 block text-xs font-medium text-neutral-500';
   const listaRef = useRef<HTMLUListElement>(null);
+  const tiraDiasRef = useRef<HTMLDivElement>(null);
   const [recorte, setRecorte] = useState(0);
+
+  // Mobile: tira de dias do mês (carrossel) — mesma fonte de dados do calendário.
+  const diasDoMes = useMemo(() => {
+    const total = new Date(mesCursor.ano, mesCursor.mes + 1, 0).getDate();
+    return Array.from({ length: total }, (_, indice) => {
+      const data = new Date(mesCursor.ano, mesCursor.mes, indice + 1);
+      return {
+        iso: isoLocal(data),
+        dia: indice + 1,
+        semana: data.toLocaleDateString('pt-BR', { weekday: 'narrow' }),
+      };
+    });
+  }, [mesCursor.ano, mesCursor.mes]);
+
+  useEffect(() => {
+    const caixa = tiraDiasRef.current;
+    if (!caixa) return;
+    const alvo = caixa.querySelector<HTMLElement>(`[data-dia="${diaISO}"]`);
+    if (!alvo) return;
+    const area = caixa.getBoundingClientRect();
+    const celula = alvo.getBoundingClientRect();
+    const destino = caixa.scrollLeft + (celula.left - area.left) - (area.width - celula.width) / 2;
+    caixa.scrollTo({ left: Math.max(0, destino), behavior: 'smooth' });
+  }, [diaISO, mesCursor.ano, mesCursor.mes]);
 
   useLayoutEffect(() => {
     const el = listaRef.current;
@@ -861,28 +916,41 @@ export default function Dashboard() {
   }, [listaDia.length, selecionado?.id, carregandoDia]);
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-x-hidden overflow-y-auto px-2.5 py-2.5 sm:px-3 sm:py-3 md:px-4 md:py-3.5 lg:overflow-hidden">
+    <div className="flex min-h-full flex-col overflow-x-hidden px-2.5 py-2.5 sm:px-3 sm:py-3 md:px-4 md:py-3.5 lg:h-full lg:min-h-0 lg:overflow-hidden">
       <Aviso mensagem={aviso} />
       <div className="grid gap-2.5 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_17.75rem] lg:grid-rows-[auto_auto_minmax(0,1fr)] lg:gap-3">
-        <div className="relative order-1 -mx-2.5 -mt-2.5 flex flex-col gap-3 overflow-hidden rounded-b-[2rem] bg-[#141816] px-3 pb-3 pt-[max(2rem,calc(env(safe-area-inset-top)+1.25rem))] sm:-mx-3 sm:-mt-3 md:-mx-4 md:-mt-3.5 lg:contents">
+        <div className="relative order-1 -mx-2.5 -mt-2.5 flex flex-col gap-3 overflow-hidden rounded-b-[2rem] bg-[#141816] px-3 pb-3 pt-[max(2rem,calc(env(safe-area-inset-top)_+_1.25rem))] sm:-mx-3 sm:-mt-3 md:-mx-4 md:-mt-3.5 lg:contents">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_60%_0%,rgba(190,220,90,0.32),transparent_60%)] lg:hidden" />
-        <header className="relative order-1 flex shrink-0 items-center justify-between gap-3 max-lg:flex-col max-lg:gap-5 lg:col-start-1 lg:row-start-1">
-          <div className="min-w-0 max-lg:text-center">
-            <h1 className="text-2xl font-semibold leading-none tracking-tight text-neutral-900 max-lg:text-white md:text-[2rem]">
-              <span className={primeiroNome ? 'max-lg:block max-lg:text-sm max-lg:font-medium max-lg:tracking-normal max-lg:text-white/60' : ''}>
-                {saudacaoAgora()}{primeiroNome ? ',' : ''}
-              </span>
-              {primeiroNome && (
-                <span className="max-lg:mt-2 max-lg:block max-lg:text-[1.75rem]">
-                  <span className="max-lg:hidden"> </span>
-                  {primeiroNome}
-                </span>
-              )}
-              <span className="text-neutral-400 max-lg:hidden"> · {clinicaNome}</span>
+        <header className="relative order-1 flex shrink-0 flex-col gap-3 lg:col-start-1 lg:row-start-1 lg:flex-row lg:items-center lg:justify-between">
+          {/* Mobile: saudação curta + clínica atual + ações em um só menu */}
+          <div className="flex items-start justify-between gap-2 lg:hidden">
+            <div className="min-w-0">
+              <p className="truncate text-[13px] font-medium text-white/60">
+                {saudacaoAgora()}{primeiroNome ? `, ${primeiroNome}` : ''}
+              </p>
+              <h1 className="mt-0.5 truncate text-[1.65rem] font-semibold leading-tight tracking-tight text-white">{clinicaNome}</h1>
+            </div>
+            <MenuPontos
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/10 text-white active:bg-white/20"
+              tamanho={20}
+              itens={[
+                { id: 'novo', label: 'Novo agendamento', onClick: () => setModalAgenda(true) },
+                { id: 'atualizar', label: 'Atualizar dados', onClick: () => carregar({ silent: true }) },
+                { id: 'buscar', label: 'Buscar', onClick: abrirBusca },
+                { id: 'mensagens', label: mensagensCount + notificacoesCount > 0 ? `Mensagens (${mensagensCount + notificacoesCount})` : 'Mensagens', onClick: () => router.push('/mensagens') },
+                { id: 'config', label: 'Configurações', onClick: () => router.push('/configuracoes') },
+              ]}
+            />
+          </div>
+
+          <div className="hidden min-w-0 lg:block">
+            <h1 className="text-2xl font-semibold leading-none tracking-tight text-neutral-900 md:text-[2rem]">
+              {primeiroNome ? `${saudacaoAgora()}, ${primeiroNome}` : saudacaoAgora()}
+              <span className="text-neutral-400"> · {clinicaNome}</span>
             </h1>
           </div>
-          <BentoClinicSwitcher variant="sidebar" className="w-full lg:hidden" />
-          <div className="flex shrink-0 items-center gap-1.5 max-lg:hidden">
+          <BentoClinicSwitcher variant="sidebar" className="w-full lg:hidden [&>button]:min-h-[44px]" />
+          <div className="hidden shrink-0 items-center gap-1.5 lg:flex">
             <DicaBotao texto="Mensagens e notificações">
               <Link
                 href="/mensagens"
@@ -918,7 +986,7 @@ export default function Dashboard() {
         </header>
 
         <section className="relative order-2 flex min-h-[8.5rem] flex-col justify-between overflow-hidden rounded-[1.35rem] bg-white p-4 text-neutral-900 shadow-[0_8px_24px_rgba(0,0,0,0.18)] lg:col-start-1 lg:row-start-2 lg:bg-[#141816] lg:text-white lg:shadow-none">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_60%_0%,rgba(190,220,90,0.32),transparent_60%)] max-lg:hidden" />
+          <div className="pointer-events-none absolute inset-0 hidden bg-[radial-gradient(ellipse_at_60%_0%,rgba(190,220,90,0.32),transparent_60%)] lg:block" />
           <div className="relative z-[1] flex items-center gap-3">
             {(emAtendimento || proximoAgendamento) && (
               <FotoPaciente
@@ -960,7 +1028,7 @@ export default function Dashboard() {
                   type="button"
                   onClick={concluirAtual}
                   disabled={concluindo}
-                  className="inline-flex h-9 items-center gap-1.5 rounded-full bg-neutral-900 px-4 text-sm font-medium text-white lg:bg-white lg:text-neutral-900 disabled:opacity-60"
+                  className="inline-flex h-11 items-center gap-1.5 rounded-full bg-neutral-900 px-4 text-sm font-medium text-white disabled:opacity-60 lg:h-9 lg:bg-white lg:text-neutral-900"
                 >
                   {concluindo ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}
                   Concluir
@@ -968,14 +1036,14 @@ export default function Dashboard() {
                 <button
                   type="button"
                   onClick={() => openPatient(pacienteCurso?.id)}
-                  className="inline-flex h-9 items-center gap-1.5 rounded-full border border-neutral-200 px-4 text-sm font-medium text-neutral-900 lg:border-white/25 lg:text-white"
+                  className="inline-flex h-11 items-center gap-1.5 rounded-full border border-neutral-200 px-4 text-sm font-medium text-neutral-900 lg:h-9 lg:border-white/25 lg:text-white"
                 >
                   <FileText size={15} />
                   Ficha
                 </button>
               </>
             ) : (
-              <Link href="/agenda" className="inline-flex h-9 items-center rounded-full bg-neutral-900 px-4 text-sm font-medium text-white lg:bg-white lg:text-neutral-900">
+              <Link href="/agenda" className="inline-flex h-11 items-center rounded-full bg-neutral-900 px-4 text-sm font-medium text-white lg:h-9 lg:bg-white lg:text-neutral-900">
                 Ver agenda
               </Link>
             )}
@@ -983,49 +1051,152 @@ export default function Dashboard() {
         </section>
         </div>
 
+        <section className="order-2 flex flex-col gap-2.5 lg:hidden">
+          <div className="grid grid-cols-2 gap-2.5">
+            <KpiCelula
+              rotulo="Consultas do dia"
+              valor={kpiPronto ? `${concluidasDia}/${consultasDia}` : '—'}
+              detalhe="concluídas"
+            />
+            <KpiCelula
+              rotulo="Recebido hoje"
+              valor={kpiPronto ? moeda(financeiro.recebido) : '—'}
+              detalhe={kpiPronto ? `${financeiro.pagamentos} atendimentos` : undefined}
+              tom="positivo"
+            />
+            <KpiCelula
+              rotulo="Previsto hoje"
+              valor={kpiPronto ? moeda(financeiro.previsto) : '—'}
+              detalhe={kpiPronto ? `${financeiro.restantes} na agenda` : undefined}
+            />
+            <KpiCelula
+              rotulo="Em aberto"
+              valor={kpiPronto ? moeda(financeiro.atraso) : '—'}
+              detalhe={kpiPronto ? `${financeiro.atrasados} fiados` : undefined}
+              tom={financeiro.atraso > 0 ? 'alerta' : 'neutro'}
+            />
+          </div>
+
+          <div className="rounded-[1.35rem] bg-white p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h2 className="truncate text-sm font-semibold text-neutral-900">{rotuloBarras}</h2>
+                <p className="mt-0.5 truncate text-xs text-neutral-500">Hoje · consultas concluídas</p>
+              </div>
+              <p className="shrink-0 text-sm font-semibold tabular-nums text-neutral-900">{moeda(financeiro.recebido)}</p>
+            </div>
+            <ChartBars items={barras} format={moeda} className="mt-3" altura="h-24" />
+            <Link href="/relatorios" className="mt-1 inline-flex min-h-[44px] items-center text-xs font-medium text-neutral-500 active:text-neutral-900">
+              Ver relatórios →
+            </Link>
+          </div>
+        </section>
+
         <aside className="order-3 flex flex-col lg:col-start-2 lg:row-span-3 lg:row-start-1 lg:min-h-0">
-          <div className="flex items-center justify-between gap-1">
-            <button type="button" aria-label="Mês anterior" onClick={() => mudarMes(-1)} className="flex h-8 w-8 items-center justify-center rounded-full text-neutral-500 hover:bg-white">
-              <ChevronLeft size={16} />
-            </button>
-            <span className="rounded-full bg-neutral-100 px-3 py-1 text-xs font-medium capitalize text-neutral-900">{rotuloMes}</span>
-            <button type="button" aria-label="Próximo mês" onClick={() => mudarMes(1)} className="flex h-8 w-8 items-center justify-center rounded-full text-neutral-500 hover:bg-white">
-              <ChevronRight size={16} />
-            </button>
+          {/* Mobile: um só mês em carrossel, dia a dia, com toque confortável */}
+          <div className="lg:hidden">
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                aria-label="Mês anterior"
+                onClick={() => mudarMes(-1)}
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-neutral-500 active:bg-white"
+              >
+                <ChevronLeft size={18} />
+              </button>
+              <span className="min-w-0 flex-1 truncate text-center text-sm font-medium capitalize text-neutral-900">{rotuloMes}</span>
+              <button
+                type="button"
+                aria-label="Próximo mês"
+                onClick={() => mudarMes(1)}
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-neutral-500 active:bg-white"
+              >
+                <ChevronRight size={18} />
+              </button>
+              <button
+                type="button"
+                onClick={() => escolherDia(hojeISO)}
+                className="ml-1 flex h-11 shrink-0 items-center rounded-full bg-white px-3 text-xs font-semibold text-neutral-800 active:bg-neutral-100"
+              >
+                Hoje
+              </button>
+            </div>
+            <div ref={tiraDiasRef} className="mt-1.5 flex snap-x snap-mandatory gap-1.5 overflow-x-auto pb-1.5">
+              {diasDoMes.map(({ iso, dia, semana }) => {
+                const ehHoje = iso === hojeISO;
+                const ehSel = iso === diaISO;
+                const temConsulta = marcados.includes(iso);
+                return (
+                  <button
+                    key={iso}
+                    data-dia={iso}
+                    type="button"
+                    onClick={() => escolherDia(iso)}
+                    aria-pressed={ehSel}
+                    aria-label={`Dia ${dia}${temConsulta ? ' — tem consulta' : ''}`}
+                    className={`flex h-16 w-12 shrink-0 snap-center flex-col items-center justify-center rounded-2xl border transition-colors ${
+                      ehSel
+                        ? 'border-neutral-900 bg-neutral-900 text-white'
+                        : ehHoje
+                          ? 'border-neutral-300 bg-white text-neutral-900'
+                          : 'border-transparent bg-white/60 text-neutral-700'
+                    }`}
+                  >
+                    <span className={`text-[11px] font-medium uppercase leading-none ${ehSel ? 'text-white/60' : 'text-neutral-400'}`}>{semana}</span>
+                    <span className="mt-1 text-base font-semibold leading-none tabular-nums">{dia}</span>
+                    <span className={`mt-1.5 h-1.5 w-1.5 rounded-full ${temConsulta ? (ehSel ? 'bg-[#c8f053]' : 'bg-neutral-400') : 'bg-transparent'}`} />
+                  </button>
+                );
+              })}
+            </div>
           </div>
-          <div className="mt-1.5 grid grid-cols-7 text-center text-[10px] font-medium uppercase tracking-wide text-neutral-400">
-            {['seg', 'ter', 'qua', 'qui', 'sex', 'sáb', 'dom'].map((dia) => (
-              <span key={dia}>{dia}</span>
-            ))}
-          </div>
-          <div className="mt-1 grid grid-cols-7 gap-y-0.5">
-            {celulas.map((dia, indice) => {
-              if (!dia) return <span key={`vazio-${indice}`} />;
-              const iso = isoLocal(new Date(mesCursor.ano, mesCursor.mes, dia));
-              const ehHoje = iso === hojeISO;
-              const ehSel = iso === diaISO;
-              const temConsulta = marcados.includes(iso);
-              return (
-                <button
-                  key={iso}
-                  type="button"
-                  onClick={() => escolherDia(iso)}
-                  className={`relative mx-auto flex h-7 w-7 items-center justify-center rounded-full text-xs ${
-                    ehHoje ? 'bg-neutral-900 font-semibold text-white' : ehSel ? 'bg-neutral-200 font-medium text-neutral-900' : 'text-neutral-700 hover:bg-white'
-                  }`}
-                >
-                  {dia}
-                  {temConsulta && !ehHoje && <span className="absolute bottom-0.5 h-1 w-1 rounded-full bg-neutral-400" />}
-                </button>
-              );
-            })}
+
+          {/* Desktop: calendário do mês */}
+          <div className="hidden lg:block">
+            <div className="flex items-center justify-between gap-1">
+              <button type="button" aria-label="Mês anterior" onClick={() => mudarMes(-1)} className="flex h-8 w-8 items-center justify-center rounded-full text-neutral-500 hover:bg-white">
+                <ChevronLeft size={16} />
+              </button>
+              <span className="rounded-full bg-neutral-100 px-3 py-1 text-xs font-medium capitalize text-neutral-900">{rotuloMes}</span>
+              <button type="button" aria-label="Próximo mês" onClick={() => mudarMes(1)} className="flex h-8 w-8 items-center justify-center rounded-full text-neutral-500 hover:bg-white">
+                <ChevronRight size={16} />
+              </button>
+            </div>
+            <div className="mt-1.5 grid grid-cols-7 text-center text-xs font-medium uppercase tracking-wide text-neutral-400">
+              {['seg', 'ter', 'qua', 'qui', 'sex', 'sáb', 'dom'].map((dia) => (
+                <span key={dia}>{dia}</span>
+              ))}
+            </div>
+            <div className="mt-1 grid grid-cols-7 gap-y-0.5">
+              {celulas.map((dia, indice) => {
+                if (!dia) return <span key={`vazio-${indice}`} />;
+                const iso = isoLocal(new Date(mesCursor.ano, mesCursor.mes, dia));
+                const ehHoje = iso === hojeISO;
+                const ehSel = iso === diaISO;
+                const temConsulta = marcados.includes(iso);
+                return (
+                  <button
+                    key={iso}
+                    type="button"
+                    onClick={() => escolherDia(iso)}
+                    className={`relative mx-auto flex h-7 w-7 items-center justify-center rounded-full text-xs ${
+                      ehHoje ? 'bg-neutral-900 font-semibold text-white' : ehSel ? 'bg-neutral-200 font-medium text-neutral-900' : 'text-neutral-700 hover:bg-white'
+                    }`}
+                  >
+                    {dia}
+                    {temConsulta && !ehHoje && <span className="absolute bottom-0.5 h-1 w-1 rounded-full bg-neutral-400" />}
+                  </button>
+                );
+              })}
+            </div>
           </div>
           <div className="mt-2 flex items-center gap-1.5">
             <button
               type="button"
               onClick={() => setModalAgenda(true)}
-              className="inline-flex h-9 min-w-0 flex-1 items-center justify-center rounded-full bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800"
+              className="inline-flex h-11 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-full bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 lg:h-9"
             >
+              <CalendarPlus size={16} />
               Novo agendamento
             </button>
             <DicaBotao texto="Atualizar">
@@ -1033,24 +1204,25 @@ export default function Dashboard() {
                 type="button"
                 aria-label="Atualizar"
                 onClick={() => carregar({ silent: true })}
-                className="flex h-9 w-9 items-center justify-center rounded-full border border-black/10 bg-white text-neutral-600 hover:bg-neutral-50"
+                className="flex h-11 w-11 items-center justify-center rounded-full border border-black/10 bg-white text-neutral-600 hover:bg-neutral-50 lg:h-9 lg:w-9"
               >
                 <RefreshCw size={15} />
               </button>
             </DicaBotao>
           </div>
           <div className="mt-3 flex items-baseline justify-between gap-2">
-            <p className="text-sm font-semibold capitalize text-neutral-900">{rotuloLinha}</p>
-            <p className="text-xs text-neutral-500">
+            <p className="min-w-0 truncate text-sm font-semibold capitalize text-neutral-900">{rotuloLinha}</p>
+            <p className="shrink-0 text-xs text-neutral-500">
               {diaISO !== hojeISO && (
-                <button type="button" onClick={() => escolherDia(hojeISO)} className="mr-2 font-medium text-neutral-500 hover:text-neutral-900">
+                <button type="button" onClick={() => escolherDia(hojeISO)} className="mr-2 inline-flex min-h-[32px] items-center font-medium text-neutral-500 hover:text-neutral-900">
                   Hoje
                 </button>
               )}
-              Linha do dia
+              <span className="hidden sm:inline">Linha do dia</span>
+              <span className="sm:hidden">{listaDia.length} no dia</span>
             </p>
           </div>
-          <div className="mt-2 flex min-h-0 flex-1 flex-col max-lg:max-h-[28rem]">
+          <div className="mt-2 flex min-h-0 flex-col lg:flex-1">
             {carregandoDia ? (
               <div className="space-y-2">
                 <div className="h-12 animate-pulse rounded-xl bg-white" />
@@ -1059,7 +1231,7 @@ export default function Dashboard() {
             ) : listaDia.length === 0 ? (
               <p className="rounded-xl bg-white px-3 py-3 text-sm text-neutral-400">Nenhuma consulta neste dia.</p>
             ) : (
-              <ul ref={listaRef} className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto lg:overscroll-contain">
+              <ul ref={listaRef} className="flex min-h-0 flex-col gap-2 lg:flex-1 lg:overflow-y-auto lg:overscroll-contain">
                 {listaDia.map((ag) => {
                   const aberto = selecionado?.id === ag.id;
                   const ehAtual = emAtendimento?.id === ag.id;
@@ -1077,8 +1249,8 @@ export default function Dashboard() {
                       className={`flex flex-col transition-[min-height] duration-300 ease-out ${aberto && recorte === 0 ? 'min-h-0 flex-1' : 'shrink-0'}`}
                     >
                       <div className={`flex min-h-0 flex-col rounded-xl bg-white ${aberto ? 'h-full shadow-sm ring-1 ring-black/5' : ''}`}>
-                        <button type="button" onClick={() => alternarPaciente(ag.id)} className="flex w-full shrink-0 items-center gap-2.5 px-3 py-2 text-left">
-                          <span className="w-11 shrink-0 text-sm font-semibold tabular-nums text-neutral-900">{hora(ag.data_hora)}</span>
+                        <button type="button" onClick={() => alternarPaciente(ag.id)} className="flex min-h-[56px] w-full shrink-0 items-center gap-2.5 px-3 py-2.5 text-left active:bg-neutral-50">
+                          <span className="w-12 shrink-0 text-[15px] font-semibold leading-none tabular-nums text-neutral-900">{hora(ag.data_hora)}</span>
                           <FotoPaciente nome={paciente?.nome} url={paciente?.foto_url} />
                           <span className="min-w-0 flex-1">
                             <span className={`block truncate text-sm text-neutral-900 ${aberto ? 'font-semibold' : 'font-medium'}`}>{paciente?.nome || 'Consulta'}</span>
@@ -1141,7 +1313,7 @@ export default function Dashboard() {
                                   <button
                                     type="button"
                                     onClick={() => openPatient(paciente.id)}
-                                    className="inline-flex h-8 items-center gap-1 rounded-full border border-black/10 px-3 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+                                    className="inline-flex h-11 items-center gap-1 rounded-full border border-black/10 px-3.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50 lg:h-8 lg:px-3"
                                   >
                                     <FileText size={12} />
                                     Ficha
@@ -1152,7 +1324,7 @@ export default function Dashboard() {
                                     href={zap}
                                     target="_blank"
                                     rel="noreferrer"
-                                    className="inline-flex h-8 items-center rounded-full border border-black/10 px-3 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+                                    className="inline-flex h-11 items-center rounded-full border border-black/10 px-3.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50 lg:h-8 lg:px-3"
                                   >
                                     WhatsApp
                                   </a>
@@ -1160,7 +1332,7 @@ export default function Dashboard() {
                                 {detalheAtual && detalheAtual.saldo > 0 && paciente?.id && (
                                   <Link
                                     href={`/pacientes/${paciente.id}`}
-                                    className="inline-flex h-8 items-center rounded-full bg-neutral-900 px-3 text-xs font-medium text-white"
+                                    className="inline-flex h-11 items-center rounded-full bg-neutral-900 px-3.5 text-xs font-medium text-white lg:h-8 lg:px-3"
                                   >
                                     Receber
                                   </Link>
@@ -1178,7 +1350,7 @@ export default function Dashboard() {
           </div>
           <Link
             href="/agenda"
-            className="mt-2 inline-flex h-9 shrink-0 items-center justify-center rounded-full bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800"
+            className="mt-2 inline-flex h-11 shrink-0 items-center justify-center rounded-full bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 lg:h-9"
           >
             Ver agenda
           </Link>
@@ -1186,7 +1358,7 @@ export default function Dashboard() {
 
         <div className="order-4 grid gap-2.5 sm:grid-cols-2 lg:col-start-1 lg:row-start-3 lg:min-h-0 lg:gap-3">
           <div className="flex flex-col gap-2.5 lg:min-h-0 lg:gap-3">
-            <section className={`${card} shrink-0 p-4`}>
+            <section className={`${card} hidden shrink-0 p-4 lg:block`}>
               <div className="flex items-center justify-between gap-2">
                 <p className="text-sm font-medium text-neutral-500">Consultas do dia</p>
                 {loading && !jaCarregou.current ? (
@@ -1208,15 +1380,15 @@ export default function Dashboard() {
               </div>
             </section>
 
-            <section className={`${card} flex min-h-[14rem] flex-col p-4 lg:min-h-0 lg:flex-1`}>
+            <section className={`${card} flex flex-col p-4 lg:min-h-0 lg:flex-1`}>
               <div className="flex shrink-0 items-center justify-between gap-2">
                 <h2 className="text-base font-semibold text-neutral-900">Tarefas</h2>
-                <Link href="/tarefas" className="text-xs font-medium text-neutral-500 hover:text-neutral-900">
+                <Link href="/tarefas" className="-mr-1 inline-flex h-11 items-center px-1 text-xs font-medium text-neutral-500 hover:text-neutral-900">
                   Ver todas
                 </Link>
               </div>
               <p className="shrink-0 text-xs text-neutral-500">Hoje e próximas a vencer</p>
-              <ul className="mt-2 min-h-0 flex-1 space-y-1 overflow-y-auto lg:overscroll-contain">
+              <ul className="mt-2 min-h-0 space-y-1 lg:flex-1 lg:overflow-y-auto lg:overscroll-contain">
                 {tarefasCarregando ? (
                   <li className="space-y-2">
                     <div className="h-10 animate-pulse rounded-xl bg-neutral-100" />
@@ -1235,16 +1407,18 @@ export default function Dashboard() {
                         ? 'Hoje'
                         : new Date(`${dia}T12:00:00`).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
                     return (
-                      <li key={tarefa.id} className="flex items-start gap-2 rounded-xl px-1.5 py-1.5 hover:bg-neutral-50">
+                      <li key={tarefa.id} className="flex items-center gap-1 rounded-xl pr-1 hover:bg-neutral-50">
                         <button
                           type="button"
                           aria-label={`Concluir ${tarefa.titulo}`}
                           onClick={() => concluirTarefa(tarefa.id)}
-                          className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-neutral-300 text-transparent hover:border-neutral-900 hover:text-neutral-900"
+                          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-neutral-400 active:bg-neutral-100 lg:h-9 lg:w-9"
                         >
-                          <Check size={10} />
+                          <span className="flex h-5 w-5 items-center justify-center rounded-full border border-neutral-300 text-transparent">
+                            <Check size={12} />
+                          </span>
                         </button>
-                        <Link href="/tarefas" className="min-w-0 flex-1">
+                        <Link href="/tarefas" className="flex min-h-[44px] min-w-0 flex-1 flex-col justify-center py-1">
                           <p className="truncate text-sm text-neutral-900">{tarefa.titulo}</p>
                           {(tarefa.paciente_nome || tarefa.responsavel_nome) && (
                             <p className="truncate text-xs text-neutral-500">{tarefa.paciente_nome || tarefa.responsavel_nome}</p>
@@ -1266,18 +1440,18 @@ export default function Dashboard() {
           </div>
 
           <div className="flex flex-col gap-2.5 lg:min-h-0 lg:gap-3">
-            <section className={`${card} flex min-h-[20rem] flex-col overflow-hidden p-4 lg:min-h-0 lg:flex-[1.6]`}>
+            <section className={`${card} flex flex-col overflow-hidden p-4 lg:min-h-0 lg:flex-[1.6]`}>
               <h2 className="shrink-0 text-base font-semibold text-neutral-900">Calculadora de taxas</h2>
-              <div className="mt-2 grid shrink-0 grid-cols-2 items-end gap-2">
+              <div className="mt-3 grid shrink-0 grid-cols-1 gap-2.5 sm:grid-cols-2">
                 <div className="relative">
                   <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-neutral-400">R$</span>
                   <input
                     value={calcValor}
                     onChange={(ev) => setCalcValor(ev.target.value)}
                     inputMode="decimal"
-                    aria-label="Valor"
+                    aria-label="Valor da venda"
                     placeholder="0,00"
-                    className="h-10 w-full rounded-md border border-neutral-200 bg-white pl-9 pr-3 text-sm text-neutral-900 outline-none focus:border-neutral-900"
+                    className="h-11 w-full rounded-lg border border-neutral-200 bg-white pl-9 pr-3 text-base text-neutral-900 outline-none focus:border-neutral-900 sm:h-10 sm:text-sm"
                   />
                 </div>
                 <div>
@@ -1290,28 +1464,28 @@ export default function Dashboard() {
                   />
                 </div>
               </div>
-              <div className="mt-2 grid shrink-0 grid-cols-[minmax(0,1fr)_4.75rem_5.25rem_5.25rem] gap-1.5 border-b border-black/5 px-1 pb-1 text-[11px] font-medium text-neutral-400">
-                <span>Forma</span>
-                <span className="text-right">Parcela</span>
-                <span className="text-right">Você recebe</span>
-                <span className="text-right">Cobrar</span>
-              </div>
-              <ul className="min-h-0 flex-1 overflow-y-auto lg:overscroll-contain">
+              <ul className="mt-1 min-h-0 lg:flex-1 lg:overflow-y-auto lg:overscroll-contain">
                 {formasCalc.length === 0 ? (
-                  <li className="px-1 py-2 text-sm text-neutral-400">Cadastre as taxas em Configurações.</li>
+                  <li className="py-2 text-sm text-neutral-400">Cadastre as taxas em Configurações.</li>
                 ) : (
                   formasCalc.map((taxa) => {
                     const recebe = valorCalc * (1 - taxa.taxa / 100);
                     const cobrar = taxa.taxa < 100 ? valorCalc / (1 - taxa.taxa / 100) : valorCalc;
                     return (
-                      <li key={taxa.id} className="grid grid-cols-[minmax(0,1fr)_4.75rem_5.25rem_5.25rem] items-center gap-1.5 border-b border-black/[0.03] px-1 py-1.5 text-xs tabular-nums">
-                        <span className="min-w-0 truncate text-neutral-800">
-                          {taxa.nome}
-                          <span className="text-neutral-400"> · {taxa.taxa.toLocaleString('pt-BR')}%</span>
-                        </span>
-                        <span className="text-right text-neutral-500">{taxa.parcelas > 1 ? moeda(valorCalc / taxa.parcelas) : '—'}</span>
-                        <span className="text-right font-medium text-neutral-900">{moeda(recebe)}</span>
-                        <span className="text-right text-neutral-500">{moeda(cobrar)}</span>
+                      <li key={taxa.id} className="border-b border-black/[0.04] py-2.5">
+                        <div className="flex items-baseline justify-between gap-2">
+                          <p className="min-w-0 truncate text-sm text-neutral-800">
+                            {taxa.nome}
+                            <span className="text-neutral-400"> · {taxa.taxa.toLocaleString('pt-BR')}%</span>
+                          </p>
+                          <p className="shrink-0 text-sm font-semibold tabular-nums text-neutral-900">{moeda(recebe)}</p>
+                        </div>
+                        <div className="mt-0.5 flex items-baseline justify-between gap-2 text-xs text-neutral-500">
+                          <p className="min-w-0 truncate">
+                            {taxa.parcelas > 1 ? `${taxa.parcelas}x de ${moeda(valorCalc / taxa.parcelas)}` : 'À vista'}
+                          </p>
+                          <p className="shrink-0 tabular-nums">Cobrar {moeda(cobrar)}</p>
+                        </div>
                       </li>
                     );
                   })

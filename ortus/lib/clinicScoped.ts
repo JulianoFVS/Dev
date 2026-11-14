@@ -17,6 +17,32 @@ export type ClinicaSlim = {
 };
 
 /**
+ * Cache curtíssimo por usuário.
+ *
+ * Várias telas (agenda, dashboard, seleção de clínica) pedem a mesma lista
+ * logo na montagem. Sem cache, cada navegação repete 2–3 round-trips.
+ * A chave inclui o id do usuário, o TTL é curto e qualquer evento de
+ * mudança de clínica limpa tudo — então nunca fica "preso" a dado velho.
+ */
+const TTL_CLINICAS_MS = 20_000;
+type CacheClinicas = { userId: string; em: number; dados: ClinicaSlim[] };
+let cacheClinicas: CacheClinicas | null = null;
+let emVooClinicas: { userId: string; promessa: Promise<ClinicaSlim[]> } | null = null;
+
+/** Limpa o cache de clínicas (chame após criar/remover vínculo ou clínica). */
+export function invalidarClinicasCache() {
+    cacheClinicas = null;
+    emVooClinicas = null;
+}
+
+if (typeof window !== 'undefined') {
+    const limpar = () => invalidarClinicasCache();
+    window.addEventListener('ortus:clinica-changed', limpar);
+    window.addEventListener('ortus:active-clinic-changed', limpar);
+    window.addEventListener('ortus:equipe-changed', limpar);
+}
+
+/**
  * Retorna as clínicas que o usuário logado pode acessar:
  *  - usuário comum: apenas as vinculadas via `profissionais_clinicas`.
  *  - super admin: todas (visão global do dono do SaaS).
@@ -27,8 +53,39 @@ export type ClinicaSlim = {
  */
 export async function fetchUserClinicas(opts?: { restrictSuperAdminToVinculos?: boolean }): Promise<ClinicaSlim[]> {
     const { data: { session } } = await supabase.auth.getSession();
-    if (!session) return [];
+    if (!session) {
+        invalidarClinicasCache();
+        return [];
+    }
 
+    const userId = session.user.id;
+    const podeCachear = !opts?.restrictSuperAdminToVinculos;
+    if (podeCachear && cacheClinicas && cacheClinicas.userId === userId && Date.now() - cacheClinicas.em < TTL_CLINICAS_MS) {
+        return cacheClinicas.dados;
+    }
+    if (podeCachear && emVooClinicas && emVooClinicas.userId === userId) {
+        return emVooClinicas.promessa;
+    }
+
+    const promessa = buscarClinicasDoUsuario(userId, opts);
+    if (podeCachear) {
+        emVooClinicas = { userId, promessa };
+        promessa
+            .then((dados) => {
+                cacheClinicas = { userId, em: Date.now(), dados };
+            })
+            .catch(() => undefined)
+            .finally(() => {
+                if (emVooClinicas?.promessa === promessa) emVooClinicas = null;
+            });
+    }
+    return promessa;
+}
+
+async function buscarClinicasDoUsuario(
+    userId: string,
+    opts?: { restrictSuperAdminToVinculos?: boolean },
+): Promise<ClinicaSlim[]> {
     const logErro = (etapa: string, error: any) => {
         if (!error) return;
         console.error(
@@ -46,7 +103,7 @@ export async function fetchUserClinicas(opts?: { restrictSuperAdminToVinculos?: 
     const { data: prof, error: profErr } = await supabase
         .from('profissionais')
         .select('id, is_super_admin')
-        .eq('user_id', session.user.id)
+        .eq('user_id', userId)
         .maybeSingle();
     logErro('profissionais.select', profErr);
 

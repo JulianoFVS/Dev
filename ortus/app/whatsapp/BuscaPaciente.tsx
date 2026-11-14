@@ -49,20 +49,20 @@ export default function BuscaPaciente({ clinicaId, onEscolher, ignorar = [], aut
 
   return (
     <div className="relative">
-      <div className="flex h-10 items-center gap-2 rounded-md border border-neutral-200 bg-white px-3">
-        <Search size={15} className="shrink-0 text-neutral-400" />
+      <div className="flex h-11 items-center gap-2 rounded-md border border-neutral-200 bg-white px-3">
+        <Search size={16} className="shrink-0 text-neutral-400" />
         <input
           value={termo}
           onChange={(e) => setTermo(e.target.value)}
           autoFocus={autoFocus}
           placeholder="Buscar paciente pelo nome"
-          className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-neutral-400"
+          className="min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-neutral-400 sm:text-sm"
         />
         {buscando && <Loader2 size={14} className="shrink-0 animate-spin text-neutral-400" />}
       </div>
       {termo.trim().length >= 2 && !buscando && (
         <div className="mt-1 max-h-60 overflow-y-auto rounded-md border border-neutral-200 bg-white">
-          {visiveis.length === 0 && <p className="px-3 py-2.5 text-sm text-neutral-400">Nenhum paciente com telefone encontrado.</p>}
+          {visiveis.length === 0 && <p className="px-3 py-3 text-sm text-neutral-400">Nenhum paciente com telefone encontrado.</p>}
           {visiveis.map((paciente) => (
             <button
               key={paciente.id}
@@ -71,9 +71,9 @@ export default function BuscaPaciente({ clinicaId, onEscolher, ignorar = [], aut
                 onEscolher(paciente);
                 setTermo('');
               }}
-              className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left hover:bg-neutral-50"
+              className="flex min-h-[44px] w-full items-center justify-between gap-3 px-3 py-2.5 text-left hover:bg-neutral-50 active:bg-neutral-100"
             >
-              <span className="truncate text-sm text-neutral-900">{paciente.nome}</span>
+              <span className="min-w-0 flex-1 truncate text-[15px] text-neutral-900 sm:text-sm">{paciente.nome}</span>
               <span className="shrink-0 text-xs text-neutral-400">{formatarTelefone(paciente.telefone)}</span>
             </button>
           ))}

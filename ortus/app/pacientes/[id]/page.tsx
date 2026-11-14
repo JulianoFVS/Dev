@@ -3,7 +3,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import type { MouseEvent } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { User, Phone, Edit, ArrowLeft, Save, Loader2, FileText, Clock, Trash2, Calendar, CalendarPlus, Pill, AlertTriangle, Stethoscope, X, Check, Building2, Printer, Smile, Plus, Eraser, CheckCircle, ClipboardList, FolderOpen, AlertCircle, Upload, Download, Image as ImageIcon, DollarSign, Settings, Sparkles, Camera, Bell, ArrowLeftRight, ShieldCheck, Zap, Link2, Copy, ChevronDown, LayoutGrid, List, ArrowUpDown, Search } from 'lucide-react';
+import { User, Phone, Edit, ArrowLeft, Save, Loader2, FileText, Clock, Trash2, Calendar, CalendarPlus, Pill, AlertTriangle, Stethoscope, X, Check, Building2, Printer, Smile, Plus, Eraser, CheckCircle, ClipboardList, FolderOpen, AlertCircle, Upload, Download, Image as ImageIcon, DollarSign, Settings, Sparkles, Camera, Bell, ShieldCheck, Zap, Link2, Copy, ChevronDown, LayoutGrid, List, ArrowUpDown, Search } from 'lucide-react';
 import Link from 'next/link';
 import { carregarModelos, formatarRespostaAnamnese, respostaInicial, type ModeloAnamnese, type RespostaAnamnese, type RespostaSimNaoTexto } from '@/lib/anamnese';
 // teeth-data lib no longer needed — using PNG images from /assets/dentes/
@@ -21,6 +21,7 @@ import { useCustomAlert } from '@/components/ui/CustomAlert';
 import { validarPaciente, isMenorDeIdade } from '@/lib/pacienteValidation';
 import { cpfValido, mascaraCep, mascaraCpf, mascaraNumero, mascaraTelefone, variantesCpf } from '@/lib/mascaras';
 import { prepararFotoPaciente } from '@/lib/prepararFotoPaciente';
+import CapturaFotoPaciente from '@/components/pacientes/CapturaFotoPaciente';
 import { apagarArquivosClinica, baixarArquivoClinica, enviarArquivoClinica, extrairCaminhoArquivo } from '@/lib/armazenamento';
 import CampoData from '@/components/ui/CampoData';
 import HofPreviewRosto from '@/components/clinico/HofPreviewRosto';
@@ -582,7 +583,6 @@ export default function PacienteDetalhe() {
   const [hofProduto, setHofProduto] = useState('');
   const [hofSessaoAtiva, setHofSessaoAtiva] = useState(new Date().toISOString().split('T')[0]);
   const [faceHofAtiva, setFaceHofAtiva] = useState<'feminina' | 'masculina'>('feminina');
-  const [hofCompararSessoes, setHofCompararSessoes] = useState<[string, string] | null>(null);
   const [savingHof, setSavingHof] = useState(false);
   const [enviandoFoto, setEnviandoFoto] = useState<string | null>(null);
   const [hofModo, setHofModo] = useState<'visualizar' | 'alterar'>('visualizar');
@@ -646,6 +646,7 @@ export default function PacienteDetalhe() {
   const [responsavelAberto, setResponsavelAberto] = useState(true);
   const [cpfEncontrado, setCpfEncontrado] = useState<{ id: string; nome: string } | null>(null);
   const [enviandoFotoPerfil, setEnviandoFotoPerfil] = useState(false);
+  const [capturaFotoAberta, setCapturaFotoAberta] = useState(false);
 
   async function buscarPacientePorCpf(cpf: string) {
       if (!cpfValido(cpf)) { setCpfEncontrado(null); return; }
@@ -654,7 +655,7 @@ export default function PacienteDetalhe() {
       setCpfEncontrado(outro ? { id: String(outro.id), nome: outro.nome || 'Paciente' } : null);
   }
 
-  async function trocarFotoPaciente(arquivo?: File) {
+  async function trocarFotoPaciente(arquivo?: File | Blob) {
       if (!arquivo) return;
       setEnviandoFotoPerfil(true);
       try {
@@ -665,8 +666,10 @@ export default function PacienteDetalhe() {
           const { error: updErr } = await supabase.from('pacientes').update({ foto_url: publicUrl }).eq('id', id);
           if (updErr) throw updErr;
           setForm((atual: any) => ({ ...atual, foto_url: publicUrl }));
-      } catch (erro: any) {
-          showAlert(erro?.message || 'Não foi possível salvar a foto.', { type: 'error' });
+      } catch (erro: unknown) {
+          const mensagem = erro instanceof Error && erro.message ? erro.message : 'Não foi possível salvar a foto.';
+          showAlert(mensagem, { type: 'error' });
+          throw erro instanceof Error ? erro : new Error(mensagem);
       } finally {
           setEnviandoFotoPerfil(false);
       }
@@ -1953,9 +1956,18 @@ export default function PacienteDetalhe() {
         <div className="flex shrink-0 items-center justify-between gap-2 border-b border-black/10 px-3 py-2.5 sm:gap-3 sm:px-4">
             <div className="flex min-w-0 flex-1 items-center gap-2.5">
                 <Link href="/pacientes" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-black/10 bg-[#f8f8f6] text-neutral-600 transition-colors hover:bg-white"><ArrowLeft size={16}/></Link>
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-neutral-900 text-[11px] font-semibold text-white">
-                    {form.foto_url ? <img src={form.foto_url} alt="" className="h-full w-full object-cover" /> : (form.nome || 'P').trim().split(/\s+/).slice(0, 2).map((parte: string) => parte[0] || '').join('').toUpperCase()}
-                </div>
+                <button
+                    type="button"
+                    onClick={() => setCapturaFotoAberta(true)}
+                    disabled={enviandoFotoPerfil}
+                    className="-m-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 disabled:cursor-wait"
+                    aria-label={form.foto_url ? 'Trocar foto do paciente' : 'Adicionar foto do paciente'}
+                    title="Foto do paciente"
+                >
+                    <span className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full bg-neutral-900 text-[11px] font-semibold text-white">
+                        {form.foto_url ? <img src={form.foto_url} alt="" className="h-full w-full object-cover" /> : (form.nome || 'P').trim().split(/\s+/).slice(0, 2).map((parte: string) => parte[0] || '').join('').toUpperCase()}
+                    </span>
+                </button>
                 <div className="min-w-0">
                     <h1 className="truncate text-lg font-semibold text-neutral-900">{form.nome}</h1>
                     <p className="text-[11px] font-medium text-neutral-400">Prontuário digital</p>
@@ -1973,6 +1985,13 @@ export default function PacienteDetalhe() {
                 />
             </div>
         </div>
+
+        <CapturaFotoPaciente
+            open={capturaFotoAberta}
+            onClose={() => setCapturaFotoAberta(false)}
+            onConfirmar={(blob) => trocarFotoPaciente(blob)}
+            titulo={form.nome ? `Foto de ${form.nome}` : 'Foto do paciente'}
+        />
 
         {/* MODAL DE DOCUMENTOS */}
         <Modal open={modalDoc} onClose={() => setModalDoc(false)} maxWidth="2xl" hideCloseButton panelClassName="flex h-[32rem] max-h-[85vh] flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white">
@@ -2181,15 +2200,21 @@ export default function PacienteDetalhe() {
                             <section>
                                 <h4 className="mb-2 text-sm font-semibold text-neutral-900">Identificação</h4>
                                 <div className="flex flex-col items-start gap-4 sm:flex-row">
-                                <label className="group relative h-28 w-28 shrink-0 cursor-pointer sm:h-36 sm:w-36">
-                                    <input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={(e) => { const arquivo = e.target.files?.[0]; e.target.value = ''; trocarFotoPaciente(arquivo); }} />
-                                    <span className="flex h-28 w-28 items-center justify-center overflow-hidden rounded-md border border-neutral-200 bg-neutral-50 text-2xl font-semibold text-neutral-700 sm:h-36 sm:w-36">
+                                <div className="group relative h-28 w-28 shrink-0 sm:h-36 sm:w-36">
+                                    <button
+                                        type="button"
+                                        onClick={() => setCapturaFotoAberta(true)}
+                                        disabled={enviandoFotoPerfil}
+                                        className="relative flex h-full w-full items-center justify-center overflow-hidden rounded-md border border-neutral-200 bg-neutral-50 text-2xl font-semibold text-neutral-700 transition-shadow hover:ring-2 hover:ring-emerald-500/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 disabled:cursor-wait"
+                                        aria-label={form.foto_url ? 'Trocar foto do paciente' : 'Adicionar foto do paciente'}
+                                        title="Foto do paciente"
+                                    >
                                         {form.foto_url ? <img src={form.foto_url} alt="" className="h-full w-full object-cover" /> : (form.nome || 'P').trim().split(/\s+/).slice(0, 2).map((parte: string) => parte[0] || '').join('').toUpperCase()}
-                                    </span>
-                                    <span className="absolute bottom-1.5 right-1.5 flex h-7 w-7 items-center justify-center rounded-md bg-neutral-900 text-white">
+                                    </button>
+                                    <span className="pointer-events-none absolute bottom-1.5 right-1.5 flex h-8 w-8 items-center justify-center rounded-md bg-neutral-900 text-white shadow-sm" aria-hidden>
                                         {enviandoFotoPerfil ? <Loader2 size={14} className="animate-spin" /> : <Camera size={14} />}
                                     </span>
-                                </label>
+                                </div>
                                 <div className="grid min-w-0 flex-1 grid-cols-1 gap-x-3 gap-y-2.5 sm:grid-cols-2 lg:grid-cols-4">
                                     <label className="min-w-0">
                                         <span className={campoLabel}>Nome completo</span>
@@ -3112,53 +3137,6 @@ export default function PacienteDetalhe() {
                                 </div>
                             )}
                         </div>
-
-                        {/* Before/After Comparação */}
-                        {hofSessoes.length >= 2 && (
-                            <div className="mt-6 border-t border-neutral-200 pt-4">
-                                <h4 className="mb-3 text-sm font-semibold text-neutral-900">Comparação antes e depois</h4>
-                                <div className="mb-3 flex flex-wrap items-center gap-3">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-xs font-medium text-neutral-500">Antes</span>
-                                        <CustomSelect value={hofCompararSessoes?.[0] || ''} onChange={v => setHofCompararSessoes([v, hofCompararSessoes?.[1] || hofSessoes[0]])} options={hofSessoes.map(s => ({value:s,label:new Date(s + 'T12:00:00').toLocaleDateString('pt-BR')}))} placeholder="Selecione" size="sm"/>
-                                    </div>
-                                    <ArrowLeftRight size={14} className="text-neutral-300"/>
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-xs font-medium text-neutral-500">Depois</span>
-                                        <CustomSelect value={hofCompararSessoes?.[1] || ''} onChange={v => setHofCompararSessoes([hofCompararSessoes?.[0] || hofSessoes[hofSessoes.length - 1], v])} options={hofSessoes.map(s => ({value:s,label:new Date(s + 'T12:00:00').toLocaleDateString('pt-BR')}))} placeholder="Selecione" size="sm"/>
-                                    </div>
-                                </div>
-                                {hofCompararSessoes?.[0] && hofCompararSessoes?.[1] && (() => {
-                                    const fotosAntes = hofFotos.filter(f => f.sessao === hofCompararSessoes![0]);
-                                    const fotosDepois = hofFotos.filter(f => f.sessao === hofCompararSessoes![1]);
-                                    const angulos = Array.from(new Set([...fotosAntes.map(f => f.angulo), ...fotosDepois.map(f => f.angulo)]));
-                                    if (!angulos.length) return <p className="text-xs text-neutral-400 italic">Nenhuma foto encontrada nestas sessões. Adicione fotos para comparar.</p>;
-                                    return (
-                                        <div className="space-y-3">
-                                            {angulos.map(ang => {
-                                                const antes = fotosAntes.find(f => f.angulo === ang);
-                                                const depois = fotosDepois.find(f => f.angulo === ang);
-                                                return (
-                                                    <div key={ang} className="overflow-hidden rounded-xl border border-neutral-200">
-                                                        <div className="border-b border-neutral-200 bg-[#f8f8f6] px-3 py-1.5 text-xs font-medium text-neutral-600">{ang}</div>
-                                                        <div className="grid grid-cols-2 gap-px bg-neutral-200">
-                                                            <div className="relative aspect-[3/4] bg-white">
-                                                                <div className="absolute left-2 top-2 z-10 rounded-md bg-neutral-900/70 px-2 py-0.5 text-[11px] font-medium text-white">Antes</div>
-                                                                {antes ? <img src={antes.dataUrl} alt="Antes" className="w-full h-full object-cover"/> : <div className="w-full h-full flex items-center justify-center text-neutral-300"><Camera size={24}/></div>}
-                                                            </div>
-                                                            <div className="bg-white relative aspect-[3/4]">
-                                                                <div className="absolute left-2 top-2 z-10 rounded-md bg-neutral-900/80 px-2 py-0.5 text-[11px] font-medium text-white">Depois</div>
-                                                                {depois ? <img src={depois.dataUrl} alt="Depois" className="w-full h-full object-cover"/> : <div className="w-full h-full flex items-center justify-center text-neutral-300"><Camera size={24}/></div>}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    );
-                                })()}
-                            </div>
-                        )}
 
                         {/* Histórico por Sessões */}
                         {hofSessoes.length > 0 && (

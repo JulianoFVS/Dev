@@ -6,7 +6,7 @@ import OdontogramaContainer from '@/components/OdontogramaContainer';
 
 export default function Teste3DPage() {
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-[100dvh] bg-slate-50">
       <header className="border-b border-slate-200 bg-white">
         <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between gap-4">
           <div>

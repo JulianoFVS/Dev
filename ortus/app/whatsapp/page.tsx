@@ -109,11 +109,11 @@ function WhatsappConteudo() {
   const conectado = sessao?.status === 'conectado';
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden px-2.5 py-2.5 sm:px-3 sm:py-3 md:px-4 md:py-3.5">
-      <header className="mb-3 flex shrink-0 flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden px-2.5 pb-0 pt-2.5 sm:px-3 sm:py-3 md:px-4 md:py-3.5">
+      <header className="mb-2.5 flex shrink-0 flex-col gap-2.5 sm:mb-3 sm:gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 md:text-[2rem]">WhatsApp</h1>
+            <h1 className="truncate text-xl font-semibold tracking-tight text-neutral-900 sm:text-2xl md:text-[2rem]">WhatsApp</h1>
             <p className="mt-1 flex items-center gap-1.5 text-xs text-neutral-400">
               <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${conectado ? 'bg-emerald-500' : 'bg-neutral-300'}`} />
               <span className="truncate">
@@ -124,13 +124,31 @@ function WhatsappConteudo() {
             </p>
           </div>
           {conectado && (
-            <button type="button" onClick={desconectar} className="shrink-0 rounded-md px-2.5 py-1.5 text-xs font-medium text-neutral-500 hover:bg-black/[0.04] lg:hidden">
+            <button
+              type="button"
+              onClick={desconectar}
+              className="flex h-10 shrink-0 items-center rounded-full border border-neutral-200 bg-white px-3 text-xs font-medium text-neutral-600 lg:hidden"
+            >
               Desconectar
             </button>
           )}
         </div>
         <div className="flex items-center gap-2">
-          <SegmentedControl value={aba} onChange={setAba} options={ABAS} size="sm" className="w-full bg-white lg:w-[28rem]" />
+          {/* Abas em chips roláveis no celular */}
+          <div className="-mx-0.5 flex w-full items-center gap-1.5 overflow-x-auto px-0.5 pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:hidden">
+            {ABAS.map((item) => (
+              <button
+                key={item.value}
+                type="button"
+                onClick={() => setAba(item.value)}
+                aria-pressed={aba === item.value}
+                className={`h-10 shrink-0 rounded-full border px-4 text-sm font-medium transition-colors ${aba === item.value ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-200 bg-white text-neutral-600'}`}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+          <SegmentedControl value={aba} onChange={setAba} options={ABAS} size="sm" className="hidden w-[28rem] bg-white lg:flex" />
           {conectado && (
             <button type="button" onClick={desconectar} className="hidden shrink-0 rounded-md px-2.5 py-1.5 text-xs font-medium text-neutral-500 hover:bg-black/[0.04] lg:block">
               Desconectar
@@ -148,7 +166,7 @@ function WhatsappConteudo() {
           <Conexao sessao={sessao} onConectar={conectar} />
         )
       ) : (
-        <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="app-scroll-inner min-h-0 flex-1 overflow-y-auto overflow-x-hidden pb-4">
           {!conectado && sessao.configurado !== false && (
             <p className="mx-auto mb-3 max-w-5xl rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800">
               O WhatsApp está desconectado. As mensagens ficam guardadas e só saem depois que ele for conectado na aba Conversas.
@@ -188,13 +206,13 @@ function Conexao({ sessao, onConectar }: { sessao: Sessao; onConectar: () => voi
       texto={sessao.erro || 'No celular da clínica, abra o WhatsApp, toque em Aparelhos conectados e escaneie o código. A sessão fica salva e volta sozinha se o serviço reiniciar.'}
     >
       {sessao.status === 'qr' && sessao.qr ? (
-        <img src={sessao.qr} alt="QR Code do WhatsApp" className="h-64 w-64 rounded-2xl bg-white p-2" />
+        <img src={sessao.qr} alt="QR Code do WhatsApp" className="h-auto w-full max-w-[16rem] rounded-2xl bg-white p-2" />
       ) : sessao.status !== 'offline' ? (
         <button
           type="button"
           onClick={onConectar}
           disabled={sessao.status === 'iniciando'}
-          className="inline-flex h-10 items-center gap-2 rounded-md bg-neutral-900 px-4 text-sm font-medium text-white disabled:opacity-60"
+          className="inline-flex h-11 items-center gap-2 rounded-md bg-neutral-900 px-5 text-sm font-medium text-white disabled:opacity-60 sm:h-10"
         >
           {sessao.status === 'iniciando' ? <Loader2 size={16} className="animate-spin" /> : <MessageCircle size={16} />}
           {sessao.status === 'iniciando' ? 'Abrindo…' : 'Gerar QR Code'}
@@ -206,7 +224,7 @@ function Conexao({ sessao, onConectar }: { sessao: Sessao; onConectar: () => voi
 
 function PainelCentral({ titulo, texto, children }: { titulo: string; texto: string; children?: React.ReactNode }) {
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-4 rounded-[1.5rem] border border-black/[0.06] bg-white px-6 pb-24 pt-10 text-center lg:pb-10">
+    <div className="flex flex-1 flex-col items-center justify-center gap-4 rounded-[1.5rem] border border-black/[0.06] bg-white px-5 pb-10 pt-8 text-center sm:px-6 sm:pt-10">
       <MessageCircle size={28} className="text-neutral-300" />
       <div>
         <h2 className="text-base font-medium text-neutral-900">{titulo}</h2>

@@ -67,26 +67,26 @@ export default function Historico({ clinicaId }: Props) {
   const falhas = envios.filter((e) => e.status === 'falha').length;
 
   return (
-    <div className="mx-auto w-full max-w-3xl space-y-3 pb-28 lg:pb-6">
+    <div className="mx-auto w-full max-w-3xl space-y-3 pb-2 lg:pb-6">
       <div className="grid grid-cols-2 gap-2">
-        <div className="rounded-[1.25rem] border border-black/[0.06] bg-white p-4">
-          <p className="text-xs text-neutral-500">Enviadas hoje</p>
-          <p className="mt-1 text-2xl font-semibold text-neutral-900">{enviadasHoje}</p>
+        <div className="min-w-0 rounded-[1.25rem] border border-black/[0.06] bg-white p-4">
+          <p className="truncate text-xs text-neutral-500">Enviadas hoje</p>
+          <p className="mt-1 text-2xl font-semibold tabular-nums text-neutral-900">{enviadasHoje}</p>
         </div>
-        <div className="rounded-[1.25rem] border border-black/[0.06] bg-white p-4">
-          <p className="text-xs text-neutral-500">Falhas recentes</p>
-          <p className={`mt-1 text-2xl font-semibold ${falhas ? 'text-rose-600' : 'text-neutral-900'}`}>{falhas}</p>
+        <div className="min-w-0 rounded-[1.25rem] border border-black/[0.06] bg-white p-4">
+          <p className="truncate text-xs text-neutral-500">Falhas recentes</p>
+          <p className={`mt-1 text-2xl font-semibold tabular-nums ${falhas ? 'text-rose-600' : 'text-neutral-900'}`}>{falhas}</p>
         </div>
       </div>
 
       <section className="rounded-[1.25rem] border border-black/[0.06] bg-white p-4">
-        <div className="flex flex-wrap gap-1.5 text-xs">
+        <div className="-mx-0.5 flex gap-1.5 overflow-x-auto px-0.5 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:flex-wrap">
           {['todos', ...Object.keys(TIPOS)].map((chave) => (
             <button
               key={chave}
               type="button"
               onClick={() => setTipo(chave)}
-              className={`rounded-full px-2.5 py-1 ${tipo === chave ? 'bg-neutral-900 text-white' : 'text-neutral-500 hover:bg-neutral-100'}`}
+              className={`h-9 shrink-0 rounded-full px-3 text-xs font-medium ${tipo === chave ? 'bg-neutral-900 text-white' : 'text-neutral-500 hover:bg-neutral-100'}`}
             >
               {chave === 'todos' ? 'Todas' : TIPOS[chave]}
             </button>
@@ -105,10 +105,10 @@ export default function Historico({ clinicaId }: Props) {
               const status = STATUS[envio.status];
               return (
                 <li key={envio.id}>
-                  <button type="button" onClick={() => setAberto(aberto === envio.id ? null : envio.id)} className="w-full py-3 text-left">
+                  <button type="button" onClick={() => setAberto(aberto === envio.id ? null : envio.id)} className="min-h-[56px] w-full py-3 text-left">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-medium text-neutral-900">{envio.nome || formatarTelefone(envio.telefone)}</p>
+                        <p className="truncate text-[15px] font-medium text-neutral-900 sm:text-sm">{envio.nome || formatarTelefone(envio.telefone)}</p>
                         <p className="text-xs text-neutral-400">
                           {TIPOS[envio.tipo] || envio.tipo} · {new Date(envio.created_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
                         </p>

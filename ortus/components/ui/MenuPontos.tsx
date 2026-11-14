@@ -25,8 +25,8 @@ export default function MenuPontos({ itens, className, tamanho = 16 }: Props) {
   function posicionar() {
     const rect = botao.current?.getBoundingClientRect();
     if (!rect) return;
-    const largura = 176;
-    const altura = itens.length * 36 + 8;
+    const largura = Math.min(208, window.innerWidth - 16);
+    const altura = itens.length * 44 + 8;
     const cabeAbaixo = window.innerHeight - rect.bottom >= altura;
     const top = cabeAbaixo ? rect.bottom + 4 : Math.max(8, rect.top - altura - 4);
     const left = Math.min(Math.max(8, rect.right - largura), window.innerWidth - largura - 8);
@@ -55,19 +55,19 @@ export default function MenuPontos({ itens, className, tamanho = 16 }: Props) {
           if (aberto) setAberto(false);
           else { posicionar(); setAberto(true); }
         }}
-        className={className || 'rounded-full p-2 text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900'}
+        className={className || 'inline-flex h-11 w-11 items-center justify-center rounded-full text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900 sm:h-8 sm:w-8'}
       >
         <MoreHorizontal size={tamanho} />
       </button>
       {aberto && typeof document !== 'undefined' && createPortal(
         <>
           <button type="button" aria-label="Fechar menu" className="fixed inset-0 z-[90]" onClick={() => setAberto(false)} />
-          <div className="fixed z-[91] w-44 overflow-hidden rounded-md border border-neutral-200 bg-white py-1 shadow-sm" style={{ top: pos.top, left: pos.left }}>
+          <div className="fixed z-[91] min-w-[13rem] max-w-[calc(100vw-1rem)] overflow-hidden rounded-md border border-neutral-200 bg-white py-1 shadow-sm" style={{ top: pos.top, left: pos.left, width: 208 }}>
             {itens.map((item) => (
               <button
                 key={item.id}
                 type="button"
-                className={`block w-full px-3 py-2 text-left text-sm ${item.perigo ? 'text-red-600 hover:bg-red-50' : 'text-neutral-800 hover:bg-neutral-50'}`}
+                className={`block min-h-[44px] w-full px-3 py-2.5 text-left text-sm ${item.perigo ? 'text-red-600 hover:bg-red-50' : 'text-neutral-800 hover:bg-neutral-50'}`}
                 onClick={(event) => {
                   event.stopPropagation();
                   setAberto(false);

@@ -18,7 +18,15 @@ const relaxedNextConfig = nextConfig.map((config) => {
 
 module.exports = [
   {
-    ignores: ['.next/**', 'node_modules/**', 'out/**', 'next-env.d.ts'],
+    ignores: [
+    '.next/**',
+    'node_modules/**',
+    'out/**',
+    'next-env.d.ts',
+    // Artefatos estáticos (WASM do MediaPipe, modelos, ícones) — não são código do app.
+    'public/**',
+    'scripts/**',
+  ],
   },
   ...relaxedNextConfig,
 ];

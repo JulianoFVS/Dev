@@ -17,10 +17,10 @@ function CheckoutContent() {
       setTimeout(() => { setLoading(false); setEtapa('sucesso'); setTimeout(() => { router.push(`/cadastro?plano=${plano}&status=pago`); }, 2000); }, 2000);
   }
 
-  if (etapa === 'sucesso') return (<div className="min-h-screen bg-white flex items-center justify-center p-6"><div className="text-center space-y-4 animate-in zoom-in"><div className="w-24 h-24 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-6"><CheckCircle size={48}/></div><h1 className="text-3xl font-black text-slate-800">Pagamento Aprovado!</h1><p className="text-slate-500 font-medium">Redirecionando para configurar sua conta...</p><Loader2 className="animate-spin mx-auto text-blue-600" size={24}/></div></div>);
+  if (etapa === 'sucesso') return (<div className="min-h-[100dvh] bg-white flex items-center justify-center p-6"><div className="text-center space-y-4 animate-in zoom-in"><div className="w-24 h-24 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-6"><CheckCircle size={48}/></div><h1 className="text-3xl font-black text-slate-800">Pagamento Aprovado!</h1><p className="text-slate-500 font-medium">Redirecionando para configurar sua conta...</p><Loader2 className="animate-spin mx-auto text-blue-600" size={24}/></div></div>);
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row">
+    <div className="min-h-[100dvh] bg-slate-50 flex flex-col md:flex-row">
       <div className="w-full md:w-1/2 bg-slate-900 text-white p-8 md:p-20 flex flex-col justify-between relative overflow-hidden">
           <div className="absolute top-0 right-0 w-96 h-96 bg-blue-600 rounded-full blur-3xl opacity-20 translate-x-1/2 -translate-y-1/2"></div>
           <div>
@@ -54,4 +54,4 @@ function CheckoutContent() {
   );
 }
 
-export default function Checkout() { return (<Suspense fallback={<div className="h-screen w-screen flex items-center justify-center bg-slate-50"><Loader2 className="animate-spin text-blue-600" size={40}/></div>}><CheckoutContent /></Suspense>); }
+export default function Checkout() { return (<Suspense fallback={<div className="h-[100dvh] w-[100dvw] flex items-center justify-center bg-slate-50"><Loader2 className="animate-spin text-blue-600" size={40}/></div>}><CheckoutContent /></Suspense>); }

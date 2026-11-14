@@ -1,5 +1,6 @@
 'use client';
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
 import { clinicScope, readRouteCache, writeRouteCache } from '@/lib/routeListCache';
 import { useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
@@ -11,11 +12,25 @@ import Aviso from '@/components/ui/Aviso';
 import CustomSelect from '@/components/ui/CustomSelect';
 import CampoHora from '@/components/ui/CampoHora';
 import Switch from '@/components/ui/Switch';
+import { ConviteStatusBadge } from '@/components/forms/ConviteEquipeCard';
 import {
     Loader2, X, ShieldCheck, Copy, Check,
     AlertTriangle,
     Trash2, ArrowUpDown, Pencil, Plus,
+    MailOpen, MailPlus, RefreshCw,
 } from 'lucide-react';
+import {
+    cancelarConviteEquipe,
+    conviteErroSemConta,
+    enviarConviteEquipe,
+    formatarDataConvite,
+    listarConvitesEquipe,
+    listarMeusConvites,
+    mensagemErroConvite,
+    obterStatusConvite,
+    type ConviteEquipe,
+    type MeuConvite,
+} from '@/lib/convites';
 import type { ComissaoRegra, ModuleName } from '@/lib/types/permissions';
 import { MODULES, buildModuleAccessMap } from '@/lib/modules';
 import { PERMISSION_PRESETS, buildPresetAccessMap, type PermissionPresetId } from '@/lib/permissionPresets';
@@ -114,11 +129,19 @@ export default function EquipePage() {
     const [salvando, setSalvando] = useState(false);
     const [erro, setErro] = useState<string | null>(null);
     const [form, setForm] = useState({
-        nome: '', email: '', cargo: 'Dentista', clinicas: [] as string[],
+        nome: '', email: '', cargo: 'Dentista', clinicas: [] as string[], mensagem: '',
     });
 
-    // Modal final com credenciais
+    // Modal final com credenciais (somente para contas realmente criadas)
     const [credenciais, setCredenciais] = useState<{ email: string; senha: string; nome: string } | null>(null);
+
+    // Confirmação de convite enviado (nunca exibe senha temporária)
+    const [conviteEnviado, setConviteEnviado] = useState<{ email: string; clinicas: string[] } | null>(null);
+    const [convites, setConvites] = useState<ConviteEquipe[]>([]);
+    const [convitesLoading, setConvitesLoading] = useState(true);
+    const [convitesErro, setConvitesErro] = useState<string | null>(null);
+    const [conviteCancelandoId, setConviteCancelandoId] = useState<number | null>(null);
+    const [meusConvites, setMeusConvites] = useState<MeuConvite[]>([]);
     const [copiado, setCopiado] = useState<'email' | 'senha' | 'tudo' | null>(null);
 
     // Modal edição avançada
@@ -168,6 +191,21 @@ export default function EquipePage() {
         const registro = clinics.find((c) => String(c.id) === String(activeClinicId));
         return registro?.nome || 'Clínica selecionada';
     }, [activeClinicId, clinics]);
+
+    const clinicasPermitidasIds = useMemo(
+        () => clinics
+            .map((clinica) => Number(clinica.id))
+            .filter((id) => Number.isFinite(id)),
+        [clinics],
+    );
+    const clinicasPermitidasChave = useMemo(
+        () => clinicasPermitidasIds.map(String).sort().join(','),
+        [clinicasPermitidasIds],
+    );
+    const clinicasPorId = useMemo(
+        () => new Map(clinics.map((clinica) => [String(clinica.id), clinica])),
+        [clinics],
+    );
 
     useEffect(() => {
         if (clinicLoading) return;
@@ -219,7 +257,7 @@ export default function EquipePage() {
 
     function abrirModal() {
         setErro(null);
-        setForm({ nome: '', email: '', cargo: 'Dentista', clinicas: [] });
+        setForm({ nome: '', email: '', cargo: 'Dentista', clinicas: [], mensagem: '' });
         setModalOpen(true);
     }
 
@@ -234,22 +272,57 @@ export default function EquipePage() {
         e.preventDefault();
         setErro(null);
 
-        if (!form.nome.trim() || !form.email.trim()) {
+        const nome = form.nome.trim();
+        const email = form.email.trim().toLowerCase();
+        const clinicaIds = form.clinicas.map((id) => Number(id)).filter((id) => Number.isFinite(id));
+
+        if (!nome || !email) {
             setErro('Nome e e-mail são obrigatórios.');
             return;
         }
-        if (form.clinicas.length === 0) {
-            setErro('Selecione pelo menos uma unidade.');
+        if (form.clinicas.length === 0 || clinicaIds.length !== form.clinicas.length) {
+            setErro('Selecione pelo menos uma unidade válida.');
             return;
         }
 
         setSalvando(true);
         try {
+            // 1) Se o e-mail já tem conta Ortus, o convite é o caminho correto:
+            //    nunca recriamos nem sequestramos a conta existente.
+            let conviteCriado = false;
+            try {
+                await enviarConviteEquipe({
+                    email,
+                    clinicaIds,
+                    cargo: form.cargo,
+                    mensagem: form.mensagem.trim() || null,
+                });
+                conviteCriado = true;
+            } catch (error) {
+                if (!conviteErroSemConta(error)) {
+                    setErro(mensagemErroConvite(error, 'Não foi possível enviar o convite.'));
+                    return;
+                }
+                // P0002: e-mail sem conta Ortus → segue para a criação normal.
+            }
+
+            if (conviteCriado) {
+                const nomesClinicas = form.clinicas.map((id) => {
+                    const clinica = clinicasPorId.get(String(id));
+                    return clinica?.nome || `Unidade #${id}`;
+                });
+                setModalOpen(false);
+                setConviteEnviado({ email, clinicas: nomesClinicas });
+                await carregar({ silent: true });
+                await carregarConvites();
+                return;
+            }
+
+            // 2) Fluxo legado: cria a conta com senha temporária.
             const { data: { session } } = await supabase.auth.getSession();
             const token = session?.access_token;
             if (!token) {
                 setErro('Sessão expirada. Faça login novamente.');
-                setSalvando(false);
                 return;
             }
 
@@ -260,26 +333,94 @@ export default function EquipePage() {
                     Authorization: `Bearer ${token}`,
                 },
                 body: JSON.stringify({
-                    nome: form.nome.trim(),
-                    email: form.email.trim().toLowerCase(),
+                    nome,
+                    email,
                     cargo: form.cargo,
                     clinicas: form.clinicas,
                 }),
             });
-            const json = await resp.json();
-            if (!resp.ok || !json.success) {
+            const json = await resp.json() as {
+                success?: boolean;
+                error?: string;
+                email?: string;
+                senha_temporaria?: string;
+            };
+            if (!resp.ok || !json.success || !json.email || !json.senha_temporaria) {
                 setErro(json.error || 'Falha ao criar usuário.');
-                setSalvando(false);
                 return;
             }
 
             setModalOpen(false);
-            setCredenciais({ nome: form.nome.trim(), email: json.email, senha: json.senha_temporaria });
+            setCredenciais({ nome, email: json.email, senha: json.senha_temporaria });
             await carregar({ silent: true });
-        } catch (e: any) {
-            setErro(e?.message || 'Erro inesperado.');
+        } catch (e: unknown) {
+            setErro(e instanceof Error ? e.message : 'Erro inesperado.');
+        } finally {
+            setSalvando(false);
         }
-        setSalvando(false);
+    }
+
+    async function carregarConvites() {
+        if (!isAdmin) return;
+        setConvitesLoading(true);
+        setConvitesErro(null);
+        try {
+            const lista = await listarConvitesEquipe(clinicasPermitidasIds, {
+                todas: !!perfilCaller?.is_super_admin,
+            });
+            setConvites(lista);
+        } catch (error) {
+            setConvitesErro(mensagemErroConvite(error, 'Não foi possível carregar os convites de equipe.'));
+        } finally {
+            setConvitesLoading(false);
+        }
+    }
+
+    async function carregarMeusConvites() {
+        if (!isAdmin) return;
+        try {
+            const lista = await listarMeusConvites();
+            setMeusConvites(lista.filter((convite) => obterStatusConvite(convite) === 'pendente'));
+        } catch {
+            setMeusConvites([]);
+        }
+    }
+
+    async function cancelarConvite(convite: ConviteEquipe) {
+        if (conviteCancelandoId !== null) return;
+        const confirmou = await showConfirm(
+            `Cancelar o convite enviado para ${convite.convidado_email}? A pessoa não conseguirá mais aceitá-lo.`,
+            { title: 'Cancelar convite', type: 'warning', confirmLabel: 'Cancelar convite', cancelLabel: 'Voltar' },
+        );
+        if (!confirmou) return;
+
+        setConviteCancelandoId(convite.id);
+        try {
+            await cancelarConviteEquipe(convite.id);
+            setConvites((prev) => prev.map((item) => (
+                item.id === convite.id
+                    ? { ...item, status: 'cancelado', respondido_em: new Date().toISOString() }
+                    : item
+            )));
+            await showAlert(
+                'Convite cancelado. A pessoa não verá mais o convite em Mensagens.',
+                { title: 'Convite cancelado', type: 'success' },
+            );
+        } catch (error) {
+            await showAlert(
+                mensagemErroConvite(error, 'Não foi possível cancelar o convite.'),
+                { title: 'Erro ao cancelar convite', type: 'error' },
+            );
+        } finally {
+            setConviteCancelandoId(null);
+        }
+    }
+
+    function nomeClinicasDoConvite(ids: Array<number | string>): string {
+        if (ids.length === 0) return 'Unidade não informada';
+        return ids
+            .map((id) => clinicasPorId.get(String(id))?.nome || `Unidade #${id}`)
+            .join(', ');
     }
 
     function copiar(tipo: 'email' | 'senha' | 'tudo') {
@@ -868,6 +1009,25 @@ export default function EquipePage() {
 
     const isAdmin = perfilCaller?.nivel_acesso === 'admin' || perfilCaller?.is_super_admin;
 
+    useEffect(() => {
+        if (!isAdmin) {
+            setConvites([]);
+            setMeusConvites([]);
+            return;
+        }
+        void carregarConvites();
+        void carregarMeusConvites();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isAdmin, clinicasPermitidasChave]);
+
+    const convitesOrdenados = [...convites].sort((a, b) => {
+        const aPendente = obterStatusConvite(a) === 'pendente' ? 0 : 1;
+        const bPendente = obterStatusConvite(b) === 'pendente' ? 0 : 1;
+        if (aPendente !== bPendente) return aPendente - bPendente;
+        return new Date(b.criado_em).getTime() - new Date(a.criado_em).getTime();
+    });
+    const convitesPendentesEnviados = convites.filter((convite) => obterStatusConvite(convite) === 'pendente').length;
+
     const totalAtivos = profissionais.length;
     const totalAdmins = profissionais.filter((p) => p.nivel_acesso === 'admin').length;
     const pendentesSenha = profissionais.filter((p) => p.precisa_trocar_senha).length;
@@ -930,6 +1090,26 @@ export default function EquipePage() {
                     <Plus size={16} /> Adicionar
                 </button>
             </div>
+
+            {meusConvites.length > 0 && (
+                <Link
+                    href="/mensagens"
+                    className="group flex min-h-[52px] shrink-0 items-center gap-3 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2.5 transition hover:border-amber-400 hover:bg-amber-100/70 sm:px-4"
+                >
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-amber-700 ring-1 ring-amber-200">
+                        <MailOpen size={18} />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-amber-900">
+                            {meusConvites.length === 1
+                                ? 'Você tem 1 convite de equipe aguardando resposta'
+                                : `Você tem ${meusConvites.length} convites de equipe aguardando resposta`}
+                        </p>
+                        <p className="text-xs text-amber-800/80">Abra Mensagens para aceitar ou recusar.</p>
+                    </div>
+                    <span className="shrink-0 text-xs font-semibold text-amber-800 group-hover:text-amber-900">Ver convites</span>
+                </Link>
+            )}
 
             <div className="flex min-h-0 flex-1 flex-col gap-3">
             <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white">
@@ -1015,6 +1195,90 @@ export default function EquipePage() {
                 </table>
                 </div>
                 )}
+            </section>
+
+            <section className="flex shrink-0 flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white">
+                <div className="flex shrink-0 items-start justify-between gap-3 px-3 pt-3">
+                    <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <h2 className="text-base font-semibold text-neutral-900">Convites de equipe</h2>
+                            {convitesPendentesEnviados > 0 && (
+                                <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
+                                    {convitesPendentesEnviados} {convitesPendentesEnviados === 1 ? 'pendente' : 'pendentes'}
+                                </span>
+                            )}
+                        </div>
+                        <p className="text-xs text-neutral-500">Pessoas que já têm conta Ortus e receberam convite para suas unidades.</p>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => void carregarConvites()}
+                        disabled={convitesLoading}
+                        aria-label="Atualizar convites"
+                        className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-50 hover:text-neutral-900 disabled:opacity-50"
+                    >
+                        <RefreshCw size={15} className={convitesLoading ? 'animate-spin' : ''} />
+                    </button>
+                </div>
+                <div className="max-h-[180px] overflow-y-auto px-3 pb-3 sm:max-h-[220px]">
+                    {convitesLoading && convites.length === 0 ? (
+                        <div className="space-y-2 pt-2">
+                            {Array.from({ length: 2 }).map((_, i) => (
+                                <div key={i} className="h-12 animate-pulse rounded-md bg-neutral-50" />
+                            ))}
+                        </div>
+                    ) : convitesErro && convites.length === 0 ? (
+                        <div className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between">
+                            <p className="text-sm text-rose-600">{convitesErro}</p>
+                            <button
+                                type="button"
+                                onClick={() => void carregarConvites()}
+                                className="inline-flex min-h-[44px] shrink-0 items-center justify-center rounded-lg border border-neutral-200 px-3 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+                            >
+                                Tentar novamente
+                            </button>
+                        </div>
+                    ) : convites.length === 0 ? (
+                        <p className="py-3 text-sm text-neutral-400">Nenhum convite enviado ainda.</p>
+                    ) : (
+                        <ul className="divide-y divide-black/5">
+                            {convitesOrdenados.map((convite) => {
+                                const status = obterStatusConvite(convite);
+                                return (
+                                    <li key={convite.id} className="flex flex-col gap-2 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+                                        <div className="min-w-0">
+                                            <div className="flex flex-wrap items-center gap-1.5">
+                                                <p className="truncate text-sm font-medium text-neutral-900">
+                                                    {convite.convidado_nome || convite.convidado_email}
+                                                </p>
+                                                <ConviteStatusBadge status={status} />
+                                            </div>
+                                            <p className="break-all text-xs text-neutral-500">{convite.convidado_email}</p>
+                                            <p className="mt-0.5 break-words text-xs text-neutral-500">
+                                                {nomeClinicasDoConvite(convite.clinica_ids)}
+                                                {convite.cargo ? ` · ${convite.cargo}` : ''}
+                                                {` · ${formatarDataConvite(convite.criado_em)}`}
+                                            </p>
+                                        </div>
+                                        {status === 'pendente' && (
+                                            <button
+                                                type="button"
+                                                onClick={() => void cancelarConvite(convite)}
+                                                disabled={conviteCancelandoId !== null}
+                                                className="inline-flex min-h-[44px] w-full shrink-0 items-center justify-center gap-1.5 rounded-lg border border-neutral-200 px-3 text-sm font-medium text-neutral-600 hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700 disabled:opacity-50 sm:w-auto"
+                                            >
+                                                {conviteCancelandoId === convite.id
+                                                    ? <Loader2 size={14} className="animate-spin" />
+                                                    : <X size={14} />}
+                                                Cancelar convite
+                                            </button>
+                                        )}
+                                    </li>
+                                );
+                            })}
+                        </ul>
+                    )}
+                </div>
             </section>
 
             <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white">
@@ -1195,7 +1459,7 @@ export default function EquipePage() {
             </Modal>
 
             <Modal open={modalOpen} onClose={() => setModalOpen(false)} maxWidth="lg" hideCloseButton panelClassName="overflow-visible rounded-xl border border-neutral-200 bg-white">
-                <form onSubmit={salvar} className="px-5 py-4 sm:px-6 sm:py-5">
+                <form onSubmit={salvar} className="min-h-0 flex-1 overflow-y-auto px-5 py-4 sm:px-6 sm:py-5">
                     <div className="mb-5 flex items-start justify-between gap-3 border-b border-black/5 pb-4">
                         <div>
                             <h2 className="text-lg font-semibold text-neutral-900">Novo funcionário</h2>
@@ -1203,6 +1467,10 @@ export default function EquipePage() {
                         </div>
                         <button type="button" onClick={() => setModalOpen(false)} className="rounded-full p-2 text-neutral-400 hover:bg-neutral-100" aria-label="Fechar"><X size={18}/></button>
                     </div>
+                    <p className="mb-3 flex items-start gap-2 rounded-lg border border-neutral-100 bg-neutral-50 px-3 py-2 text-xs text-neutral-500">
+                        <MailPlus size={14} className="mt-0.5 shrink-0" />
+                        Se este e-mail já pertence a uma conta Ortus, enviaremos um convite em vez de criar uma nova conta.
+                    </p>
                     {erro && (
                         <p className="mb-3 flex items-center gap-2 text-xs font-medium text-rose-600">
                             <AlertTriangle size={14} /> {erro}
@@ -1260,14 +1528,56 @@ export default function EquipePage() {
                                 })}
                             </div>
                         </div>
+                        <label className="sm:col-span-2">
+                            <span className="mb-1.5 block text-xs font-medium text-neutral-500">Mensagem (opcional)</span>
+                            <textarea
+                                rows={2}
+                                value={form.mensagem}
+                                onChange={(e) => setForm({ ...form, mensagem: e.target.value })}
+                                maxLength={500}
+                                className="w-full resize-none rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 outline-none placeholder:text-neutral-400 focus:border-neutral-900"
+                                placeholder="Ex.: Bem-vindo à nossa equipe!"
+                            />
+                        </label>
                     </div>
                     <div className="mt-5 flex justify-end border-t border-black/5 pt-4">
-                        <button type="submit" disabled={salvando} className="inline-flex h-9 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-40">
+                        <button type="submit" disabled={salvando} className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-40">
                             {salvando ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}
-                            Cadastrar
+                            {salvando ? 'Processando...' : 'Cadastrar ou convidar'}
                         </button>
                     </div>
                 </form>
+            </Modal>
+
+            <Modal open={!!conviteEnviado} onClose={() => setConviteEnviado(null)} maxWidth="md" hideCloseButton zIndex={60} panelClassName="overflow-hidden rounded-2xl border border-emerald-100 bg-white shadow-2xl">
+                {conviteEnviado && (<>
+                    <div className="bg-emerald-600 px-6 py-5 text-white">
+                        <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-white/20">
+                            <MailPlus size={24} />
+                        </div>
+                        <h2 className="text-lg font-bold">Convite enviado!</h2>
+                        <p className="mt-0.5 text-xs text-emerald-50">A pessoa já tem conta Ortus e não precisará de uma nova senha.</p>
+                    </div>
+                    <div className="min-h-0 space-y-3 overflow-y-auto p-6">
+                        <p className="text-sm text-neutral-700">
+                            Convite enviado para <strong className="break-all">{conviteEnviado.email}</strong>. A pessoa verá o convite em <strong>Mensagens</strong>.
+                        </p>
+                        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
+                            <p className="text-[10px] font-black uppercase tracking-wider text-amber-700">Unidades</p>
+                            <p className="mt-0.5 text-sm font-medium text-amber-900">{conviteEnviado.clinicas.join(', ') || 'Unidade selecionada'}</p>
+                        </div>
+                        <p className="text-xs text-neutral-500">
+                            Nenhuma senha temporária foi criada. O convite expira em 14 dias e pode ser aceito ou recusado em Mensagens.
+                        </p>
+                        <button
+                            type="button"
+                            onClick={() => setConviteEnviado(null)}
+                            className="touch-target w-full rounded-lg bg-neutral-900 px-4 py-3 text-sm font-bold text-white shadow-md shadow-black/10 hover:bg-neutral-800"
+                        >
+                            Concluir
+                        </button>
+                    </div>
+                </>)}
             </Modal>
 
             <Modal open={!!credenciais} onClose={() => setCredenciais(null)} maxWidth="md" hideCloseButton panelClassName="bg-white rounded-2xl shadow-2xl border border-neutral-100 overflow-hidden">

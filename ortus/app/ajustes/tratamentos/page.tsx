@@ -15,12 +15,12 @@ import SegmentedControl from '@/components/ui/SegmentedControl';
 
 const CACHE_KEY = 'ortus:tratamentos:v2';
 
-const campo = 'h-10 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm text-neutral-900 outline-none focus:border-neutral-900';
-const campoErro = 'h-10 w-full rounded-md border border-red-500 bg-white px-3 text-sm text-neutral-900 outline-none focus:border-red-500';
+const campo = 'h-11 w-full rounded-md border border-neutral-200 bg-white px-3 text-base text-neutral-900 outline-none focus:border-neutral-900 sm:h-10 sm:text-sm';
+const campoErro = 'h-11 w-full rounded-md border border-red-500 bg-white px-3 text-base text-neutral-900 outline-none focus:border-red-500 sm:h-10 sm:text-sm';
 const rotulo = 'mb-1.5 block text-xs font-medium text-neutral-500';
-const btnPrimario = 'inline-flex h-9 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white disabled:opacity-50';
-const btnNeutro = 'inline-flex h-9 items-center gap-1.5 rounded-md border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-700';
-const btnBloqueado = 'inline-flex h-9 cursor-not-allowed items-center gap-1.5 rounded-md bg-neutral-200 px-3 text-sm font-medium text-neutral-400';
+const btnPrimario = 'inline-flex h-11 shrink-0 items-center justify-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white disabled:opacity-50 sm:h-9';
+const btnNeutro = 'inline-flex h-11 shrink-0 items-center justify-center gap-1.5 rounded-md border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-700 sm:h-9';
+const btnBloqueado = 'inline-flex h-11 shrink-0 cursor-not-allowed items-center justify-center gap-1.5 rounded-md bg-neutral-200 px-3 text-sm font-medium text-neutral-400 sm:h-9';
 
 function Legenda({ texto, children }: { texto: string; children: ReactNode }) {
   const ancora = useRef<HTMLSpanElement>(null);
@@ -811,12 +811,13 @@ export default function TratamentosPage() {
   const escolhaVisivel = tratamentos.filter((t) => t.ativo && (!buscaEscolha.trim() || t.nome.toLocaleLowerCase('pt-BR').includes(buscaEscolha.trim().toLocaleLowerCase('pt-BR'))));
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden px-2.5 py-2.5 font-poppins sm:px-3 sm:py-3 md:px-4 md:py-3.5">
-      <div className="mb-3 shrink-0">
-        <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 md:text-[2rem]">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden px-2.5 pt-2.5 font-poppins sm:px-3 sm:py-3 md:px-4 md:py-3.5">
+      <div className="mb-2.5 shrink-0 sm:mb-3">
+        <h1 className="truncate text-xl font-semibold tracking-tight text-neutral-900 sm:text-2xl md:text-[2rem]">
           Tratamentos
-          <span className="text-neutral-400"> · {clinicLabel}</span>
+          <span className="hidden text-neutral-400 sm:inline"> · {clinicLabel}</span>
         </h1>
+        <p className="mt-0.5 truncate text-xs text-neutral-500 sm:hidden">{clinicLabel}</p>
       </div>
 
       {!clinicaId ? (
@@ -828,18 +829,18 @@ export default function TratamentosPage() {
       ) : (
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white lg:flex-row">
         <nav aria-label="Planos" className="flex shrink-0 flex-col border-b border-neutral-200 lg:w-56 lg:border-b-0 lg:border-r">
-          <div className="flex gap-1 overflow-x-auto px-2 py-2 lg:min-h-0 lg:flex-1 lg:flex-col lg:overflow-y-auto">
+          <div className="flex gap-1.5 overflow-x-auto px-2 py-2 [scrollbar-width:none] lg:min-h-0 lg:flex-1 lg:flex-col lg:gap-1 lg:overflow-y-auto [&::-webkit-scrollbar]:hidden">
             {ordenados.map((plano) => {
               const ativo = plano.id === planoAtual?.id;
               const nome = plano.tipo === 'particular' ? 'Particular' : plano.nome;
               const Icone = plano.tipo === 'particular' ? User : CreditCard;
               const inativo = plano.tipo !== 'particular' && plano.ativo === false;
               return (
-                <div key={plano.id} className={`flex shrink-0 items-center rounded-xl lg:w-full ${ativo ? 'bg-neutral-900' : plano.tipo === 'particular' ? 'bg-neutral-100 hover:bg-neutral-200/70' : 'hover:bg-[#f3f4f1]'} ${inativo ? 'opacity-50' : ''}`}>
+                <div key={plano.id} className={`flex h-11 shrink-0 items-center rounded-full border lg:h-auto lg:w-full lg:rounded-xl lg:border-transparent ${ativo ? 'border-neutral-900 bg-neutral-900' : plano.tipo === 'particular' ? 'border-neutral-200 bg-neutral-100 hover:bg-neutral-200/70' : 'border-neutral-200 bg-white hover:bg-[#f3f4f1]'} ${inativo ? 'opacity-50' : ''}`}>
                   <button
                     type="button"
                     onClick={() => setSelecionadoId(plano.id)}
-                    className={`flex min-w-0 flex-1 items-center gap-2 px-3 py-2 text-left text-sm leading-snug lg:gap-2.5 lg:py-2.5 ${ativo ? 'font-medium text-white' : plano.tipo === 'particular' ? 'font-semibold text-neutral-900' : 'font-medium text-neutral-600'}`}
+                    className={`flex h-full min-w-0 flex-1 items-center gap-2 px-3 text-left text-sm leading-snug lg:h-auto lg:gap-2.5 lg:py-2.5 ${ativo ? 'font-medium text-white' : plano.tipo === 'particular' ? 'font-semibold text-neutral-900' : 'font-medium text-neutral-600'}`}
                   >
                     <Icone size={16} className="shrink-0" />
                     <span className="truncate">{nome}</span>
@@ -857,27 +858,25 @@ export default function TratamentosPage() {
                 </div>
               );
             })}
-          </div>
-          <div className="px-2 pb-2 lg:border-t lg:border-neutral-200 lg:py-2">
             <button
               type="button"
               onClick={() => abrirPlano('novo')}
               disabled={!clinicaId}
-              className="flex w-full shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-medium text-neutral-600 hover:bg-[#f3f4f1] disabled:opacity-40 lg:gap-2.5 lg:py-2.5"
+              className="flex h-11 w-auto shrink-0 items-center gap-2 rounded-full border border-dashed border-neutral-300 px-3 text-left text-sm font-medium text-neutral-600 hover:bg-[#f3f4f1] disabled:opacity-40 lg:mt-1 lg:h-auto lg:w-full lg:rounded-xl lg:border-0 lg:py-2.5"
             >
               <Plus size={16} className="shrink-0" />
-              Novo plano
+              <span className="truncate">Novo plano</span>
             </button>
           </div>
         </nav>
 
         <nav aria-label="Especialidades" className="flex shrink-0 flex-col border-b border-neutral-200 lg:w-48 lg:border-b-0 lg:border-r">
-          <div className="flex gap-1 overflow-x-auto px-2 py-2 lg:min-h-0 lg:flex-1 lg:flex-col lg:overflow-y-auto">
-            <div className={`flex shrink-0 items-center rounded-xl lg:w-full ${espId === null ? 'bg-neutral-900' : 'hover:bg-[#f3f4f1]'}`}>
+          <div className="flex gap-1.5 overflow-x-auto px-2 py-2 [scrollbar-width:none] lg:min-h-0 lg:flex-1 lg:flex-col lg:gap-1 lg:overflow-y-auto [&::-webkit-scrollbar]:hidden">
+            <div className={`flex h-11 shrink-0 items-center rounded-full border lg:h-auto lg:w-full lg:rounded-xl lg:border-transparent ${espId === null ? 'border-neutral-900 bg-neutral-900' : 'border-neutral-200 bg-white hover:bg-[#f3f4f1]'}`}>
               <button
                 type="button"
                 onClick={() => setEspId(null)}
-                className={`flex min-w-0 flex-1 items-center px-3 py-2 text-left text-sm leading-snug lg:py-2.5 ${espId === null ? 'font-medium text-white' : 'font-medium text-neutral-600'}`}
+                className={`flex h-full min-w-0 flex-1 items-center px-3 text-left text-sm leading-snug lg:h-auto lg:py-2.5 ${espId === null ? 'font-medium text-white' : 'font-medium text-neutral-600'}`}
               >
                 Todas
               </button>
@@ -885,11 +884,11 @@ export default function TratamentosPage() {
             {especialidadesAtivas.map((esp) => {
               const ativo = espId === esp.id;
               return (
-                <div key={esp.id} className={`flex shrink-0 items-center rounded-xl lg:w-full ${ativo ? 'bg-neutral-900' : 'hover:bg-[#f3f4f1]'}`}>
+                <div key={esp.id} className={`flex h-11 shrink-0 items-center rounded-full border lg:h-auto lg:w-full lg:rounded-xl lg:border-transparent ${ativo ? 'border-neutral-900 bg-neutral-900' : 'border-neutral-200 bg-white hover:bg-[#f3f4f1]'}`}>
                   <button
                     type="button"
                     onClick={() => setEspId(esp.id)}
-                    className={`flex min-w-0 flex-1 items-center px-3 py-2 text-left text-sm leading-snug lg:py-2.5 ${ativo ? 'font-medium text-white' : 'font-medium text-neutral-600'}`}
+                    className={`flex h-full min-w-0 flex-1 items-center px-3 text-left text-sm leading-snug lg:h-auto lg:py-2.5 ${ativo ? 'font-medium text-white' : 'font-medium text-neutral-600'}`}
                   >
                     <span className="truncate">{esp.nome}</span>
                   </button>
@@ -912,21 +911,19 @@ export default function TratamentosPage() {
                 </div>
               );
             })}
-          </div>
-          <div className="flex items-center gap-1 px-2 pb-2 lg:border-t lg:border-neutral-200 lg:py-2">
             <button
               type="button"
               disabled={!ehParticular}
               onClick={() => abrirEspecialidade('nova')}
-              className={`flex min-w-0 flex-1 items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-medium lg:py-2.5 ${ehParticular ? 'text-neutral-600 hover:bg-[#f3f4f1]' : 'cursor-not-allowed text-neutral-300'}`}
+              className={`flex h-11 w-auto shrink-0 items-center gap-2 rounded-full border border-dashed border-neutral-300 px-3 text-left text-sm font-medium lg:mt-1 lg:h-auto lg:w-full lg:rounded-xl lg:border-0 lg:py-2.5 ${ehParticular ? 'text-neutral-600 hover:bg-[#f3f4f1]' : 'cursor-not-allowed text-neutral-300'}`}
             >
               <Plus size={16} className="shrink-0" />
-              Especialidade
+              <span className="truncate">Especialidade</span>
             </button>
             {!ehParticular && (
               <Legenda texto="Só é possível criar se estiver em Particular.">
-                <span className="inline-flex p-1 text-neutral-400">
-                  <CircleHelp size={15} />
+                <span className="flex h-11 w-9 shrink-0 items-center justify-center text-neutral-400">
+                  <CircleHelp size={16} />
                 </span>
               </Legenda>
             )}
@@ -949,108 +946,179 @@ export default function TratamentosPage() {
                   {ehParticular ? 'Catálogo da clínica' : 'Preço e cobertura deste plano'}
                 </p>
               </div>
-              <div className="mb-3 flex shrink-0 items-center gap-2">
+              <div className="mb-3 flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center">
                 <div className="relative min-w-0 flex-1">
                   <input
                     value={buscaLista}
                     onChange={(ev) => setBuscaLista(ev.target.value)}
-                    placeholder="Buscar"
-                    className="h-8 w-full rounded-md border border-neutral-200 bg-white px-3 pr-7 text-sm text-neutral-900 outline-none focus:border-neutral-900"
+                    type="search"
+                    inputMode="search"
+                    placeholder="Buscar tratamento"
+                    className="h-11 w-full rounded-md border border-neutral-200 bg-white px-3 pr-9 text-base text-neutral-900 outline-none focus:border-neutral-900 sm:h-8 sm:text-sm"
                   />
                   {buscaLista && (
-                    <button type="button" aria-label="Limpar" onClick={() => setBuscaLista('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-900">
-                      <X size={13} />
+                    <button type="button" aria-label="Limpar busca" onClick={() => setBuscaLista('')} className="absolute right-1 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-md text-neutral-400 hover:text-neutral-900">
+                      <X size={15} />
                     </button>
                   )}
                 </div>
-                <div className="flex shrink-0 items-center gap-1.5">
+                <div className="flex shrink-0 items-center justify-end gap-1.5">
                   {!ehParticular && (
                     <Legenda texto="Só é possível criar se estiver em Particular.">
-                      <span className="inline-flex p-1 text-red-500">
+                      <span className="inline-flex h-11 w-9 items-center justify-center text-red-500">
                         <CircleAlert size={16} />
                       </span>
                     </Legenda>
                   )}
-                  <button type="button" disabled={!ehParticular} onClick={() => abrirTratamento('novo')} className={ehParticular ? btnPrimario : btnBloqueado}>
+                  <button type="button" disabled={!ehParticular} onClick={() => abrirTratamento('novo')} className={`${ehParticular ? btnPrimario : btnBloqueado} flex-1 sm:flex-none`}>
                     <Plus size={14} /> Novo tratamento
                   </button>
                 </div>
               </div>
 
-              <div className="min-h-0 flex-1 overflow-y-auto">
-                <div className="sticky top-0 z-10 grid grid-cols-[minmax(0,1fr)_6rem_4.5rem_2rem] items-center gap-2 border-b border-black/5 bg-white px-1 py-2">
-                  <button
-                    type="button"
-                    onClick={() => alternarOrdem('nome')}
-                    className={`inline-flex items-center gap-1 justify-self-start text-xs font-medium hover:text-neutral-900 ${ordenacao.campo === 'nome' ? 'text-neutral-900' : 'text-neutral-400'}`}
-                  >
-                    Nome
-                    <ArrowUpDown size={12} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => alternarOrdem('valor')}
-                    className={`inline-flex items-center justify-end gap-1 justify-self-end text-xs font-medium hover:text-neutral-900 ${ordenacao.campo === 'valor' ? 'text-neutral-900' : 'text-neutral-400'}`}
-                  >
-                    Valor
-                    <ArrowUpDown size={12} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => alternarOrdem('status')}
-                    className={`inline-flex items-center justify-center gap-1 justify-self-center text-xs font-medium hover:text-neutral-900 ${ordenacao.campo === 'status' ? 'text-neutral-900' : 'text-neutral-400'}`}
-                  >
-                    Status
-                    <ArrowUpDown size={12} />
-                  </button>
-                  <span />
-                </div>
+              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
                 {lista.length === 0 ? (
-                  <p className="py-6 text-sm text-neutral-500">
+                  <p className="py-8 text-center text-sm text-neutral-500">
                     {buscaLista.trim()
                       ? 'Nenhum tratamento encontrado.'
                       : ehParticular ? 'Nenhum tratamento nesta especialidade.' : 'Nenhum tratamento ativo no catálogo.'}
                   </p>
                 ) : (
-                  lista.map((item) => {
-                    const linha = ehParticular ? null : precoDe(planoAtual?.id, item.id);
-                    const valor = ehParticular ? item.valor_sugerido : linha?.valor;
-                    const coberto = ehParticular ? item.ativo : !!linha?.ativo;
-                    const especialidade = especialidades.find((esp) => esp.id === item.especialidade_id)?.nome;
-                    return (
-                      <div key={item.id} className="grid grid-cols-[minmax(0,1fr)_6rem_4.5rem_2rem] items-center gap-2 border-b border-neutral-100 px-1 py-2">
-                        <span className="min-w-0">
-                          <span className={`block truncate text-sm font-medium ${coberto ? 'text-neutral-900' : 'text-neutral-400'}`}>{item.nome}</span>
-                          <span className="block truncate text-xs text-neutral-500">
-                            {espId === null && especialidade ? `${especialidade} · ` : ''}
-                            {(ehParticular ? item.codigo_tuss_padrao : linha?.codigo_tuss) || 'Sem TUSS'}
-                          </span>
-                        </span>
-                        <span className="justify-self-end text-right text-sm tabular-nums text-neutral-900">{moeda(valor)}</span>
-                        <span className="justify-self-center">
-                          <Switch checked={coberto} onChange={(ligado) => void alternarCobertura(item, ligado)}>
-                            <span className="sr-only">{ehParticular ? 'Ativo' : 'Coberto'}</span>
-                          </Switch>
-                        </span>
-                        {ehParticular ? (
-                          <button
-                            type="button"
-                            onClick={() => abrirTratamento(item)}
-                            className="inline-flex h-8 w-8 justify-self-end items-center justify-center rounded-md text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900"
-                            aria-label={`Editar ${item.nome}`}
-                          >
-                            <Pencil size={14} />
-                          </button>
-                        ) : (
-                          <Legenda texto="Só é possível editar se estiver em Particular.">
-                            <span className="inline-flex h-8 w-8 cursor-not-allowed items-center justify-center rounded-md text-neutral-300">
-                              <Pencil size={14} />
-                            </span>
-                          </Legenda>
-                        )}
+                  <>
+                    {/* Ordenação em chips (celular) */}
+                    <div className="-mx-0.5 flex gap-1.5 overflow-x-auto px-0.5 pb-2 [scrollbar-width:none] sm:hidden [&::-webkit-scrollbar]:hidden">
+                      {([['nome', 'Nome'], ['valor', 'Valor'], ['status', 'Status']] as const).map(([campo, label]) => (
+                        <button
+                          key={campo}
+                          type="button"
+                          onClick={() => alternarOrdem(campo)}
+                          className={`flex h-9 shrink-0 items-center gap-1 rounded-full border px-3 text-xs font-medium ${ordenacao.campo === campo ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-200 bg-white text-neutral-600'}`}
+                        >
+                          {label}
+                          <ArrowUpDown size={12} className={ordenacao.campo === campo ? 'text-white' : 'text-neutral-400'} />
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Cartões (celular) */}
+                    <ul className="space-y-2 sm:hidden">
+                      {lista.map((item) => {
+                        const linha = ehParticular ? null : precoDe(planoAtual?.id, item.id);
+                        const valor = ehParticular ? item.valor_sugerido : linha?.valor;
+                        const coberto = ehParticular ? item.ativo : !!linha?.ativo;
+                        const especialidade = especialidades.find((esp) => esp.id === item.especialidade_id)?.nome;
+                        const tuss = (ehParticular ? item.codigo_tuss_padrao : linha?.codigo_tuss) || null;
+                        return (
+                          <li key={item.id} className="rounded-xl border border-neutral-200 bg-white p-3">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0 flex-1">
+                                <p className={`truncate text-[15px] font-semibold ${coberto ? 'text-neutral-900' : 'text-neutral-400'}`}>{item.nome}</p>
+                                <p className="mt-0.5 truncate text-xs text-neutral-500">
+                                  {espId === null && especialidade ? `${especialidade} · ` : ''}
+                                  {tuss || 'Sem TUSS'}
+                                </p>
+                              </div>
+                              <span className="shrink-0 text-right text-base font-semibold tabular-nums text-neutral-900">{moeda(valor)}</span>
+                            </div>
+                            <div className="mt-2.5 flex items-center justify-between gap-2 border-t border-black/5 pt-2">
+                              <div className="flex min-w-0 items-center gap-2">
+                                <Switch checked={coberto} onChange={(ligado) => void alternarCobertura(item, ligado)}>
+                                  <span className="sr-only">{ehParticular ? 'Ativo' : 'Coberto'}</span>
+                                </Switch>
+                                <span className="truncate text-xs font-medium text-neutral-600">{ehParticular ? (coberto ? 'Ativo' : 'Inativo') : (coberto ? 'Coberto' : 'Não coberto')}</span>
+                              </div>
+                              {ehParticular ? (
+                                <button
+                                  type="button"
+                                  onClick={() => abrirTratamento(item)}
+                                  className="inline-flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-md border border-neutral-200 px-3 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+                                  aria-label={`Editar ${item.nome}`}
+                                >
+                                  <Pencil size={13} /> Editar
+                                </button>
+                              ) : (
+                                <Legenda texto="Só é possível editar se estiver em Particular.">
+                                  <span className="inline-flex h-10 w-10 shrink-0 cursor-not-allowed items-center justify-center rounded-md text-neutral-300">
+                                    <Pencil size={14} />
+                                  </span>
+                                </Legenda>
+                              )}
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+
+                    {/* Tabela (tablet/desktop) */}
+                    <div className="hidden sm:block">
+                      <div className="sticky top-0 z-10 grid grid-cols-[minmax(0,1fr)_6rem_4.5rem_2rem] items-center gap-2 border-b border-black/5 bg-white px-1 py-2">
+                        <button
+                          type="button"
+                          onClick={() => alternarOrdem('nome')}
+                          className={`inline-flex items-center gap-1 justify-self-start text-xs font-medium hover:text-neutral-900 ${ordenacao.campo === 'nome' ? 'text-neutral-900' : 'text-neutral-400'}`}
+                        >
+                          Nome
+                          <ArrowUpDown size={12} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => alternarOrdem('valor')}
+                          className={`inline-flex items-center justify-end gap-1 justify-self-end text-xs font-medium hover:text-neutral-900 ${ordenacao.campo === 'valor' ? 'text-neutral-900' : 'text-neutral-400'}`}
+                        >
+                          Valor
+                          <ArrowUpDown size={12} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => alternarOrdem('status')}
+                          className={`inline-flex items-center justify-center gap-1 justify-self-center text-xs font-medium hover:text-neutral-900 ${ordenacao.campo === 'status' ? 'text-neutral-900' : 'text-neutral-400'}`}
+                        >
+                          Status
+                          <ArrowUpDown size={12} />
+                        </button>
+                        <span />
                       </div>
-                    );
-                  })
+                      {lista.map((item) => {
+                        const linha = ehParticular ? null : precoDe(planoAtual?.id, item.id);
+                        const valor = ehParticular ? item.valor_sugerido : linha?.valor;
+                        const coberto = ehParticular ? item.ativo : !!linha?.ativo;
+                        const especialidade = especialidades.find((esp) => esp.id === item.especialidade_id)?.nome;
+                        return (
+                          <div key={item.id} className="grid grid-cols-[minmax(0,1fr)_6rem_4.5rem_2rem] items-center gap-2 border-b border-neutral-100 px-1 py-2">
+                            <span className="min-w-0">
+                              <span className={`block truncate text-sm font-medium ${coberto ? 'text-neutral-900' : 'text-neutral-400'}`}>{item.nome}</span>
+                              <span className="block truncate text-xs text-neutral-500">
+                                {espId === null && especialidade ? `${especialidade} · ` : ''}
+                                {(ehParticular ? item.codigo_tuss_padrao : linha?.codigo_tuss) || 'Sem TUSS'}
+                              </span>
+                            </span>
+                            <span className="justify-self-end text-right text-sm tabular-nums text-neutral-900">{moeda(valor)}</span>
+                            <span className="justify-self-center">
+                              <Switch checked={coberto} onChange={(ligado) => void alternarCobertura(item, ligado)}>
+                                <span className="sr-only">{ehParticular ? 'Ativo' : 'Coberto'}</span>
+                              </Switch>
+                            </span>
+                            {ehParticular ? (
+                              <button
+                                type="button"
+                                onClick={() => abrirTratamento(item)}
+                                className="inline-flex h-8 w-8 justify-self-end items-center justify-center rounded-md text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900"
+                                aria-label={`Editar ${item.nome}`}
+                              >
+                                <Pencil size={14} />
+                              </button>
+                            ) : (
+                              <Legenda texto="Só é possível editar se estiver em Particular.">
+                                <span className="inline-flex h-8 w-8 cursor-not-allowed items-center justify-center rounded-md text-neutral-300">
+                                  <Pencil size={14} />
+                                </span>
+                              </Legenda>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
                 )}
               </div>
             </>
@@ -1063,8 +1131,8 @@ export default function TratamentosPage() {
         <form onSubmit={salvarEspecialidade} className="p-3 sm:p-4">
           <div className="mb-3 flex items-start justify-between gap-3">
             <h2 className="text-base font-semibold text-neutral-900">{tituloEspModal.current}</h2>
-            <button type="button" onClick={() => setEspModal(null)} className="text-neutral-400" aria-label="Fechar">
-              <X size={18} />
+            <button type="button" onClick={() => setEspModal(null)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-neutral-500 hover:bg-neutral-100" aria-label="Fechar">
+              <X size={20} />
             </button>
           </div>
           <label className={rotulo}>
@@ -1079,12 +1147,12 @@ export default function TratamentosPage() {
         </form>
       </Modal>
 
-      <Modal open={planoModal !== null} onClose={() => setPlanoModal(null)} maxWidth="lg" hideCloseButton panelClassName="overflow-hidden rounded-xl border border-neutral-200 bg-white">
-        <form onSubmit={salvarPlano} className="flex max-h-[90vh] flex-col">
+      <Modal open={planoModal !== null} onClose={() => setPlanoModal(null)} maxWidth="lg" hideCloseButton panelClassName="overflow-hidden rounded-xl border border-neutral-200 bg-white max-sm:-m-2 max-sm:h-[100dvh] max-sm:w-[calc(100%_+_1rem)] max-sm:max-h-[100dvh] max-sm:rounded-none max-sm:border-0">
+        <form onSubmit={salvarPlano} className="flex max-h-[92dvh] flex-col sm:max-h-[90vh]">
           <div className="flex items-start justify-between gap-3 border-b border-neutral-200 px-3 py-3 sm:px-4">
             <h2 className="text-base font-semibold text-neutral-900">{tituloPlanoModal.current}</h2>
-            <button type="button" onClick={() => setPlanoModal(null)} className="text-neutral-400" aria-label="Fechar">
-              <X size={18} />
+            <button type="button" onClick={() => setPlanoModal(null)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-neutral-500 hover:bg-neutral-100" aria-label="Fechar">
+              <X size={20} />
             </button>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3 sm:px-4">
@@ -1144,10 +1212,10 @@ export default function TratamentosPage() {
                 </div>
                 <div className="mt-1 grid max-h-40 grid-cols-1 gap-1 overflow-y-auto sm:max-h-48 sm:grid-cols-2">
                   {escolhaVisivel.map((t) => (
-                    <label key={t.id} className="flex items-center gap-2 rounded-md border border-neutral-200 px-2 py-1.5 text-sm text-neutral-900">
+                    <label key={t.id} className="flex min-h-[44px] items-center gap-2 rounded-md border border-neutral-200 px-2.5 py-2 text-sm text-neutral-900">
                       <input
                         type="checkbox"
-                        className="accent-neutral-900"
+                        className="h-4 w-4 accent-neutral-900"
                         checked={escolhidos.includes(t.id)}
                         onChange={() => setEscolhidos((atual) => (atual.includes(t.id) ? atual.filter((id) => id !== t.id) : [...atual, t.id]))}
                       />
@@ -1158,22 +1226,22 @@ export default function TratamentosPage() {
               </div>
             )}
           </div>
-          <div className="flex justify-end gap-2 border-t border-neutral-200 px-3 py-3 sm:px-4">
+          <div className="flex justify-end gap-2 border-t border-neutral-200 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 sm:px-4">
             <button type="button" onClick={() => setPlanoModal(null)} className={btnNeutro}>Cancelar</button>
             <button type="submit" className={btnPrimario} disabled={salvando || planoDuplicado || !planoNome.trim()}>Salvar</button>
           </div>
         </form>
       </Modal>
 
-      <Modal open={tratModal !== null} onClose={() => setTratModal(null)} maxWidth="lg" hideCloseButton panelClassName="overflow-hidden rounded-xl border border-neutral-200 bg-white">
-        <form onSubmit={salvarTratamento} className="p-3 sm:p-4">
+      <Modal open={tratModal !== null} onClose={() => setTratModal(null)} maxWidth="lg" hideCloseButton panelClassName="overflow-hidden rounded-xl border border-neutral-200 bg-white max-sm:-m-2 max-sm:h-[100dvh] max-sm:w-[calc(100%_+_1rem)] max-sm:max-h-[100dvh] max-sm:rounded-none max-sm:border-0">
+        <form onSubmit={salvarTratamento} className="flex h-full flex-col overflow-y-auto overscroll-contain p-4 sm:block sm:h-auto sm:max-h-[85vh] sm:p-4">
           <div className="mb-3 flex items-start justify-between gap-3">
             <div className="min-w-0">
               <h2 className="text-base font-semibold text-neutral-900">{tituloTratModal.current}</h2>
               {!ehParticular && <p className="text-xs text-neutral-500">{tituloPlano}</p>}
             </div>
-            <button type="button" onClick={() => setTratModal(null)} className="text-neutral-400" aria-label="Fechar">
-              <X size={18} />
+            <button type="button" onClick={() => setTratModal(null)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-neutral-500 hover:bg-neutral-100" aria-label="Fechar">
+              <X size={20} />
             </button>
           </div>
           {ehParticular ? (
@@ -1229,10 +1297,10 @@ export default function TratamentosPage() {
               </Switch>
               <div className={`mt-2 grid max-h-28 grid-cols-1 gap-1 overflow-y-auto sm:grid-cols-2 ${form.todosPlanos ? 'pointer-events-none opacity-40' : ''}`}>
                 {outrosPlanos.map((plano) => (
-                  <label key={plano.id} className="flex items-center gap-2 rounded-md border border-neutral-200 px-2 py-1.5 text-sm text-neutral-900">
+                  <label key={plano.id} className="flex min-h-[44px] items-center gap-2 rounded-md border border-neutral-200 px-2.5 py-2 text-sm text-neutral-900">
                     <input
                       type="checkbox"
-                      className="accent-neutral-900"
+                      className="h-4 w-4 accent-neutral-900"
                       disabled={form.todosPlanos}
                       checked={!form.todosPlanos && form.aplicar.includes(plano.id)}
                       onChange={() => alternarAplicar(plano.id)}
@@ -1243,7 +1311,7 @@ export default function TratamentosPage() {
               </div>
             </div>
           )}
-          <div className="mt-3 flex items-center justify-between gap-2">
+          <div className="sticky bottom-0 -mx-4 mt-3 flex items-center justify-between gap-2 border-t border-neutral-100 bg-white px-4 py-2.5 sm:static sm:mx-0 sm:border-0 sm:px-0 sm:py-0">
             {ehParticular && tratModal && tratModal !== 'novo' ? (
               <button type="button" onClick={() => { const item = tratModal; setTratModal(null); void excluirTratamento(item); }} className={btnNeutro}>Excluir</button>
             ) : <span />}

@@ -14,7 +14,6 @@ import { buildModuleAccessMap } from '@/lib/modules';
 import { moduleForPath } from '@/lib/permissionPresets';
 import {
   readModuleAccessMapFromCookie,
-  readSuperAdminCache,
   setAuthMarkerCookie,
   syncModuleAccessCookie,
   writeSuperAdminCache,
@@ -143,8 +142,9 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     }
 
     const boot = readProfileSession();
-    const saasCache = boot?.is_super_admin === true || readSuperAdminCache();
-    if (boot?.foto_url || boot?.nome || saasCache) {
+    // Pintura otimista só de dados visuais. `is_super_admin` NUNCA vem do
+    // cache: quem libera o painel SaaS é exclusivamente a coluna do banco.
+    if (boot?.foto_url || boot?.nome) {
       setPerfil((atual: any) => {
         if (atual?.id) return atual;
         return {
@@ -153,7 +153,6 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
           nome: boot?.nome ?? atual?.nome ?? null,
           cargo: boot?.cargo ?? atual?.cargo ?? null,
           nivel_acesso: boot?.nivel_acesso ?? atual?.nivel_acesso ?? null,
-          is_super_admin: saasCache,
         };
       });
     }
@@ -194,8 +193,8 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     }
 
     if (prof) {
-      const saas = prof.is_super_admin === true || (prof.is_super_admin == null && (readSuperAdminCache() || readProfileSession()?.is_super_admin === true));
-      if (prof.is_super_admin != null) writeSuperAdminCache(saas);
+      const saas = prof.is_super_admin === true;
+      writeSuperAdminCache(saas);
       const foto = prof.foto_url || readProfileSession()?.foto_url || null;
       const proximo = { ...prof, is_super_admin: saas, foto_url: foto };
       writeProfileSession({
@@ -306,7 +305,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
 
   if (['/login', '/', '/site', '/termos', '/checkout', '/cadastro', '/teste-3d', '/selecao', '/primeiro-acesso'].includes(pathname)) return <>{children}</>;
   // Mostra spinner bloqueante APENAS se não temos cookie de auth (primeiro acesso)
-  if (loading) return <div className="flex h-screen w-screen items-center justify-center bg-[#f3f4f1]"><div className="h-8 w-8 animate-spin rounded-full border-2 border-neutral-200 border-t-neutral-900" /></div>;
+  if (loading) return <div className="flex h-[100dvh] w-[100dvw] items-center justify-center bg-[#f3f4f1]"><div className="h-8 w-8 animate-spin rounded-full border-2 border-neutral-200 border-t-neutral-900" /></div>;
   // Se validação em background ainda não terminou mas já temos cookie, continua renderizando
   // Se não tem session e não tem cookie (ex: sessão expirada), redireciona via validarSessao
   if (!session && !hasAuthCookie()) return null;
@@ -332,7 +331,10 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
               showTarefas: !permissoesResolvidas || canAccessModule('agenda'),
               showEquipe: !permissoesResolvidas || canAccessModule('configuracoes'),
               showTratamentosBase: !permissoesResolvidas || canAccessModule('configuracoes'),
-              showPainelSaas: perfil?.is_super_admin === true || readSuperAdminCache(),
+              // Só aparece para quem é dono de verdade (veio do banco).
+              // O cache em sessionStorage é apenas otimização de pintura e
+              // nunca decide sozinho.
+              showPainelSaas: perfil?.is_super_admin === true,
               tarefasBadge: tarefasPendentes,
               profilePhotoUrl: fotoPerfil,
               profileName: perfil?.nome ?? null,

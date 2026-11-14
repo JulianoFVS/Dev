@@ -1,36 +1,111 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Ortus
 
-## Getting Started
+Sistema de gestão para clínicas odontológicas (SaaS multi-tenant): agenda,
+prontuário, odontograma, HOF, financeiro, relatórios, laboratório de próteses,
+tarefas e comunicação com o paciente.
 
-First, run the development server:
+**Stack:** Next.js 16 (App Router) · React 19 · TypeScript estrito · Tailwind
+CSS · Supabase (Postgres + Auth + Storage) · Cloudflare R2 (arquivos).
+
+---
+
+## Começando
 
 ```bash
+npm install
+cp .env.example .env.local   # preencha as chaves (veja abaixo)
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Abra `http://localhost:3000`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Variáveis de ambiente
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Variável | Obrigatória | Para quê |
+|---|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | sim | projeto Supabase |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | sim | chave pública (cliente) |
+| `SUPABASE_SERVICE_ROLE_KEY` | sim | **somente servidor** — APIs e rotinas |
+| `DATABASE_URL` | sim | pooler do Supabase (porta 6543), usado pelos scripts |
+| `SUPABASE_PROJECT_REF` | não | geração de tipos |
+| `CRON_SECRET` | sim em produção | protege `/api/lembretes/processar` |
+| `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` / `R2_BUCKET` / `R2_ENDPOINT` | não | armazenamento em Cloudflare R2 |
+| `RESEND_API_KEY` | não | e-mail |
+| `TWILIO_*` | não | SMS |
+| `WHATSAPP_GATEWAY_SECRET` | não | gateway do WhatsApp |
 
-## Learn More
+Segurança, modelo de acesso e checklist de deploy: [`docs/SEGURANCA.md`](docs/SEGURANCA.md).
 
-To learn more about Next.js, take a look at the following resources:
+## Scripts
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npm run dev            # desenvolvimento
+npm run build          # build de produção
+npm run start          # servir o build
+npm run lint           # ESLint
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+npm run db:migrate -- 20261114_seguranca_total.sql   # aplica uma migration
+npm run db:audit       # inventário de tabelas, policies e buckets
+npm run db:inventory   # inventário detalhado
+node scripts/testar-rls.mjs                          # suíte de segurança (rollback)
+npm run db:types       # regenera tipos do Supabase (requer CLI)
+```
 
-## Deploy on Vercel
+## Estrutura
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```
+app/                 rotas (App Router) e APIs
+  agenda/            agenda (dia, semana, mês, lista, por profissional)
+  pacientes/         lista e ficha do paciente (prontuário, HOF, odontograma)
+  financeiro/        caixa, lançamentos, cobranças
+  relatorios/        indicadores e comparativos
+  proteses/          kanban de laboratório
+  tarefas/           tarefas da equipe
+  ajustes/equipe     equipe, permissões, horários e comissões
+  ajustes/tratamentos catálogo de procedimentos e preços
+  configuracoes/     preferências, unidades, integrações
+  mensagens/         caixa de mensagens, notificações e convites
+  super-admin/       painel SaaS (exclusivo dos donos da plataforma)
+  api/               rotas de servidor (service role, JWT obrigatório)
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+components/
+  ui/                primitivos (Modal, CustomSelect, Tabs, Switch, ...)
+  dashboard/         casca do app (sidebar, navegação mobile, troca de clínica)
+  bento/             cartões e blocos do layout
+  clinico/           odontograma e HOF
+  landing/           site institucional
+
+lib/                 regras de negócio, integrações e helpers
+supabase/migrations/ DDL versionado — fonte de verdade do banco
+scripts/             auditoria, migrations, testes de RLS, mídia
+docs/                guias e documentação de segurança
+```
+
+## Banco de dados
+
+As migrations em `supabase/migrations/` são a fonte de verdade. Aplique em
+ordem cronológica:
+
+```bash
+node scripts/apply-migration.mjs <arquivo>.sql
+```
+
+Principais tabelas: `redes` → `clinicas` → `profissionais_clinicas` →
+`profissionais`; dados clínicos em `pacientes`, `agendamentos`,
+`paciente_tratamentos`, `paciente_anamneses`, `paciente_documentos`,
+`paciente_evolucoes`, `paciente_debitos`; financeiro em `despesas`,
+`comissoes_*`, `faturas`; configuração em `configuracoes_clinica`.
+
+## Convenções
+
+- **Multi-tenant:** todo dado é filtrado por `clinica_id` e a RLS reforça isso
+  no banco. Nunca confie em um `clinica_id` vindo do cliente.
+- **Permissões:** RBAC por módulo (`lib/modules.ts`) + nível de acesso
+  (`admin` / `comum`) por clínica.
+- **Multi-tenant no front:** use `useClinica()` para a clínica ativa e os
+  helpers de `lib/clinicScoped.ts` para listas.
+- **Tipagem:** TypeScript estrito, sem `any` novo.
+- **UI:** Português do Brasil, PT-BR; mobile-first de verdade (reorganizar,
+  não encolher); alvos de toque ≥ 44px.
+- **Supabase no cliente:** sempre `try/catch`, estado de carregamento e
+  `disabled` durante o envio.

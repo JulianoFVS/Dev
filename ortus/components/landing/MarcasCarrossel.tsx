@@ -118,8 +118,7 @@ export default function MarcasCarrossel({ denso = false }: { denso?: boolean }) 
     <div
       className={`ortus-marquee w-full overflow-hidden ${denso ? 'py-1.5' : ''}`}
       style={{
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        ...({ '--marquee-duration': '36s' } as any),
+              ...({ '--marquee-duration': '36s' } as any),
       }}
     >
       <div className="ortus-marquee-track">

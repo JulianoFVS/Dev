@@ -75,17 +75,7 @@ export default function CustomSelect({
 
     const updatePosition = () => {
       if (!ref.current) return;
-      const raw = ref.current.getBoundingClientRect();
-      const zoomEl = ref.current.closest('[style*="zoom"]') as HTMLElement | null;
-      const zoom = zoomEl ? Number(getComputedStyle(zoomEl).zoom) || 1 : 1;
-      const unscaled = zoom !== 1 && zoomEl!.getBoundingClientRect().width > window.innerWidth * 1.05;
-      const scale = unscaled ? zoom : 1;
-      const rect = {
-        top: raw.top * scale,
-        bottom: raw.bottom * scale,
-        left: raw.left * scale,
-        width: raw.width * scale,
-      };
+      const rect = ref.current.getBoundingClientRect();
       const gap = 6;
       const contentH = filtered.length * 36 + (searchable ? 52 : 10);
       const curto = !searchable && filtered.length <= 6;
@@ -97,10 +87,15 @@ export default function CustomSelect({
       const available = openUp ? spaceAbove : spaceBelow;
       const maxH = curto ? contentH : Math.max(Math.min(piso, Math.max(spaceAbove, spaceBelow)), Math.min(needed, available));
 
+      // No celular o gatilho pode ser estreito demais para os nomes: abre
+      // pelo menos 200px, mas sempre dentro da tela.
+      const largura = Math.min(Math.max(rect.width, 200), window.innerWidth - 16);
+      const esquerda = Math.min(rect.left, Math.max(8, window.innerWidth - largura - 8));
+
       setMenuStyle({
         position: 'fixed',
-        left: rect.left,
-        width: rect.width,
+        left: esquerda,
+        width: largura,
         top: openUp ? undefined : rect.bottom + gap,
         bottom: openUp ? window.innerHeight - rect.top + gap : undefined,
         zIndex: 9999,
@@ -115,7 +110,7 @@ export default function CustomSelect({
       window.removeEventListener('resize', updatePosition);
       window.removeEventListener('scroll', updatePosition, true);
     };
-  }, [open, menuPortal, filtered.length]);
+  }, [open, menuPortal, filtered.length, searchable]);
 
   const sizeClasses = {
     xs: 'h-8 gap-1.5 px-2.5 text-sm',

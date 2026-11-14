@@ -42,14 +42,20 @@ import { enviarEmailResend, resendConfigurado } from '@/lib/email';
 
 export async function GET(request: Request) {
 
-  const authHeader = request.headers.get('authorization');
+  const authHeader = request.headers.get('authorization') || '';
 
   const cronSecret = process.env.CRON_SECRET;
 
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  const ehCron = Boolean(cronSecret) && authHeader === `Bearer ${cronSecret}`;
 
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
+  if (!ehCron) {
+    // Sem o segredo do cron, esta rota não faz nada: ela usa service role e
+    // dispara SMS/e-mail pagos. Antes, se CRON_SECRET não estivesse
+    // configurado, qualquer pessoa abria a URL e disparava a fila inteira.
+    return NextResponse.json(
+      { error: 'Unauthorized', detalhe: 'Esta rota é exclusiva do agendador (CRON_SECRET).' },
+      { status: 401 },
+    );
   }
 
 

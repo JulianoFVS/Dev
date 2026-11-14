@@ -502,25 +502,35 @@ export default function Relatorios() {
     }
 
     const pill = (ativo: boolean) =>
-        `h-9 rounded-md px-3 text-sm font-medium transition-colors ${ativo ? 'bg-neutral-900 text-white' : 'border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50'}`;
+        `inline-flex h-11 shrink-0 items-center rounded-full px-4 text-sm font-medium transition-colors sm:h-9 sm:rounded-md sm:px-3 ${ativo ? 'bg-neutral-900 text-white' : 'border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50'}`;
+
+    /** Variação em relação ao período anterior, sem o texto "Antes ...". */
+    function baseComparacao(kpi: Kpi) {
+        if (!kpi.antes) return '';
+        const semDelta = kpi.delta ? kpi.antes.replace(/ · [+-]\d+%$/, '') : kpi.antes;
+        return semDelta.replace(/^Antes /, 'antes ');
+    }
 
     return (
-        <div className="w-full space-y-3 px-2.5 py-2.5 pb-12 font-poppins sm:px-3 sm:py-3 md:px-4 md:py-3.5">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-                <div>
+        <div className="w-full min-w-0 space-y-3 overflow-x-hidden px-2.5 py-2.5 pb-12 font-poppins sm:px-3 sm:py-3 md:px-4 md:py-3.5">
+            <div className="flex items-start justify-between gap-3 lg:items-end">
+                <div className="min-w-0">
                     {tipo !== 'painel' && (
-                        <button type="button" onClick={() => setTipo('painel')} className="mb-2 inline-flex items-center gap-1 text-sm font-medium text-neutral-500 hover:text-neutral-900">
+                        <button type="button" onClick={() => setTipo('painel')} className="mb-1.5 inline-flex min-h-[44px] items-center gap-1 text-sm font-medium text-neutral-500 hover:text-neutral-900">
                             <ArrowLeft size={16} /> Relatórios
                         </button>
                     )}
-                    <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 md:text-[2rem]">
-                        {titulo}
-                        <span className="text-neutral-400"> · {activeClinic ? getClinicLabel(activeClinic) : 'Todas as suas clínicas'}</span>
-                    </h1>
-                    <p className="mt-1 text-sm text-neutral-500 sm:text-base">{periodo.label}</p>
+                    <h1 className="truncate text-[1.65rem] font-semibold leading-tight tracking-tight text-neutral-900 sm:text-2xl md:text-[2rem]">{titulo}</h1>
+                    <p className="mt-0.5 truncate text-sm text-neutral-500">{activeClinic ? getClinicLabel(activeClinic) : 'Todas as suas clínicas'}</p>
+                    <p className="mt-0.5 truncate text-xs text-neutral-400 sm:text-sm">{periodo.label}</p>
                 </div>
                 {tipo !== 'painel' && (
-                    <button type="button" onClick={imprimir} className="inline-flex h-10 items-center justify-center gap-2 self-start rounded-md border border-neutral-200 bg-white px-4 text-sm font-medium text-neutral-800 hover:bg-neutral-50">
+                    <button
+                        type="button"
+                        onClick={imprimir}
+                        className="inline-flex h-11 w-11 shrink-0 items-center justify-center gap-2 rounded-full border border-neutral-200 bg-white text-neutral-800 hover:bg-neutral-50 sm:h-10 sm:w-auto sm:rounded-md sm:px-4"
+                        aria-label="Imprimir relatório em PDF"
+                    >
                         <Printer size={16} /> <span className="hidden sm:inline">PDF</span>
                     </button>
                 )}
@@ -534,13 +544,13 @@ export default function Relatorios() {
             )}
 
             <section className={`${cardShell} space-y-3 p-3 sm:p-4`}>
-                <div className="flex flex-wrap gap-2">
+                <div className="-mx-3 flex snap-x gap-2 overflow-x-auto px-3 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
                     {([
                         ['hoje', 'Hoje'], ['7d', '7 dias'], ['mes', 'Mês'], ['trimestre', 'Trimestre'], ['ano', 'Ano'],
                     ] as const).map(([id, label]) => (
-                        <button key={id} type="button" onClick={() => { setModo('atalho'); setAtalho(id); }} className={pill(modo === 'atalho' && atalho === id)}>{label}</button>
+                        <button key={id} type="button" onClick={() => { setModo('atalho'); setAtalho(id); }} className={`${pill(modo === 'atalho' && atalho === id)} snap-start`}>{label}</button>
                     ))}
-                    <button type="button" onClick={() => setModo('intervalo')} className={pill(modo === 'intervalo')}>Intervalo</button>
+                    <button type="button" onClick={() => setModo('intervalo')} className={`${pill(modo === 'intervalo')} snap-start`}>Intervalo</button>
                 </div>
                 {modo === 'intervalo' && (
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto_1fr] sm:items-end">
@@ -556,7 +566,7 @@ export default function Relatorios() {
                     </div>
                 )}
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                    <button type="button" onClick={() => setComparar((v) => !v)} className={pill(comparar)}>
+                    <button type="button" onClick={() => setComparar((v) => !v)} aria-pressed={comparar} className={pill(comparar)}>
                         Comparar
                     </button>
                     {USA_PROF.has(tipo) && (
@@ -573,35 +583,69 @@ export default function Relatorios() {
             </section>
 
             {tipo === 'painel' ? (
-                <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-                    {GRUPOS.map((grupo) => (
-                        <section key={grupo.titulo} className={`${cardShell} overflow-hidden`}>
-                            <h2 className="px-4 pb-2 pt-3 text-base font-semibold text-neutral-900 sm:px-5">{grupo.titulo}</h2>
-                            <div>
-                                {grupo.itens.map((id) => {
-                                    const kpi = modelo.kpis.find((k) => k.id === id);
-                                    return (
-                                        <button
-                                            key={id}
-                                            type="button"
-                                            onClick={() => setTipo(id)}
-                                            className="flex w-full items-center gap-3 border-t border-black/5 px-4 py-3.5 text-left transition-colors hover:bg-[#f8f8f6] sm:px-5"
-                                        >
-                                            <span className="min-w-0 flex-1 truncate text-sm font-medium text-neutral-900 sm:text-[15px]">{NOMES[id]}</span>
-                                            {kpi && kpiLoading ? <span className="h-4 w-16 animate-pulse rounded-md bg-neutral-100" /> : null}
-                                            {kpi && !kpiLoading ? (
-                                                <span className="flex shrink-0 items-baseline gap-2">
-                                                    <span className="text-sm font-semibold tabular-nums text-neutral-900">{kpi.valor}</span>
-                                                    {comparar && kpi.delta ? <span className="text-[11px] tabular-nums text-neutral-400">{kpi.delta}</span> : null}
+                <div className="space-y-3">
+                    {/* Indicadores do período — duas colunas no celular */}
+                    <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+                        {modelo.kpis.map((kpi) => {
+                            const base = baseComparacao(kpi);
+                            return (
+                                <button
+                                    key={kpi.id}
+                                    type="button"
+                                    onClick={() => setTipo(kpi.id)}
+                                    className={`${cardShell} flex min-w-0 flex-col p-3 text-left active:bg-neutral-50 sm:p-4`}
+                                >
+                                    <span className="truncate text-xs font-medium text-neutral-500">{kpi.titulo}</span>
+                                    {kpiLoading ? (
+                                        <span className="mt-2 h-6 w-20 animate-pulse rounded bg-neutral-100" />
+                                    ) : (
+                                        <>
+                                            <span className="mt-1 break-words text-xl font-semibold leading-tight tracking-tight tabular-nums text-neutral-900">{kpi.valor}</span>
+                                            {comparar && base ? (
+                                                <span className="mt-1 flex min-w-0 items-center gap-1.5">
+                                                    {kpi.delta ? (
+                                                        <span className={`shrink-0 text-xs font-medium tabular-nums ${kpi.delta.startsWith('-') ? 'text-rose-600' : 'text-emerald-700'}`}>{kpi.delta}</span>
+                                                    ) : null}
+                                                    <span className="min-w-0 truncate text-xs text-neutral-400">{base}</span>
                                                 </span>
                                             ) : null}
-                                            <ChevronRight size={16} className="shrink-0 text-neutral-300" />
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        </section>
-                    ))}
+                                        </>
+                                    )}
+                                </button>
+                            );
+                        })}
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                        {GRUPOS.map((grupo) => (
+                            <section key={grupo.titulo} className={`${cardShell} overflow-hidden`}>
+                                <h2 className="px-4 pb-2 pt-3 text-base font-semibold text-neutral-900 sm:px-5">{grupo.titulo}</h2>
+                                <div>
+                                    {grupo.itens.map((id) => {
+                                        const kpi = modelo.kpis.find((k) => k.id === id);
+                                        return (
+                                            <button
+                                                key={id}
+                                                type="button"
+                                                onClick={() => setTipo(id)}
+                                                className="flex min-h-[52px] w-full items-center gap-3 border-t border-black/5 px-4 py-3.5 text-left transition-colors hover:bg-[#f8f8f6] sm:px-5"
+                                            >
+                                                <span className="min-w-0 flex-1 truncate text-sm font-medium text-neutral-900 sm:text-[15px]">{NOMES[id]}</span>
+                                                {kpi && kpiLoading ? <span className="hidden h-4 w-16 animate-pulse rounded-md bg-neutral-100 sm:block" /> : null}
+                                                {kpi && !kpiLoading ? (
+                                                    <span className="hidden shrink-0 items-baseline gap-2 sm:flex">
+                                                        <span className="text-sm font-semibold tabular-nums text-neutral-900">{kpi.valor}</span>
+                                                        {comparar && kpi.delta ? <span className="text-xs tabular-nums text-neutral-400">{kpi.delta}</span> : null}
+                                                    </span>
+                                                ) : null}
+                                                <ChevronRight size={16} className="shrink-0 text-neutral-300" />
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </section>
+                        ))}
+                    </div>
                 </div>
             ) : (
                 <div className="space-y-3">
@@ -616,24 +660,45 @@ export default function Relatorios() {
                             {s.linhas.length === 0 ? (
                                 <p className="px-4 py-10 text-center text-sm text-neutral-400">Nada neste recorte.</p>
                             ) : (
-                                <div className="overflow-x-auto">
-                                    <table className="min-w-[640px] w-full text-left text-sm">
-                                        <thead>
-                                            <tr className="border-b border-black/5 text-xs font-medium text-neutral-400">
-                                                {s.colunas.map((c) => <th key={c} className="px-4 py-2 font-medium sm:px-5">{c}</th>)}
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {s.linhas.map((row, i) => (
-                                                <tr key={i} className="border-b border-black/5 last:border-0">
-                                                    {row.map((cell, j) => (
-                                                        <td key={j} className={`px-4 py-3 text-neutral-800 sm:px-5 ${j > 0 ? 'tabular-nums' : ''}`}>{cell}</td>
-                                                    ))}
+                                <>
+                                    {/* Celular: cada linha vira um cartão com rótulos */}
+                                    <ul className="divide-y divide-black/5 md:hidden">
+                                        {s.linhas.map((row, i) => (
+                                            <li key={i} className="px-4 py-3">
+                                                <p className="break-words text-sm font-medium text-neutral-900">{row[0]}</p>
+                                                {row.length > 1 ? (
+                                                    <dl className="mt-1.5 grid grid-cols-2 gap-x-3 gap-y-1.5">
+                                                        {row.slice(1).map((cell, j) => (
+                                                            <div key={j} className="min-w-0">
+                                                                <dt className="truncate text-xs font-medium uppercase tracking-wide text-neutral-400">{s.colunas[j + 1]}</dt>
+                                                                <dd className="break-words text-sm tabular-nums text-neutral-800">{cell}</dd>
+                                                            </div>
+                                                        ))}
+                                                    </dl>
+                                                ) : null}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                    {/* Desktop: tabela */}
+                                    <div className="hidden overflow-x-auto md:block">
+                                        <table className="w-full min-w-[640px] text-left text-sm">
+                                            <thead>
+                                                <tr className="border-b border-black/5 text-xs font-medium text-neutral-400">
+                                                    {s.colunas.map((c) => <th key={c} className="px-4 py-2 font-medium sm:px-5">{c}</th>)}
                                                 </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
+                                            </thead>
+                                            <tbody>
+                                                {s.linhas.map((row, i) => (
+                                                    <tr key={i} className="border-b border-black/5 last:border-0">
+                                                        {row.map((cell, j) => (
+                                                            <td key={j} className={`px-4 py-3 text-neutral-800 sm:px-5 ${j > 0 ? 'tabular-nums' : ''}`}>{cell}</td>
+                                                        ))}
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </>
                             )}
                         </section>
                     ))}

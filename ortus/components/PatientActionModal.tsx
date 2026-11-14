@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { AlertCircle, Camera, CheckCircle2, Loader2, User, X } from 'lucide-react';
 import { useClinica } from '@/app/context/ClinicaContext';
@@ -12,6 +12,7 @@ import { prepararFotoPaciente } from '@/lib/prepararFotoPaciente';
 import { enviarArquivoClinica } from '@/lib/armazenamento';
 import { cpfValido, mascaraCep, mascaraCpf, mascaraNumero, mascaraTelefone, variantesCpf } from '@/lib/mascaras';
 import CampoData from '@/components/ui/CampoData';
+import CapturaFotoPaciente from '@/components/pacientes/CapturaFotoPaciente';
 
 type PatientActionModalContextValue = {
   openQuickCapture: (initialClinicaId?: string | null) => void;
@@ -61,7 +62,7 @@ export function PatientActionModalProvider({ children }: { children: React.React
   const [qcFotoBlob, setQcFotoBlob] = useState<Blob | null>(null);
   const [qcFotoPreview, setQcFotoPreview] = useState<string | null>(null);
   const [qcFotoErro, setQcFotoErro] = useState<string | null>(null);
-  const qcFotoInputRef = useRef<HTMLInputElement>(null);
+  const [capturaFotoAberta, setCapturaFotoAberta] = useState(false);
 
   const limparFotoCadastro = useCallback(() => {
     setQcFotoPreview((atual) => {
@@ -70,29 +71,31 @@ export function PatientActionModalProvider({ children }: { children: React.React
     });
     setQcFotoBlob(null);
     setQcFotoErro(null);
-    if (qcFotoInputRef.current) qcFotoInputRef.current.value = '';
   }, []);
 
-  async function escolherFotoCadastro(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    event.target.value = '';
-    if (!file) return;
+  const aplicarFotoCadastro = useCallback(async (blob: Blob) => {
     try {
-      const blob = await prepararFotoPaciente(file);
+      const preparada = await prepararFotoPaciente(blob);
       setQcFotoPreview((atual) => {
         if (atual) URL.revokeObjectURL(atual);
-        return URL.createObjectURL(blob);
+        return URL.createObjectURL(preparada);
       });
-      setQcFotoBlob(blob);
+      setQcFotoBlob(preparada);
       setQcFotoErro(null);
-    } catch (err) {
-      setQcFotoErro(err instanceof Error ? err.message : 'Não foi possível usar essa foto.');
+    } catch (erro) {
+      const mensagem = erro instanceof Error ? erro.message : 'Não foi possível usar essa foto.';
+      setQcFotoErro(mensagem);
+      throw new Error(mensagem);
     }
-  }
+  }, []);
 
   const closePatientActions = useCallback(() => {
     setOpen(false);
   }, []);
+
+  useEffect(() => {
+    if (!open) setCapturaFotoAberta(false);
+  }, [open]);
 
   const openQuickCapture = useCallback(async (initialClinicaId?: string | null) => {
     const preselect = initialClinicaId || (activeClinicId && activeClinicId !== 'all' ? activeClinicId : '');
@@ -265,13 +268,18 @@ export function PatientActionModalProvider({ children }: { children: React.React
     <PatientActionModalContext.Provider value={value}>
       {children}
 
-      <Modal open={open} onClose={closePatientActions} maxWidth="4xl" zIndex={80} hideCloseButton panelClassName="overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-2xl">
+      <Modal open={open} onClose={closePatientActions} maxWidth="4xl" zIndex={80} hideCloseButton closeOnEscape={!capturaFotoAberta} closeOnBackdrop={!capturaFotoAberta} panelClassName="overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-2xl">
             {quickCapture && (
               <div className="px-5 py-4 sm:px-6 sm:py-5">
                 <div className="mb-5 flex items-center justify-between gap-4 border-b border-black/5 pb-4">
                   <div className="flex min-w-0 items-center gap-3.5">
-                    <label className="relative h-16 w-16 shrink-0 cursor-pointer">
-                      <input ref={qcFotoInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={escolherFotoCadastro} />
+                    <button
+                      type="button"
+                      onClick={() => setCapturaFotoAberta(true)}
+                      className="relative h-16 w-16 shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
+                      aria-label={qcFotoPreview ? 'Trocar foto do paciente' : 'Adicionar foto do paciente'}
+                      title="Foto do paciente"
+                    >
                       <span className={`flex h-16 w-16 items-center justify-center overflow-hidden rounded-full border bg-[#f8f8f6] text-lg font-semibold text-neutral-700 ${qcFotoPreview ? 'border-[#c8f053] ring-2 ring-[#c8f053]' : 'border-black/10'}`}>
                         {qcFotoPreview ? (
                           <img src={qcFotoPreview} alt="" className="h-full w-full object-cover" />
@@ -279,10 +287,10 @@ export function PatientActionModalProvider({ children }: { children: React.React
                           (qcNome.trim().split(/\s+/).slice(0, 2).map((parte) => parte[0] || '').join('').toUpperCase() || <User size={20} className="text-neutral-400" />)
                         )}
                       </span>
-                      <span className="absolute -bottom-0.5 -right-0.5 flex h-6 w-6 items-center justify-center rounded-full bg-neutral-900 text-white">
+                      <span className="absolute -bottom-0.5 -right-0.5 flex h-6 w-6 items-center justify-center rounded-full bg-neutral-900 text-white" aria-hidden>
                         <Camera size={12} />
                       </span>
-                    </label>
+                    </button>
                     <div className="min-w-0">
                       <h2 className="text-lg font-semibold text-neutral-900">Novo paciente</h2>
                       <div className={`mt-0.5 text-xs font-medium ${qcFotoErro ? 'text-red-600' : 'text-neutral-400'}`}>
@@ -447,6 +455,13 @@ export function PatientActionModalProvider({ children }: { children: React.React
 
 
       </Modal>
+
+      <CapturaFotoPaciente
+        open={capturaFotoAberta}
+        onClose={() => setCapturaFotoAberta(false)}
+        onConfirmar={aplicarFotoCadastro}
+        titulo={qcNome.trim() ? `Foto de ${qcNome.trim()}` : 'Foto do paciente'}
+      />
 
       {toast && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[90] animate-in slide-in-from-bottom duration-200">

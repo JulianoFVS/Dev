@@ -7,7 +7,7 @@ export default function LandingPage() {
   const [mobileMenu, setMobileMenu] = useState(false);
 
   return (
-    <div className="min-h-screen bg-white font-sans text-slate-900 selection:bg-blue-100 scroll-smooth">
+    <div className="min-h-[100dvh] bg-white font-sans text-slate-900 selection:bg-blue-100 scroll-smooth">
       <nav className="fixed w-full z-50 bg-white/90 backdrop-blur-md border-b border-slate-100">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
             <div className="flex items-center gap-3"><img src="/logo.png" alt="ORTUS" className="h-10 w-auto object-contain"/><span className="font-black text-2xl tracking-tighter text-blue-600 hidden sm:block">ORTUS</span></div>

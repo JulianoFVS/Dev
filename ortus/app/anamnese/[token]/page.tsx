@@ -61,7 +61,7 @@ export default function AnamnesePublicaPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
+      <div className="min-h-[100dvh] bg-slate-50 flex items-center justify-center p-6">
         <div className="text-center text-slate-500">
           <Loader2 className="animate-spin mx-auto mb-3" size={32}/>
           <p className="font-semibold">Carregando formulário...</p>
@@ -72,7 +72,7 @@ export default function AnamnesePublicaPage() {
 
   if (erro && !formData) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
+      <div className="min-h-[100dvh] bg-slate-50 flex items-center justify-center p-6">
         <div className="max-w-md w-full bg-white rounded-2xl border border-slate-200 shadow-sm p-8 text-center">
           <AlertCircle className="mx-auto text-rose-500 mb-3" size={40}/>
           <h1 className="text-lg font-black text-slate-800 mb-2">Formulário indisponível</h1>
@@ -84,7 +84,7 @@ export default function AnamnesePublicaPage() {
 
   if (enviado) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
+      <div className="min-h-[100dvh] bg-slate-50 flex items-center justify-center p-6">
         <div className="max-w-md w-full bg-white rounded-2xl border border-emerald-200 shadow-sm p-8 text-center">
           <CheckCircle className="mx-auto text-emerald-500 mb-3" size={48}/>
           <h1 className="text-xl font-black text-slate-800 mb-2">Anamnese enviada!</h1>
@@ -97,7 +97,7 @@ export default function AnamnesePublicaPage() {
   if (!formData) return null;
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-slate-50 py-6 px-4 sm:px-6">
+    <div className="min-h-[100dvh] bg-gradient-to-b from-blue-50 to-slate-50 py-6 px-4 sm:px-6">
       <div className="max-w-2xl mx-auto">
         <div className="text-center mb-6">
           <img src="/logo.png" alt="Ortus" className="h-10 mx-auto mb-3"/>
@@ -135,7 +135,7 @@ export default function AnamnesePublicaPage() {
                           key={opt}
                           type="button"
                           onClick={() => setRespostas({ ...respostas, [p.id]: opt })}
-                          className={`flex-1 sm:flex-none px-5 py-2.5 rounded-xl text-sm font-bold border transition-all ${respostas[p.id] === opt ? (opt === 'Sim' ? 'bg-rose-50 border-rose-300 text-rose-700' : 'bg-emerald-50 border-emerald-300 text-emerald-700') : 'bg-white border-slate-200 text-slate-500'}`}
+                          className={`min-h-[44px] flex-1 sm:flex-none px-5 py-2.5 rounded-xl text-sm font-bold border transition-all ${respostas[p.id] === opt ? (opt === 'Sim' ? 'bg-rose-50 border-rose-300 text-rose-700' : 'bg-emerald-50 border-emerald-300 text-emerald-700') : 'bg-white border-slate-200 text-slate-500'}`}
                         >
                           {opt}
                         </button>
@@ -152,7 +152,7 @@ export default function AnamnesePublicaPage() {
                               key={opt}
                               type="button"
                               onClick={() => setRespostas({ ...respostas, [p.id]: { ...atual, sim_nao: opt, texto: opt === 'Não' ? '' : atual.texto } })}
-                              className={`flex-1 sm:flex-none px-5 py-2.5 rounded-xl text-sm font-bold border transition-all ${atual.sim_nao === opt ? (opt === 'Sim' ? 'bg-rose-50 border-rose-300 text-rose-700' : 'bg-emerald-50 border-emerald-300 text-emerald-700') : 'bg-white border-slate-200 text-slate-500'}`}
+                              className={`min-h-[44px] flex-1 sm:flex-none px-5 py-2.5 rounded-xl text-sm font-bold border transition-all ${atual.sim_nao === opt ? (opt === 'Sim' ? 'bg-rose-50 border-rose-300 text-rose-700' : 'bg-emerald-50 border-emerald-300 text-emerald-700') : 'bg-white border-slate-200 text-slate-500'}`}
                             >
                               {opt}
                             </button>
@@ -177,7 +177,7 @@ export default function AnamnesePublicaPage() {
                           key={opt}
                           type="button"
                           onClick={() => setRespostas({ ...respostas, [p.id]: opt })}
-                          className={`px-4 py-2 rounded-xl text-sm font-bold border transition-all ${respostas[p.id] === opt ? 'bg-blue-50 border-blue-300 text-blue-700' : 'bg-white border-slate-200 text-slate-500'}`}
+                          className={`min-h-[44px] px-4 py-2 rounded-xl text-sm font-bold border transition-all ${respostas[p.id] === opt ? 'bg-blue-50 border-blue-300 text-blue-700' : 'bg-white border-slate-200 text-slate-500'}`}
                         >
                           {opt}
                         </button>
@@ -195,7 +195,7 @@ export default function AnamnesePublicaPage() {
               type="button"
               onClick={enviar}
               disabled={enviando}
-              className="w-full py-3.5 bg-blue-600 text-white rounded-xl font-black text-sm hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2 shadow-sm"
+              className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-neutral-900 text-sm font-semibold text-white transition-colors hover:bg-neutral-800 disabled:opacity-50"
             >
               {enviando ? <Loader2 size={16} className="animate-spin"/> : <CheckCircle size={16}/>}
               Enviar Anamnese

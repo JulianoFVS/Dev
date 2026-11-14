@@ -1,603 +1,539 @@
 'use client';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { readRouteCache, writeRouteCache } from '@/lib/routeListCache';
+
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { AlertTriangle, Plus, RefreshCw, ShieldCheck, UserPlus, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { enviarArquivoClinica } from '@/lib/armazenamento';
-import {
-    Loader2, Plus, X, Copy, Check, AlertTriangle, ArrowUpDown, Pencil, Trash2, Building2,
-} from 'lucide-react';
 import Modal from '@/components/ui/Modal';
-import CustomSelect from '@/components/ui/CustomSelect';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
-import { UF_OPTIONS } from '@/lib/formOptions';
-import { mascaraCep } from '@/lib/mascaras';
+import SaaSKpis from '@/components/saas/SaaSKpis';
+import RedeLista from '@/components/saas/RedeLista';
+import RedeDetalhe from '@/components/saas/RedeDetalhe';
+import ClinicasSemRede from '@/components/saas/ClinicasSemRede';
+import ModalNovaRede from '@/components/saas/ModalNovaRede';
+import ModalNovoCliente from '@/components/saas/ModalNovoCliente';
+import { SkeletonBloco } from '@/components/saas/Feedback';
+import {
+  mensagemDeErro,
+  normalizarBusca,
+  type OrdenacaoSaaS,
+  type RedeDetalheSaaS,
+  type RedeSaaS,
+  type VisaoGeralSaaS,
+} from '@/lib/saas';
 
-type Rede = { id: string | number; nome: string; created_at?: string | null };
+type StatusAcesso = 'verificando' | 'autorizado' | 'negado' | 'erro';
 
-type Metricas = { redes: number; clinicas: number; usuarios: number };
+function compararRedes(a: RedeSaaS, b: RedeSaaS, ordenacao: OrdenacaoSaaS): number {
+  switch (ordenacao) {
+    case 'nome_desc':
+      return b.nome.localeCompare(a.nome, 'pt-BR', { sensitivity: 'base' });
+    case 'clinicas_desc':
+      return (
+        b.clinicas - a.clinicas ||
+        a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' })
+      );
+    case 'vencido_desc':
+      return (
+        b.vencido_centavos - a.vencido_centavos ||
+        a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' })
+      );
+    case 'vencimento_asc': {
+      const vencimentoA = a.proximo_vencimento ?? '9999-12-31';
+      const vencimentoB = b.proximo_vencimento ?? '9999-12-31';
+      return (
+        vencimentoA.localeCompare(vencimentoB) ||
+        a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' })
+      );
+    }
+    case 'recentes':
+      return (
+        (b.created_at ?? '').localeCompare(a.created_at ?? '') ||
+        a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' })
+      );
+    case 'nome_asc':
+    default:
+      return a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' });
+  }
+}
 
-type Credenciais = {
-    rede: string;
-    email: string;
-    senha: string;
-};
-
-const FORM_VAZIO = {
-    nomeRede: '', nomeMatriz: '', nomeDono: '', emailDono: '',
-    telefone: '', cep: '', rua: '', numero: '', complemento: '', bairro: '', cidade: '', uf: '',
-    limiteGb: '1',
-};
-
-const SA_CACHE_KEY = 'ortus:super-admin:v1';
-const SA_SCOPE = 'global';
-
-type SaSnapshot = { redes: Rede[]; metricas: Metricas };
+function codigoDoErro(erro: unknown): string {
+  if (!erro || typeof erro !== 'object') return '';
+  const codigo = (erro as { code?: unknown }).code;
+  return typeof codigo === 'string' ? codigo : '';
+}
 
 export default function SuperAdminPage() {
-    const router = useRouter();
-    const bootSa = typeof sessionStorage !== 'undefined' ? readRouteCache<SaSnapshot>(SA_CACHE_KEY, SA_SCOPE) : null;
-    const fetchGen = useRef(0);
-    const [autorizado, setAutorizado] = useState<boolean | null>(null);
-    const [carregando, setCarregando] = useState(() => !bootSa);
-    const [redes, setRedes] = useState<Rede[]>(() => bootSa?.redes ?? []);
-    const [metricas, setMetricas] = useState<Metricas>(() => bootSa?.metricas ?? { redes: 0, clinicas: 0, usuarios: 0 });
+  const router = useRouter();
+  const { showAlert, showConfirm } = useCustomAlert();
 
-    const [modalOpen, setModalOpen] = useState(false);
-    const [salvando, setSalvando] = useState(false);
-    const [erro, setErro] = useState<string | null>(null);
-    const [form, setForm] = useState(FORM_VAZIO);
-    const [clinicaEditId, setClinicaEditId] = useState<string | number | null>(null);
-    const [donoEdit, setDonoEdit] = useState<{ id: string | number; userId: string; email: string } | null>(null);
-    const [logoArquivo, setLogoArquivo] = useState<File | null>(null);
-    const [logoPreview, setLogoPreview] = useState('');
-    const [carregandoEdicao, setCarregandoEdicao] = useState(false);
+  const [statusAcesso, setStatusAcesso] = useState<StatusAcesso>('verificando');
+  const [erroAcesso, setErroAcesso] = useState<string | null>(null);
+  const [tentativaAcesso, setTentativaAcesso] = useState(0);
 
-    const [credenciais, setCredenciais] = useState<Credenciais | null>(null);
-    const [copiado, setCopiado] = useState<'email' | 'senha' | 'tudo' | null>(null);
-    const [ordem, setOrdem] = useState<{ campo: 'nome' | 'criada'; dir: 'asc' | 'desc' }>({ campo: 'nome', dir: 'asc' });
-    const [editando, setEditando] = useState<Rede | null>(null);
-    const { showConfirm } = useCustomAlert();
+  const [visao, setVisao] = useState<VisaoGeralSaaS | null>(null);
+  const [carregandoVisao, setCarregandoVisao] = useState(true);
+  const [erroVisao, setErroVisao] = useState<string | null>(null);
+  const requisicaoVisao = useRef(0);
 
-    useEffect(() => { validar(); }, []);
+  const [busca, setBusca] = useState('');
+  const [ordenacao, setOrdenacao] = useState<OrdenacaoSaaS>('nome_asc');
 
-    async function validar() {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) { router.replace('/login'); return; }
-        const { data: prof } = await supabase
-            .from('profissionais')
-            .select('is_super_admin')
-            .eq('user_id', session.user.id)
-            .single();
-        if (!prof?.is_super_admin) {
-            router.replace('/dashboard');
-            return;
+  const [redeSelecionada, setRedeSelecionada] = useState<string | null>(null);
+  const [detalhe, setDetalhe] = useState<RedeDetalheSaaS | null>(null);
+  const [carregandoDetalhe, setCarregandoDetalhe] = useState(false);
+  const [erroDetalhe, setErroDetalhe] = useState<string | null>(null);
+  const requisicaoDetalhe = useRef(0);
+  const selecionadaRef = useRef<string | null>(null);
+
+  const [drawerMobile, setDrawerMobile] = useState(false);
+  const [novaRedeAberta, setNovaRedeAberta] = useState(false);
+  const [novoClienteAberto, setNovoClienteAberto] = useState(false);
+
+  useEffect(() => {
+    selecionadaRef.current = redeSelecionada;
+  }, [redeSelecionada]);
+
+  const tratarAcessoNegado = useCallback(
+    (falha: unknown): boolean => {
+      if (codigoDoErro(falha) !== '42501') return false;
+      setStatusAcesso('negado');
+      router.replace('/dashboard');
+      return true;
+    },
+    [router],
+  );
+
+  const carregarVisao = useCallback(
+    async (opcoes?: { silencioso?: boolean }) => {
+      const geracao = ++requisicaoVisao.current;
+      if (!opcoes?.silencioso) setCarregandoVisao(true);
+      try {
+        const { data, error } = await supabase.rpc('saas_visao_geral');
+        if (geracao !== requisicaoVisao.current) return;
+        if (error) throw error;
+        const payload = data as unknown as VisaoGeralSaaS | null;
+        if (!payload || !Array.isArray(payload.redes) || !payload.totais) {
+          throw new Error('O servidor devolveu uma visão geral inesperada.');
         }
-        setAutorizado(true);
-        const snap = readRouteCache<SaSnapshot>(SA_CACHE_KEY, SA_SCOPE);
-        if (snap) {
-            setRedes(snap.redes);
-            setMetricas(snap.metricas);
-            setCarregando(false);
+        setVisao(payload);
+        setErroVisao(null);
+      } catch (falha) {
+        if (geracao !== requisicaoVisao.current) return;
+        if (tratarAcessoNegado(falha)) return;
+        setErroVisao(
+          mensagemDeErro(falha, 'Não foi possível carregar a visão geral da plataforma.'),
+        );
+      } finally {
+        if (geracao === requisicaoVisao.current) setCarregandoVisao(false);
+      }
+    },
+    [tratarAcessoNegado],
+  );
+
+  const carregarDetalhe = useCallback(
+    async (id: string, opcoes?: { silencioso?: boolean }) => {
+      const geracao = ++requisicaoDetalhe.current;
+      if (!opcoes?.silencioso) setCarregandoDetalhe(true);
+      try {
+        const { data, error } = await supabase.rpc('saas_rede_detalhe', { p_rede: id });
+        if (geracao !== requisicaoDetalhe.current) return;
+        if (error) throw error;
+        const payload = data as unknown as RedeDetalheSaaS | null;
+        if (!payload?.rede) throw new Error('A rede não foi encontrada.');
+        setDetalhe(payload);
+        setErroDetalhe(null);
+      } catch (falha) {
+        if (geracao !== requisicaoDetalhe.current) return;
+        if (tratarAcessoNegado(falha)) return;
+        setErroDetalhe(mensagemDeErro(falha, 'Não foi possível carregar os detalhes da rede.'));
+      } finally {
+        if (geracao === requisicaoDetalhe.current) setCarregandoDetalhe(false);
+      }
+    },
+    [tratarAcessoNegado],
+  );
+
+  const atualizarTudo = useCallback(async () => {
+    await carregarVisao({ silencioso: true });
+    const id = selecionadaRef.current;
+    if (id) await carregarDetalhe(id, { silencioso: true });
+  }, [carregarVisao, carregarDetalhe]);
+
+  // A autorização é decidida no banco: só renderiza o painel depois que a
+  // consulta em `profissionais.is_super_admin` confirma o acesso.
+  useEffect(() => {
+    let cancelado = false;
+
+    async function verificarAcesso() {
+      setStatusAcesso('verificando');
+      setErroAcesso(null);
+      try {
+        const {
+          data: { session },
+          error: erroSessao,
+        } = await supabase.auth.getSession();
+        if (cancelado) return;
+        if (erroSessao) throw erroSessao;
+        if (!session) {
+          router.replace('/login');
+          return;
         }
-        await carregar({ silent: !!snap });
-    }
 
-    async function carregar(opts?: { silent?: boolean }) {
-        const gen = ++fetchGen.current;
-        if (!opts?.silent) setCarregando(true);
-        try {
-            const [redesResp, clinicasResp, usuariosResp] = await Promise.all([
-                supabase.from('redes').select('id, nome, created_at').order('created_at', { ascending: false }),
-                supabase.from('clinicas').select('id', { count: 'exact', head: true }),
-                supabase.from('profissionais').select('id', { count: 'exact', head: true }),
-            ]);
+        const { data: perfilData, error: erroPerfil } = await supabase
+          .from('profissionais')
+          .select('is_super_admin')
+          .eq('user_id', session.user.id)
+          .single();
+        if (cancelado) return;
+        if (erroPerfil && erroPerfil.code !== 'PGRST116') throw erroPerfil;
 
-            if (gen !== fetchGen.current) return;
-
-            const nextRedes = (redesResp.data || []) as Rede[];
-            const nextMetricas = {
-                redes: redesResp.data?.length || 0,
-                clinicas: clinicasResp.count || 0,
-                usuarios: usuariosResp.count || 0,
-            };
-            writeRouteCache(SA_CACHE_KEY, SA_SCOPE, { redes: nextRedes, metricas: nextMetricas });
-            setRedes(nextRedes);
-            setMetricas(nextMetricas);
-        } catch (e) {
-            console.error(e);
+        const perfil = perfilData as { is_super_admin?: boolean } | null;
+        if (perfil?.is_super_admin !== true) {
+          setStatusAcesso('negado');
+          router.replace('/dashboard');
+          return;
         }
-        if (gen === fetchGen.current) setCarregando(false);
+
+        setStatusAcesso('autorizado');
+        await carregarVisao();
+      } catch (falha) {
+        if (cancelado) return;
+        setStatusAcesso('erro');
+        setErroAcesso(
+          mensagemDeErro(falha, 'Não foi possível confirmar seu acesso ao painel da plataforma.'),
+        );
+      }
     }
 
-    function limparLogo() {
-        setLogoArquivo(null);
-        setLogoPreview((atual) => {
-            if (atual.startsWith('blob:')) URL.revokeObjectURL(atual);
-            return '';
-        });
+    void verificarAcesso();
+    return () => {
+      cancelado = true;
+    };
+  }, [router, carregarVisao, tentativaAcesso]);
+
+  useEffect(() => {
+    const consulta = window.matchMedia('(min-width: 768px)');
+    const aoMudar = () => {
+      if (consulta.matches) setDrawerMobile(false);
+    };
+    consulta.addEventListener('change', aoMudar);
+    return () => consulta.removeEventListener('change', aoMudar);
+  }, []);
+
+  const redes = visao?.redes ?? [];
+
+  const redesFiltradas = useMemo(() => {
+    const termo = normalizarBusca(busca);
+    const lista = termo
+      ? (visao?.redes ?? []).filter((rede) =>
+          [rede.nome, rede.plano, rede.cnpj, rede.contato_nome, rede.contato_email].some((campo) =>
+            normalizarBusca(campo).includes(termo),
+          ),
+        )
+      : [...(visao?.redes ?? [])];
+    return lista.sort((a, b) => compararRedes(a, b, ordenacao));
+  }, [visao, busca, ordenacao]);
+
+  const resumoSelecionado = useMemo(
+    () => redes.find((rede) => rede.id === redeSelecionada) ?? null,
+    [redes, redeSelecionada],
+  );
+
+  function abrirNoDispositivo(id: string) {
+    const telaPequena =
+      typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches;
+    if (id === redeSelecionada && detalhe) {
+      if (telaPequena) setDrawerMobile(true);
+      return;
     }
+    setRedeSelecionada(id);
+    setDetalhe(null);
+    setErroDetalhe(null);
+    setDrawerMobile(telaPequena);
+    void carregarDetalhe(id);
+  }
 
-    function abrirModal() {
-        setErro(null);
-        setEditando(null);
-        setClinicaEditId(null);
-        setDonoEdit(null);
-        setForm(FORM_VAZIO);
-        limparLogo();
-        setModalOpen(true);
-    }
+  function fecharDetalhe() {
+    requisicaoDetalhe.current += 1;
+    setDrawerMobile(false);
+    setRedeSelecionada(null);
+    setDetalhe(null);
+    setErroDetalhe(null);
+  }
 
-    function escolherFoto(arquivo?: File) {
-        if (!arquivo) return;
-        if (!['image/jpeg', 'image/png', 'image/webp'].includes(arquivo.type)) {
-            setErro('Use uma imagem JPG, PNG ou WebP.');
-            return;
-        }
-        if (arquivo.size > 2 * 1024 * 1024) {
-            setErro('A foto deve ter no máximo 2MB.');
-            return;
-        }
-        setErro(null);
-        setLogoArquivo(arquivo);
-        setLogoPreview((atual) => {
-            if (atual.startsWith('blob:')) URL.revokeObjectURL(atual);
-            return URL.createObjectURL(arquivo);
-        });
-    }
+  function atualizarPainel() {
+    void carregarVisao();
+    if (redeSelecionada) void carregarDetalhe(redeSelecionada, { silencioso: true });
+  }
 
-    async function publicarLogo(token: string, redeId: string | number, clinicaId: string | number, arquivo: File) {
-        const ext = arquivo.type === 'image/jpeg' ? 'jpg' : arquivo.type === 'image/webp' ? 'webp' : 'png';
-        const filePath = `clinicas/${clinicaId}/logo-${Date.now()}.${ext}`;
-        const publicUrl = await enviarArquivoClinica(filePath, arquivo, { upsert: true, contentType: arquivo.type || undefined });
-        if (!publicUrl) throw new Error('Não foi possível publicar a foto.');
-        const resp = await fetch('/api/super-admin/rede', {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-            body: JSON.stringify({ id: redeId, nome: form.nomeRede.trim(), clinicaId, logo_url: publicUrl }),
-        });
-        const json = await resp.json().catch(() => ({}));
-        if (!resp.ok) throw new Error(json.error || 'A foto não foi salva.');
-    }
-
-    async function tokenAtual() {
-        const { data: { session } } = await supabase.auth.getSession();
-        return session?.access_token || '';
-    }
-
-    async function salvar(e: React.FormEvent) {
-        e.preventDefault();
-        setErro(null);
-        setSalvando(true);
-        try {
-            const token = await tokenAtual();
-            if (!token) { setErro('Sessão expirada.'); setSalvando(false); return; }
-
-            if (editando) {
-                const resp = await fetch('/api/super-admin/rede', {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                    body: JSON.stringify({
-                        id: editando.id,
-                        nome: form.nomeRede.trim(),
-                        clinica: clinicaEditId == null ? undefined : {
-                            id: clinicaEditId,
-                            nome: form.nomeMatriz.trim(),
-                            telefone: form.telefone,
-                            email: form.emailDono.trim().toLowerCase(),
-                            cep: form.cep,
-                            rua: form.rua,
-                            numero: form.numero,
-                            complemento: form.complemento,
-                            bairro: form.bairro,
-                            cidade: form.cidade,
-                            uf: form.uf,
-                            limite_armazenamento_mb: Math.round(Number(form.limiteGb.replace(',', '.')) * 1024) || undefined,
-                        },
-                        dono: donoEdit ? {
-                            id: donoEdit.id,
-                            userId: donoEdit.userId,
-                            nome: form.nomeDono.trim(),
-                            email: form.emailDono.trim().toLowerCase(),
-                            emailAlterado: form.emailDono.trim().toLowerCase() !== donoEdit.email,
-                        } : undefined,
-                    }),
-                });
-                const json = await resp.json().catch(() => ({}));
-                if (!resp.ok) throw new Error(json.error || 'Não foi possível salvar.');
-                if (logoArquivo && clinicaEditId != null) await publicarLogo(token, editando.id, clinicaEditId, logoArquivo);
-                const nome = form.nomeRede.trim();
-                const proximas = redes.map((r) => String(r.id) === String(editando.id) ? { ...r, nome } : r);
-                setRedes(proximas);
-                writeRouteCache(SA_CACHE_KEY, SA_SCOPE, { redes: proximas, metricas });
-                setModalOpen(false);
-                setEditando(null);
-            } else {
-                const resp = await fetch('/api/super-admin/criar-cliente', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                    body: JSON.stringify({
-                        nomeRede: form.nomeRede.trim(),
-                        nomeMatriz: form.nomeMatriz.trim(),
-                        nomeDono: form.nomeDono.trim(),
-                        emailDono: form.emailDono.trim().toLowerCase(),
-                        telefone: form.telefone,
-                        cep: form.cep,
-                        rua: form.rua,
-                        numero: form.numero,
-                        complemento: form.complemento,
-                        bairro: form.bairro,
-                        cidade: form.cidade,
-                        uf: form.uf,
-                    }),
-                });
-                const json = await resp.json();
-                if (!resp.ok || !json.success) {
-                    setErro(json.error || 'Falha no onboarding.');
-                    setSalvando(false);
-                    return;
-                }
-                if (logoArquivo && json.clinica_id != null) {
-                    try {
-                        await publicarLogo(token, json.rede_id, json.clinica_id, logoArquivo);
-                    } catch (err: any) {
-                        setErro(err?.message || 'Cliente criado, mas a foto não foi enviada.');
-                    }
-                }
-                setModalOpen(false);
-                setCredenciais({ rede: json.rede_nome, email: json.email, senha: json.senha_temporaria });
-                await carregar();
-            }
-        } catch (err: any) {
-            setErro(err?.message || 'Erro inesperado.');
-        }
-        setSalvando(false);
-    }
-
-    async function abrirEdicao(rede: Rede) {
-        setErro(null);
-        setEditando(rede);
-        setClinicaEditId(null);
-        setDonoEdit(null);
-        setForm({ ...FORM_VAZIO, nomeRede: rede.nome });
-        limparLogo();
-        setModalOpen(true);
-        setCarregandoEdicao(true);
-        try {
-            const token = await tokenAtual();
-            if (!token) throw new Error('Sessão expirada.');
-            const resp = await fetch(`/api/super-admin/rede?id=${encodeURIComponent(String(rede.id))}`, {
-                headers: { Authorization: `Bearer ${token}` },
-            });
-            const json = await resp.json();
-            if (!resp.ok) throw new Error(json.error || 'Não foi possível carregar a rede.');
-            const clinica = json.clinica;
-            const dono = json.dono;
-            setClinicaEditId(clinica?.id ?? null);
-            setDonoEdit(dono ? { id: dono.id, userId: dono.userId || '', email: dono.email || '' } : null);
-            setForm({
-                nomeRede: json.rede?.nome || rede.nome,
-                nomeMatriz: clinica?.nome || '',
-                nomeDono: dono?.nome || '',
-                emailDono: dono?.email || clinica?.email || '',
-                telefone: clinica?.telefone || '',
-                cep: clinica?.cep || '',
-                rua: clinica?.rua || '',
-                numero: clinica?.numero || '',
-                complemento: clinica?.complemento || '',
-                bairro: clinica?.bairro || '',
-                cidade: clinica?.cidade || '',
-                uf: clinica?.uf || '',
-                limiteGb: String(Number(clinica?.limite_armazenamento_mb || 1024) / 1024).replace('.', ','),
-            });
-            setLogoPreview(clinica?.logo_url || '');
-        } catch (err: any) {
-            setErro(err?.message || 'Não foi possível carregar a rede.');
-        }
-        setCarregandoEdicao(false);
-    }
-
-    async function apagarRede(rede: Rede) {
-        const ok = await showConfirm(`Apagar a rede "${rede.nome}"?`, { title: 'Apagar rede', type: 'warning', confirmLabel: 'Apagar' });
-        if (!ok) return;
-        const anterior = redes;
-        const metricasAnteriores = metricas;
-        const proximas = redes.filter((r) => String(r.id) !== String(rede.id));
-        const metricasProximas = { ...metricas, redes: Math.max(0, metricas.redes - 1) };
-        setRedes(proximas);
-        setMetricas(metricasProximas);
-        writeRouteCache(SA_CACHE_KEY, SA_SCOPE, { redes: proximas, metricas: metricasProximas });
-        try {
-            const { data: { session } } = await supabase.auth.getSession();
-            const token = session?.access_token;
-            if (!token) throw new Error('Sessão expirada.');
-            const resp = await fetch('/api/super-admin/rede', {
-                method: 'DELETE',
-                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                body: JSON.stringify({ id: rede.id }),
-            });
-            const json = await resp.json().catch(() => ({}));
-            if (!resp.ok) throw new Error(json.error || 'Não foi possível apagar a rede.');
-        } catch (err: any) {
-            setRedes(anterior);
-            setMetricas(metricasAnteriores);
-            writeRouteCache(SA_CACHE_KEY, SA_SCOPE, { redes: anterior, metricas: metricasAnteriores });
-            setErro(err?.message || 'Não foi possível apagar a rede.');
-        }
-    }
-
-    function copiar(tipo: 'email' | 'senha' | 'tudo') {
-        if (!credenciais) return;
-        const texto =
-            tipo === 'email' ? credenciais.email :
-            tipo === 'senha' ? credenciais.senha :
-            `Bem-vindo(a) à Ortus!\n\nRede: ${credenciais.rede}\nE-mail: ${credenciais.email}\nSenha temporária: ${credenciais.senha}\n\nNo primeiro acesso você será solicitado a trocar a senha.`;
-        try {
-            navigator.clipboard.writeText(texto);
-            setCopiado(tipo);
-            setTimeout(() => setCopiado(null), 1800);
-        } catch {}
-    }
-
-    const fmtData = useMemo(() => (d?: string | null) => {
-        if (!d) return '—';
-        try { return new Date(d).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }); }
-        catch { return '—'; }
-    }, []);
-
-    const redesOrdenadas = useMemo(() => [...redes].sort((a, b) => {
-        const cmp = ordem.campo === 'criada'
-            ? (a.created_at || '').localeCompare(b.created_at || '')
-            : (a.nome || '').localeCompare(b.nome || '', 'pt-BR', { sensitivity: 'base' });
-        return ordem.dir === 'asc' ? cmp : -cmp;
-    }), [redes, ordem]);
-
-    function alternarOrdem(campo: 'nome' | 'criada') {
-        setOrdem((prev) => prev.campo === campo ? { campo, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { campo, dir: 'asc' });
-    }
-
-    const campo = 'box-border h-10 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm text-neutral-900 outline-none placeholder:text-neutral-400 focus:border-neutral-900';
-    const rotulo = 'mb-1.5 block text-xs font-medium text-neutral-500';
-    const carregandoLista = autorizado === null || (carregando && redes.length === 0);
-
-    if (autorizado === false) return null;
-
-    return (
-        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden px-2.5 py-2.5 font-poppins sm:px-3 sm:py-3 md:px-4 md:py-3.5">
-            <div className="flex shrink-0 flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                <div className="min-w-0">
-                    <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 md:text-[2rem]">Painel SaaS</h1>
-                    <p className="mt-1 text-sm text-neutral-500 sm:text-base">
-                        {carregandoLista ? 'Redes, clínicas e usuários da plataforma.' : (
-                            <>
-                                <span className="tabular-nums text-neutral-900">{metricas.redes}</span> {metricas.redes === 1 ? 'rede' : 'redes'}
-                                {' · '}
-                                <span className="tabular-nums text-neutral-900">{metricas.clinicas}</span> {metricas.clinicas === 1 ? 'clínica' : 'clínicas'}
-                                {' · '}
-                                <span className="tabular-nums text-neutral-900">{metricas.usuarios}</span> {metricas.usuarios === 1 ? 'usuário' : 'usuários'}
-                            </>
-                        )}
-                    </p>
-                </div>
-                <button type="button" onClick={abrirModal} className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-md bg-neutral-900 px-4 text-sm font-medium text-white hover:bg-neutral-800">
-                    <Plus size={16} /> Novo cliente
-                </button>
-            </div>
-
-            {erro && !modalOpen && (
-                <p className="flex shrink-0 items-center gap-2 text-sm text-rose-600">
-                    <AlertTriangle size={14} /> {erro}
-                </p>
-            )}
-
-            <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white">
-                <div className="shrink-0 px-3 pt-3">
-                    <h2 className="text-base font-semibold text-neutral-900">Redes</h2>
-                </div>
-                {carregandoLista ? (
-                    <div className="space-y-2 p-3">
-                        {Array.from({ length: 6 }).map((_, i) => (
-                            <div key={i} className="h-10 animate-pulse rounded-md bg-neutral-50" />
-                        ))}
-                    </div>
-                ) : (
-                    <div className="min-h-0 flex-1 overflow-y-auto">
-                        <table className="w-full min-w-[420px] text-sm">
-                            <thead>
-                                <tr className="border-b border-black/5">
-                                    {([
-                                        ['nome', 'Rede'],
-                                        ['criada', 'Criada em'],
-                                    ] as const).map(([campoOrdem, label]) => (
-                                        <th key={campoOrdem} className="px-4 py-2 text-left sm:px-5">
-                                            <button type="button" onClick={() => alternarOrdem(campoOrdem)} className="inline-flex items-center gap-1 text-xs font-medium text-neutral-400 hover:text-neutral-900">
-                                                {label}
-                                                <ArrowUpDown size={12} className={ordem.campo === campoOrdem ? 'text-neutral-900' : 'text-neutral-300'} />
-                                            </button>
-                                        </th>
-                                    ))}
-                                    <th className="px-4 py-2 text-right text-xs font-medium text-neutral-400 sm:px-5">Ações</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {redesOrdenadas.length === 0 && (
-                                    <tr><td colSpan={3} className="px-4 py-10 text-center text-sm text-neutral-400">Nenhuma rede cadastrada.</td></tr>
-                                )}
-                                {redesOrdenadas.map((r) => (
-                                    <tr key={String(r.id)} className="border-b border-black/5 last:border-0 hover:bg-neutral-50/60">
-                                        <td className="px-4 py-2.5 sm:px-5">
-                                            <div className="flex items-center gap-3">
-                                                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#f3f4f1] text-[11px] font-medium text-neutral-500">
-                                                    {r.nome.split(' ').map((n) => n[0]).slice(0, 2).join('').toUpperCase()}
-                                                </span>
-                                                <span className="font-medium text-neutral-900">{r.nome}</span>
-                                            </div>
-                                        </td>
-                                        <td className="px-4 py-2.5 text-neutral-600 sm:px-5">{fmtData(r.created_at)}</td>
-                                        <td className="px-4 py-2.5 text-right sm:px-5">
-                                            <div className="inline-flex items-center justify-end gap-1.5">
-                                                <button type="button" onClick={() => abrirEdicao(r)} className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-neutral-200 text-neutral-500 hover:bg-neutral-50" aria-label="Editar"><Pencil size={14}/></button>
-                                                <button type="button" onClick={() => apagarRede(r)} className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-neutral-200 text-neutral-400 hover:text-rose-600" aria-label="Apagar"><Trash2 size={14}/></button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
-            </section>
-
-            <Modal open={modalOpen} onClose={() => { setModalOpen(false); setEditando(null); }} maxWidth="lg" hideCloseButton panelClassName="flex max-h-[85vh] flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white">
-                <form onSubmit={salvar} className="flex min-h-0 flex-1 flex-col">
-                    <div className="flex shrink-0 items-start justify-between gap-3 border-b border-black/5 px-5 py-4 sm:px-6">
-                        <div>
-                            <h2 className="text-lg font-semibold text-neutral-900">{editando ? 'Editar cliente' : 'Novo cliente'}</h2>
-                            <p className="mt-0.5 text-xs font-medium text-neutral-400">Rede, clínica e acesso do dono.</p>
-                        </div>
-                        <button type="button" onClick={() => { setModalOpen(false); setEditando(null); }} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-100" aria-label="Fechar"><X size={16}/></button>
-                    </div>
-                    <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 sm:px-6">
-                    {erro && (
-                        <p className="mb-3 flex items-center gap-2 text-xs font-medium text-rose-600">
-                            <AlertTriangle size={14} /> {erro}
-                        </p>
-                    )}
-                    <div className="grid grid-cols-1 gap-x-3 gap-y-2 sm:grid-cols-2">
-                        <label className="flex items-center gap-3 sm:col-span-2">
-                            <span className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full border border-neutral-200 bg-white text-neutral-400">
-                                {logoPreview ? <img src={logoPreview} alt="" className="h-full w-full object-cover" /> : <Building2 size={18} />}
-                            </span>
-                            <span>
-                                <span className={rotulo}>Foto da clínica</span>
-                                <span className="text-xs text-neutral-400">JPG, PNG ou WebP até 2MB</span>
-                            </span>
-                            <input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={(e) => { escolherFoto(e.target.files?.[0]); e.target.value = ''; }} />
-                        </label>
-                        <label className="sm:col-span-2">
-                            <span className={rotulo}>Nome da rede <span className="text-red-500">*</span></span>
-                            <input value={form.nomeRede} onChange={(e) => setForm({ ...form, nomeRede: e.target.value })} className={campo} placeholder="Ex.: Clínica Sorrir" required />
-                        </label>
-                        <label>
-                            <span className={rotulo}>Clínica inicial <span className="text-red-500">*</span></span>
-                            <input value={form.nomeMatriz} onChange={(e) => setForm({ ...form, nomeMatriz: e.target.value })} className={campo} placeholder="Ex.: Sorrir Centro" required />
-                        </label>
-                        <label>
-                            <span className={rotulo}>Telefone</span>
-                            <input value={form.telefone} onChange={(e) => setForm({ ...form, telefone: e.target.value })} className={campo} placeholder="(11) 99999-0000" />
-                        </label>
-                        <label>
-                            <span className={rotulo}>CEP</span>
-                            <input inputMode="numeric" value={form.cep} onChange={(e) => {
-                                const cep = mascaraCep(e.target.value);
-                                setForm((atual) => ({ ...atual, cep }));
-                                const digitos = cep.replace(/\D/g, '');
-                                if (digitos.length !== 8) return;
-                                fetch(`https://viacep.com.br/ws/${digitos}/json/`).then((r) => r.json()).then((data) => {
-                                    if (!data || data.erro) return;
-                                    setForm((atual) => ({
-                                        ...atual,
-                                        cep,
-                                        rua: data.logradouro || atual.rua,
-                                        bairro: data.bairro || atual.bairro,
-                                        cidade: data.localidade || atual.cidade,
-                                        uf: data.uf || atual.uf,
-                                    }));
-                                }).catch(() => {});
-                            }} className={campo} placeholder="00000-000" />
-                        </label>
-                        <div>
-                            <span className={rotulo}>UF</span>
-                            <CustomSelect value={form.uf} onChange={(uf) => setForm((atual) => ({ ...atual, uf }))} options={UF_OPTIONS.filter((op) => op.value)} placeholder="Selecione..." size="md" />
-                        </div>
-                        <label className="sm:col-span-2">
-                            <span className={rotulo}>Rua</span>
-                            <input value={form.rua} onChange={(e) => setForm({ ...form, rua: e.target.value })} className={campo} />
-                        </label>
-                        <label>
-                            <span className={rotulo}>Número</span>
-                            <input value={form.numero} onChange={(e) => setForm({ ...form, numero: e.target.value })} className={campo} />
-                        </label>
-                        <label>
-                            <span className={rotulo}>Complemento</span>
-                            <input value={form.complemento} onChange={(e) => setForm({ ...form, complemento: e.target.value })} className={campo} />
-                        </label>
-                        <label>
-                            <span className={rotulo}>Bairro</span>
-                            <input value={form.bairro} onChange={(e) => setForm({ ...form, bairro: e.target.value })} className={campo} />
-                        </label>
-                        <label>
-                            <span className={rotulo}>Cidade</span>
-                            <input value={form.cidade} onChange={(e) => setForm({ ...form, cidade: e.target.value })} className={campo} />
-                        </label>
-                        <label>
-                            <span className={rotulo}>Nome do dono <span className="text-red-500">*</span></span>
-                            <input value={form.nomeDono} onChange={(e) => setForm({ ...form, nomeDono: e.target.value })} className={campo} placeholder="Ex.: Dr. João Silva" required />
-                        </label>
-                        <label>
-                            <span className={rotulo}>E-mail do dono <span className="text-red-500">*</span></span>
-                            <input type="email" value={form.emailDono} onChange={(e) => setForm({ ...form, emailDono: e.target.value })} className={campo} placeholder="dono@clinica.com" required />
-                        </label>
-                        {editando && clinicaEditId != null && (
-                            <label>
-                                <span className={rotulo}>Armazenamento (GB)</span>
-                                <input inputMode="decimal" value={form.limiteGb} onChange={(e) => setForm({ ...form, limiteGb: e.target.value.replace(/[^\d.,]/g, '') })} className={campo} placeholder="1" />
-                            </label>
-                        )}
-                    </div>
-                    </div>
-                    <div className="flex shrink-0 justify-end gap-2 border-t border-black/5 px-5 py-4 sm:px-6">
-                        <button type="button" onClick={() => { setModalOpen(false); setEditando(null); }} className="inline-flex h-9 items-center rounded-md px-3 text-sm font-medium text-neutral-600 hover:bg-neutral-50">Cancelar</button>
-                        <button type="submit" disabled={salvando || carregandoEdicao} className="inline-flex h-9 items-center rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-40">
-                            {salvando ? <Loader2 size={15} className="animate-spin" /> : (editando ? 'Salvar' : 'Criar')}
-                        </button>
-                    </div>
-                </form>
-            </Modal>
-
-            <Modal open={!!credenciais} onClose={() => setCredenciais(null)} maxWidth="md" hideCloseButton panelClassName="overflow-hidden rounded-xl border border-neutral-200 bg-white">
-                {credenciais && (
-                    <div className="px-5 py-4 sm:px-6 sm:py-5">
-                        <div className="mb-5 flex items-start justify-between gap-3 border-b border-black/5 pb-4">
-                            <div>
-                                <h2 className="text-lg font-semibold text-neutral-900">Cliente criado</h2>
-                                <p className="mt-0.5 text-xs font-medium text-neutral-400">{credenciais.rede}. Envie o acesso ao dono.</p>
-                            </div>
-                            <button type="button" onClick={() => setCredenciais(null)} className="rounded-full p-2 text-neutral-400 hover:bg-neutral-100" aria-label="Fechar"><X size={18}/></button>
-                        </div>
-                        <div className="space-y-2.5">
-                            <div className="flex items-center justify-between gap-3 rounded-md border border-neutral-200 px-3 py-2">
-                                <div className="min-w-0">
-                                    <p className="text-xs font-medium text-neutral-500">E-mail</p>
-                                    <p className="truncate text-sm text-neutral-900">{credenciais.email}</p>
-                                </div>
-                                <button type="button" onClick={() => copiar('email')} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-neutral-500 hover:bg-neutral-50" aria-label="Copiar e-mail">
-                                    {copiado === 'email' ? <Check size={14} /> : <Copy size={14} />}
-                                </button>
-                            </div>
-                            <div className="flex items-center justify-between gap-3 rounded-md border border-neutral-200 px-3 py-2">
-                                <div>
-                                    <p className="text-xs font-medium text-neutral-500">Senha temporária</p>
-                                    <p className="font-mono text-sm text-neutral-900">{credenciais.senha}</p>
-                                </div>
-                                <button type="button" onClick={() => copiar('senha')} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-neutral-500 hover:bg-neutral-50" aria-label="Copiar senha">
-                                    {copiado === 'senha' ? <Check size={14} /> : <Copy size={14} />}
-                                </button>
-                            </div>
-                            <p className="text-xs text-neutral-500">No primeiro acesso o dono troca a senha.</p>
-                        </div>
-                        <div className="mt-5 flex items-center justify-between gap-2 border-t border-black/5 pt-4">
-                            <button type="button" onClick={() => copiar('tudo')} className="inline-flex h-9 items-center gap-1.5 rounded-md border border-neutral-200 px-3 text-sm font-medium text-neutral-700 hover:bg-neutral-50">
-                                {copiado === 'tudo' ? <Check size={14} /> : <Copy size={14} />}
-                                {copiado === 'tudo' ? 'Copiado' : 'Copiar mensagem'}
-                            </button>
-                            <button type="button" onClick={() => setCredenciais(null)} className="inline-flex h-9 items-center rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800">
-                                Concluir
-                            </button>
-                        </div>
-                    </div>
-                )}
-            </Modal>
-        </div>
+  async function aoCriarRede(rede: { id: string; nome: string }) {
+    const telaPequena =
+      typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches;
+    setNovaRedeAberta(false);
+    setRedeSelecionada(rede.id);
+    setDetalhe(null);
+    setErroDetalhe(null);
+    setDrawerMobile(telaPequena);
+    await carregarVisao({ silencioso: true });
+    await carregarDetalhe(rede.id, { silencioso: true });
+    await showAlert(
+      `Rede "${rede.nome}" criada. Defina plano e mensalidade para começar a faturar.`,
+      { title: 'Rede criada', type: 'success' },
     );
+  }
+
+  async function excluirRedeSelecionada() {
+    const id = redeSelecionada;
+    if (!id) return;
+    const nome = detalhe?.rede.nome ?? resumoSelecionado?.nome ?? 'esta rede';
+    const confirmado = await showConfirm(
+      `Apagar a rede "${nome}"? Esta ação não pode ser desfeita.`,
+      { title: 'Apagar rede', confirmLabel: 'Apagar', cancelLabel: 'Cancelar', type: 'warning' },
+    );
+    if (!confirmado) return;
+
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) throw new Error('Sessão expirada. Entre novamente para continuar.');
+      const resposta = await fetch('/api/super-admin/rede', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ id }),
+      });
+      const json = (await resposta.json().catch(() => ({}))) as { error?: string };
+      if (!resposta.ok) throw new Error(json.error || 'Não foi possível apagar a rede.');
+      fecharDetalhe();
+      await carregarVisao({ silencioso: true });
+      await showAlert(`A rede "${nome}" foi apagada.`, {
+        title: 'Rede removida',
+        type: 'success',
+      });
+    } catch (falha) {
+      throw new Error(mensagemDeErro(falha, 'Não foi possível apagar a rede.'));
+    }
+  }
+
+  if (statusAcesso !== 'autorizado') {
+    return (
+      <div
+        className="flex flex-col gap-3 px-2.5 py-2.5 font-poppins sm:px-3 sm:py-3 md:px-4 md:py-3.5 lg:min-h-0 lg:flex-1"
+        aria-busy={statusAcesso === 'verificando'}
+      >
+        {statusAcesso === 'erro' ? (
+          <div className="mx-auto mt-6 w-full max-w-md rounded-xl border border-neutral-200 bg-white p-5">
+            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-rose-50 text-rose-600">
+              <AlertTriangle size={18} />
+            </span>
+            <h1 className="mt-3 text-base font-semibold text-neutral-900">
+              Não foi possível confirmar o acesso
+            </h1>
+            <p className="mt-1 text-sm leading-relaxed text-neutral-500">{erroAcesso}</p>
+            <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+              <button
+                type="button"
+                onClick={() => setTentativaAcesso((atual) => atual + 1)}
+                className="inline-flex min-h-[44px] flex-1 items-center justify-center rounded-lg bg-neutral-900 px-4 text-sm font-medium text-white hover:bg-neutral-800"
+              >
+                Tentar novamente
+              </button>
+              <button
+                type="button"
+                onClick={() => router.replace('/dashboard')}
+                className="inline-flex min-h-[44px] flex-1 items-center justify-center rounded-lg border border-neutral-200 px-4 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+              >
+                Voltar ao dashboard
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3" aria-label="Verificando acesso ao painel">
+            <div>
+              <SkeletonBloco className="h-8 w-48" />
+              <SkeletonBloco className="mt-2 h-4 w-72 max-w-full" />
+            </div>
+            <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
+              {Array.from({ length: 6 }).map((_, indice) => (
+                <SkeletonBloco key={indice} className="h-[76px] w-full rounded-xl" />
+              ))}
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              <SkeletonBloco className="h-72 w-full rounded-xl" />
+              <SkeletonBloco className="hidden h-72 w-full rounded-xl md:block" />
+            </div>
+            <span className="sr-only">Verificando seu acesso de dono da plataforma...</span>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-3 px-2.5 pb-28 pt-2.5 font-poppins sm:px-3 md:px-4 md:pt-3 lg:h-full lg:min-h-0 lg:flex-1 lg:gap-3.5 lg:overflow-hidden lg:pb-4 lg:pt-3.5">
+      <header className="flex shrink-0 flex-col gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 md:text-[1.75rem]">
+                Painel SaaS
+              </h1>
+              <span className="inline-flex items-center gap-1 rounded-full border border-neutral-200 bg-white px-2.5 py-1 text-[11px] font-medium text-neutral-500">
+                <ShieldCheck size={12} /> Donos da plataforma
+              </span>
+            </div>
+            <p className="mt-1 text-sm text-neutral-500">
+              Redes, clínicas, equipes e financeiro de toda a plataforma.
+            </p>
+          </div>
+
+          <div className="flex w-full items-center gap-2 sm:w-auto">
+            <button
+              type="button"
+              onClick={atualizarPainel}
+              disabled={carregandoVisao}
+              aria-label="Atualizar dados da plataforma"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-neutral-200 bg-white text-neutral-500 hover:bg-neutral-50 disabled:opacity-50"
+            >
+              <RefreshCw size={16} className={carregandoVisao ? 'animate-spin' : ''} />
+            </button>
+            <button
+              type="button"
+              onClick={() => setNovaRedeAberta(true)}
+              className="inline-flex h-11 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-700 hover:bg-neutral-50 sm:flex-none"
+            >
+              <Plus size={15} className="hidden sm:block" />
+              <span className="truncate">Nova rede</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setNovoClienteAberto(true)}
+              className="inline-flex h-11 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 sm:flex-none"
+            >
+              <UserPlus size={15} className="hidden sm:block" />
+              <span className="truncate">Novo cliente</span>
+            </button>
+          </div>
+        </div>
+
+        <SaaSKpis totais={visao?.totais ?? null} carregando={carregandoVisao} />
+      </header>
+
+      {erroVisao && (
+        <div
+          role="alert"
+          className="flex shrink-0 flex-col gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <p className="flex items-start gap-2 text-xs font-medium text-rose-700">
+            <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+            <span className="min-w-0">{erroVisao}</span>
+          </p>
+          <div className="flex shrink-0 items-center gap-1.5 self-end sm:self-auto">
+            <button
+              type="button"
+              onClick={() => void carregarVisao()}
+              className="inline-flex min-h-[44px] items-center justify-center rounded-md border border-rose-200 bg-white px-2.5 text-xs font-medium text-rose-700 hover:bg-rose-50"
+            >
+              Tentar novamente
+            </button>
+            <button
+              type="button"
+              onClick={() => setErroVisao(null)}
+              aria-label="Ocultar aviso de erro"
+              className="flex h-11 w-11 items-center justify-center rounded-md text-rose-500 hover:bg-rose-100"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="flex min-h-0 flex-1 flex-col gap-3 md:grid md:grid-cols-2 md:items-start lg:grid-rows-[minmax(0,1fr)] lg:items-stretch">
+        <div className="flex min-w-0 flex-col gap-3 lg:min-h-0">
+          <RedeLista
+            redes={redesFiltradas}
+            total={redesFiltradas.length}
+            carregando={carregandoVisao}
+            erro={erroVisao}
+            busca={busca}
+            onBuscaChange={setBusca}
+            ordenacao={ordenacao}
+            onOrdenacaoChange={setOrdenacao}
+            selecionadaId={redeSelecionada}
+            onSelecionar={abrirNoDispositivo}
+            onCriarRede={() => setNovaRedeAberta(true)}
+            onNovoCliente={() => setNovoClienteAberto(true)}
+            onTentarNovamente={() => void carregarVisao()}
+          />
+          <ClinicasSemRede
+            clinicas={visao?.sem_rede ?? []}
+            redes={redes}
+            carregando={carregandoVisao}
+            onAtualizar={atualizarTudo}
+          />
+        </div>
+
+        <div className="hidden min-w-0 flex-col md:flex lg:min-h-0">
+          <RedeDetalhe
+            redeId={redeSelecionada}
+            resumo={resumoSelecionado}
+            detalhe={detalhe}
+            carregando={carregandoDetalhe}
+            erro={erroDetalhe}
+            modo="inline"
+            redes={redes}
+            onFechar={fecharDetalhe}
+            onAtualizar={atualizarTudo}
+            onExcluir={excluirRedeSelecionada}
+            onTentarNovamente={() => {
+              if (redeSelecionada) void carregarDetalhe(redeSelecionada);
+            }}
+          />
+        </div>
+      </div>
+
+      <Modal
+        open={drawerMobile && !!redeSelecionada}
+        onClose={fecharDetalhe}
+        maxWidth="full"
+        hideCloseButton
+        closeOnBackdrop={false}
+        zIndex={60}
+        className="!items-stretch !p-0 sm:!items-stretch sm:!p-0"
+        panelClassName="!h-[100dvh] !max-h-[100dvh] !max-w-none !rounded-none !border-0 bg-[#f3f4f1]"
+      >
+        <div className="flex h-full min-h-0 flex-col p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-[max(0.5rem,env(safe-area-inset-top))]">
+          <RedeDetalhe
+            redeId={redeSelecionada}
+            resumo={resumoSelecionado}
+            detalhe={detalhe}
+            carregando={carregandoDetalhe}
+            erro={erroDetalhe}
+            modo="tela"
+            redes={redes}
+            onFechar={fecharDetalhe}
+            onAtualizar={atualizarTudo}
+            onExcluir={excluirRedeSelecionada}
+            onTentarNovamente={() => {
+              if (redeSelecionada) void carregarDetalhe(redeSelecionada);
+            }}
+          />
+        </div>
+      </Modal>
+
+      <ModalNovaRede
+        open={novaRedeAberta}
+        onClose={() => setNovaRedeAberta(false)}
+        onCriada={(rede) => void aoCriarRede(rede)}
+      />
+
+      <ModalNovoCliente
+        open={novoClienteAberto}
+        onClose={() => setNovoClienteAberto(false)}
+        onCriado={() => void carregarVisao({ silencioso: true })}
+      />
+    </div>
+  );
 }
