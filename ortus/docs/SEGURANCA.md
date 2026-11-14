@@ -94,9 +94,6 @@ npm run db:audit
 # Suíte de segurança (roda em transação com ROLLBACK, não altera dados)
 npm run test:rls
 
-# Agenda multipartes: criação/edição sem perder histórico financeiro
-npm run test:agenda
-
 # Tudo de uma vez
 npm test
 ```
@@ -134,7 +131,7 @@ WHATSAPP_GATEWAY_SECRET=        # gateway do WhatsApp
       `20261114_saas_auditoria`,
       `20261114_saas_clinicas`,
       `20261114_agenda_preservar`.
-- [ ] `npm test` com 100% OK (`test:rls` + `test:agenda`).
+- [ ] `npm test` com 100% OK (`test:rls`).
 - [ ] `CRON_SECRET` definido no ambiente da Vercel.
 - [ ] Confirmar que `SUPABASE_SERVICE_ROLE_KEY` existe **apenas** no servidor.
 - [ ] Conferir no painel do Supabase que os três buckets estão privados.

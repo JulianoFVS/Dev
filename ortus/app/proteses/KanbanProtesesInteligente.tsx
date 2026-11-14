@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
@@ -178,22 +178,6 @@ const STATUS_TOKENS: Record<StatusKey, { label: string }> = {
 
 const COLUMN_SHELL = 'rounded-xl border border-neutral-200 bg-white text-neutral-800';
 
-/** Prazo de entrega legível — destaca atrasos e o dia de hoje. */
-function prazoEntrega(valor?: string | null): { texto: string; atrasado: boolean } | null {
-  if (!valor) return null;
-  const data = new Date(valor.length <= 10 ? `${valor}T12:00:00` : valor);
-  if (Number.isNaN(data.getTime())) return null;
-  const hoje = new Date();
-  hoje.setHours(0, 0, 0, 0);
-  const dia = new Date(data.getFullYear(), data.getMonth(), data.getDate());
-  const diff = Math.round((dia.getTime() - hoje.getTime()) / 86400000);
-  if (diff < 0) return { texto: `Atrasado há ${Math.abs(diff)}d`, atrasado: true };
-  if (diff === 0) return { texto: 'Entrega hoje', atrasado: true };
-  if (diff === 1) return { texto: 'Entrega amanhã', atrasado: false };
-  return { texto: `Entrega ${dia.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}`, atrasado: false };
-}
-
-
 function dedupeColumnsByTitle(items: Column[]) {
   const seen = new Set<string>();
   return items.filter((column) => {
@@ -240,22 +224,7 @@ export default function KanbanProtesesInteligente() {
   const [statusFilter, setStatusFilter] = useState<StatusKey | 'all'>('all');
   const [flowDropdownOpen, setFlowDropdownOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  /** No celular o quadro mostra uma etapa por vez. */
-  const [mobileColumnId, setMobileColumnId] = useState<number | null>(null);
   const filtersActive = periodFilter !== 'all' || statusFilter !== 'all';
-
-  // Mantém a etapa ativa do celular sempre válida (troca de clínica, quadro removido…)
-  useEffect(() => {
-    if (columns.length === 0) {
-      if (mobileColumnId !== null) setMobileColumnId(null);
-      return;
-    }
-    if (mobileColumnId !== null && columns.some((column) => column.id === mobileColumnId)) return;
-    setMobileColumnId(columns[0].id);
-  }, [columns, mobileColumnId]);
-
-  const colunaMobile = columns.find((column) => column.id === mobileColumnId) ?? columns[0] ?? null;
-
 
   // Mapa de ícones por slug (persiste no DB como string)
   const ICON_MAP: Record<string, React.ReactNode> = {
@@ -611,178 +580,30 @@ export default function KanbanProtesesInteligente() {
     return patients.find((patient) => patient.nome === name)?.id;
   }
 
-  /** Mover um pedido para outra etapa sem arrastar (essencial no celular). */
-  async function moverParaEtapa(card: Card, column: Column) {
-    if (card.coluna_id === column.id) return;
-    await moveCard(card, column);
-  }
-
-  function renderCartao(card: Card, coluna: Column) {
-    const status = cardStatus(card);
-    const tokens = STATUS_TOKENS[status];
-    const prazo = prazoEntrega(card.data_entrega);
-    const temChecklist = isChecklistColumn(coluna) && Array.isArray(card.checklist) && card.checklist.length > 0;
-    const outrasEtapas = columns.filter((column) => column.id !== card.coluna_id);
-
-    return (
-      <article
-        key={card.id}
-        draggable
-        onDragStart={() => setDraggedCard(card)}
-        onDragEnd={() => {
-          setDraggedCard(null);
-          setDragOverColumn(null);
-        }}
-        role="button"
-        tabIndex={0}
-        onClick={() => openEditOrder(card)}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter' || event.key === ' ') {
-            event.preventDefault();
-            openEditOrder(card);
-          }
-        }}
-        className={`cursor-pointer rounded-xl border border-neutral-200 bg-white p-3.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-900 active:bg-neutral-50 sm:cursor-grab sm:p-3 sm:active:cursor-grabbing ${draggedCard?.id === card.id ? 'border-dashed opacity-50' : ''}`}
-      >
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-[15px] font-semibold text-neutral-900 sm:text-sm">{card.paciente_nome}</p>
-            <p className="mt-0.5 truncate text-[13px] font-medium text-neutral-500 sm:text-xs">
-              {card.tipo_protese || card.categoria || 'Prótese'}
-              {card.cor_dente ? ` · ${card.cor_dente}` : ''}
-            </p>
-          </div>
-          <div className="flex shrink-0 items-center gap-1" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
-            <span className="rounded-md bg-neutral-100 px-1.5 py-0.5 text-[11px] font-medium text-neutral-600 sm:text-xs">{tokens.label}</span>
-            <MenuPontos
-              tamanho={16}
-              className="flex h-10 w-10 items-center justify-center rounded-lg text-neutral-400 hover:bg-neutral-50 hover:text-neutral-900"
-              itens={[
-                { id: 'editar', label: 'Abrir / editar', onClick: () => openEditOrder(card) },
-                ...outrasEtapas.slice(0, 6).map((etapa) => ({
-                  id: `mover-${etapa.id}`,
-                  label: `Mover para ${etapa.titulo}`,
-                  onClick: () => { void moverParaEtapa(card, etapa); },
-                })),
-                { id: 'excluir', label: 'Excluir', perigo: true, onClick: () => deleteCard(card.id) },
-              ]}
-            />
-          </div>
-        </div>
-
-        <div className="mt-2 flex flex-wrap items-center gap-1.5">
-          {prazo && (
-            <span className={`rounded-md px-1.5 py-0.5 text-[11px] font-medium ${prazo.atrasado ? 'bg-rose-50 text-rose-700' : 'bg-neutral-100 text-neutral-600'}`}>
-              {prazo.texto}
-            </span>
-          )}
-          {temChecklist ? (
-            <span className="text-[11px] font-medium text-neutral-500">
-              Provas: {card.checklist!.filter((i) => i.feito).length}/{card.checklist!.length}
-            </span>
-          ) : card.descricao ? (
-            <span className="line-clamp-1 min-w-0 text-[11px] text-neutral-500">{card.descricao}</span>
-          ) : null}
-        </div>
-      </article>
-    );
-  }
-
-  function renderColuna(column: Column, modo: 'mobile' | 'desktop') {
-    const columnCards = cardsByColumn(column.id);
-    const hasChecklist = isChecklistColumn(column);
-    const corAtiva = columnModalOpen && editingColumn && String(editingColumn.id) === String(column.id)
-      ? columnCor
-      : coresQuadro[String(column.id)];
-    const tinta = tintaQuadro(corAtiva);
-
-    return (
-      <section
-        key={`${modo}-${column.id}`}
-        id={modo === 'desktop' ? `coluna-${column.id}` : undefined}
-        style={tinta ? { backgroundColor: tinta.fundo, borderColor: tinta.borda, boxShadow: `inset 0 2px 0 ${tinta.marca}` } : undefined}
-        className={`flex w-full flex-col ${modo === 'mobile' ? 'min-h-0 flex-1' : 'h-full min-h-[280px] sm:min-h-0 sm:w-80 sm:flex-none'} ${COLUMN_SHELL}`}
-      >
-        <div className="flex shrink-0 items-start justify-between gap-3 border-b border-black/5 p-3.5 sm:p-4" style={tinta ? { borderColor: tinta.borda } : undefined}>
-          <div className="min-w-0">
-            <h2 className="flex items-center gap-2 truncate text-sm font-semibold text-neutral-900 sm:text-sm">
-              {tinta ? <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: tinta.marca }} /> : null}
-              <span className="truncate">{column.titulo}</span>
-            </h2>
-            <p className="mt-0.5 text-xs text-neutral-500">{columnCards.length} pedido(s)</p>
-          </div>
-          <div className="flex shrink-0 items-center gap-1">
-            {hasChecklist && (
-              <span className="hidden rounded-md border border-neutral-200 bg-white px-2 py-0.5 text-xs font-medium text-neutral-600 sm:inline">Checklist</span>
-            )}
-            <MenuPontos
-              tamanho={16}
-              className="flex h-10 w-10 items-center justify-center rounded-lg text-neutral-400 hover:bg-white hover:text-neutral-900"
-              itens={[
-                { id: 'editar', label: 'Editar quadro', onClick: () => openEditColumn(column) },
-                { id: 'remover', label: 'Remover quadro', perigo: true, onClick: () => deleteColumn(column) },
-              ]}
-            />
-          </div>
-        </div>
-
-        <div
-          onDragOver={(event) => {
-            event.preventDefault();
-            setDragOverColumn(column.id);
-          }}
-          onDragLeave={() => setDragOverColumn(null)}
-          onDrop={(event) => handleDrop(event, column)}
-          className={`custom-scrollbar flex-1 space-y-3 overflow-y-auto overscroll-contain bg-white p-3 pb-1 transition-colors ${dragOverColumn === column.id ? 'ring-2 ring-neutral-300 ring-inset' : ''}`}
-        >
-          {columnCards.map((card) => renderCartao(card, column))}
-
-          {columnCards.length === 0 && (
-            <div className="flex h-28 items-center justify-center rounded-xl border border-dashed border-neutral-100 bg-white px-4 text-center text-xs font-medium text-neutral-400">
-              Nenhum pedido nesta etapa
-            </div>
-          )}
-
-          <div className="sticky bottom-0 z-10 -mx-1 bg-white/95 px-1 pb-1 pt-1 backdrop-blur">
-            <button
-              type="button"
-              onClick={() => openNewOrder(column.id)}
-              className="flex h-11 w-full items-center justify-center gap-1.5 rounded-md border border-dashed border-neutral-300 bg-white text-sm font-medium text-neutral-600 transition-colors hover:bg-neutral-50 sm:h-auto sm:py-2.5 sm:text-xs sm:text-neutral-400"
-            >
-              <Plus size={14} /> Adicionar pedido
-            </button>
-          </div>
-        </div>
-      </section>
-    );
-  }
-
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-hidden px-2.5 py-2.5 font-poppins sm:gap-3 sm:px-3 sm:py-3 md:px-4 md:py-3.5">
-      <div className="flex shrink-0 flex-col gap-2.5 sm:flex-row sm:items-end sm:justify-between sm:gap-3">
-        <div className="min-w-0">
-          <h1 className="truncate text-xl font-semibold tracking-tight text-neutral-900 sm:text-2xl md:text-[2rem]">
+    <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden px-2.5 py-2.5 font-poppins sm:px-3 sm:py-3 md:px-4 md:py-3.5">
+      <div className="flex shrink-0 flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 md:text-[2rem]">
             Laboratório
-            <span className="hidden text-neutral-400 sm:inline"> · {activeClinic ? getClinicLabel(activeClinic) : 'Todas as clínicas'}</span>
+            <span className="text-neutral-400"> · {activeClinic ? getClinicLabel(activeClinic) : 'Todas as clínicas'}</span>
           </h1>
           <p className="mt-1 text-sm text-neutral-500 sm:text-base">
-            {filteredCards.length} pedido(s)
-            <span className="hidden sm:inline"> · fluxo de próteses · arraste entre colunas</span>
-            <span className="sm:hidden"> · {activeClinic ? getClinicLabel(activeClinic) : 'Todas as clínicas'}</span>
+            {filteredCards.length} pedido(s) · fluxo de próteses · arraste entre colunas
           </p>
         </div>
         <div className="flex w-full gap-2 sm:w-auto">
           <button
             type="button"
             onClick={openNewColumn}
-            className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-md border border-neutral-200 bg-white px-4 text-sm font-medium text-neutral-800 hover:bg-neutral-50 sm:h-10 sm:flex-none"
+            className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-md border border-neutral-200 bg-white px-4 text-sm font-medium text-neutral-800 hover:bg-neutral-50 sm:flex-none"
           >
             <Plus size={16} /> Quadro
           </button>
           <button
             type="button"
             onClick={() => openNewOrder()}
-            className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-md bg-neutral-900 px-4 text-sm font-medium text-white hover:bg-neutral-800 sm:h-10 sm:flex-none"
+            className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-md bg-neutral-900 px-4 text-sm font-medium text-white hover:bg-neutral-800 sm:flex-none"
           >
             <Plus size={16} /> Novo pedido
           </button>
@@ -791,27 +612,24 @@ export default function KanbanProtesesInteligente() {
 
       <Aviso mensagem={toast?.message ?? null} />
 
-      <div className={`${cardShell} flex shrink-0 flex-col gap-2 p-2.5 sm:flex-row sm:items-center sm:p-4`}>
+      <div className={`${cardShell} flex shrink-0 flex-col gap-2 p-3 sm:flex-row sm:items-center sm:p-4`}>
         <div className="flex min-w-0 flex-1 flex-col gap-2 lg:flex-row lg:items-center">
           <div className="relative min-w-0 flex-1 lg:max-w-md">
-            <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-neutral-400" />
+            <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
             <input
-              type="search"
-              inputMode="search"
-              enterKeyHint="search"
+              type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Buscar paciente, tipo, cor…"
-              className="h-11 w-full rounded-md border border-neutral-200 bg-white py-2 pl-10 pr-10 text-base text-neutral-900 outline-none placeholder:text-neutral-400 focus:border-neutral-900 sm:h-10 sm:text-sm"
+              className="h-10 w-full rounded-md border border-neutral-200 bg-white py-2 pl-10 pr-9 text-sm text-neutral-900 outline-none placeholder:text-neutral-400 focus:border-neutral-900"
             />
             {searchQuery && (
               <button
-                type="button"
                 onClick={() => setSearchQuery('')}
-                className="absolute right-1 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700"
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700"
                 title="Limpar busca"
               >
-                <X size={16} />
+                <X size={14} />
               </button>
             )}
           </div>
@@ -850,118 +668,71 @@ export default function KanbanProtesesInteligente() {
             )}
           </div>
 
-          <div className="shrink-0 lg:hidden">
+          <div className="relative shrink-0 lg:hidden">
             <button
               type="button"
-              onClick={() => setFiltersOpen(true)}
-              className={`inline-flex h-11 w-full items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition-colors sm:h-10 sm:w-auto ${filtersOpen || filtersActive ? 'bg-neutral-900 text-white' : 'border border-neutral-200 text-neutral-700 hover:bg-neutral-50'}`}
+              onClick={() => setFiltersOpen(!filtersOpen)}
+              className={`inline-flex h-10 items-center gap-2 rounded-md px-3 text-sm font-medium transition-colors ${filtersOpen || filtersActive ? 'bg-neutral-900 text-white' : 'border border-neutral-200 text-neutral-700 hover:bg-neutral-50'}`}
             >
               <Filter size={16} />
               Filtros
               {filtersActive && <span className="h-1.5 w-1.5 rounded-full bg-[#c8f053]" />}
+              <ChevronDown size={13} className={`transition-transform ${filtersOpen ? 'rotate-180' : ''}`} />
             </button>
+            {filtersOpen && (
+              <>
+                <button type="button" aria-label="Fechar filtros" className="fixed inset-0 z-40" onClick={() => setFiltersOpen(false)} />
+                <div className="absolute top-full left-0 z-50 mt-2 min-w-[260px] space-y-3 rounded-xl border border-neutral-200 bg-white p-4 shadow-xl">
+                  <div>
+                    <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-neutral-400">Período</label>
+                    <CustomSelect
+                      value={periodFilter}
+                      onChange={(v) => setPeriodFilter(v as typeof periodFilter)}
+                      options={[
+                        { value: 'all', label: 'Todos os períodos' },
+                        { value: '7d', label: 'Últimos 7 dias' },
+                        { value: '30d', label: 'Últimos 30 dias' },
+                        { value: '90d', label: 'Últimos 90 dias' },
+                      ]}
+                      size="sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-neutral-400">Status</label>
+                    <CustomSelect
+                      value={statusFilter}
+                      onChange={(v) => setStatusFilter(v as StatusKey | 'all')}
+                      options={[
+                        { value: 'all', label: 'Todos os status' },
+                        ...(['espera', 'lab', 'clinica', 'feito'] as StatusKey[]).map(k => ({ value: k, label: STATUS_TOKENS[k].label })),
+                      ]}
+                      size="sm"
+                    />
+                  </div>
+                  {filtersActive && (
+                    <button
+                      type="button"
+                      onClick={() => { setPeriodFilter('all'); setStatusFilter('all'); }}
+                      className="flex w-full items-center justify-center gap-1 pt-1 text-xs font-bold text-slate-400 hover:text-neutral-600"
+                    >
+                      <X size={13} /> Limpar filtros
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         </div>
 
-        <div className="ml-auto hidden w-36 shrink-0 text-right text-xs font-medium tabular-nums text-neutral-400 sm:block sm:text-sm">
+        <div className="ml-auto w-36 shrink-0 text-right text-xs font-medium tabular-nums text-neutral-400 sm:text-sm">
           {filteredCards.length} de {cards.length} pedido(s)
         </div>
       </div>
 
-      {/* Gaveta de filtros (celular/tablet) */}
-      {filtersOpen && (
-        <div className="fixed inset-0 z-[120] flex items-end justify-center lg:hidden">
-          <button type="button" aria-label="Fechar filtros" onClick={() => setFiltersOpen(false)} className="absolute inset-0 bg-black/30" />
-          <div className="relative w-full rounded-t-[1.5rem] border border-neutral-200 bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-2xl">
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-base font-semibold text-neutral-900">Filtros</h2>
-              <button type="button" onClick={() => setFiltersOpen(false)} aria-label="Fechar" className="flex h-10 w-10 items-center justify-center rounded-full text-neutral-500 hover:bg-neutral-100">
-                <X size={18} />
-              </button>
-            </div>
-            <div className="space-y-3">
-              <div>
-                <label className="mb-1 block text-xs font-medium text-neutral-500">Período</label>
-                <CustomSelect
-                  value={periodFilter}
-                  onChange={(v) => setPeriodFilter(v as typeof periodFilter)}
-                  options={[
-                    { value: 'all', label: 'Todos os períodos' },
-                    { value: '7d', label: 'Últimos 7 dias' },
-                    { value: '30d', label: 'Últimos 30 dias' },
-                    { value: '90d', label: 'Últimos 90 dias' },
-                  ]}
-                  size="md"
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-neutral-500">Status</label>
-                <CustomSelect
-                  value={statusFilter}
-                  onChange={(v) => setStatusFilter(v as StatusKey | 'all')}
-                  options={[
-                    { value: 'all', label: 'Todos os status' },
-                    ...(['espera', 'lab', 'clinica', 'feito'] as StatusKey[]).map(k => ({ value: k, label: STATUS_TOKENS[k].label })),
-                  ]}
-                  size="md"
-                />
-              </div>
-            </div>
-            <div className="mt-4 flex gap-2">
-              <button
-                type="button"
-                onClick={() => { setPeriodFilter('all'); setStatusFilter('all'); }}
-                disabled={!filtersActive}
-                className="h-11 flex-1 rounded-md border border-neutral-200 text-sm font-medium text-neutral-700 disabled:opacity-40"
-              >
-                Limpar
-              </button>
-              <button
-                type="button"
-                onClick={() => setFiltersOpen(false)}
-                className="h-11 flex-[1.6] rounded-md bg-neutral-900 text-sm font-medium text-white"
-              >
-                Ver {filteredCards.length} pedido(s)
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Celular: etapas em chips roláveis (uma coluna por vez) */}
       {columns.length > 0 && (
-        <div className="-mx-0.5 flex shrink-0 items-center gap-1.5 overflow-x-auto px-0.5 pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:hidden">
-          {columns.map((col) => {
-            const count = cardsByColumn(col.id).length;
-            const tinta = tintaQuadro(coresQuadro[String(col.id)]);
-            const ativa = col.id === colunaMobile?.id;
-            return (
-              <button
-                key={col.id}
-                type="button"
-                onClick={() => setMobileColumnId(col.id)}
-                aria-pressed={ativa}
-                className={`flex h-10 shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors ${ativa ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-200 bg-white text-neutral-600'}`}
-              >
-                <span
-                  className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full"
-                  style={tinta ? { backgroundColor: tinta.marca, color: tinta.texto } : undefined}
-                >
-                  {getColumnIcon(col)}
-                </span>
-                <span className="max-w-[8.5rem] truncate">{col.titulo}</span>
-                <span className={`shrink-0 rounded-full px-1.5 text-[11px] font-semibold tabular-nums ${ativa ? 'bg-white/20 text-white' : 'bg-neutral-100 text-neutral-500'}`}>{count}</span>
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Fluxo do processo — desktop/tablet (no celular os chips acima fazem esse papel) */}
-      {columns.length > 0 && (
-        <div className={`${cardShell} hidden shrink-0 px-4 py-3 sm:block sm:py-2.5`}>
+        <div className={`${cardShell} shrink-0 px-4 py-3 sm:py-2.5`}>
           <p className="mb-2 text-xs font-medium text-neutral-500">Fluxo do processo</p>
-          <div ref={flowBarRef} className="flex flex-wrap items-center gap-1">
+          <div ref={flowBarRef} className="flex items-center gap-1 flex-wrap">
             {columns.slice(0, maxVisibleFlow).map((col, idx) => {
               const count = cardsByColumn(col.id).length;
               const tinta = tintaQuadro(coresQuadro[String(col.id)]);
@@ -973,7 +744,7 @@ export default function KanbanProtesesInteligente() {
                     className="flex items-center gap-2 rounded-md border border-transparent px-3 py-2 text-xs font-medium text-neutral-600 transition-colors hover:border-neutral-200 hover:bg-[#f3f4f1] hover:text-neutral-900"
                   >
                     <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-600" style={tinta ? { color: tinta.marca } : undefined}>{getColumnIcon(col)}</span>
-                    <span className="hidden whitespace-nowrap sm:inline">{col.titulo}</span>
+                    <span className="hidden sm:inline whitespace-nowrap">{col.titulo}</span>
                     <span className="shrink-0 rounded-md bg-neutral-100 px-1.5 py-0.5 text-xs font-medium text-neutral-500">{count}</span>
                   </button>
                   {idx < maxVisibleFlow - 1 && columns.length > 1 && <ChevronRight size={14} className="shrink-0 text-neutral-300" />}
@@ -982,7 +753,7 @@ export default function KanbanProtesesInteligente() {
             })}
 
             {columns.length > maxVisibleFlow && (
-              <div className="relative ml-1 shrink-0">
+              <div className="relative shrink-0 ml-1">
                 <button
                   type="button"
                   onClick={() => setFlowDropdownOpen(!flowDropdownOpen)}
@@ -994,7 +765,7 @@ export default function KanbanProtesesInteligente() {
                 {flowDropdownOpen && (
                   <>
                     <button type="button" aria-label="Fechar" className="fixed inset-0 z-40" onClick={() => setFlowDropdownOpen(false)} />
-                    <div className="absolute right-0 top-full z-50 mt-2 min-w-[240px] rounded-xl border border-neutral-200 bg-white py-2 shadow-xl">
+                    <div className="absolute top-full right-0 z-50 mt-2 min-w-[240px] rounded-xl border border-neutral-200 bg-white py-2 shadow-xl">
                       <p className="px-4 py-1.5 text-xs font-medium text-neutral-500">Etapas ({columns.length})</p>
                       {columns.slice(maxVisibleFlow).map((col, idx) => {
                         const count = cardsByColumn(col.id).length;
@@ -1026,44 +797,119 @@ export default function KanbanProtesesInteligente() {
 
       <div className={`${cardShell} flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden`}>
         {loading && !jaCarregou.current ? (
-          <div className="flex min-h-0 flex-1 flex-col gap-3 px-2.5 pb-2 pt-2.5 sm:flex-row sm:overflow-x-auto sm:px-4 sm:pb-2 sm:pt-4">
+          <div className="kanban-scrollbar flex min-h-0 flex-1 gap-3 overflow-x-auto px-3 pb-2 pt-3 sm:px-4 sm:pt-4">
             {Array.from({ length: 4 }).map((_, i) => (
-              <div
-                key={i}
-                className={`animate-pulse rounded-xl bg-neutral-100 ${i === 0 ? 'min-h-[200px] flex-1 sm:h-full sm:min-h-0 sm:w-72 sm:flex-none' : 'hidden h-full min-h-[280px] w-72 shrink-0 sm:block sm:min-h-0'}`}
-              />
+              <div key={i} className="h-full min-h-[280px] w-72 shrink-0 animate-pulse rounded-xl bg-neutral-100 sm:min-h-0" />
             ))}
           </div>
-        ) : columns.length === 0 ? (
-          <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 py-10 text-center">
-            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-neutral-100 text-neutral-400">
-              <ClipboardList size={22} />
-            </span>
-            <div>
-              <p className="text-base font-semibold text-neutral-900">Nenhuma etapa no laboratório</p>
-              <p className="mx-auto mt-1 max-w-xs text-sm text-neutral-500">Crie o primeiro quadro para começar a acompanhar as próteses.</p>
-            </div>
-            <button
-              type="button"
-              onClick={openNewColumn}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-neutral-900 px-4 text-sm font-medium text-white"
-            >
-              <Plus size={16} /> Criar quadro
-            </button>
-          </div>
         ) : (
-          <>
-            {/* Celular: uma etapa por vez */}
-            <div className="flex min-h-0 flex-1 flex-col p-2.5 sm:hidden">
-              {colunaMobile ? renderColuna(colunaMobile, 'mobile') : null}
+          <div className="kanban-scrollbar min-h-0 flex-1 overflow-x-auto overflow-y-hidden px-3 pb-3 pt-3 sm:px-4 sm:pb-4 sm:pt-4">
+            <div className="flex h-full min-h-[280px] min-w-min flex-col gap-4 sm:min-h-0 sm:flex-row sm:items-stretch">
+              {columns.map((column) => {
+                const columnCards = cardsByColumn(column.id);
+                const hasChecklist = isChecklistColumn(column);
+                const corAtiva = columnModalOpen && editingColumn && String(editingColumn.id) === String(column.id)
+                  ? columnCor
+                  : coresQuadro[String(column.id)];
+                const tinta = tintaQuadro(corAtiva);
+
+                return (
+                  <section
+                    key={column.id}
+                    id={`coluna-${column.id}`}
+                    style={tinta ? { backgroundColor: tinta.fundo, borderColor: tinta.borda, boxShadow: `inset 0 2px 0 ${tinta.marca}` } : undefined}
+                    className={`flex h-full min-h-[280px] w-full flex-col sm:min-h-0 sm:w-80 sm:flex-none ${COLUMN_SHELL}`}
+                  >
+                    <div className="flex items-start justify-between gap-3 border-b border-black/5 p-4" style={tinta ? { borderColor: tinta.borda } : undefined}>
+                      <div className="min-w-0">
+                        <h2 className="flex items-center gap-2 truncate text-sm font-semibold text-neutral-900">
+                          {tinta ? <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: tinta.marca }} /> : null}
+                          <span className="truncate">{column.titulo}</span>
+                        </h2>
+                        <p className="mt-0.5 text-xs text-neutral-500">{columnCards.length} pedido(s)</p>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-1">
+                        {hasChecklist && (
+                          <span className="rounded-md border border-neutral-200 bg-white px-2 py-0.5 text-xs font-medium text-neutral-600">Checklist</span>
+                        )}
+                        <MenuPontos
+                          tamanho={14}
+                          className="rounded-md p-1.5 text-neutral-400 hover:bg-white hover:text-neutral-900"
+                          itens={[
+                            { id: 'editar', label: 'Editar quadro', onClick: () => openEditColumn(column) },
+                            { id: 'remover', label: 'Remover quadro', perigo: true, onClick: () => deleteColumn(column) },
+                          ]}
+                        />
+                      </div>
+                    </div>
+
+                    <div
+                      onDragOver={(event) => {
+                        event.preventDefault();
+                        setDragOverColumn(column.id);
+                      }}
+                      onDragLeave={() => setDragOverColumn(null)}
+                      onDrop={(event) => handleDrop(event, column)}
+                      className={`custom-scrollbar flex-1 space-y-3 overflow-y-auto bg-white p-3 transition-colors ${dragOverColumn === column.id ? 'ring-2 ring-neutral-300 ring-inset' : ''}`}
+                    >
+                      {columnCards.map((card) => {
+                        const status = cardStatus(card);
+                        const tokens = STATUS_TOKENS[status];
+                        return (
+                        <article
+                          key={card.id}
+                          draggable
+                          onDragStart={() => setDraggedCard(card)}
+                          onDragEnd={() => {
+                            setDraggedCard(null);
+                            setDragOverColumn(null);
+                          }}
+                          className={`cursor-grab rounded-xl border border-neutral-200 bg-white p-3 transition-colors active:cursor-grabbing ${draggedCard?.id === card.id ? 'border-dashed opacity-50' : ''}`}
+                        >
+                          <div className="mb-1 flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-semibold text-neutral-900">{card.paciente_nome}</p>
+                              <p className="mt-0.5 truncate text-xs font-medium text-neutral-500">
+                                {card.tipo_protese || card.categoria || 'Prótese'}
+                                {card.cor_dente ? ` · ${card.cor_dente}` : ''}
+                              </p>
+                            </div>
+                            <div className="flex shrink-0 items-center gap-1" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
+                              <span className="rounded-md bg-neutral-100 px-1.5 py-0.5 text-xs font-medium text-neutral-600">{tokens.label}</span>
+                              <MenuPontos
+                                tamanho={14}
+                                className="rounded-md p-1 text-neutral-400 hover:bg-neutral-50 hover:text-neutral-900"
+                                itens={[
+                                  { id: 'editar', label: 'Editar', onClick: () => openEditOrder(card) },
+                                  { id: 'excluir', label: 'Excluir', perigo: true, onClick: () => deleteCard(card.id) },
+                                ]}
+                              />
+                            </div>
+                          </div>
+
+                          {hasChecklist && Array.isArray(card.checklist) && card.checklist.length > 0 ? (
+                            <p className="text-xs font-medium text-neutral-500">
+                              Provas: {card.checklist.filter(i => i.feito).length}/{card.checklist.length}
+                            </p>
+                          ) : card.descricao ? (
+                            <p className="line-clamp-1 text-xs text-neutral-500">{card.descricao}</p>
+                          ) : null}
+                        </article>
+                        );
+                      })}
+
+                      {columnCards.length === 0 && (
+                        <div className="flex h-32 items-center justify-center rounded-xl border border-dashed border-neutral-100 bg-white text-xs font-medium text-neutral-300">Arraste pedidos para cá</div>
+                      )}
+                      <button type="button" onClick={() => openNewOrder(column.id)} className="flex w-full items-center justify-center gap-1 rounded-md border border-dashed border-neutral-200 bg-white py-2.5 text-xs font-medium text-neutral-400 transition-colors hover:bg-neutral-50">
+                        <Plus size={13} /> Adicionar pedido
+                      </button>
+                    </div>
+                  </section>
+                );
+              })}
             </div>
-            {/* Desktop/tablet: kanban horizontal */}
-            <div className="kanban-scrollbar hidden min-h-0 flex-1 overflow-x-auto overflow-y-hidden px-3 pb-3 pt-3 sm:block sm:px-4 sm:pb-4 sm:pt-4">
-              <div className="flex h-full min-h-0 min-w-min items-stretch gap-4">
-                {columns.map((column) => renderColuna(column, 'desktop'))}
-              </div>
-            </div>
-          </>
+          </div>
         )}
       </div>
 
@@ -1081,36 +927,36 @@ export default function KanbanProtesesInteligente() {
         onPatientCreated={(paciente) => setPatients((current) => [...current, paciente].sort((a, b) => a.nome.localeCompare(b.nome)))}
         onAviso={showToast}
       />
-      <Modal open={columnModalOpen} onClose={() => setColumnModalOpen(false)} maxWidth="md" zIndex={86} closeOnBackdrop={false} hideCloseButton panelClassName="flex max-h-[92dvh] flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white sm:max-h-[85vh]">
-          <div className="flex shrink-0 items-center justify-between gap-3 border-b border-neutral-200 p-4 sm:items-start sm:p-5">
-              <div className="min-w-0">
+      <Modal open={columnModalOpen} onClose={() => setColumnModalOpen(false)} maxWidth="md" zIndex={86} closeOnBackdrop={false} hideCloseButton panelClassName="flex max-h-[85vh] flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white">
+          <div className="flex shrink-0 items-start justify-between gap-4 border-b border-neutral-200 p-5">
+              <div>
                 <p className="text-xs font-medium text-neutral-500">{editingColumn ? 'Editar quadro' : 'Novo quadro'}</p>
-                <h2 className="truncate text-base font-semibold text-neutral-900">{editingColumn ? 'Configurar etapa' : 'Criar nova etapa'}</h2>
+                <h2 className="text-base font-semibold text-neutral-900">{editingColumn ? 'Configurar etapa' : 'Criar nova etapa'}</h2>
               </div>
-              <button onClick={() => setColumnModalOpen(false)} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-neutral-500 hover:bg-neutral-100 sm:h-9 sm:w-9 sm:rounded-md" aria-label="Fechar"><X size={20} /></button>
+              <button onClick={() => setColumnModalOpen(false)} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-100" aria-label="Fechar"><X size={16} /></button>
             </div>
 
-            <div className="custom-scrollbar flex-1 space-y-5 overflow-y-auto overscroll-contain p-4 sm:p-5">
+            <div className="flex-1 space-y-5 overflow-y-auto p-5">
               <div>
                 <label className="text-xs font-medium text-neutral-500">Nome do quadro</label>
-                <input autoFocus value={columnTitle} onChange={(event) => setColumnTitle(event.target.value)} className="mt-1.5 h-11 w-full rounded-md border border-neutral-200 bg-white px-3 text-base font-medium text-neutral-900 outline-none focus:border-neutral-900 sm:h-10 sm:text-sm" placeholder="Ex: Ajuste final, Polimento..." />
+                <input autoFocus value={columnTitle} onChange={(event) => setColumnTitle(event.target.value)} className="mt-1.5 h-10 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-900 outline-none focus:border-neutral-900" placeholder="Ex: Ajuste final, Polimento..." />
               </div>
 
               <div>
                 <label className="mb-2 block text-xs font-medium text-neutral-500">Cor</label>
                 <div className="flex flex-wrap gap-1.5">
-                  <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setColumnCor(''); }} className={`h-10 w-10 rounded-lg border bg-[#f3f4f1] ${columnCor ? 'border-neutral-200' : 'border-neutral-900'}`} aria-label="Sem cor" />
+                  <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setColumnCor(''); }} className={`h-7 w-7 rounded-md border bg-[#f3f4f1] ${columnCor ? 'border-neutral-200' : 'border-neutral-900'}`} aria-label="Sem cor" />
                   {CORES_QUADRO.map((hex) => (
                     <button
                       key={hex}
                       type="button"
                       onClick={(e) => { e.preventDefault(); e.stopPropagation(); setColumnCor(hex); }}
-                      className={`h-10 w-10 rounded-lg border-2 ${columnCor === hex ? 'border-neutral-900' : 'border-transparent'}`}
+                      className={`h-7 w-7 rounded-md border-2 ${columnCor === hex ? 'border-neutral-900' : 'border-transparent'}`}
                       style={{ backgroundColor: hex }}
                       aria-label={hex}
                     />
                   ))}
-                  <label className={`relative flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-lg border-2 ${columnCor && !CORES_QUADRO.includes(columnCor) ? 'border-neutral-900' : 'border-neutral-200'}`} style={{ background: columnCor && !CORES_QUADRO.includes(columnCor) ? columnCor : 'conic-gradient(#94a3b8, #60a5fa, #34d399, #fbbf24, #fb7185, #a78bfa, #94a3b8)' }} aria-label="Cor personalizada">
+                  <label className={`relative flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-md border-2 ${columnCor && !CORES_QUADRO.includes(columnCor) ? 'border-neutral-900' : 'border-neutral-200'}`} style={{ background: columnCor && !CORES_QUADRO.includes(columnCor) ? columnCor : 'conic-gradient(#94a3b8, #60a5fa, #34d399, #fbbf24, #fb7185, #a78bfa, #94a3b8)' }} aria-label="Cor personalizada">
                     <input type="color" value={/^#[0-9a-fA-F]{6}$/.test(columnCor) ? columnCor : '#94a3b8'} onChange={(event) => setColumnCor(event.target.value)} onClick={(event) => event.stopPropagation()} className="absolute inset-0 h-full w-full cursor-pointer opacity-0" />
                     {columnCor && !CORES_QUADRO.includes(columnCor) && <Pipette size={12} className="pointer-events-none text-white mix-blend-difference" />}
                   </label>
@@ -1119,13 +965,13 @@ export default function KanbanProtesesInteligente() {
 
               <div>
                 <label className="mb-2 block text-xs font-medium text-neutral-500">Ícone do quadro</label>
-                <div className="grid grid-cols-6 gap-1.5 sm:grid-cols-8">
+                <div className="grid grid-cols-8 gap-1.5">
                   {ICON_PICKER_OPTIONS.map((slug) => (
                     <button
                       key={slug}
                       type="button"
                       onClick={() => setColumnIcon(slug)}
-                      className={`flex h-11 w-11 items-center justify-center rounded-lg sm:h-9 sm:w-9 sm:rounded-md ${columnIcon === slug ? 'bg-neutral-900 text-white' : 'border border-neutral-200 bg-white text-neutral-500 hover:bg-neutral-50'}`}
+                      className={`flex h-9 w-9 items-center justify-center rounded-md ${columnIcon === slug ? 'bg-neutral-900 text-white' : 'border border-neutral-200 bg-white text-neutral-500 hover:bg-neutral-50'}`}
                     >
                       {ICON_MAP[slug]}
                     </button>
@@ -1142,9 +988,9 @@ export default function KanbanProtesesInteligente() {
               </div>
             </div>
 
-            <div className="flex shrink-0 gap-2 border-t border-neutral-200 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:p-5">
-              <button type="button" onClick={() => setColumnModalOpen(false)} className="h-11 shrink-0 rounded-md px-4 text-sm font-medium text-neutral-500 hover:bg-neutral-50 sm:h-9 sm:px-3">Cancelar</button>
-              <button type="button" onClick={saveColumn} disabled={saving || !columnTitle.trim()} className="h-11 flex-1 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:bg-neutral-100 disabled:text-neutral-400 sm:h-9">
+            <div className="flex shrink-0 gap-2 border-t border-neutral-200 p-5">
+              <button type="button" onClick={() => setColumnModalOpen(false)} className="h-9 rounded-md px-3 text-sm font-medium text-neutral-500 hover:bg-neutral-50">Cancelar</button>
+              <button type="button" onClick={saveColumn} disabled={saving || !columnTitle.trim()} className="h-9 flex-1 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:bg-neutral-100 disabled:text-neutral-400">
                 {editingColumn ? 'Salvar Quadro' : 'Criar Quadro'}
               </button>
             </div>

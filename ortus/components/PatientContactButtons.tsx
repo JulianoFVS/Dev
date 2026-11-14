@@ -111,7 +111,7 @@ export default function PatientContactButtons({
       type="button"
       onClick={() => enviar(canal)}
       disabled={!!loading}
-      className={`flex min-h-[44px] items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-colors disabled:opacity-50 ${styles}`}
+      className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors disabled:opacity-50 ${styles}`}
     >
       {loading === canal ? <Loader2 size={12} className="animate-spin" /> : <Icon size={12} />}
       {label}
@@ -128,7 +128,7 @@ export default function PatientContactButtons({
     );
   }
 
-  const pill = 'inline-flex h-11 w-11 items-center justify-center gap-1.5 rounded-full text-xs font-medium transition-colors disabled:opacity-50 sm:h-8 sm:w-auto sm:px-3';
+  const pill = 'inline-flex h-8 items-center justify-center gap-1.5 rounded-full text-xs font-medium transition-colors disabled:opacity-50 max-sm:w-8 sm:px-3';
 
   return (
     <div className={`flex flex-wrap items-center gap-1.5 ${className}`}>

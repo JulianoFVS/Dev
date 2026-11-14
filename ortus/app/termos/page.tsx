@@ -3,7 +3,7 @@ import { ArrowLeft } from 'lucide-react';
 
 export default function Termos() {
   return (
-    <div className="min-h-[100dvh] bg-slate-50 py-10 px-4">
+    <div className="min-h-screen bg-slate-50 py-10 px-4">
       <div className="max-w-3xl mx-auto bg-white p-10 rounded-3xl shadow-sm border border-slate-200">
         <button onClick={() => window.history.back()} className="inline-flex items-center gap-2 text-slate-400 hover:text-blue-600 font-bold mb-8 transition-colors"><ArrowLeft size={18}/> Voltar</button>
 

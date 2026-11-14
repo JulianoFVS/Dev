@@ -17,13 +17,13 @@ export default function LandingPage() {
   }, []);
 
   return (
-    <div className="min-h-[100dvh] bg-white font-sans text-slate-900 selection:bg-sky-100">
+    <div className="min-h-screen bg-white font-sans text-slate-900 selection:bg-sky-100">
       <LandingNavbar />
       <HeroOrtus />
 
-      <section id="funcionalidades" className="scroll-mt-24 py-16 sm:py-24">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6">
-          <div className="mx-auto mb-10 max-w-2xl text-center sm:mb-16">
+      <section id="funcionalidades" className="scroll-mt-24 py-24">
+        <div className="mx-auto max-w-7xl px-6">
+          <div className="mx-auto mb-16 max-w-2xl text-center">
             <h2 className="mb-4 font-poppins text-3xl font-extrabold tracking-tight text-[#1a1a1a] md:text-4xl">
               Tudo o que você precisa
             </h2>
@@ -40,12 +40,12 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <section id="precos" className="scroll-mt-24 border-t border-slate-100 py-16 sm:py-24">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6">
-          <h2 className="mb-10 text-center font-poppins text-3xl font-extrabold tracking-tight text-[#1a1a1a] sm:mb-16 md:text-4xl">
+      <section id="precos" className="scroll-mt-24 border-t border-slate-100 py-24">
+        <div className="mx-auto max-w-7xl px-6">
+          <h2 className="mb-16 text-center font-poppins text-3xl font-extrabold tracking-tight text-[#1a1a1a] md:text-4xl">
             Planos flexíveis
           </h2>
-          <div className="mx-auto grid max-w-5xl grid-cols-1 gap-6 sm:gap-8 md:grid-cols-3">
+          <div className="mx-auto grid max-w-5xl grid-cols-1 gap-8 md:grid-cols-3">
             <CardPreco titulo="Básico" valor="97" recursos={['1 Profissional', 'Agenda', 'Prontuário Simples']} />
             <CardPreco destaque titulo="Profissional" valor="197" recursos={['Até 3 Profissionais', 'Financeiro Completo', 'Anamnese Personalizada', 'Suporte Prioritário']} />
             <CardPreco titulo="Clínica" valor="297" recursos={['Profissionais Ilimitados', 'Multi-Clínicas', 'Gestão Avançada', 'API de Integração']} />
@@ -53,7 +53,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <footer id="contato" className="scroll-mt-24 border-t border-slate-800 bg-slate-900 px-4 py-10 text-slate-400 sm:px-6 sm:py-12">
+      <footer id="contato" className="scroll-mt-24 border-t border-slate-800 bg-slate-900 px-6 py-12 text-slate-400">
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-6 md:flex-row">
           <Link href="/" onClick={scrollToTop} className="flex items-center gap-2 opacity-50 grayscale transition-all hover:grayscale-0">
             <img src="/landing/ortus-wordmark.svg" className="h-7" alt="ortus" />
@@ -72,7 +72,7 @@ export default function LandingPage() {
 function CardRecurso({ icon, titulo, desc, cor }: { icon: ReactNode; titulo: string; desc: string; cor: 'blue' | 'green' | 'purple' }) {
   const cores = { blue: 'bg-blue-50 text-ortus-blue', green: 'bg-emerald-50 text-emerald-600', purple: 'bg-purple-50 text-purple-600' };
   return (
-    <div className="rounded-3xl border border-slate-100 bg-white p-6 sm:p-8">
+    <div className="rounded-3xl border border-slate-100 bg-white p-8">
       <div className={`mb-6 flex h-16 w-16 items-center justify-center rounded-2xl ${cores[cor]}`}>{icon}</div>
       <h3 className="mb-3 font-poppins text-xl font-bold text-slate-800">{titulo}</h3>
       <p className="font-poppins font-medium leading-relaxed text-slate-500">{desc}</p>
@@ -82,10 +82,10 @@ function CardRecurso({ icon, titulo, desc, cor }: { icon: ReactNode; titulo: str
 
 function CardPreco({ titulo, valor, recursos, destaque }: { titulo: string; valor: string; recursos: string[]; destaque?: boolean }) {
   return (
-    <div className={`flex flex-col rounded-3xl border p-6 sm:p-8 ${destaque ? 'z-10 border-slate-800 bg-slate-900 text-white md:scale-105' : 'border-slate-200 bg-white text-slate-800'}`}>
+    <div className={`flex flex-col rounded-3xl border p-8 ${destaque ? 'z-10 scale-105 border-slate-800 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-800'}`}>
       <h3 className={`mb-2 text-sm font-bold uppercase tracking-wider ${destaque ? 'text-sky-300' : 'text-slate-400'}`}>{titulo}</h3>
       <div className="mb-6 flex items-end gap-1">
-        <span className="text-3xl font-black sm:text-4xl">R$ {valor}</span>
+        <span className="text-4xl font-black">R$ {valor}</span>
         <span className="mb-1 font-bold">/mês</span>
       </div>
       <ul className="mb-8 flex-1 space-y-4">

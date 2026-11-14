@@ -178,7 +178,7 @@ export function PatientSlideOverProvider({ children }: { children: React.ReactNo
         zIndex={80}
         maxWidth="lg"
         hideCloseButton
-        panelClassName="flex max-h-[92dvh] flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white sm:max-h-[85vh]"
+        panelClassName="flex max-h-[85vh] flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white"
       >
         <div className="flex shrink-0 items-start justify-between gap-3 border-b border-black/5 px-5 py-4 sm:px-6">
           <div className="min-w-0">
@@ -270,11 +270,11 @@ export function PatientSlideOverProvider({ children }: { children: React.ReactNo
         </div>
 
         {patient && (
-          <div className="flex shrink-0 justify-stretch border-t border-black/5 px-5 py-4 sm:justify-end sm:px-6">
+          <div className="flex shrink-0 justify-end border-t border-black/5 px-5 py-4 sm:px-6">
             <Link
               href={`/pacientes/${patient.id}`}
               onClick={closePatient}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-neutral-900 px-4 text-sm font-medium text-white hover:bg-neutral-800 sm:h-10"
+              className="inline-flex h-10 items-center gap-2 rounded-md bg-neutral-900 px-4 text-sm font-medium text-white hover:bg-neutral-800"
             >
               Abrir prontuário
               <ExternalLink size={14} />

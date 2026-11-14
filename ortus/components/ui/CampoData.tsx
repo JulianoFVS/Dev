@@ -49,14 +49,12 @@ export default function CampoData({ value, onChange, disabled, className = '' }:
     if (!aberto || !botaoRef.current) return;
     const atualizar = () => {
       const rect = botaoRef.current!.getBoundingClientRect();
-      const altura = 316;
+      const altura = 292;
       const abaixo = window.innerHeight - rect.bottom;
       const abrirCima = abaixo < altura && rect.top > abaixo;
-      // No celular o calendário precisa de largura confortável para o toque.
-      const largura = Math.min(Math.max(rect.width, 264), window.innerWidth - 16);
       setPosicao({
-        left: Math.min(Math.max(8, rect.left), Math.max(8, window.innerWidth - largura - 8)),
-        width: largura,
+        left: Math.min(rect.left, window.innerWidth - 248),
+        width: Math.max(rect.width, 232),
         top: abrirCima ? undefined : rect.bottom + 6,
         bottom: abrirCima ? window.innerHeight - rect.top + 6 : undefined,
       });
@@ -94,12 +92,12 @@ export default function CampoData({ value, onChange, disabled, className = '' }:
       className="fixed z-[9999] rounded-lg border border-neutral-200 bg-white p-3 shadow-[0_8px_24px_rgba(0,0,0,0.08)]"
       style={{ top: posicao.top, bottom: posicao.bottom, left: posicao.left, width: posicao.width }}
     >
-      <div className="mb-2 flex items-center justify-between gap-1">
-        <button type="button" onClick={() => setCursor(new Date(ano, mes - 1, 1))} className="flex h-9 w-9 items-center justify-center rounded-md text-neutral-600 hover:bg-neutral-100 sm:h-8 sm:w-8" aria-label="Mês anterior">
+      <div className="mb-2 flex items-center justify-between">
+        <button type="button" onClick={() => setCursor(new Date(ano, mes - 1, 1))} className="flex h-7 w-7 items-center justify-center rounded-md text-neutral-600 hover:bg-neutral-100" aria-label="Mês anterior">
           <ChevronLeft size={16} />
         </button>
         <p className="text-sm font-medium capitalize text-neutral-900">{MESES[mes]} {ano}</p>
-        <button type="button" onClick={() => setCursor(new Date(ano, mes + 1, 1))} className="flex h-9 w-9 items-center justify-center rounded-md text-neutral-600 hover:bg-neutral-100 sm:h-8 sm:w-8" aria-label="Próximo mês">
+        <button type="button" onClick={() => setCursor(new Date(ano, mes + 1, 1))} className="flex h-7 w-7 items-center justify-center rounded-md text-neutral-600 hover:bg-neutral-100" aria-label="Próximo mês">
           <ChevronRight size={16} />
         </button>
       </div>
@@ -117,7 +115,7 @@ export default function CampoData({ value, onChange, disabled, className = '' }:
               key={iso}
               type="button"
               onClick={() => { onChange(iso); setAberto(false); }}
-              className={`h-9 w-full rounded-md text-xs font-medium sm:h-8 ${ativo ? 'bg-neutral-900 text-white' : ehHoje ? 'text-neutral-900 ring-1 ring-neutral-300' : 'text-neutral-700 hover:bg-neutral-100'}`}
+              className={`h-8 rounded-md text-xs font-medium ${ativo ? 'bg-neutral-900 text-white' : ehHoje ? 'text-neutral-900 ring-1 ring-neutral-300' : 'text-neutral-700 hover:bg-neutral-100'}`}
             >
               {dia}
             </button>
@@ -125,8 +123,8 @@ export default function CampoData({ value, onChange, disabled, className = '' }:
         })}
       </div>
       <div className="mt-2 flex justify-between border-t border-neutral-100 pt-2">
-        <button type="button" onClick={() => { onChange(''); setAberto(false); }} className="min-h-[36px] px-1 text-xs font-medium text-neutral-500 hover:text-neutral-900">Limpar</button>
-        <button type="button" onClick={() => { onChange(hoje); setAberto(false); }} className="min-h-[36px] px-1 text-xs font-medium text-neutral-900">Hoje</button>
+        <button type="button" onClick={() => { onChange(''); setAberto(false); }} className="text-xs font-medium text-neutral-500 hover:text-neutral-900">Limpar</button>
+        <button type="button" onClick={() => { onChange(hoje); setAberto(false); }} className="text-xs font-medium text-neutral-900">Hoje</button>
       </div>
     </div>
   );
@@ -138,7 +136,7 @@ export default function CampoData({ value, onChange, disabled, className = '' }:
         type="button"
         disabled={disabled}
         onClick={() => !disabled && setAberto((v) => !v)}
-        className={`box-border flex h-11 w-full items-center rounded-md border border-neutral-200 bg-white px-3 text-left text-sm text-neutral-900 outline-none disabled:cursor-default sm:h-10 ${className}`}
+        className={`box-border flex h-10 w-full items-center rounded-md border border-neutral-200 bg-white px-3 text-left text-sm text-neutral-900 outline-none disabled:cursor-default ${className}`}
       >
         <span className={value ? '' : 'text-neutral-400'}>{rotulo(value) || 'dd/mm/aaaa'}</span>
       </button>

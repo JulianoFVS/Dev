@@ -169,10 +169,7 @@ export default function MobileAppChrome({
         </Link>
       </header>
 
-      {/* Rola no mobile e também no desktop quando a página passa da altura
-          da janela — assim nenhum conteúdo fica cortado em telas baixas.
-          O respiro inferior evita que a barra flutuante cubra o conteúdo. */}
-      <div className="app-scroll flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto overscroll-contain">
+      <div className="flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto overscroll-contain lg:overflow-y-hidden">
         {children}
       </div>
 

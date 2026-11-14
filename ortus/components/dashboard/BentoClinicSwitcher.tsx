@@ -91,13 +91,13 @@ export default function BentoClinicSwitcher({
       : 'flex w-full max-w-full items-center gap-2 rounded-2xl bg-white/10 px-3 py-2.5 text-left text-sm font-medium text-white/90 transition-colors hover:bg-white/15'
     : collapsed
       ? 'flex h-9 w-9 items-center justify-center rounded-xl border border-black/10 bg-white text-neutral-700 shadow-[0_1px_0_rgba(0,0,0,0.04)] hover:bg-neutral-50'
-      : 'flex min-h-11 max-w-full items-center gap-2 rounded-full border border-black/10 bg-white py-2 pl-3 pr-2.5 text-left text-[13px] font-medium text-neutral-800 shadow-[0_1px_0_rgba(0,0,0,0.04)] transition-colors hover:border-black/15 hover:bg-neutral-50 sm:min-h-0 sm:text-sm';
+      : 'flex max-w-full items-center gap-2 rounded-full border border-black/10 bg-white py-2 pl-3 pr-2.5 text-left text-[13px] font-medium text-neutral-800 shadow-[0_1px_0_rgba(0,0,0,0.04)] transition-colors hover:border-black/15 hover:bg-neutral-50 sm:text-sm';
 
   const iconClass = isSidebar ? 'shrink-0 text-white/70' : 'shrink-0 text-neutral-500';
   const chevronClass = isSidebar ? 'shrink-0 text-white/45' : 'shrink-0 text-neutral-400';
 
   const panelClass =
-    'z-[200] max-h-[min(70dvh,22rem)] w-[min(100vw-1.5rem,18rem)] overflow-hidden overflow-y-auto overscroll-contain rounded-[1.15rem] border border-black/8 bg-white shadow-[0_12px_40px_rgba(0,0,0,0.12)] sm:rounded-[1.25rem]';
+    'z-[200] max-h-[min(70vh,22rem)] w-[min(100vw-1.5rem,18rem)] overflow-hidden overflow-y-auto rounded-[1.15rem] border border-black/8 bg-white shadow-[0_12px_40px_rgba(0,0,0,0.12)] sm:rounded-[1.25rem]';
 
   const trigger = (
     <button
@@ -140,7 +140,7 @@ export default function BentoClinicSwitcher({
           className={`${panelClass} fixed`}
           style={{ top: panelPos.top, left: panelPos.left }}
         >
-          <p className="sticky top-0 border-b border-black/6 bg-[#f3f4f1] px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-neutral-500">
+          <p className="sticky top-0 border-b border-black/6 bg-[#f3f4f1] px-4 py-2 text-[10px] font-semibold uppercase tracking-wider text-neutral-500">
             Trocar unidade
           </p>
           <button
@@ -173,7 +173,7 @@ export default function BentoClinicSwitcher({
                 <span className="min-w-0">
                   <span className="block truncate text-sm font-semibold text-neutral-800">{getClinicLabel(c)}</span>
                   {c.endereco ? (
-                    <span className="mt-0.5 block truncate text-[11px] font-medium text-neutral-400">{c.endereco}</span>
+                    <span className="mt-0.5 block truncate text-[10px] font-medium text-neutral-400">{c.endereco}</span>
                   ) : null}
                 </span>
                 {selected && <Check size={16} className="shrink-0 text-neutral-900" strokeWidth={2.25} />}

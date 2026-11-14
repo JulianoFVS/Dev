@@ -44,7 +44,7 @@ function CadastroContent() {
   }
 
   return (
-    <div className="min-h-[100dvh] bg-slate-50 flex flex-col items-center justify-center p-6 relative">
+    <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 relative">
         <Link href="/" className="absolute top-6 left-6 flex items-center gap-2 text-slate-500 font-bold hover:text-blue-600 transition-colors"><ArrowLeft size={20}/> Voltar</Link>
         
         <div className="mb-8 text-center">
@@ -73,7 +73,7 @@ function CadastroContent() {
 // Componente Principal (Wrapper com Suspense)
 export default function Cadastro() {
   return (
-    <Suspense fallback={<div className="h-[100dvh] w-[100dvw] flex items-center justify-center bg-slate-50"><Loader2 className="animate-spin text-blue-600" size={40}/></div>}>
+    <Suspense fallback={<div className="h-screen w-screen flex items-center justify-center bg-slate-50"><Loader2 className="animate-spin text-blue-600" size={40}/></div>}>
         <CadastroContent />
     </Suspense>
   );

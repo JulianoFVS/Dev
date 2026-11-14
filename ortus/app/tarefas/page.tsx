@@ -10,7 +10,6 @@ import {
 import { useClinica, getClinicLabel } from '@/app/context/ClinicaContext';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
 import Modal from '@/components/ui/Modal';
-import MenuPontos from '@/components/ui/MenuPontos';
 import CustomSelect from '@/components/ui/CustomSelect';
 import CampoData from '@/components/ui/CampoData';
 import { TAREFA_PRIORIDADE_OPTIONS, TAREFA_STATUS_OPTIONS } from '@/lib/formOptions';
@@ -118,8 +117,6 @@ export default function Tarefas() {
     const [filtroStatus, setFiltroStatus] = useState<string>('todos');
     const [filtroPrioridade, setFiltroPrioridade] = useState<string>('todos');
     const [filtroBusca, setFiltroBusca] = useState('');
-    /** Celular: uma coluna do quadro por vez. */
-    const [colunaMobile, setColunaMobile] = useState<Tarefa['status']>('a_fazer');
     // Modal
     const [modalOpen, setModalOpen] = useState(false);
     const [coresQuadro, setCoresQuadro] = useState<Record<string, string>>(readCoresQuadro);
@@ -320,82 +317,9 @@ export default function Tarefas() {
     };
 
     function prioridadeDe(p: string) {
-        if (p === 'alta') return { label: 'Alta', dot: 'bg-red-500', text: 'text-red-700', bg: 'bg-red-50' };
-        if (p === 'media') return { label: 'Média', dot: 'bg-amber-500', text: 'text-amber-700', bg: 'bg-amber-50' };
-        return { label: 'Baixa', dot: 'bg-neutral-400', text: 'text-neutral-500', bg: 'bg-neutral-100' };
-    }
-
-    /** Prazo em texto curto + cor, para o cartão do celular. */
-    function prazoDe(t: Tarefa) {
-        if (!t.data_limite) return null;
-        const dia = String(t.data_limite).slice(0, 10);
-        const agora = new Date();
-        const dois = (n: number) => String(n).padStart(2, '0');
-        const hoje = `${agora.getFullYear()}-${dois(agora.getMonth() + 1)}-${dois(agora.getDate())}`;
-        const atrasada = t.alerta_data === 'atrasada' && t.status !== 'concluido';
-        const quando = atrasada
-            ? 'Atrasada'
-            : dia === hoje
-                ? 'Hoje'
-                : new Date(`${dia}T12:00:00`).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
-        const cor = atrasada ? 'bg-red-50 text-red-700' : dia === hoje ? 'bg-neutral-900 text-white' : 'bg-neutral-100 text-neutral-600';
-        return { quando, cor };
-    }
-
-    /** Ações da tarefa — viram menu no celular e botões no quadro do desktop. */
-    function acoesDaTarefa(t: Tarefa) {
-        const acoes: { id: string; label: string; perigo?: boolean; onClick: () => void }[] = [];
-        if (t.status !== 'concluido') {
-            acoes.push({
-                id: 'avancar',
-                label: t.status === 'a_fazer' ? 'Mover para Em andamento' : 'Marcar como concluída',
-                onClick: () => moverStatus(t.id, proximoStatus(t, 'avancar')),
-            });
-        }
-        if (t.status !== 'a_fazer') {
-            acoes.push({ id: 'voltar', label: 'Voltar status', onClick: () => moverStatus(t.id, proximoStatus(t, 'voltar')) });
-        }
-        acoes.push({ id: 'editar', label: 'Editar tarefa', onClick: () => abrirEditarTarefa(t) });
-        acoes.push({ id: 'excluir', label: 'Excluir tarefa', perigo: true, onClick: () => excluirTarefa(t.id) });
-        return acoes;
-    }
-
-    function renderTarefaCardMobile(t: Tarefa) {
-        const pri = prioridadeDe(t.prioridade);
-        const prazo = prazoDe(t);
-        return (
-            <div key={t.id} className="min-w-0 rounded-xl border border-neutral-200 bg-white p-3">
-                <div className="flex items-start gap-2">
-                    <div className="min-w-0 flex-1">
-                        <p className={`text-sm font-medium leading-snug ${t.status === 'concluido' ? 'text-neutral-400 line-through' : 'text-neutral-900'}`}>
-                            {t.titulo}
-                        </p>
-                        {t.descricao ? <p className="mt-0.5 line-clamp-2 text-xs text-neutral-500">{t.descricao}</p> : null}
-                    </div>
-                    <MenuPontos
-                        itens={acoesDaTarefa(t)}
-                        tamanho={18}
-                        className="-mr-1 -mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-neutral-500 active:bg-neutral-100"
-                    />
-                </div>
-                <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                    <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium ${pri.bg} ${pri.text}`}>
-                        <span className={`h-1.5 w-1.5 rounded-full ${pri.dot}`} />
-                        {pri.label}
-                    </span>
-                    {prazo ? <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${prazo.cor}`}>{prazo.quando}</span> : null}
-                    {t.responsavel_nome ? (
-                        <span className="inline-flex min-w-0 max-w-[9rem] items-center gap-1 rounded-full bg-neutral-100 px-2 py-0.5 text-xs text-neutral-600">
-                            <User size={12} className="shrink-0" />
-                            <span className="truncate">{t.responsavel_nome}</span>
-                        </span>
-                    ) : null}
-                    {t.paciente_nome ? (
-                        <span className="max-w-[9rem] truncate rounded-full border border-neutral-200 px-2 py-0.5 text-xs text-neutral-500">{t.paciente_nome}</span>
-                    ) : null}
-                </div>
-            </div>
-        );
+        if (p === 'alta') return { label: 'Alta', dot: 'bg-red-500', text: 'text-red-700' };
+        if (p === 'media') return { label: 'Média', dot: 'bg-amber-500', text: 'text-amber-700' };
+        return { label: 'Baixa', dot: 'bg-neutral-400', text: 'text-neutral-500' };
     }
 
     function renderTarefaCard(t: Tarefa) {
@@ -405,7 +329,7 @@ export default function Tarefas() {
                     <h3 className={`text-sm font-medium text-neutral-900 ${t.status === 'concluido' ? 'text-neutral-400 line-through' : ''}`}>
                         {t.titulo}
                     </h3>
-                    <button type="button" onClick={() => abrirEditarTarefa(t)} className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-50 hover:text-neutral-900" aria-label="Editar tarefa">
+                    <button type="button" onClick={() => abrirEditarTarefa(t)} className="rounded-md p-1 text-neutral-400 hover:bg-neutral-50 hover:text-neutral-900" aria-label="Editar tarefa">
                         <Pencil size={14}/>
                     </button>
                 </div>
@@ -425,10 +349,10 @@ export default function Tarefas() {
                     </div>
                     <div className="flex shrink-0 gap-0.5">
                         <DicaBotao texto="Voltar status">
-                            <button type="button" disabled={t.status === 'a_fazer'} onClick={() => moverStatus(t.id, proximoStatus(t, 'voltar'))} aria-label="Voltar status" className="inline-flex h-9 w-9 items-center justify-center rounded-md text-neutral-500 hover:bg-neutral-50 disabled:opacity-30"><ChevronLeft size={16} /></button>
+                            <button type="button" disabled={t.status === 'a_fazer'} onClick={() => moverStatus(t.id, proximoStatus(t, 'voltar'))} aria-label="Voltar status" className="inline-flex h-7 w-7 items-center justify-center rounded-md text-neutral-500 hover:bg-neutral-50 disabled:opacity-30"><ChevronLeft size={16} /></button>
                         </DicaBotao>
                         <DicaBotao texto="Avançar status">
-                            <button type="button" disabled={t.status === 'concluido'} onClick={() => moverStatus(t.id, proximoStatus(t, 'avancar'))} aria-label="Avançar status" className="inline-flex h-9 w-9 items-center justify-center rounded-md text-neutral-500 hover:bg-neutral-50 disabled:opacity-30"><ChevronRight size={16} /></button>
+                            <button type="button" disabled={t.status === 'concluido'} onClick={() => moverStatus(t.id, proximoStatus(t, 'avancar'))} aria-label="Avançar status" className="inline-flex h-7 w-7 items-center justify-center rounded-md text-neutral-500 hover:bg-neutral-50 disabled:opacity-30"><ChevronRight size={16} /></button>
                         </DicaBotao>
                     </div>
                 </div>
@@ -445,85 +369,43 @@ export default function Tarefas() {
     const kpiLoading = loading && !jaCarregou.current;
 
     return (
-        <div className="flex flex-col overflow-x-hidden px-2.5 py-2.5 font-poppins sm:px-3 sm:py-3 md:h-full md:min-h-0 md:overflow-hidden md:px-4 md:py-3.5">
+        <div className="flex h-full min-h-0 flex-col overflow-hidden px-2.5 py-2.5 font-poppins sm:px-3 sm:py-3 md:px-4 md:py-3.5">
             <div className="mb-3 shrink-0">
-                <div className="flex items-start justify-between gap-3">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0">
-                        <h1 className="truncate text-[1.65rem] font-semibold leading-tight tracking-tight text-neutral-900 sm:text-2xl md:text-[2rem]">Tarefas</h1>
-                        <p className="mt-1 truncate text-sm text-neutral-500">{activeClinic ? getClinicLabel(activeClinic) : 'Todas as clínicas'}</p>
+                        <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 md:text-[2rem]">
+                            Tarefas
+                            <span className="text-neutral-400"> · {activeClinic ? getClinicLabel(activeClinic) : 'Todas as clínicas'}</span>
+                        </h1>
                     </div>
                     <button
                         type="button"
                         onClick={abrirNovaTarefa}
-                        className="inline-flex h-11 shrink-0 items-center gap-1.5 rounded-full bg-neutral-900 px-3.5 text-sm font-medium text-white active:bg-neutral-800 sm:h-10 sm:rounded-md sm:px-3"
+                        className="inline-flex h-10 shrink-0 items-center gap-1.5 self-start rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 sm:self-auto"
                     >
-                        <Plus size={16} /> <span className="truncate">Nova tarefa</span>
+                        <Plus size={14} /> Nova tarefa
                     </button>
                 </div>
-                <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                    {([
-                        ['A fazer', contagemTarefas.a_fazer],
-                        ['Em andamento', contagemTarefas.em_andamento],
-                        ['Atrasadas', contagemTarefas.atrasadas],
-                        ['Concluídas', contagemTarefas.concluido],
-                    ] as const).map(([rotulo, valor]) => (
-                        <div key={rotulo} className="min-w-0 rounded-xl border border-neutral-200 bg-white px-3 py-2">
-                            <p className="text-lg font-semibold leading-tight tabular-nums text-neutral-900">{kpiLoading ? '—' : valor}</p>
-                            <p className="truncate text-xs text-neutral-500">{rotulo}</p>
-                        </div>
-                    ))}
+                <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1">
+                    <p className="text-sm text-neutral-500"><span className="font-medium tabular-nums text-neutral-900">{kpiLoading ? '—' : contagemTarefas.a_fazer}</span> a fazer</p>
+                    <p className="text-sm text-neutral-500"><span className="font-medium tabular-nums text-neutral-900">{kpiLoading ? '—' : contagemTarefas.em_andamento}</span> em andamento</p>
+                    <p className="text-sm text-neutral-500"><span className="font-medium tabular-nums text-neutral-900">{kpiLoading ? '—' : contagemTarefas.atrasadas}</span> atrasadas</p>
+                    <p className="text-sm text-neutral-500"><span className="font-medium tabular-nums text-neutral-900">{kpiLoading ? '—' : contagemTarefas.concluido}</span> concluídas</p>
                 </div>
             </div>
 
-            <div className="mb-3 flex shrink-0 flex-col gap-2">
-                <div className="flex items-center gap-2">
-                    <div className="relative min-w-0 flex-1">
-                        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-neutral-400" aria-hidden />
-                        <input
-                            type="text"
-                            placeholder="Buscar tarefas..."
-                            aria-label="Buscar tarefas"
-                            className="box-border h-11 w-full rounded-lg border border-neutral-200 bg-white pl-9 pr-3 text-base text-neutral-900 outline-none focus:border-neutral-900 sm:h-10 sm:rounded-md sm:text-sm"
-                            value={filtroBusca}
-                            onChange={(e) => setFiltroBusca(e.target.value)}
-                        />
-                    </div>
-                    {(filtroStatus !== 'todos' || filtroPrioridade !== 'todos' || !!filtroBusca) && (
-                        <button
-                            type="button"
-                            onClick={() => { setFiltroStatus('todos'); setFiltroPrioridade('todos'); setFiltroBusca(''); }}
-                            className="inline-flex h-11 shrink-0 items-center rounded-lg px-3 text-sm font-medium text-neutral-500 active:bg-neutral-100 sm:h-10"
-                        >
-                            Limpar
-                        </button>
-                    )}
+            <div className="mb-3 flex shrink-0 flex-col gap-2 lg:flex-row lg:items-center">
+                <div className="relative min-w-0 flex-1">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-neutral-400" aria-hidden />
+                    <input
+                        type="text"
+                        placeholder="Buscar tarefas..."
+                        className="box-border h-10 w-full rounded-md border border-neutral-200 bg-white pl-9 pr-3 text-sm text-neutral-900 outline-none focus:border-neutral-900"
+                        value={filtroBusca}
+                        onChange={(e) => setFiltroBusca(e.target.value)}
+                    />
                 </div>
-
-                {/* Celular: prioridade em chips roláveis */}
-                <div className="-mx-2.5 flex snap-x gap-2 overflow-x-auto px-2.5 pb-1 md:hidden">
-                    {([
-                        ['todos', 'Todas'],
-                        ['alta', 'Alta'],
-                        ['media', 'Média'],
-                        ['baixa', 'Baixa'],
-                    ] as const).map(([id, label]) => (
-                        <button
-                            key={id}
-                            type="button"
-                            onClick={() => setFiltroPrioridade(id)}
-                            aria-pressed={filtroPrioridade === id}
-                            className={`inline-flex h-11 shrink-0 snap-start items-center gap-1.5 rounded-full px-3.5 text-sm font-medium transition-colors ${
-                                filtroPrioridade === id ? 'bg-neutral-900 text-white' : 'border border-neutral-200 bg-white text-neutral-600 active:bg-neutral-50'
-                            }`}
-                        >
-                            {id !== 'todos' ? <span className={`h-1.5 w-1.5 rounded-full ${prioridadeDe(id).dot}`} /> : null}
-                            {label}
-                        </button>
-                    ))}
-                </div>
-
-                {/* Desktop/tablet: filtros completos */}
-                <div className="hidden shrink-0 grid-cols-1 gap-2 md:grid md:grid-cols-2 lg:w-[28rem]">
+                <div className="grid shrink-0 grid-cols-1 gap-2 sm:grid-cols-2 lg:w-[28rem]">
                     <CustomSelect
                         value={filtroStatus}
                         onChange={setFiltroStatus}
@@ -537,49 +419,18 @@ export default function Tarefas() {
                         size="md"
                     />
                 </div>
+                {(filtroStatus !== 'todos' || filtroPrioridade !== 'todos') && (
+                    <button
+                        type="button"
+                        onClick={() => { setFiltroStatus('todos'); setFiltroPrioridade('todos'); }}
+                        className="h-10 shrink-0 text-sm font-medium text-neutral-500 hover:text-neutral-900"
+                    >
+                        Limpar
+                    </button>
+                )}
             </div>
 
-            {/* Celular: uma coluna por vez */}
-            <div className="md:hidden">
-                <div className="-mx-2.5 flex snap-x gap-2 overflow-x-auto px-2.5 pb-2">
-                    {colunasKanban.map((col) => {
-                        const total = tarefasFiltradas.filter((t) => t.status === col.id).length;
-                        const ativo = colunaMobile === col.id;
-                        return (
-                            <button
-                                key={col.id}
-                                type="button"
-                                onClick={() => setColunaMobile(col.id)}
-                                aria-pressed={ativo}
-                                className={`inline-flex h-11 shrink-0 snap-start items-center gap-2 rounded-full px-4 text-sm font-medium transition-colors ${
-                                    ativo ? 'bg-neutral-900 text-white' : 'border border-neutral-200 bg-white text-neutral-600 active:bg-neutral-50'
-                                }`}
-                            >
-                                {col.label}
-                                <span className={`rounded-full px-1.5 py-0.5 text-xs font-semibold leading-none tabular-nums ${ativo ? 'bg-white/20' : 'bg-neutral-100 text-neutral-600'}`}>
-                                    {kpiLoading ? '—' : total}
-                                </span>
-                            </button>
-                        );
-                    })}
-                </div>
-                <div className="mt-2 space-y-2">
-                    {kpiLoading ? (
-                        Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-24 animate-pulse rounded-xl bg-white" />)
-                    ) : (
-                        (() => {
-                            const items = tarefasFiltradas.filter((t) => t.status === colunaMobile);
-                            if (items.length === 0) {
-                                return <p className="rounded-xl border border-neutral-200 bg-white px-4 py-8 text-center text-sm text-neutral-400">Nenhuma tarefa nesta coluna.</p>;
-                            }
-                            return items.map((t) => renderTarefaCardMobile(t));
-                        })()
-                    )}
-                </div>
-            </div>
-
-            {/* Desktop/tablet: quadro com as três colunas */}
-            <div className="hidden min-h-0 grid-cols-1 gap-2 md:grid md:flex-1 md:grid-cols-3 md:overflow-hidden">
+            <div className="grid min-h-0 flex-1 grid-cols-1 gap-2 overflow-y-auto md:grid-cols-3 md:overflow-hidden">
                 {colunasKanban.map((col) => {
                     const items = tarefasFiltradas.filter((t) => t.status === col.id);
                     const tinta = tintaSuave(coresQuadro[col.id]);
@@ -651,14 +502,14 @@ export default function Tarefas() {
             </div>
 
                         {/* Modal Criar/Editar */}
-            <Modal open={modalOpen} onClose={() => setModalOpen(false)} maxWidth="lg" hideCloseButton panelClassName="flex max-h-[88vh] flex-col overflow-hidden rounded-t-[1.6rem] border border-neutral-200 bg-white sm:rounded-xl">
+            <Modal open={modalOpen} onClose={() => setModalOpen(false)} maxWidth="lg" hideCloseButton panelClassName="flex max-h-[85vh] flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white">
                         <div className="flex shrink-0 items-start justify-between gap-3 border-b border-black/5 px-5 py-4 sm:px-6">
                             <div>
                                 <h2 className="text-base font-semibold text-neutral-900">{tarefaEditando ? 'Editar tarefa' : 'Nova tarefa'}</h2>
                                 <p className="mt-0.5 text-sm text-neutral-500">Título, prazo e responsável.</p>
                             </div>
-                            <button type="button" onClick={() => setModalOpen(false)} className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-neutral-400 active:bg-neutral-100" aria-label="Fechar">
-                                <X size={18}/>
+                            <button type="button" onClick={() => setModalOpen(false)} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-100" aria-label="Fechar">
+                                <X size={16}/>
                             </button>
                         </div>
                         
@@ -668,7 +519,7 @@ export default function Tarefas() {
                                 <input 
                                     value={form.titulo}
                                     onChange={e => setForm({...form, titulo: e.target.value})}
-                                    className="box-border h-11 w-full rounded-md border border-neutral-200 bg-white px-3 text-base text-neutral-900 outline-none focus:border-neutral-900 sm:h-10 sm:text-sm"
+                                    className="box-border h-10 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm text-neutral-900 outline-none focus:border-neutral-900"
                                     placeholder="Nome da tarefa"
                                 />
                             </label>
@@ -709,15 +560,15 @@ export default function Tarefas() {
                             </label>
                         </div>
                         
-                        <div className="flex shrink-0 items-center justify-between gap-2 border-t border-black/5 px-5 py-3 sm:px-6 sm:py-4">
+                        <div className="flex shrink-0 items-center justify-between gap-2 border-t border-black/5 px-5 py-4 sm:px-6">
                             {tarefaEditando ? (
-                                <button type="button" onClick={() => excluirTarefa(tarefaEditando.id)} className="inline-flex h-11 items-center gap-1.5 rounded-md px-3 text-sm font-medium text-rose-600 hover:bg-rose-50 sm:h-9">
+                                <button type="button" onClick={() => excluirTarefa(tarefaEditando.id)} className="inline-flex h-9 items-center gap-1.5 rounded-md px-3 text-sm font-medium text-rose-600 hover:bg-rose-50">
                                     <Trash2 size={14}/> Excluir
                                 </button>
                             ) : <span />}
                             <div className="flex items-center gap-2">
-                                <button type="button" onClick={() => setModalOpen(false)} className="inline-flex h-11 items-center rounded-md px-3 text-sm font-medium text-neutral-600 hover:bg-neutral-50 sm:h-9">Cancelar</button>
-                                <button type="button" onClick={salvarTarefa} disabled={salvando} className="inline-flex h-11 items-center gap-1.5 rounded-md bg-neutral-900 px-4 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-40 sm:h-9">
+                                <button type="button" onClick={() => setModalOpen(false)} className="inline-flex h-9 items-center rounded-md px-3 text-sm font-medium text-neutral-600 hover:bg-neutral-50">Cancelar</button>
+                                <button type="button" onClick={salvarTarefa} disabled={salvando} className="inline-flex h-9 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-40">
                                     {salvando ? <Loader2 size={14} className="animate-spin"/> : null} Salvar
                                 </button>
                             </div>

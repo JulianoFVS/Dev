@@ -17,7 +17,6 @@ import {
     Loader2, X, ShieldCheck, Copy, Check,
     AlertTriangle,
     Trash2, ArrowUpDown, Pencil, Plus,
-    MailOpen, MailPlus, RefreshCw,
 } from 'lucide-react';
 import {
     cancelarConviteEquipe,
@@ -132,17 +131,16 @@ export default function EquipePage() {
         nome: '', email: '', cargo: 'Dentista', clinicas: [] as string[], mensagem: '',
     });
 
-    // Modal final com credenciais (somente para contas realmente criadas)
+    // Modal final com credenciais
     const [credenciais, setCredenciais] = useState<{ email: string; senha: string; nome: string } | null>(null);
+    const [copiado, setCopiado] = useState<'email' | 'senha' | 'tudo' | null>(null);
 
-    // Confirmação de convite enviado (nunca exibe senha temporária)
-    const [conviteEnviado, setConviteEnviado] = useState<{ email: string; clinicas: string[] } | null>(null);
+    // Convites de equipe enviados / recebidos
     const [convites, setConvites] = useState<ConviteEquipe[]>([]);
     const [convitesLoading, setConvitesLoading] = useState(true);
     const [convitesErro, setConvitesErro] = useState<string | null>(null);
     const [conviteCancelandoId, setConviteCancelandoId] = useState<number | null>(null);
     const [meusConvites, setMeusConvites] = useState<MeuConvite[]>([]);
-    const [copiado, setCopiado] = useState<'email' | 'senha' | 'tudo' | null>(null);
 
     // Modal edição avançada
     const [editorAberto, setEditorAberto] = useState(false);
@@ -274,21 +272,23 @@ export default function EquipePage() {
 
         const nome = form.nome.trim();
         const email = form.email.trim().toLowerCase();
-        const clinicaIds = form.clinicas.map((id) => Number(id)).filter((id) => Number.isFinite(id));
+        const clinicaIds = form.clinicas
+            .map((id) => Number(id))
+            .filter((id) => Number.isFinite(id));
 
         if (!nome || !email) {
             setErro('Nome e e-mail são obrigatórios.');
             return;
         }
-        if (form.clinicas.length === 0 || clinicaIds.length !== form.clinicas.length) {
-            setErro('Selecione pelo menos uma unidade válida.');
+        if (form.clinicas.length === 0) {
+            setErro('Selecione pelo menos uma unidade.');
             return;
         }
 
         setSalvando(true);
         try {
-            // 1) Se o e-mail já tem conta Ortus, o convite é o caminho correto:
-            //    nunca recriamos nem sequestramos a conta existente.
+            // Se o e-mail já pertence a uma conta Ortus, o caminho correto é o
+            // convite: nunca recriamos nem vinculamos a conta existente sem consentimento.
             let conviteCriado = false;
             try {
                 await enviarConviteEquipe({
@@ -307,18 +307,17 @@ export default function EquipePage() {
             }
 
             if (conviteCriado) {
-                const nomesClinicas = form.clinicas.map((id) => {
-                    const clinica = clinicasPorId.get(String(id));
-                    return clinica?.nome || `Unidade #${id}`;
-                });
                 setModalOpen(false);
-                setConviteEnviado({ email, clinicas: nomesClinicas });
+                await showAlert(
+                    `Convite enviado para ${email}. A pessoa verá o convite em Mensagens.`,
+                    { title: 'Convite enviado', type: 'success' },
+                );
                 await carregar({ silent: true });
                 await carregarConvites();
                 return;
             }
 
-            // 2) Fluxo legado: cria a conta com senha temporária.
+            // Fluxo antigo: e-mail sem conta, cria o usuário com senha temporária.
             const { data: { session } } = await supabase.auth.getSession();
             const token = session?.access_token;
             if (!token) {
@@ -1094,20 +1093,14 @@ export default function EquipePage() {
             {meusConvites.length > 0 && (
                 <Link
                     href="/mensagens"
-                    className="group flex min-h-[52px] shrink-0 items-center gap-3 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2.5 transition hover:border-amber-400 hover:bg-amber-100/70 sm:px-4"
+                    className="flex shrink-0 items-center justify-between gap-3 rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-800 shadow-sm hover:bg-neutral-50"
                 >
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-amber-700 ring-1 ring-amber-200">
-                        <MailOpen size={18} />
+                    <span className="min-w-0 truncate">
+                        {meusConvites.length === 1
+                            ? 'Você tem 1 convite de equipe aguardando resposta.'
+                            : `Você tem ${meusConvites.length} convites de equipe aguardando resposta.`}
                     </span>
-                    <div className="min-w-0 flex-1">
-                        <p className="text-sm font-semibold text-amber-900">
-                            {meusConvites.length === 1
-                                ? 'Você tem 1 convite de equipe aguardando resposta'
-                                : `Você tem ${meusConvites.length} convites de equipe aguardando resposta`}
-                        </p>
-                        <p className="text-xs text-amber-800/80">Abra Mensagens para aceitar ou recusar.</p>
-                    </div>
-                    <span className="shrink-0 text-xs font-semibold text-amber-800 group-hover:text-amber-900">Ver convites</span>
+                    <span className="shrink-0 text-xs font-medium text-neutral-500">Ver convites</span>
                 </Link>
             )}
 
@@ -1197,43 +1190,30 @@ export default function EquipePage() {
                 )}
             </section>
 
+            {isAdmin && (
             <section className="flex shrink-0 flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white">
-                <div className="flex shrink-0 items-start justify-between gap-3 px-3 pt-3">
-                    <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                            <h2 className="text-base font-semibold text-neutral-900">Convites de equipe</h2>
-                            {convitesPendentesEnviados > 0 && (
-                                <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
-                                    {convitesPendentesEnviados} {convitesPendentesEnviados === 1 ? 'pendente' : 'pendentes'}
-                                </span>
-                            )}
-                        </div>
-                        <p className="text-xs text-neutral-500">Pessoas que já têm conta Ortus e receberam convite para suas unidades.</p>
-                    </div>
-                    <button
-                        type="button"
-                        onClick={() => void carregarConvites()}
-                        disabled={convitesLoading}
-                        aria-label="Atualizar convites"
-                        className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-50 hover:text-neutral-900 disabled:opacity-50"
-                    >
-                        <RefreshCw size={15} className={convitesLoading ? 'animate-spin' : ''} />
-                    </button>
+                <div className="flex shrink-0 items-center justify-between gap-3 px-3 pt-3">
+                    <h2 className="text-base font-semibold text-neutral-900">Convites de equipe</h2>
+                    {convitesPendentesEnviados > 0 && (
+                        <span className="text-xs font-medium text-neutral-400">
+                            {convitesPendentesEnviados} {convitesPendentesEnviados === 1 ? 'pendente' : 'pendentes'}
+                        </span>
+                    )}
                 </div>
-                <div className="max-h-[180px] overflow-y-auto px-3 pb-3 sm:max-h-[220px]">
+                <div className="max-h-36 overflow-y-auto px-3 pb-3">
                     {convitesLoading && convites.length === 0 ? (
                         <div className="space-y-2 pt-2">
                             {Array.from({ length: 2 }).map((_, i) => (
-                                <div key={i} className="h-12 animate-pulse rounded-md bg-neutral-50" />
+                                <div key={i} className="h-10 animate-pulse rounded-md bg-neutral-50" />
                             ))}
                         </div>
                     ) : convitesErro && convites.length === 0 ? (
-                        <div className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex items-center justify-between gap-2 py-2.5">
                             <p className="text-sm text-rose-600">{convitesErro}</p>
                             <button
                                 type="button"
                                 onClick={() => void carregarConvites()}
-                                className="inline-flex min-h-[44px] shrink-0 items-center justify-center rounded-lg border border-neutral-200 px-3 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+                                className="h-8 shrink-0 rounded-md px-2 text-xs font-medium text-neutral-500 hover:bg-neutral-50 hover:text-neutral-900"
                             >
                                 Tentar novamente
                             </button>
@@ -1245,15 +1225,12 @@ export default function EquipePage() {
                             {convitesOrdenados.map((convite) => {
                                 const status = obterStatusConvite(convite);
                                 return (
-                                    <li key={convite.id} className="flex flex-col gap-2 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+                                    <li key={convite.id} className="flex flex-col gap-2 py-2.5 sm:flex-row sm:items-center sm:justify-between">
                                         <div className="min-w-0">
                                             <div className="flex flex-wrap items-center gap-1.5">
-                                                <p className="truncate text-sm font-medium text-neutral-900">
-                                                    {convite.convidado_nome || convite.convidado_email}
-                                                </p>
+                                                <p className="truncate text-sm font-medium text-neutral-900">{convite.convidado_email}</p>
                                                 <ConviteStatusBadge status={status} />
                                             </div>
-                                            <p className="break-all text-xs text-neutral-500">{convite.convidado_email}</p>
                                             <p className="mt-0.5 break-words text-xs text-neutral-500">
                                                 {nomeClinicasDoConvite(convite.clinica_ids)}
                                                 {convite.cargo ? ` · ${convite.cargo}` : ''}
@@ -1265,12 +1242,10 @@ export default function EquipePage() {
                                                 type="button"
                                                 onClick={() => void cancelarConvite(convite)}
                                                 disabled={conviteCancelandoId !== null}
-                                                className="inline-flex min-h-[44px] w-full shrink-0 items-center justify-center gap-1.5 rounded-lg border border-neutral-200 px-3 text-sm font-medium text-neutral-600 hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700 disabled:opacity-50 sm:w-auto"
+                                                className="inline-flex h-8 shrink-0 items-center gap-1 rounded-md px-2 text-xs font-medium text-neutral-400 hover:text-rose-600 disabled:opacity-50"
                                             >
-                                                {conviteCancelandoId === convite.id
-                                                    ? <Loader2 size={14} className="animate-spin" />
-                                                    : <X size={14} />}
-                                                Cancelar convite
+                                                {conviteCancelandoId === convite.id ? <Loader2 size={13} className="animate-spin"/> : <X size={13}/>}
+                                                Cancelar
                                             </button>
                                         )}
                                     </li>
@@ -1280,6 +1255,7 @@ export default function EquipePage() {
                     )}
                 </div>
             </section>
+            )}
 
             <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white">
                 <div className="flex shrink-0 items-center justify-between gap-3 px-3 pt-3">
@@ -1467,10 +1443,6 @@ export default function EquipePage() {
                         </div>
                         <button type="button" onClick={() => setModalOpen(false)} className="rounded-full p-2 text-neutral-400 hover:bg-neutral-100" aria-label="Fechar"><X size={18}/></button>
                     </div>
-                    <p className="mb-3 flex items-start gap-2 rounded-lg border border-neutral-100 bg-neutral-50 px-3 py-2 text-xs text-neutral-500">
-                        <MailPlus size={14} className="mt-0.5 shrink-0" />
-                        Se este e-mail já pertence a uma conta Ortus, enviaremos um convite em vez de criar uma nova conta.
-                    </p>
                     {erro && (
                         <p className="mb-3 flex items-center gap-2 text-xs font-medium text-rose-600">
                             <AlertTriangle size={14} /> {erro}
@@ -1529,7 +1501,7 @@ export default function EquipePage() {
                             </div>
                         </div>
                         <label className="sm:col-span-2">
-                            <span className="mb-1.5 block text-xs font-medium text-neutral-500">Mensagem (opcional)</span>
+                            <span className="mb-1.5 block text-xs font-medium text-neutral-500">Mensagem do convite (opcional)</span>
                             <textarea
                                 rows={2}
                                 value={form.mensagem}
@@ -1541,43 +1513,12 @@ export default function EquipePage() {
                         </label>
                     </div>
                     <div className="mt-5 flex justify-end border-t border-black/5 pt-4">
-                        <button type="submit" disabled={salvando} className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-40">
+                        <button type="submit" disabled={salvando} className="inline-flex h-9 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-40">
                             {salvando ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}
-                            {salvando ? 'Processando...' : 'Cadastrar ou convidar'}
+                            Cadastrar
                         </button>
                     </div>
                 </form>
-            </Modal>
-
-            <Modal open={!!conviteEnviado} onClose={() => setConviteEnviado(null)} maxWidth="md" hideCloseButton zIndex={60} panelClassName="overflow-hidden rounded-2xl border border-emerald-100 bg-white shadow-2xl">
-                {conviteEnviado && (<>
-                    <div className="bg-emerald-600 px-6 py-5 text-white">
-                        <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-white/20">
-                            <MailPlus size={24} />
-                        </div>
-                        <h2 className="text-lg font-bold">Convite enviado!</h2>
-                        <p className="mt-0.5 text-xs text-emerald-50">A pessoa já tem conta Ortus e não precisará de uma nova senha.</p>
-                    </div>
-                    <div className="min-h-0 space-y-3 overflow-y-auto p-6">
-                        <p className="text-sm text-neutral-700">
-                            Convite enviado para <strong className="break-all">{conviteEnviado.email}</strong>. A pessoa verá o convite em <strong>Mensagens</strong>.
-                        </p>
-                        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
-                            <p className="text-[10px] font-black uppercase tracking-wider text-amber-700">Unidades</p>
-                            <p className="mt-0.5 text-sm font-medium text-amber-900">{conviteEnviado.clinicas.join(', ') || 'Unidade selecionada'}</p>
-                        </div>
-                        <p className="text-xs text-neutral-500">
-                            Nenhuma senha temporária foi criada. O convite expira em 14 dias e pode ser aceito ou recusado em Mensagens.
-                        </p>
-                        <button
-                            type="button"
-                            onClick={() => setConviteEnviado(null)}
-                            className="touch-target w-full rounded-lg bg-neutral-900 px-4 py-3 text-sm font-bold text-white shadow-md shadow-black/10 hover:bg-neutral-800"
-                        >
-                            Concluir
-                        </button>
-                    </div>
-                </>)}
             </Modal>
 
             <Modal open={!!credenciais} onClose={() => setCredenciais(null)} maxWidth="md" hideCloseButton panelClassName="bg-white rounded-2xl shadow-2xl border border-neutral-100 overflow-hidden">

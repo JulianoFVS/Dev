@@ -35,14 +35,14 @@ const CARTOES: { tipo: TipoAutomacao; titulo: string; descricao: string; icone: 
 
 function CampoNumero({ valor, onChange, min, max, sufixo }: { valor: number; onChange: (v: number) => void; min: number; max: number; sufixo: string }) {
   return (
-    <label className="flex h-11 items-center gap-2 rounded-md border border-neutral-200 bg-white px-3 text-sm sm:h-10">
+    <label className="flex h-10 items-center gap-2 rounded-md border border-neutral-200 bg-white px-3 text-sm">
       <input
         type="number"
         min={min}
         max={max}
         value={valor}
         onChange={(e) => onChange(Math.min(max, Math.max(min, Number(e.target.value) || min)))}
-        className="w-14 bg-transparent text-base text-neutral-900 outline-none sm:w-12 sm:text-sm"
+        className="w-12 bg-transparent text-neutral-900 outline-none"
       />
       <span className="text-neutral-500">{sufixo}</span>
     </label>
@@ -116,17 +116,17 @@ export default function Automacoes({ clinicaId, clinicaNome }: Props) {
   }
 
   return (
-    <div className="mx-auto w-full max-w-3xl space-y-3 pb-2 lg:pb-6">
+    <div className="mx-auto w-full max-w-3xl space-y-3 pb-28 lg:pb-6">
       <section className="rounded-[1.25rem] border border-black/[0.06] bg-white p-4">
-        <h2 className="text-base font-semibold text-neutral-900 sm:text-sm">Horário de envio</h2>
+        <h2 className="text-sm font-semibold text-neutral-900">Horário de envio</h2>
         <p className="mt-0.5 text-xs text-neutral-500">As automações só saem dentro deste horário. O que cair fora espera o próximo horário permitido.</p>
         <div className="mt-3 grid max-w-xs grid-cols-2 gap-2">
           <div>
-            <p className="mb-1 text-xs text-neutral-500">De</p>
+            <p className="mb-1 text-[11px] text-neutral-500">De</p>
             <CampoHora value={config.janela.inicio} onChange={(inicio) => setConfig({ ...config, janela: { ...config.janela, inicio } })} passo={15} />
           </div>
           <div>
-            <p className="mb-1 text-xs text-neutral-500">Até</p>
+            <p className="mb-1 text-[11px] text-neutral-500">Até</p>
             <CampoHora value={config.janela.fim} onChange={(fim) => setConfig({ ...config, janela: { ...config.janela, fim } })} passo={15} />
           </div>
         </div>
@@ -141,7 +141,7 @@ export default function Automacoes({ clinicaId, clinicaNome }: Props) {
                 <Icone size={17} />
               </span>
               <div className="min-w-0 flex-1">
-                <h2 className="text-[15px] font-semibold text-neutral-900 sm:text-sm">{titulo}</h2>
+                <h2 className="text-sm font-semibold text-neutral-900">{titulo}</h2>
                 <p className="mt-0.5 text-xs text-neutral-500">{descricao}</p>
               </div>
               <Switch checked={regra.ativo} onChange={(v) => alternar(tipo, v)} />
@@ -182,7 +182,7 @@ export default function Automacoes({ clinicaId, clinicaNome }: Props) {
                     value={regra.texto}
                     onChange={(e) => atualizar(tipo, { texto: e.target.value })}
                     rows={3}
-                    className="w-full resize-y rounded-md border border-neutral-200 px-3 py-2.5 text-base leading-6 outline-none focus:border-neutral-400 sm:py-2 sm:text-sm sm:leading-5"
+                    className="w-full resize-y rounded-md border border-neutral-200 px-3 py-2 text-sm leading-5 outline-none focus:border-neutral-400"
                   />
                   <div className="mt-1.5 flex flex-wrap gap-1.5">
                     {VARIAVEIS_WHATSAPP.filter((v) => consulta || !v.soConsulta).map((v) => (
@@ -190,7 +190,7 @@ export default function Automacoes({ clinicaId, clinicaNome }: Props) {
                         key={v.chave}
                         type="button"
                         onClick={() => inserirVariavel(tipo, v.chave)}
-                        className="h-10 rounded-full border border-neutral-200 px-3 text-xs font-medium text-neutral-600 hover:bg-neutral-50 active:bg-neutral-100"
+                        className="rounded-full border border-neutral-200 px-2.5 py-1 text-[11px] text-neutral-600 hover:bg-neutral-50"
                       >
                         + {v.label}
                       </button>
@@ -199,7 +199,7 @@ export default function Automacoes({ clinicaId, clinicaNome }: Props) {
                       <button
                         type="button"
                         onClick={() => atualizar(tipo, { texto: AUTOMACOES_PADRAO[tipo].texto })}
-                        className="h-10 rounded-full px-3 text-xs text-neutral-400 hover:text-neutral-700"
+                        className="rounded-full px-2.5 py-1 text-[11px] text-neutral-400 hover:text-neutral-700"
                       >
                         Restaurar texto
                       </button>
@@ -208,7 +208,7 @@ export default function Automacoes({ clinicaId, clinicaNome }: Props) {
                 </div>
 
                 <div className="rounded-xl bg-neutral-50 px-3 py-2.5">
-                  <p className="text-xs font-medium text-neutral-400">Prévia</p>
+                  <p className="text-[11px] font-medium text-neutral-400">Prévia</p>
                   <p className="mt-0.5 whitespace-pre-wrap text-sm text-neutral-700">
                     {aplicarVariaveisWhatsapp(regra.texto, { ...EXEMPLO, clinica_nome: clinicaNome || 'Clínica' })}
                   </p>
@@ -219,13 +219,13 @@ export default function Automacoes({ clinicaId, clinicaNome }: Props) {
         );
       })}
 
-      <div className="sticky bottom-[calc(4.6rem_+_env(safe-area-inset-bottom))] z-20 flex items-center justify-end gap-3 lg:bottom-2 lg:justify-end">
+      <div className="sticky bottom-24 flex items-center justify-end gap-3 lg:bottom-2">
         {aviso && <span className="rounded-full bg-white px-3 py-1 text-xs text-neutral-600 shadow-sm">{aviso}</span>}
         <button
           type="button"
           onClick={salvar}
           disabled={!alterado || salvando}
-          className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-full bg-neutral-900 px-5 text-sm font-semibold text-white shadow-[0_8px_24px_rgba(0,0,0,0.18)] disabled:opacity-40 sm:h-10 sm:w-auto sm:rounded-md sm:font-medium lg:shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
+          className="inline-flex h-10 items-center gap-2 rounded-md bg-neutral-900 px-5 text-sm font-medium text-white shadow-[0_8px_24px_rgba(0,0,0,0.12)] disabled:opacity-40"
         >
           {salvando && <Loader2 size={15} className="animate-spin" />}
           Salvar automações

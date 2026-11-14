@@ -140,7 +140,7 @@ export default function CampoHora({ value, onChange, disabled, className = '', p
         type="button"
         disabled={disabled}
         onClick={() => !disabled && setAberto((v) => !v)}
-        className={`box-border flex h-11 w-full items-center rounded-md border border-neutral-200 bg-white px-3 text-left text-sm outline-none disabled:cursor-default sm:h-10 ${value ? 'text-neutral-900' : 'text-neutral-400'} ${className}`}
+        className={`box-border flex h-10 w-full items-center rounded-md border border-neutral-200 bg-white px-3 text-left text-sm outline-none disabled:cursor-default ${value ? 'text-neutral-900' : 'text-neutral-400'} ${className}`}
       >
         {rotulo}
       </button>
@@ -152,7 +152,7 @@ export default function CampoHora({ value, onChange, disabled, className = '', p
 function Coluna({ valor, subir, descer, onChange }: { valor: string; subir: () => void; descer: () => void; onChange: (texto: string) => void }) {
   return (
     <div className="flex flex-col items-center gap-1">
-      <button type="button" onClick={subir} className="inline-flex h-10 w-full items-center justify-center rounded-md text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900" aria-label="Aumentar">
+      <button type="button" onClick={subir} className="inline-flex h-7 w-full items-center justify-center rounded-md text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900" aria-label="Aumentar">
         <ChevronUp size={16} />
       </button>
       <input
@@ -161,7 +161,7 @@ function Coluna({ valor, subir, descer, onChange }: { valor: string; subir: () =
         onChange={(evento) => onChange(evento.target.value)}
         className="h-10 w-full rounded-md border border-neutral-200 bg-white text-center text-sm font-medium text-neutral-900 outline-none focus:border-neutral-900"
       />
-      <button type="button" onClick={descer} className="inline-flex h-10 w-full items-center justify-center rounded-md text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900" aria-label="Diminuir">
+      <button type="button" onClick={descer} className="inline-flex h-7 w-full items-center justify-center rounded-md text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900" aria-label="Diminuir">
         <ChevronDown size={16} />
       </button>
     </div>

@@ -62,14 +62,6 @@ const EMPTY_FORM: CardForm = {
   status: 'espera',
 };
 
-/** Título curto no cabeçalho do modal: paciente · tipo. */
-function cardTitulo(pedido: PedidoProtese): string {
-  const paciente = (pedido.paciente_nome || '').trim();
-  const tipo = (pedido.tipo_protese || '').trim();
-  if (paciente && tipo) return `${paciente} · ${tipo}`;
-  return paciente || tipo || 'Editar pedido';
-}
-
 const STATUS_TOKENS: Record<StatusKey, { label: string }> = {
   espera: { label: 'Em espera' },
   lab: { label: 'Pronto no lab' },
@@ -250,30 +242,16 @@ export default function ModalPedidoProtese({
   }
 
   return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      maxWidth="2xl"
-      zIndex={85}
-      hideCloseButton
-      panelClassName="flex max-h-[92vh] flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white max-sm:-m-2 max-sm:h-[100dvh] max-sm:max-h-[100dvh] max-sm:w-[calc(100%_+_1rem)] max-sm:rounded-none max-sm:border-0"
-    >
-      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-neutral-200 bg-white p-4 sm:items-start sm:gap-4 sm:p-5">
-        <div className="min-w-0">
-          <p className="truncate text-xs font-medium text-neutral-500">{pedido ? 'Pedido de prótese' : 'Novo pedido'}</p>
-          <h2 className="truncate text-base font-semibold text-neutral-900">{pedido ? cardTitulo(pedido) : 'Novo pedido'}</h2>
+    <Modal open={open} onClose={onClose} maxWidth="2xl" zIndex={85} hideCloseButton panelClassName="flex max-h-[92vh] flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white">
+      <div className="flex shrink-0 items-start justify-between gap-4 border-b border-neutral-200 bg-white p-5">
+        <div>
+          <p className="text-xs font-medium text-neutral-500">{pedido ? 'Editar pedido' : 'Novo pedido'}</p>
+          <h2 className="text-base font-semibold text-neutral-900">{pedido ? 'Editar pedido' : 'Novo pedido'}</h2>
         </div>
-        <button
-          type="button"
-          onClick={onClose}
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-neutral-500 hover:bg-neutral-100 sm:h-9 sm:w-9 sm:rounded-md"
-          aria-label="Fechar pedido"
-        >
-          <X size={20} />
-        </button>
+        <button type="button" onClick={onClose} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-100" aria-label="Fechar"><X size={16} /></button>
       </div>
 
-      <div className="custom-scrollbar flex-1 space-y-4 overflow-y-auto overscroll-contain p-4 sm:space-y-5 sm:p-5">
+      <div className="custom-scrollbar flex-1 space-y-5 overflow-y-auto p-5">
         <section className="rounded-xl border border-neutral-200 bg-[#f3f4f1] p-4">
           <div className="mb-3 flex items-center gap-3">
             <span className={marca}>A</span>
@@ -281,17 +259,17 @@ export default function ModalPedidoProtese({
           </div>
           <div className="relative">
             <Search size={16} className="absolute left-3 top-2.5 text-neutral-400" />
-            <input value={patientSearch} onChange={(event) => { const v = event.target.value; setPatientSearch(v); setForm((current) => ({ ...current, paciente_nome: v, paciente_id: current.paciente_nome === v ? current.paciente_id : null })); }} className="h-11 w-full rounded-md border border-neutral-200 bg-white pl-10 pr-3 text-base font-medium text-neutral-900 outline-none focus:border-neutral-900 sm:h-10 sm:text-sm" placeholder="Buscar ou digitar nome do paciente" />
+            <input value={patientSearch} onChange={(event) => { const v = event.target.value; setPatientSearch(v); setForm((current) => ({ ...current, paciente_nome: v, paciente_id: current.paciente_nome === v ? current.paciente_id : null })); }} className="h-10 w-full rounded-md border border-neutral-200 bg-white pl-10 pr-3 text-sm font-medium text-neutral-900 outline-none focus:border-neutral-900" placeholder="Buscar ou digitar nome do paciente" />
           </div>
           {patientSearch.trim() && filteredPatients.length === 0 && !listaPacientes.some((p) => p.nome.toLowerCase() === patientSearch.trim().toLowerCase()) && (
-            <button type="button" onClick={quickCreatePatient} disabled={creatingPatient} className="mt-3 flex min-h-[44px] w-full items-center justify-center gap-2 rounded-md border border-dashed border-neutral-300 bg-white px-3 py-2.5 text-sm font-medium text-neutral-800 hover:border-neutral-900 disabled:cursor-wait disabled:opacity-60">
+            <button type="button" onClick={quickCreatePatient} disabled={creatingPatient} className="mt-3 flex w-full items-center justify-center gap-2 rounded-md border border-dashed border-neutral-300 bg-white px-3 py-2.5 text-sm font-medium text-neutral-800 hover:border-neutral-900 disabled:cursor-wait disabled:opacity-60">
               {creatingPatient ? <><Loader2 size={16} className="animate-spin" /> Cadastrando...</> : <><Plus size={16} /> Cadastrar &quot;<span className="font-semibold">{patientSearch.trim()}</span>&quot; como novo paciente</>}
             </button>
           )}
           {patientSearch && filteredPatients.length > 0 && (
             <div className="mt-3 grid gap-2 sm:grid-cols-2">
               {filteredPatients.map((patient) => (
-                <button key={patient.id} type="button" onClick={() => selectPatient(patient)} className={`min-h-[48px] rounded-md border p-3 text-left ${form.paciente_nome === patient.nome ? 'border-neutral-900 bg-white text-neutral-900' : 'border-neutral-200 bg-white hover:bg-neutral-50'}`}>
+                <button key={patient.id} type="button" onClick={() => selectPatient(patient)} className={`rounded-md border p-3 text-left ${form.paciente_nome === patient.nome ? 'border-neutral-900 bg-white text-neutral-900' : 'border-neutral-200 bg-white hover:bg-neutral-50'}`}>
                   <p className="truncate text-sm font-semibold">{patient.nome}</p>
                   <p className="truncate text-xs font-medium text-neutral-500">{patient.telefone || 'Sem telefone'}</p>
                 </button>
@@ -339,7 +317,7 @@ export default function ModalPedidoProtese({
             </div>
             <div className="grid gap-2 sm:grid-cols-2">
               {visibleTypes.map((type) => (
-                <button key={type} type="button" onClick={() => setForm((current) => ({ ...current, tipo_protese: type }))} className={`min-h-[44px] rounded-md border px-3 py-2.5 text-left text-sm font-medium ${form.tipo_protese === type ? 'border-neutral-900 bg-[#f3f4f1] text-neutral-900' : 'border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50'}`}>
+                <button key={type} type="button" onClick={() => setForm((current) => ({ ...current, tipo_protese: type }))} className={`rounded-md border px-3 py-2.5 text-left text-sm font-medium ${form.tipo_protese === type ? 'border-neutral-900 bg-[#f3f4f1] text-neutral-900' : 'border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50'}`}>
                   {type}
                 </button>
               ))}
@@ -354,17 +332,17 @@ export default function ModalPedidoProtese({
               <h3 className="text-sm font-semibold text-neutral-900">Detalhamentos rápidos</h3>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
-              <input value={form.cor_dente} onChange={(event) => setForm((current) => ({ ...current, cor_dente: event.target.value }))} className="h-11 rounded-md border border-neutral-200 bg-white px-3 text-base font-medium text-neutral-900 outline-none focus:border-neutral-900 sm:h-10 sm:text-sm" placeholder="Cor do dente: A2, B1..." />
-              <input value={form.cor_gengiva} onChange={(event) => setForm((current) => ({ ...current, cor_gengiva: event.target.value }))} className="h-11 rounded-md border border-neutral-200 bg-white px-3 text-base font-medium text-neutral-900 outline-none focus:border-neutral-900 sm:h-10 sm:text-sm" placeholder="Cor da gengiva / STG" />
+              <input value={form.cor_dente} onChange={(event) => setForm((current) => ({ ...current, cor_dente: event.target.value }))} className="h-10 rounded-md border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-900 outline-none focus:border-neutral-900" placeholder="Cor do dente: A2, B1..." />
+              <input value={form.cor_gengiva} onChange={(event) => setForm((current) => ({ ...current, cor_gengiva: event.target.value }))} className="h-10 rounded-md border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-900 outline-none focus:border-neutral-900" placeholder="Cor da gengiva / STG" />
             </div>
-            <div className="mt-3 grid grid-cols-3 gap-1.5 sm:gap-2">
+            <div className="mt-3 grid grid-cols-3 gap-2">
               {(['Superior', 'Inferior', 'Ambas'] as Position[]).map((position) => (
-                <button key={position} type="button" onClick={() => setForm((current) => ({ ...current, posicao: position }))} className={`min-h-[44px] rounded-md border px-2 py-2.5 text-xs font-medium sm:px-3 ${form.posicao === position ? 'border-neutral-900 bg-[#f3f4f1] text-neutral-900' : 'border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50'}`}>
+                <button key={position} type="button" onClick={() => setForm((current) => ({ ...current, posicao: position }))} className={`rounded-md border px-3 py-2.5 text-xs font-medium ${form.posicao === position ? 'border-neutral-900 bg-[#f3f4f1] text-neutral-900' : 'border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50'}`}>
                   {position}
                 </button>
               ))}
             </div>
-            <textarea value={form.descricao} onChange={(event) => setForm((current) => ({ ...current, descricao: event.target.value }))} rows={3} className="mt-3 w-full resize-none rounded-md border border-neutral-200 bg-white p-3 text-base font-medium text-neutral-900 outline-none focus:border-neutral-900 sm:text-sm" placeholder="Observações rápidas para laboratório" />
+            <textarea value={form.descricao} onChange={(event) => setForm((current) => ({ ...current, descricao: event.target.value }))} rows={3} className="mt-3 w-full resize-none rounded-md border border-neutral-200 bg-white p-3 text-sm font-medium text-neutral-900 outline-none focus:border-neutral-900" placeholder="Observações rápidas para laboratório" />
             <div className="mt-3 rounded-md border border-neutral-200 bg-[#f3f4f1] p-3">
               <p className="mb-2 text-xs font-medium text-neutral-500">Checklist que será criado</p>
               <div className="space-y-1">
@@ -377,9 +355,9 @@ export default function ModalPedidoProtese({
         )}
       </div>
 
-      <div className="flex shrink-0 gap-2 border-t border-neutral-200 bg-white p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:p-5">
-        <button type="button" onClick={onClose} className="h-11 shrink-0 rounded-md px-4 text-sm font-medium text-neutral-500 hover:bg-neutral-50 sm:h-9 sm:px-3">Cancelar</button>
-        <button type="button" onClick={salvar} disabled={saving || !form.paciente_nome || !form.categoria || !form.tipo_protese} className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400 sm:h-9">
+      <div className="flex gap-2 border-t border-neutral-200 bg-white p-5">
+        <button type="button" onClick={onClose} className="h-9 rounded-md px-3 text-sm font-medium text-neutral-500 hover:bg-neutral-50">Cancelar</button>
+        <button type="button" onClick={salvar} disabled={saving || !form.paciente_nome || !form.categoria || !form.tipo_protese} className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400">
           {saving ? <Loader2 className="animate-spin" size={18} /> : <Plus size={18} />} {pedido ? 'Salvar Pedido' : 'Criar Pedido'}
         </button>
       </div>

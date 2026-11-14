@@ -43,10 +43,10 @@ const CONFIG_NAVS = [
   { key: 'comunicacao', label: 'Comunicação', icon: MessageCircle },
   { key: 'backup', label: 'Backup', icon: Database },
 ];
-const sectionPad = 'flex min-h-0 flex-col p-3 lg:h-full lg:overflow-hidden';
+const sectionPad = 'flex h-full min-h-0 flex-col overflow-hidden p-3';
 const campoLabel = 'mb-1 block text-xs font-medium text-neutral-500';
-const campoInput = 'h-11 w-full rounded-md border border-neutral-200 bg-white px-3 text-base font-medium text-neutral-900 outline-none focus:border-neutral-900 sm:h-9 sm:text-sm';
-const campoModal = 'box-border h-11 w-full rounded-md border border-neutral-200 bg-white px-3 text-base text-neutral-900 outline-none placeholder:text-neutral-400 focus:border-neutral-900 sm:h-10 sm:text-sm';
+const campoInput = 'h-9 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-900 outline-none focus:border-neutral-900';
+const campoModal = 'box-border h-10 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm text-neutral-900 outline-none placeholder:text-neutral-400 focus:border-neutral-900';
 const labelModal = 'mb-1.5 block text-xs font-medium text-neutral-500';
 const CORES_CATEGORIA = ['#171717', '#3b82f6', '#0ea5e9', '#10b981', '#84cc16', '#eab308', '#f59e0b', '#ef4444', '#ec4899', '#8b5cf6', '#64748b', '#c8f053'];
 const CORES_RECENTES_KEY = 'ortus:cores-categoria';
@@ -962,13 +962,12 @@ export default function Configuracoes() {
 
   return (
     <>
-    <div className="flex h-full min-h-0 flex-col overflow-hidden px-2.5 pt-2.5 font-poppins sm:px-3 sm:py-3">
-      <div className="mb-2.5 shrink-0 sm:mb-3">
-        <h1 className="truncate text-xl font-semibold tracking-tight text-neutral-900 sm:text-2xl md:text-[2rem]">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden px-3 py-3 font-poppins">
+      <div className="mb-3 shrink-0">
+        <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 md:text-[2rem]">
           Configurações
-          <span className="hidden text-neutral-400 sm:inline"> · {activeClinic ? getClinicLabel(activeClinic) : 'Rede'}</span>
+          <span className="text-neutral-400"> · {activeClinic ? getClinicLabel(activeClinic) : 'Rede'}</span>
         </h1>
-        <p className="mt-0.5 truncate text-xs text-neutral-500 sm:hidden">{activeClinic ? getClinicLabel(activeClinic) : 'Rede'}</p>
       </div>
 
       {kpiLoading && clinicas.length === 0 ? (
@@ -979,7 +978,7 @@ export default function Configuracoes() {
         </div>
       ) : (
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white lg:flex-row">
-          <nav aria-label="Seções de configuração" className="-mx-px flex shrink-0 gap-1.5 overflow-x-auto border-b border-black/10 px-2 py-2 [scrollbar-width:none] lg:w-56 lg:flex-col lg:gap-1 lg:overflow-visible lg:border-b-0 lg:border-r [&::-webkit-scrollbar]:hidden">
+          <nav aria-label="Seções de configuração" className="flex shrink-0 gap-1 overflow-x-auto border-b border-black/10 px-2 py-2 lg:w-56 lg:flex-col lg:overflow-visible lg:border-b-0 lg:border-r">
             {CONFIG_NAVS.map((section) => {
               const Icon = section.icon;
               const active = abaAtiva === section.key;
@@ -989,7 +988,7 @@ export default function Configuracoes() {
                   key={section.key}
                   type="button"
                   onClick={() => setAbaAtiva(section.key)}
-                  className={`flex h-11 shrink-0 items-center gap-2 rounded-full border px-3.5 text-left text-sm font-medium leading-snug transition-colors lg:h-auto lg:w-full lg:gap-2.5 lg:rounded-xl lg:border-transparent lg:px-3 lg:py-2.5 ${active ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-200 bg-white text-neutral-600 hover:bg-[#f3f4f1]'}`}
+                  className={`flex shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-left text-sm leading-snug lg:w-full lg:gap-2.5 lg:py-2.5 ${active ? 'bg-neutral-900 font-medium text-white' : 'font-medium text-neutral-600 hover:bg-[#f3f4f1]'}`}
                 >
                   <Icon size={16} className="shrink-0" />
                   <span className="whitespace-nowrap lg:min-w-0 lg:flex-1 lg:whitespace-normal">{section.label}</span>
@@ -1000,7 +999,7 @@ export default function Configuracoes() {
               );
             })}
           </nav>
-          <div className="app-scroll-inner min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden pb-4 lg:overflow-hidden">
+          <div className="min-h-0 min-w-0 flex-1 overflow-y-auto lg:overflow-hidden">
             {/* ABA CLÍNICAS */}
             {abaAtiva === 'clinicas' && (
                 <section className={sectionPad}>
@@ -1009,12 +1008,12 @@ export default function Configuracoes() {
                               <h3 className="text-base font-semibold text-neutral-900">Unidades</h3>
                               <p className="text-xs text-neutral-500">Endereço, horário e dados fiscais</p>
                             </div>
-                            <button type="button" onClick={abrirNovaClinica} className="inline-flex h-11 shrink-0 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 sm:h-9"><Plus size={14}/> Nova clínica</button>
+                            <button type="button" onClick={abrirNovaClinica} className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800"><Plus size={14}/> Nova clínica</button>
                         </div>
                         <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto">
                             {clinicas.map(c => (
-                                <div key={c.id} className="flex min-h-[56px] items-center justify-between gap-2 rounded-xl border border-neutral-200 bg-white py-2 pl-3 pr-1.5">
-                                    <div className="flex min-w-0 flex-1 items-center gap-3">
+                                <div key={c.id} className="flex items-center justify-between rounded-xl border border-neutral-200 bg-white px-3 py-2">
+                                    <div className="flex min-w-0 items-center gap-3">
                                         <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-md border border-neutral-200 bg-[#f3f4f1] text-neutral-700">
                                             {c.logo_url ? <img src={c.logo_url} className="h-full w-full object-cover" alt=""/> : <Building2 size={16}/>}
                                         </div>
@@ -1023,9 +1022,9 @@ export default function Configuracoes() {
                                             {c.cnpj && <span className="text-xs text-neutral-500">{c.cnpj}</span>}
                                         </div>
                                     </div>
-                                    <div className="flex shrink-0 items-center gap-0.5">
-                                        <button onClick={() => abrirEdicaoClinica(c)} className="flex h-10 w-10 items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-neutral-50 hover:text-neutral-700" title="Editar" aria-label={`Editar ${c.nome}`}><Edit size={18}/></button>
-                                        <button onClick={() => excluirClinica(c.id)} className="flex h-10 w-10 items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-rose-50 hover:text-red-500" title="Excluir" aria-label={`Excluir ${c.nome}`}><Trash2 size={18}/></button>
+                                    <div className="flex items-center gap-1">
+                                        <button onClick={() => abrirEdicaoClinica(c)} className="p-2 text-neutral-400 hover:text-neutral-700 hover:bg-white rounded-lg transition-all" title="Editar"><Edit size={18}/></button>
+                                        <button onClick={() => excluirClinica(c.id)} className="p-2 text-neutral-400 hover:text-red-500 hover:bg-white rounded-lg transition-all" title="Excluir"><Trash2 size={18}/></button>
                                     </div>
                                 </div>
                             ))}
@@ -1041,7 +1040,7 @@ export default function Configuracoes() {
                                 <h3 className="text-base font-semibold text-neutral-900">Modelos de anamnese</h3>
                                 <p className="mt-1 text-xs text-neutral-500">Perguntas usadas na ficha do paciente.</p>
                             </div>
-                            <button type="button" onClick={abrirNovoModelo} className="inline-flex h-11 shrink-0 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 sm:h-9"><Plus size={14}/> Novo modelo</button>
+                            <button type="button" onClick={abrirNovoModelo} className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800"><Plus size={14}/> Novo modelo</button>
                         </div>
 
                         <div className="grid min-h-0 flex-1 grid-cols-1 content-start gap-2 overflow-y-auto md:grid-cols-2">
@@ -1051,7 +1050,7 @@ export default function Configuracoes() {
                                         <div className="flex-1 min-w-0">
                                             <div className="flex items-center gap-2 mb-1">
                                                 <h4 className="truncate text-sm font-semibold text-neutral-900">{m.nome}</h4>
-                                                {m.padrao && <span className="rounded-md bg-neutral-100 px-1.5 py-0.5 text-[11px] font-medium text-neutral-600">Padrão</span>}
+                                                {m.padrao && <span className="rounded-md bg-neutral-100 px-1.5 py-0.5 text-[10px] font-medium text-neutral-600">Padrão</span>}
                                             </div>
                                             {m.descricao && <p className="text-xs text-neutral-500">{m.descricao}</p>}
                                         </div>
@@ -1066,12 +1065,12 @@ export default function Configuracoes() {
                                                 {p.label}
                                             </div>
                                         ))}
-                                        {m.perguntas.length > 5 && <div className="text-[11px] text-neutral-400 text-center">+ {m.perguntas.length - 5} mais</div>}
+                                        {m.perguntas.length > 5 && <div className="text-[10px] text-neutral-400 text-center">+ {m.perguntas.length - 5} mais</div>}
                                     </div>
                                     <div className="flex gap-2">
-                                        <button onClick={() => abrirEditarModelo(m)} className="inline-flex h-10 flex-1 items-center justify-center gap-1 rounded-md border border-neutral-200 text-xs font-medium text-neutral-700 hover:bg-neutral-50"><Edit size={12}/> Editar</button>
-                                        <button onClick={() => duplicarModelo(m)} className="h-10 rounded-md border border-neutral-200 px-3 text-xs font-medium text-neutral-600 hover:bg-neutral-50">Duplicar</button>
-                                        {!m.padrao && <button onClick={() => excluirModelo(m.id)} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-neutral-200 text-neutral-400 hover:bg-neutral-50 hover:text-rose-600"><Trash2 size={12}/></button>}
+                                        <button onClick={() => abrirEditarModelo(m)} className="inline-flex h-8 flex-1 items-center justify-center gap-1 rounded-md border border-neutral-200 text-xs font-medium text-neutral-700 hover:bg-neutral-50"><Edit size={12}/> Editar</button>
+                                        <button onClick={() => duplicarModelo(m)} className="h-8 rounded-md border border-neutral-200 px-2.5 text-xs font-medium text-neutral-600 hover:bg-neutral-50">Duplicar</button>
+                                        {!m.padrao && <button onClick={() => excluirModelo(m.id)} className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-neutral-200 text-neutral-400 hover:bg-neutral-50 hover:text-rose-600"><Trash2 size={12}/></button>}
                                     </div>
                                 </div>
                             ))}
@@ -1081,26 +1080,26 @@ export default function Configuracoes() {
 
             {/* ABA GERAL / PREFERÊNCIAS */}
             {abaAtiva === 'geral' && (
-                <div className="grid min-h-0 grid-cols-1 gap-3 p-3 lg:grid-cols-2">
-                    <section className="min-h-0 min-w-0 space-y-2">
+                <div className="grid min-h-0 grid-cols-1 gap-3 overflow-visible p-3 md:h-full md:overflow-hidden lg:grid-cols-2">
+                    <section className="min-h-0 space-y-2 overflow-hidden">
                         <h3 className="text-base font-semibold text-neutral-900">Preferências gerais</h3>
-                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                            <div className="min-w-0"><label className={campoLabel}>Nome para documentos</label><input value={prefs.nome_clinica} onChange={e => atualizarPref('nome_clinica', e.target.value)} className={campoInput} placeholder="Ex: Clínica Sorriso"/></div>
-                            <div className="min-w-0"><label className={campoLabel}>CNPJ</label><input value={prefs.cnpj} onChange={e => atualizarPref('cnpj', e.target.value)} className={campoInput} placeholder="00.000.000/0000-00"/></div>
-                            <div className="min-w-0 sm:col-span-2"><label className={campoLabel}>Slogan</label><input value={prefs.slogan} onChange={e => atualizarPref('slogan', e.target.value)} className={campoInput} placeholder="Ex: Odontologia Integrada"/></div>
-                            <div className="min-w-0 sm:col-span-2"><label className={campoLabel}>Cabeçalho dos documentos</label><textarea value={prefs.cabecalho_documentos} onChange={e => atualizarPref('cabecalho_documentos', e.target.value)} className="h-20 w-full resize-none rounded-md border border-neutral-200 bg-white p-2.5 text-base text-neutral-900 outline-none focus:border-neutral-900 sm:h-16 sm:text-sm" placeholder="Endereço, telefone e responsável técnico..."/></div>
-                            <div className="min-w-0 sm:col-span-2"><label className={campoLabel}>Rodapé dos documentos</label><input value={prefs.rodape_documentos} onChange={e => atualizarPref('rodape_documentos', e.target.value)} className={campoInput}/></div>
-                            <div className="flex min-h-[52px] items-center justify-between gap-3 rounded-md border border-neutral-200 px-3 py-2 sm:col-span-2">
+                        <div className="grid grid-cols-2 gap-2">
+                            <div><label className={campoLabel}>Nome para documentos</label><input value={prefs.nome_clinica} onChange={e => atualizarPref('nome_clinica', e.target.value)} className={campoInput} placeholder="Ex: Clínica Sorriso"/></div>
+                            <div><label className={campoLabel}>CNPJ</label><input value={prefs.cnpj} onChange={e => atualizarPref('cnpj', e.target.value)} className={campoInput} placeholder="00.000.000/0000-00"/></div>
+                            <div className="col-span-2"><label className={campoLabel}>Slogan</label><input value={prefs.slogan} onChange={e => atualizarPref('slogan', e.target.value)} className={campoInput} placeholder="Ex: Odontologia Integrada"/></div>
+                            <div className="col-span-2"><label className={campoLabel}>Cabeçalho dos documentos</label><textarea value={prefs.cabecalho_documentos} onChange={e => atualizarPref('cabecalho_documentos', e.target.value)} className="h-16 w-full resize-none rounded-md border border-neutral-200 bg-white p-2.5 text-sm text-neutral-900 outline-none focus:border-neutral-900" placeholder="Endereço, telefone e responsável técnico..."/></div>
+                            <div className="col-span-2"><label className={campoLabel}>Rodapé dos documentos</label><input value={prefs.rodape_documentos} onChange={e => atualizarPref('rodape_documentos', e.target.value)} className={campoInput}/></div>
+                            <div className="col-span-2 flex items-center justify-between gap-3 rounded-md border border-neutral-200 px-3 py-2">
                                 <span className="text-sm font-medium text-neutral-800">Tabela de tratamentos</span>
-                                <button type="button" onClick={() => void exportarTabelaTratamentos()} className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-md border border-neutral-200 bg-white px-3 text-xs font-medium text-neutral-700">
+                                <button type="button" onClick={() => void exportarTabelaTratamentos()} className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-neutral-200 bg-white px-2.5 text-xs font-medium text-neutral-700">
                                     <Download size={14} /> Exportar
                                 </button>
                             </div>
                         </div>
                     </section>
-                    <section className="min-h-0 min-w-0 space-y-3">
+                    <section className="min-h-0 space-y-3 overflow-hidden">
                         <h3 className="text-base font-semibold text-neutral-900">Horário de atendimento</h3>
-                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                             <div><label className={campoLabel}>Abertura</label><input type="time" value={prefs.horario_abertura} onChange={e => atualizarPref('horario_abertura', e.target.value)} className={campoInput}/></div>
                             <div><label className={campoLabel}>Fechamento</label><input type="time" value={prefs.horario_fechamento} onChange={e => atualizarPref('horario_fechamento', e.target.value)} className={campoInput}/></div>
                             <div><label className={campoLabel}>Consulta (min)</label><input type="number" value={prefs.duracao_consulta_padrao} onChange={e => atualizarPref('duracao_consulta_padrao', parseInt(e.target.value)||60)} className={campoInput}/></div>
@@ -1109,7 +1108,7 @@ export default function Configuracoes() {
                             <label className={campoLabel}>Dias</label>
                             <div className="flex flex-wrap gap-1.5">
                                 {[{k:'seg',l:'Seg'},{k:'ter',l:'Ter'},{k:'qua',l:'Qua'},{k:'qui',l:'Qui'},{k:'sex',l:'Sex'},{k:'sab',l:'Sáb'},{k:'dom',l:'Dom'}].map(d => (
-                                    <button key={d.k} type="button" onClick={() => toggleDia(d.k)} className={`h-10 rounded-md px-3 text-sm font-medium sm:h-9 sm:px-2.5 sm:text-xs ${prefs.dias_atendimento[d.k] ? 'bg-neutral-900 text-white' : 'border border-neutral-200 text-neutral-600 hover:bg-neutral-50'}`}>{d.l}</button>
+                                    <button key={d.k} type="button" onClick={() => toggleDia(d.k)} className={`h-8 rounded-md px-2.5 text-xs font-medium ${prefs.dias_atendimento[d.k] ? 'bg-neutral-900 text-white' : 'border border-neutral-200 text-neutral-600 hover:bg-neutral-50'}`}>{d.l}</button>
                                 ))}
                             </div>
                         </div>
@@ -1123,7 +1122,7 @@ export default function Configuracoes() {
                                 { k: 'notificar_debitos', l: 'Débitos pendentes' },
                                 { k: 'confirmar_exclusao', l: 'Confirmar antes de excluir' },
                             ].map(it => (
-                                <div key={it.k} className="flex min-h-[52px] items-center justify-between gap-3 rounded-md border border-neutral-200 px-3 py-2">
+                                <div key={it.k} className="flex items-center justify-between rounded-md border border-neutral-200 px-3 py-2">
                                     <span className="text-sm font-medium text-neutral-800">{it.l}</span>
                                     <Switch checked={!!prefs[it.k]} onChange={(valor) => atualizarPref(it.k, valor)} />
                                 </div>
@@ -1142,14 +1141,14 @@ export default function Configuracoes() {
                                     <h3 className="text-base font-semibold text-neutral-900">Modelos de documentos</h3>
                                     <p className="mt-1 text-xs text-neutral-500">Contratos, receitas e termos.</p>
                                 </div>
-                                <button type="button" onClick={abrirNovoDoc} className="inline-flex h-11 shrink-0 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 sm:h-9"><Plus size={14}/> Novo modelo</button>
+                                <button type="button" onClick={abrirNovoDoc} className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800"><Plus size={14}/> Novo modelo</button>
                             </div>
-                            <div className="flex flex-wrap items-center gap-2">
+                            <div className="flex items-center gap-2">
                                 <div className="relative min-w-0 flex-1">
                                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" size={16}/>
-                                    <input value={docsBusca} onChange={e => setDocsBusca(e.target.value)} placeholder="Buscar modelo" className="h-11 w-full rounded-md border border-neutral-200 bg-white py-2 pl-9 pr-3 text-base outline-none placeholder:text-neutral-400 focus:border-neutral-900 sm:h-10 sm:text-sm"/>
+                                    <input value={docsBusca} onChange={e => setDocsBusca(e.target.value)} placeholder="Buscar modelo" className="h-10 w-full rounded-md border border-neutral-200 bg-white py-2 pl-9 pr-3 text-sm outline-none placeholder:text-neutral-400 focus:border-neutral-900"/>
                                 </div>
-                                <div className="w-28 shrink-0 sm:w-40">
+                                <div className="w-40 shrink-0">
                                     <CustomSelect value={docsTipo} onChange={setDocsTipo} options={[{value:'todos',label:'Tipo'},{value:'contrato',label:'Contrato'},{value:'receita',label:'Receita'},{value:'atestado',label:'Atestado'},{value:'outro',label:'Outro'}]} size="md"/>
                                 </div>
                                 <SegmentedControl
@@ -1172,14 +1171,14 @@ export default function Configuracoes() {
                                 return (
                                     <div className="min-h-0 flex-1 overflow-y-auto rounded-xl border border-neutral-200">
                                         {lista.map((d) => (
-                                            <div key={d.id} className="flex min-h-[56px] items-center gap-3 border-b border-black/5 px-3 py-2.5 last:border-0">
-                                                <span className="w-20 shrink-0 rounded-md bg-neutral-100 px-1.5 py-0.5 text-center text-[11px] font-medium text-neutral-600">{d.tipo}</span>
+                                            <div key={d.id} className="flex items-center gap-3 border-b border-black/5 px-3 py-2.5 last:border-0">
+                                                <span className="w-20 shrink-0 rounded-md bg-neutral-100 px-1.5 py-0.5 text-center text-[10px] font-medium text-neutral-600">{d.tipo}</span>
                                                 <div className="min-w-0 flex-1">
                                                     <p className="truncate text-sm font-medium text-neutral-900">{d.nome}</p>
                                                     <p className="truncate text-xs text-neutral-500">{d.conteudo}</p>
                                                 </div>
-                                                <button onClick={() => abrirEditarDoc(d)} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-neutral-200 text-neutral-600 hover:bg-neutral-50"><Edit size={14}/></button>
-                                                <button onClick={() => excluirDoc(d.id)} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-neutral-200 text-neutral-400 hover:text-rose-600"><Trash2 size={14}/></button>
+                                                <button onClick={() => abrirEditarDoc(d)} className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-neutral-200 text-neutral-600 hover:bg-neutral-50"><Edit size={14}/></button>
+                                                <button onClick={() => excluirDoc(d.id)} className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-neutral-200 text-neutral-400 hover:text-rose-600"><Trash2 size={14}/></button>
                                             </div>
                                         ))}
                                     </div>
@@ -1190,13 +1189,13 @@ export default function Configuracoes() {
                             {lista.map(d => (
                                 <div key={d.id} className="rounded-xl border border-neutral-200 bg-white p-3">
                                     <div className="mb-1.5 flex items-center gap-2">
-                                        <span className="rounded-md bg-neutral-100 px-1.5 py-0.5 text-[11px] font-medium text-neutral-600">{d.tipo}</span>
+                                        <span className="rounded-md bg-neutral-100 px-1.5 py-0.5 text-[10px] font-medium text-neutral-600">{d.tipo}</span>
                                         <h4 className="min-w-0 flex-1 truncate text-sm font-semibold text-neutral-900">{d.nome}</h4>
                                     </div>
                                     <p className="mb-2 line-clamp-2 whitespace-pre-line text-xs text-neutral-500">{d.conteudo}</p>
                                     <div className="flex gap-2">
-                                        <button onClick={() => abrirEditarDoc(d)} className="inline-flex h-10 flex-1 items-center justify-center gap-1 rounded-md border border-neutral-200 text-xs font-medium text-neutral-700 hover:bg-neutral-50"><Edit size={12}/> Editar</button>
-                                        <button onClick={() => excluirDoc(d.id)} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-neutral-200 text-neutral-400 hover:text-rose-600"><Trash2 size={12}/></button>
+                                        <button onClick={() => abrirEditarDoc(d)} className="inline-flex h-8 flex-1 items-center justify-center gap-1 rounded-md border border-neutral-200 text-xs font-medium text-neutral-700 hover:bg-neutral-50"><Edit size={12}/> Editar</button>
+                                        <button onClick={() => excluirDoc(d.id)} className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-neutral-200 text-neutral-400 hover:text-rose-600"><Trash2 size={12}/></button>
                                     </div>
                                 </div>
                             ))}
@@ -1214,7 +1213,7 @@ export default function Configuracoes() {
                                 <h3 className="text-base font-semibold text-neutral-900">Categorias financeiras</h3>
                                 <p className="text-xs text-neutral-500">Inativas não aparecem no Financeiro.</p>
                             </div>
-                            <button type="button" onClick={abrirNovaCatFin} className="inline-flex h-11 shrink-0 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 sm:h-9"><Plus size={14}/> Adicionar</button>
+                            <button type="button" onClick={abrirNovaCatFin} className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800"><Plus size={14}/> Adicionar</button>
                         </div>
 
                         <div className="mb-2 flex shrink-0 items-center gap-2">
@@ -1233,13 +1232,13 @@ export default function Configuracoes() {
                                     {buscaCatFin.trim() ? 'Nenhuma categoria encontrada.' : 'Nenhuma categoria cadastrada.'}
                                 </div>
                             ) : catsFinFiltradas.map(c => (
-                                <div key={c.id} className={`flex min-h-[56px] items-center gap-2 rounded-xl border border-neutral-200 bg-white py-1.5 pl-3 pr-1.5 ${c.ativo ? '' : 'opacity-50'}`}>
+                                <div key={c.id} className={`flex items-center gap-2 rounded-xl border border-neutral-200 bg-white px-3 py-2 ${c.ativo ? '' : 'opacity-50'}`}>
                                     <span className="h-3 w-3 shrink-0 rounded-sm" style={{ backgroundColor: c.cor }} />
                                     <span className="min-w-0 flex-1 truncate text-sm font-medium text-neutral-900">{c.nome}</span>
-                                    <span className="rounded-md bg-neutral-100 px-1.5 py-0.5 text-[11px] font-medium text-neutral-600">{c.tipo}</span>
-                                    <button onClick={() => toggleCatFinAtiva(c.id)} className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md ${c.ativo ? 'bg-neutral-900 text-white' : 'border border-neutral-200 text-neutral-400'}`} title={c.ativo ? 'Desativar' : 'Ativar'}><Check size={14}/></button>
-                                    <button onClick={() => abrirEditarCatFin(c)} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-neutral-200 text-neutral-500 hover:bg-neutral-50"><Edit size={14}/></button>
-                                    <button onClick={() => removerCatFin(c.id)} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-neutral-200 text-neutral-400 hover:text-rose-600"><Trash2 size={14}/></button>
+                                    <span className="rounded-md bg-neutral-100 px-1.5 py-0.5 text-[10px] font-medium text-neutral-600">{c.tipo}</span>
+                                    <button onClick={() => toggleCatFinAtiva(c.id)} className={`inline-flex h-8 w-8 items-center justify-center rounded-md ${c.ativo ? 'bg-neutral-900 text-white' : 'border border-neutral-200 text-neutral-400'}`} title={c.ativo ? 'Desativar' : 'Ativar'}><Check size={14}/></button>
+                                    <button onClick={() => abrirEditarCatFin(c)} className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-neutral-200 text-neutral-500 hover:bg-neutral-50"><Edit size={14}/></button>
+                                    <button onClick={() => removerCatFin(c.id)} className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-neutral-200 text-neutral-400 hover:text-rose-600"><Trash2 size={14}/></button>
                                 </div>
                             ))}
                         </div>
@@ -1253,20 +1252,20 @@ export default function Configuracoes() {
                             <h3 className="text-base font-semibold text-neutral-900">Templates</h3>
                             <p className="text-xs text-neutral-500">WhatsApp, e-mail e SMS. Lembretes automáticos saem às 10h.</p>
                         </div>
-                        <button type="button" onClick={abrirNovoTemplateCom} className="inline-flex h-11 shrink-0 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 sm:h-9"><Plus size={14}/> Novo template</button>
+                        <button type="button" onClick={abrirNovoTemplateCom} className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800"><Plus size={14}/> Novo template</button>
                     </div>
                     <div className="grid min-h-0 flex-1 grid-cols-1 content-start gap-2 overflow-y-auto md:grid-cols-2">
                         {templatesComunicacao.map(t => (
                             <div key={t.id} className={`rounded-xl border border-neutral-200 bg-white p-3 ${t.ativo ? '' : 'opacity-50'}`}>
                                 <div className="mb-1.5 flex items-center gap-2">
-                                    <span className="rounded-md bg-neutral-100 px-1.5 py-0.5 text-[11px] font-medium text-neutral-600">{t.canal}</span>
+                                    <span className="rounded-md bg-neutral-100 px-1.5 py-0.5 text-[10px] font-medium text-neutral-600">{t.canal}</span>
                                     <h4 className="min-w-0 flex-1 truncate text-sm font-semibold text-neutral-900">{t.nome}</h4>
-                                    {!t.ativo && <span className="text-[11px] text-neutral-400">Inativo</span>}
+                                    {!t.ativo && <span className="text-[10px] text-neutral-400">Inativo</span>}
                                 </div>
                                 <p className="mb-2 line-clamp-2 whitespace-pre-line text-xs text-neutral-500">{t.corpo}</p>
                                 <div className="flex gap-2">
-                                    <button onClick={() => abrirEditarTemplateCom(t)} className="inline-flex h-10 flex-1 items-center justify-center gap-1 rounded-md border border-neutral-200 text-xs font-medium text-neutral-700 hover:bg-neutral-50"><Edit size={12}/> Editar</button>
-                                    <button onClick={() => excluirTemplateCom(t.id)} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-neutral-200 text-neutral-400 hover:text-rose-600"><Trash2 size={12}/></button>
+                                    <button onClick={() => abrirEditarTemplateCom(t)} className="inline-flex h-8 flex-1 items-center justify-center gap-1 rounded-md border border-neutral-200 text-xs font-medium text-neutral-700 hover:bg-neutral-50"><Edit size={12}/> Editar</button>
+                                    <button onClick={() => excluirTemplateCom(t.id)} className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-neutral-200 text-neutral-400 hover:text-rose-600"><Trash2 size={12}/></button>
                                 </div>
                             </div>
                         ))}
@@ -1297,23 +1296,23 @@ export default function Configuracoes() {
                     salvarTaxas(lista);
                 };
                 const linha = (nome: string, amostra: TaxaMaquininha, grupo: TaxaMaquininha[]) => (
-                    <div key={nome} className={`grid min-h-[48px] grid-cols-[minmax(0,1fr)_3.75rem_2.75rem_2.5rem] items-center gap-1.5 px-1 py-1 sm:grid-cols-[minmax(0,1fr)_4.5rem_3.25rem_2rem] sm:gap-2 ${amostra.ativo ? '' : 'opacity-45'}`}>
+                    <div key={nome} className={`grid grid-cols-[minmax(0,1fr)_4.5rem_3.25rem_2rem] items-center gap-2 px-1 py-1 ${amostra.ativo ? '' : 'opacity-45'}`}>
                         <p className="truncate text-sm font-medium text-neutral-900">{nome}</p>
-                        <input type="number" step="1" min="0" max="100" inputMode="decimal" value={amostra.taxa_percentual} onChange={e => aplicarGrupo(grupo, 'taxa_percentual', parseFloat(e.target.value) || 0)} className="h-10 w-full rounded-md border border-neutral-200 bg-white px-2 text-sm font-medium text-neutral-900 outline-none focus:border-neutral-900 sm:h-8 sm:text-xs" aria-label="Taxa" />
-                        <input type="number" min="0" inputMode="numeric" value={amostra.prazo_recebimento_dias} onChange={e => aplicarGrupo(grupo, 'prazo_recebimento_dias', parseInt(e.target.value) || 0)} className="h-10 w-full rounded-md border border-neutral-200 bg-white px-1.5 text-sm font-medium text-neutral-900 outline-none focus:border-neutral-900 sm:h-8 sm:px-2 sm:text-xs" aria-label="Prazo" />
-                        <button type="button" onClick={() => aplicarGrupo(grupo, 'ativo', !amostra.ativo)} className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md sm:h-8 sm:w-8 ${amostra.ativo ? 'bg-neutral-900 text-white' : 'border border-neutral-200 text-neutral-400'}`} aria-label={amostra.ativo ? 'Desativar' : 'Ativar'}><Check size={14}/></button>
+                        <input type="number" step="1" min="0" max="100" value={amostra.taxa_percentual} onChange={e => aplicarGrupo(grupo, 'taxa_percentual', parseFloat(e.target.value) || 0)} className="h-8 w-full rounded-md border border-neutral-200 bg-white px-2 text-xs font-medium text-neutral-900 outline-none focus:border-neutral-900" aria-label="Taxa" />
+                        <input type="number" min="0" value={amostra.prazo_recebimento_dias} onChange={e => aplicarGrupo(grupo, 'prazo_recebimento_dias', parseInt(e.target.value) || 0)} className="h-8 w-full rounded-md border border-neutral-200 bg-white px-2 text-xs font-medium text-neutral-900 outline-none focus:border-neutral-900" aria-label="Prazo" />
+                        <button type="button" onClick={() => aplicarGrupo(grupo, 'ativo', !amostra.ativo)} className={`inline-flex h-8 w-8 items-center justify-center rounded-md ${amostra.ativo ? 'bg-neutral-900 text-white' : 'border border-neutral-200 text-neutral-400'}`} aria-label={amostra.ativo ? 'Desativar' : 'Ativar'}><Check size={14}/></button>
                     </div>
                 );
                 const coluna = (titulo: string, linhas: React.ReactNode) => (
-                    <section className="flex min-h-0 flex-col rounded-xl border border-neutral-200 bg-white lg:h-full lg:overflow-hidden">
+                    <section className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white">
                         <div className="border-b border-black/5 px-3 py-2.5">
                             <h3 className="text-sm font-semibold text-neutral-900">{titulo}</h3>
                         </div>
                         <div className="flex min-h-0 flex-1 flex-col p-2">
-                            <div className="grid shrink-0 grid-cols-[minmax(0,1fr)_3.75rem_2.75rem_2.5rem] gap-1.5 px-1 pb-1 sm:grid-cols-[minmax(0,1fr)_4.5rem_3.25rem_2rem] sm:gap-2">
-                                <span className="text-xs font-medium text-neutral-500">Pagamento</span>
-                                <span className="text-xs font-medium text-neutral-500">Taxa</span>
-                                <span className="text-xs font-medium text-neutral-500">Prazo</span>
+                            <div className="grid shrink-0 grid-cols-[minmax(0,1fr)_4.5rem_3.25rem_2rem] gap-2 px-1 pb-1">
+                                <span className="text-[11px] font-medium text-neutral-500">Pagamento</span>
+                                <span className="text-[11px] font-medium text-neutral-500">Taxa</span>
+                                <span className="text-[11px] font-medium text-neutral-500">Prazo</span>
                                 <span />
                             </div>
                             <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">{linhas}</div>
@@ -1327,7 +1326,7 @@ export default function Configuracoes() {
                     return TAXAS_MAQUININHA_PADRAO.filter((t) => t.parcela === parcela && bandeiras.includes(t.bandeira));
                 };
                 return (
-                <div className="flex flex-col gap-2 p-3 lg:grid lg:h-full lg:min-h-0 lg:grid-cols-3 lg:overflow-hidden">
+                <div className="grid h-full min-h-0 grid-cols-1 gap-2 overflow-hidden p-3 lg:grid-cols-3">
                     {pix && debVisa && coluna('PIX e débito', <>
                         {linha('PIX', pix, [pix])}
                         {linha('Débito Visa/Master', debVisa, [debVisa])}
@@ -1347,7 +1346,7 @@ export default function Configuracoes() {
                             <h3 className="text-base font-semibold text-neutral-900">Backups</h3>
                             <p className="text-xs text-neutral-500">Automático 2 vezes ao dia. Os 30 mais recentes ficam guardados.</p>
                         </div>
-                        <button type="button" onClick={backupAgoraManual} disabled={criandoBackup} className="inline-flex h-11 shrink-0 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50 sm:h-9">
+                        <button type="button" onClick={backupAgoraManual} disabled={criandoBackup} className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50">
                             {criandoBackup ? <><Loader2 className="animate-spin" size={14}/> Gerando</> : <><Plus size={14}/> Backup manual</>}
                         </button>
                     </div>
@@ -1357,29 +1356,29 @@ export default function Configuracoes() {
                         ) : backups.map((b: any) => {
                             const isAuto = (b.tipo || '').startsWith('automatico');
                             return (
-                                <div key={b.id} className="flex min-h-[56px] items-center gap-2 rounded-xl border border-neutral-200 bg-white py-2 pl-3 pr-1.5">
+                                <div key={b.id} className="flex items-center gap-3 rounded-xl border border-neutral-200 bg-white px-3 py-2">
                                     <div className="min-w-0 flex-1">
                                         <div className="flex items-center gap-2">
                                             <span className="text-sm font-medium text-neutral-900">#{b.id}</span>
-                                            <span className="rounded-md bg-neutral-100 px-1.5 py-0.5 text-[11px] font-medium text-neutral-600">{isAuto ? 'automático' : (b.tipo || 'manual')}</span>
-                                            {b.tamanho_kb ? <span className="text-[11px] text-neutral-500">{b.tamanho_kb} KB</span> : null}
+                                            <span className="rounded-md bg-neutral-100 px-1.5 py-0.5 text-[10px] font-medium text-neutral-600">{isAuto ? 'automático' : (b.tipo || 'manual')}</span>
+                                            {b.tamanho_kb ? <span className="text-[10px] text-neutral-500">{b.tamanho_kb} KB</span> : null}
                                         </div>
                                         <p className="truncate text-xs text-neutral-500">
                                             {new Date(b.criado_em).toLocaleDateString('pt-BR')} às {new Date(b.criado_em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                                             {b.observacao ? ` · ${b.observacao}` : ''}
                                         </p>
                                     </div>
-                                    <button onClick={() => baixarBackupComoJson(b.id)} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-neutral-200 text-neutral-600 hover:bg-neutral-50" title="Baixar"><Download size={14}/></button>
-                                    <button onClick={() => abrirModalRestaurar(b)} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-neutral-200 text-neutral-600 hover:bg-neutral-50" title="Restaurar"><RotateCcw size={14}/></button>
-                                    <button onClick={() => excluirBackupItem(b.id)} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-neutral-200 text-neutral-400 hover:text-rose-600" title="Excluir"><Trash2 size={14}/></button>
+                                    <button onClick={() => baixarBackupComoJson(b.id)} className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-neutral-200 text-neutral-600 hover:bg-neutral-50" title="Baixar"><Download size={14}/></button>
+                                    <button onClick={() => abrirModalRestaurar(b)} className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-neutral-200 text-neutral-600 hover:bg-neutral-50" title="Restaurar"><RotateCcw size={14}/></button>
+                                    <button onClick={() => excluirBackupItem(b.id)} className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-neutral-200 text-neutral-400 hover:text-rose-600" title="Excluir"><Trash2 size={14}/></button>
                                 </div>
                             );
                         })}
                     </div>
                     <div className="mt-2 grid shrink-0 grid-cols-1 gap-2 sm:grid-cols-3">
-                        <button type="button" onClick={exportarPacientes} className="h-11 rounded-md border border-neutral-200 text-sm font-medium text-neutral-800 hover:bg-neutral-50 sm:h-9 sm:text-xs">Exportar pacientes</button>
-                        <button type="button" onClick={exportarTudo} className="h-11 rounded-md border border-neutral-200 text-sm font-medium text-neutral-800 hover:bg-neutral-50 sm:h-9 sm:text-xs">Exportar configurações</button>
-                        <label className="inline-flex h-11 cursor-pointer items-center justify-center rounded-md border border-neutral-200 text-sm font-medium text-neutral-800 hover:bg-neutral-50 sm:h-9 sm:text-xs">
+                        <button type="button" onClick={exportarPacientes} className="h-9 rounded-md border border-neutral-200 text-xs font-medium text-neutral-800 hover:bg-neutral-50">Exportar pacientes</button>
+                        <button type="button" onClick={exportarTudo} className="h-9 rounded-md border border-neutral-200 text-xs font-medium text-neutral-800 hover:bg-neutral-50">Exportar configurações</button>
+                        <label className="inline-flex h-9 cursor-pointer items-center justify-center rounded-md border border-neutral-200 text-xs font-medium text-neutral-800 hover:bg-neutral-50">
                             Importar configurações
                             <input type="file" accept="application/json" onChange={importarTudo} className="hidden"/>
                         </label>
@@ -1400,7 +1399,7 @@ export default function Configuracoes() {
                           <h3 className="text-base font-semibold text-neutral-900">Restaurar backup</h3>
                           <p className="mt-0.5 text-xs text-neutral-500">Essa ação substitui os dados atuais e não pode ser desfeita.</p>
                       </div>
-                      <button onClick={() => setModalRestaurar(null)} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-50"><X size={16}/></button>
+                      <button onClick={() => setModalRestaurar(null)} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-50"><X size={16}/></button>
                   </div>
 
                   <div className="space-y-3 p-4">
@@ -1436,12 +1435,12 @@ export default function Configuracoes() {
                       </div>
                   </div>
 
-                  <div className="flex gap-2 border-t border-neutral-200 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3">
-                      <button onClick={() => setModalRestaurar(null)} disabled={restaurando} className="h-11 flex-1 rounded-md text-sm font-medium text-neutral-600 hover:bg-neutral-50 disabled:opacity-50 sm:h-9">Cancelar</button>
+                  <div className="flex gap-2 border-t border-neutral-200 px-4 py-3">
+                      <button onClick={() => setModalRestaurar(null)} disabled={restaurando} className="h-9 flex-1 rounded-md text-sm font-medium text-neutral-600 hover:bg-neutral-50 disabled:opacity-50">Cancelar</button>
                       <button
                           onClick={confirmarRestauracao}
                           disabled={confirmacaoTexto !== 'RESTAURAR' || restaurando}
-                          className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-md bg-neutral-900 text-sm font-medium text-white hover:bg-neutral-800 disabled:cursor-not-allowed disabled:bg-neutral-200 disabled:text-neutral-400 sm:h-9"
+                          className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-md bg-neutral-900 text-sm font-medium text-white hover:bg-neutral-800 disabled:cursor-not-allowed disabled:bg-neutral-200 disabled:text-neutral-400"
                       >
                           {restaurando ? <><Loader2 className="animate-spin" size={18}/> Restaurando...</> : <><RotateCcw size={18}/> Confirmar Restauração</>}
                       </button>
@@ -1453,10 +1452,10 @@ export default function Configuracoes() {
       {/* MODAL EDITAR DOCUMENTO */}
       <Modal open={modalDoc && !!docEdit} onClose={() => setModalDoc(false)} maxWidth="2xl" hideCloseButton>
           {docEdit && (
-          <div className="flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white sm:max-h-[85vh]">
-                  <div className="flex items-center justify-between border-b border-neutral-200 px-4 py-2.5 sm:py-3">
+          <div className="flex max-h-[85vh] w-full flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white">
+                  <div className="flex items-center justify-between border-b border-neutral-200 px-4 py-3">
                       <h3 className="text-base font-semibold text-neutral-900">{docs.find(d => d.id === docEdit.id) ? 'Editar modelo' : 'Novo modelo'}</h3>
-                      <button onClick={() => setModalDoc(false)} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-50"><X size={16}/></button>
+                      <button onClick={() => setModalDoc(false)} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-50"><X size={16}/></button>
                   </div>
                   <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
                       <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
@@ -1473,7 +1472,7 @@ export default function Configuracoes() {
                           <label className={campoLabel}>Conteúdo</label>
                           <div className="mb-2 flex flex-wrap gap-1">
                               {DOCUMENTO_VARIAVEIS.map(v => (
-                                  <button key={v.chave} type="button" onClick={() => inserirVariavelDoc(String(v.chave))} title={tokenVariavelLabel(v.label)} className="min-h-[36px] rounded-md border border-neutral-200 px-2.5 py-1 text-[11px] font-medium text-neutral-700 hover:bg-neutral-50">{v.label}</button>
+                                  <button key={v.chave} type="button" onClick={() => inserirVariavelDoc(String(v.chave))} title={tokenVariavelLabel(v.label)} className="rounded-md border border-neutral-200 px-2 py-1 text-[11px] font-medium text-neutral-700 hover:bg-neutral-50">{v.label}</button>
                               ))}
                           </div>
                           <DocumentoVariavelEditor
@@ -1488,9 +1487,9 @@ export default function Configuracoes() {
                           </div>
                       </div>
                   </div>
-                  <div className="flex gap-2 border-t border-neutral-200 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3">
-                      <button onClick={() => setModalDoc(false)} className="h-11 flex-1 rounded-md text-sm font-medium text-neutral-600 hover:bg-neutral-50 sm:h-9">Cancelar</button>
-                      <button onClick={salvarDocEdit} className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-md bg-neutral-900 text-sm font-medium text-white hover:bg-neutral-800 sm:h-9"><Save size={14}/> Salvar</button>
+                  <div className="flex gap-2 border-t border-neutral-200 px-4 py-3">
+                      <button onClick={() => setModalDoc(false)} className="h-9 flex-1 rounded-md text-sm font-medium text-neutral-600 hover:bg-neutral-50">Cancelar</button>
+                      <button onClick={salvarDocEdit} className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-md bg-neutral-900 text-sm font-medium text-white hover:bg-neutral-800"><Save size={14}/> Salvar</button>
                   </div>
               </div>
           )}
@@ -1499,10 +1498,10 @@ export default function Configuracoes() {
       {/* MODAL TEMPLATE COMUNICAÇÃO */}
       <Modal open={modalTemplateCom && !!templateComEdit} onClose={() => setModalTemplateCom(false)} maxWidth="2xl" hideCloseButton>
           {templateComEdit && (
-          <div className="flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white sm:max-h-[85vh]">
-                  <div className="flex items-center justify-between border-b border-neutral-200 px-4 py-2.5 sm:py-3">
+          <div className="flex max-h-[85vh] w-full flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white">
+                  <div className="flex items-center justify-between border-b border-neutral-200 px-4 py-3">
                       <h3 className="text-base font-semibold text-neutral-900">{templatesComunicacao.find(t => t.id === templateComEdit.id) ? 'Editar template' : 'Novo template'}</h3>
-                      <button onClick={() => setModalTemplateCom(false)} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-50"><X size={16}/></button>
+                      <button onClick={() => setModalTemplateCom(false)} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-50"><X size={16}/></button>
                   </div>
                   <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
                       <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2">
@@ -1526,9 +1525,9 @@ export default function Configuracoes() {
                           <textarea value={templateComEdit.corpo} onChange={e => setTemplateComEdit({ ...templateComEdit, corpo: e.target.value })} rows={6} className="box-border w-full resize-none rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-900 outline-none focus:border-neutral-900"/>
                       </div>
                   </div>
-                  <div className="flex gap-2 border-t border-neutral-200 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3">
-                      <button onClick={() => setModalTemplateCom(false)} className="h-11 flex-1 rounded-md text-sm font-medium text-neutral-600 hover:bg-neutral-50 sm:h-9">Cancelar</button>
-                      <button onClick={salvarTemplateComEdit} className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-md bg-neutral-900 text-sm font-medium text-white hover:bg-neutral-800 sm:h-9"><Save size={14}/> Salvar</button>
+                  <div className="flex gap-2 border-t border-neutral-200 px-4 py-3">
+                      <button onClick={() => setModalTemplateCom(false)} className="h-9 flex-1 rounded-md text-sm font-medium text-neutral-600 hover:bg-neutral-50">Cancelar</button>
+                      <button onClick={salvarTemplateComEdit} className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-md bg-neutral-900 text-sm font-medium text-white hover:bg-neutral-800"><Save size={14}/> Salvar</button>
                   </div>
               </div>
           )}
@@ -1538,9 +1537,9 @@ export default function Configuracoes() {
       <Modal open={modalCatFin && !!catFinEdit} onClose={() => { setModalCatFin(false); setCatFinEdit(null); setCorCatAberta(false); }} maxWidth="md" hideCloseButton panelClassName="!overflow-visible">
           {catFinEdit && (
           <div className="w-full rounded-xl border border-neutral-200 bg-white">
-              <div className="flex items-center justify-between border-b border-neutral-200 px-4 py-2.5 sm:py-3">
+              <div className="flex items-center justify-between border-b border-neutral-200 px-4 py-3">
                   <h3 className="text-base font-semibold text-neutral-900">{catsFin.find(c => c.id === catFinEdit.id) ? 'Editar categoria' : 'Nova categoria'}</h3>
-                  <button onClick={() => { setModalCatFin(false); setCatFinEdit(null); }} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-50"><X size={16}/></button>
+                  <button onClick={() => { setModalCatFin(false); setCatFinEdit(null); }} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-50"><X size={16}/></button>
               </div>
               <div className="space-y-3 p-4">
                   <div>
@@ -1568,7 +1567,7 @@ export default function Configuracoes() {
                               <p className="mb-2 text-xs font-medium text-neutral-500">Predefinidas</p>
                               <div className="grid grid-cols-6 gap-1.5">
                                   {CORES_CATEGORIA.map((cor) => (
-                                      <button key={cor} type="button" onClick={() => { guardarCorRecente(cor); setCatFinEdit({ ...catFinEdit, cor }); setCorCatAberta(false); }} className={`h-10 rounded-md border sm:h-8 ${catFinEdit.cor.toLowerCase() === cor ? 'border-neutral-900' : 'border-black/10'}`} style={{ backgroundColor: cor }} aria-label={cor} />
+                                      <button key={cor} type="button" onClick={() => { guardarCorRecente(cor); setCatFinEdit({ ...catFinEdit, cor }); setCorCatAberta(false); }} className={`h-8 rounded-md border ${catFinEdit.cor.toLowerCase() === cor ? 'border-neutral-900' : 'border-black/10'}`} style={{ backgroundColor: cor }} aria-label={cor} />
                                   ))}
                               </div>
                               {lerCoresRecentes().length > 0 && (
@@ -1576,7 +1575,7 @@ export default function Configuracoes() {
                                       <p className="mb-2 mt-3 text-xs font-medium text-neutral-500">Últimas usadas</p>
                                       <div className="flex flex-wrap gap-1.5">
                                           {lerCoresRecentes().map((cor) => (
-                                              <button key={cor} type="button" onClick={() => { guardarCorRecente(cor); setCatFinEdit({ ...catFinEdit, cor }); setCorCatAberta(false); }} className="h-10 w-10 rounded-md border border-black/10 sm:h-8 sm:w-8" style={{ backgroundColor: cor }} aria-label={cor} />
+                                              <button key={cor} type="button" onClick={() => { guardarCorRecente(cor); setCatFinEdit({ ...catFinEdit, cor }); setCorCatAberta(false); }} className="h-8 w-8 rounded-md border border-black/10" style={{ backgroundColor: cor }} aria-label={cor} />
                                           ))}
                                       </div>
                                   </>
@@ -1589,9 +1588,9 @@ export default function Configuracoes() {
                       )}
                   </div>
               </div>
-              <div className="flex gap-2 border-t border-neutral-200 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3">
-                  <button onClick={() => { setModalCatFin(false); setCatFinEdit(null); }} className="h-11 flex-1 rounded-md text-sm font-medium text-neutral-600 hover:bg-neutral-50 sm:h-9">Cancelar</button>
-                  <button onClick={salvarCatFinModal} className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-md bg-neutral-900 text-sm font-medium text-white hover:bg-neutral-800 sm:h-9"><Save size={14}/> Salvar</button>
+              <div className="flex gap-2 border-t border-neutral-200 px-4 py-3">
+                  <button onClick={() => { setModalCatFin(false); setCatFinEdit(null); }} className="h-9 flex-1 rounded-md text-sm font-medium text-neutral-600 hover:bg-neutral-50">Cancelar</button>
+                  <button onClick={salvarCatFinModal} className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-md bg-neutral-900 text-sm font-medium text-white hover:bg-neutral-800"><Save size={14}/> Salvar</button>
               </div>
           </div>
           )}
@@ -1600,13 +1599,13 @@ export default function Configuracoes() {
       {/* MODAL CRIAR/EDITAR MODELO ANAMNESE */}
       <Modal open={modalModelo && !!modeloEdit} onClose={() => setModalModelo(false)} maxWidth="2xl" hideCloseButton>
           {modeloEdit && (
-          <div className="flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white sm:max-h-[85vh]">
-                  <div className="flex items-center justify-between border-b border-neutral-200 px-4 py-2.5 sm:py-3">
+          <div className="flex max-h-[85vh] w-full flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white">
+                  <div className="flex items-center justify-between border-b border-neutral-200 px-4 py-3">
                       <div>
                           <h3 className="text-base font-semibold text-neutral-900">{modelos.find(m => m.id === modeloEdit.id) ? 'Editar modelo' : 'Novo modelo'}</h3>
                           <p className="text-xs text-neutral-500">Perguntas do questionário.</p>
                       </div>
-                      <button onClick={() => setModalModelo(false)} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-50"><X size={16}/></button>
+                      <button onClick={() => setModalModelo(false)} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-50"><X size={16}/></button>
                   </div>
                   <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
                       <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
@@ -1622,7 +1621,7 @@ export default function Configuracoes() {
                       <div>
                           <div className="mb-2 flex items-center justify-between">
                               <h4 className="text-sm font-medium text-neutral-900">Perguntas ({modeloEdit.perguntas.length})</h4>
-                              <button onClick={adicionarPergunta} className="inline-flex h-10 items-center gap-1 rounded-md border border-neutral-200 px-3 text-xs font-medium text-neutral-700 hover:bg-neutral-50"><Plus size={12}/> Adicionar</button>
+                              <button onClick={adicionarPergunta} className="inline-flex h-8 items-center gap-1 rounded-md border border-neutral-200 px-2 text-xs font-medium text-neutral-700 hover:bg-neutral-50"><Plus size={12}/> Adicionar</button>
                           </div>
                           <div className="space-y-1.5" ref={perguntasListRef}>
                               {modeloEdit.perguntas.map((p, idx) => (
@@ -1643,22 +1642,22 @@ export default function Configuracoes() {
                           </div>
                       </div>
                   </div>
-                  <div className="flex gap-2 border-t border-neutral-200 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3">
-                      <button onClick={() => setModalModelo(false)} className="h-11 flex-1 rounded-md text-sm font-medium text-neutral-600 hover:bg-neutral-50 sm:h-9">Cancelar</button>
-                      <button onClick={salvarModelo} className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-md bg-neutral-900 text-sm font-medium text-white hover:bg-neutral-800 sm:h-9"><Save size={14}/> Salvar</button>
+                  <div className="flex gap-2 border-t border-neutral-200 px-4 py-3">
+                      <button onClick={() => setModalModelo(false)} className="h-9 flex-1 rounded-md text-sm font-medium text-neutral-600 hover:bg-neutral-50">Cancelar</button>
+                      <button onClick={salvarModelo} className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-md bg-neutral-900 text-sm font-medium text-white hover:bg-neutral-800"><Save size={14}/> Salvar</button>
                   </div>
               </div>
           )}
       </Modal>
 
       <Modal open={modalProf} onClose={() => setModalProf(false)} maxWidth="2xl" hideCloseButton>
-          <div className="bg-white w-full rounded-[1.35rem] shadow-2xl flex flex-col max-h-[92dvh] animate-in zoom-in-95 border border-neutral-100 sm:max-h-[90vh]">
-                  <div className="flex flex-none items-start justify-between border-b border-neutral-100 bg-neutral-50/50 p-4 pt-5 sm:p-6">
+          <div className="bg-white w-full rounded-[1.35rem] shadow-2xl flex flex-col max-h-[90vh] animate-in zoom-in-95 border border-neutral-100">
+                  <div className="p-6 border-b border-neutral-100 flex justify-between items-start bg-neutral-50/50 rounded-t-[1.35rem] flex-none">
                       <div><h3 className="font-black text-2xl text-neutral-800">{editandoProf ? 'Editar Perfil' : 'Novo Acesso'}</h3><p className="text-neutral-500 font-medium text-sm">Dados profissionais e de acesso.</p></div>
                       {editandoProf && (<button onClick={excluirProfissional} className="p-2 text-red-400 hover:bg-red-50 rounded-lg hover:text-red-600 transition-colors"><Trash2 size={20}/></button>)}
                   </div>
-                  <div className="custom-scrollbar flex-1 space-y-4 overflow-y-auto overscroll-contain p-4 sm:space-y-6 sm:p-8">
-                      <div className="space-y-4 rounded-2xl border border-black/10 bg-neutral-50 p-4 sm:p-5">
+                  <div className="p-8 overflow-y-auto custom-scrollbar space-y-6 flex-1">
+                      <div className="bg-neutral-50 p-5 rounded-2xl border border-black/10 space-y-4">
                           <div className="flex items-center gap-2 text-neutral-800 font-bold text-sm mb-2"><Shield size={16}/> Dados de Login</div>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                               <div><label className="mb-1 block text-xs font-medium text-neutral-500">E-mail de Acesso</label><div className="relative"><Mail className="absolute left-3 top-3.5 text-neutral-400" size={18}/><input value={profForm.email} onChange={e => setProfForm({...profForm, email: e.target.value})} className="w-full pl-10 pr-4 py-3 bg-white border border-black/10 rounded-xl outline-none outline-none focus:border-neutral-400 font-medium text-neutral-700 placeholder:text-neutral-300" placeholder="email@clinica.com"/></div></div>
@@ -1675,21 +1674,21 @@ export default function Configuracoes() {
                               <div><label className="mb-1 block text-xs font-medium text-neutral-500">Cargo</label><input value={profForm.cargo} onChange={e => setProfForm({...profForm, cargo: e.target.value})} className="h-9 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-900 outline-none focus:border-neutral-900" placeholder="Ex: Ortodontista"/></div>
                           </div>
                           <div className="md:col-span-2"><label className="mb-1 block text-xs font-medium text-neutral-500">Endereço</label><input value={profForm.endereco} onChange={e => setProfForm({...profForm, endereco: e.target.value})} className="h-9 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-900 outline-none focus:border-neutral-900" placeholder="Rua, Número, Bairro..."/></div>
-                          <div className="grid grid-cols-1 gap-3 bg-neutral-50 p-3 rounded-xl border border-neutral-100 sm:grid-cols-3"><div className="col-span-1"><label className="text-[11px] font-bold text-neutral-400 uppercase ml-1">Conselho</label><CustomSelect value={profForm.conselho} onChange={v => setProfForm({...profForm, conselho: v})} options={[{value:'CRO',label:'CRO'},{value:'CRM',label:'CRM'},{value:'Outro',label:'Outro'}]} size="sm"/></div><div className="col-span-1"><label className="text-[11px] font-bold text-neutral-400 uppercase ml-1">UF</label><input value={profForm.uf} onChange={e => setProfForm({...profForm, uf: e.target.value})} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg outline-none text-sm font-medium" placeholder="UF"/></div><div className="col-span-1"><label className="text-[11px] font-bold text-neutral-400 uppercase ml-1">Nº Conselho</label><input value={profForm.cro} onChange={e => setProfForm({...profForm, cro: e.target.value})} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg outline-none text-sm font-medium" placeholder="12345"/></div></div>
+                          <div className="grid grid-cols-1 gap-3 bg-neutral-50 p-3 rounded-xl border border-neutral-100 sm:grid-cols-3"><div className="col-span-1"><label className="text-[10px] font-bold text-neutral-400 uppercase ml-1">Conselho</label><CustomSelect value={profForm.conselho} onChange={v => setProfForm({...profForm, conselho: v})} options={[{value:'CRO',label:'CRO'},{value:'CRM',label:'CRM'},{value:'Outro',label:'Outro'}]} size="sm"/></div><div className="col-span-1"><label className="text-[10px] font-bold text-neutral-400 uppercase ml-1">UF</label><input value={profForm.uf} onChange={e => setProfForm({...profForm, uf: e.target.value})} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg outline-none text-sm font-medium" placeholder="UF"/></div><div className="col-span-1"><label className="text-[10px] font-bold text-neutral-400 uppercase ml-1">Nº Conselho</label><input value={profForm.cro} onChange={e => setProfForm({...profForm, cro: e.target.value})} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg outline-none text-sm font-medium" placeholder="12345"/></div></div>
                       </div>
                       <div className="bg-neutral-50 p-4 rounded-2xl border border-neutral-100 flex flex-col md:flex-row justify-between items-center gap-4">
                           <div className="flex items-center gap-3"><div className={`p-3 rounded-xl ${profForm.nivel_acesso === 'admin' ? 'bg-purple-100 text-purple-600' : 'bg-white border border-neutral-200 text-neutral-400'}`}><Shield size={24}/></div><div><h4 className="font-bold text-neutral-800 text-sm">Nível de Permissão</h4><p className="text-xs text-neutral-500">Admins podem editar financeiro e ajustes.</p></div></div>
                           <div className="flex bg-white p-1 rounded-xl border border-neutral-200 shadow-sm"><button onClick={() => setProfForm({...profForm, nivel_acesso: 'comum'})} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${profForm.nivel_acesso === 'comum' ? 'bg-neutral-800 text-white shadow' : 'text-neutral-500 hover:bg-neutral-50'}`}>Comum</button><button onClick={() => setProfForm({...profForm, nivel_acesso: 'admin'})} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${profForm.nivel_acesso === 'admin' ? 'bg-purple-600 text-white shadow' : 'text-neutral-500 hover:bg-neutral-50'}`}>Admin</button></div>
                       </div>
                   </div>
-                  <div className="flex flex-none gap-3 border-t border-neutral-100 bg-neutral-50 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:p-6"><button onClick={() => setModalProf(false)} className="flex-1 py-4 text-neutral-500 font-bold hover:bg-neutral-200 rounded-xl transition-colors">Cancelar</button><button onClick={salvarProfissional} disabled={salvandoProf} className={`${bentoPrimaryBtn} flex-1 py-4 active:scale-95`}>{salvandoProf ? <Loader2 className="animate-spin"/> : <><Save size={18}/> Salvar Acesso</>}</button></div>
+                  <div className="p-6 border-t border-neutral-100 bg-neutral-50 flex gap-3 rounded-b-3xl flex-none"><button onClick={() => setModalProf(false)} className="flex-1 py-4 text-neutral-500 font-bold hover:bg-neutral-200 rounded-xl transition-colors">Cancelar</button><button onClick={salvarProfissional} disabled={salvandoProf} className={`${bentoPrimaryBtn} flex-1 py-4 active:scale-95`}>{salvandoProf ? <Loader2 className="animate-spin"/> : <><Save size={18}/> Salvar Acesso</>}</button></div>
               </div>
       </Modal>
 
       {/* MODAL VINCULOS */}
       <Modal open={modalVinculo && !!profSelecionado} onClose={() => setModalVinculo(false)} maxWidth="md" hideCloseButton>
           {profSelecionado && (
-              <div className="w-full rounded-2xl bg-white p-4 shadow-2xl animate-in zoom-in-95 sm:p-6">
+              <div className="bg-white p-6 rounded-2xl w-full shadow-2xl animate-in zoom-in-95">
                   <div className="flex justify-between items-center mb-6"><div><h3 className="font-bold text-lg">Onde {profSelecionado.nome.split(' ')[0]} atende?</h3><p className="text-xs text-neutral-400">Marque as clínicas permitidas.</p></div><button onClick={() => setModalVinculo(false)} className="p-2 hover:bg-neutral-100 rounded-full"><X size={20}/></button></div>
                   <div className="space-y-2 mb-6 max-h-60 overflow-y-auto">
                       {clinicas.map(c => {
@@ -1699,14 +1698,14 @@ export default function Configuracoes() {
                           );
                       })}
                   </div>
-                  <button onClick={() => setModalVinculo(false)} className="h-11 w-full rounded-xl bg-neutral-900 font-bold text-white sm:h-auto sm:py-3">Concluir</button>
+                  <button onClick={() => setModalVinculo(false)} className="w-full py-3 bg-neutral-900 text-white font-bold rounded-xl">Concluir</button>
               </div>
           )}
       </Modal>
 
       {/* MODAL EDIÇÃO COMPLETA CLÍNICA */}
-      <Modal open={modalClinicaCompleto} onClose={() => { setModalClinicaCompleto(false); setClinicaEditando(null); limparLogoLocal(); }} maxWidth="4xl" hideCloseButton panelClassName="rounded-xl border border-neutral-200 bg-white max-sm:-m-2 max-sm:h-[100dvh] max-sm:w-[calc(100%_+_1rem)] max-sm:max-h-[100dvh] max-sm:rounded-none max-sm:border-0">
-          <div className="max-h-[92dvh] overflow-y-auto overscroll-contain px-4 py-4 sm:max-h-none sm:overflow-visible sm:px-6 sm:py-5">
+      <Modal open={modalClinicaCompleto} onClose={() => { setModalClinicaCompleto(false); setClinicaEditando(null); limparLogoLocal(); }} maxWidth="4xl" hideCloseButton panelClassName="overflow-visible rounded-xl border border-neutral-200 bg-white">
+          <div className="px-5 py-4 sm:px-6 sm:py-5">
               <div className="mb-5 flex items-center justify-between gap-4 border-b border-black/5 pb-4">
                   <div className="flex min-w-0 items-center gap-3.5">
                       <label className="relative h-16 w-16 shrink-0 cursor-pointer">
@@ -1728,8 +1727,8 @@ export default function Configuracoes() {
 
               <section>
                   <h4 className="mb-3 text-sm font-semibold text-neutral-900">Identificação</h4>
-                  <div className="grid grid-cols-1 gap-x-3 gap-y-2.5 sm:grid-cols-2 lg:grid-cols-4">
-                      <label className="min-w-0 sm:col-span-2"><span className={labelModal}>Nome <span className="text-red-500">*</span></span><input value={clinicaForm.nome} onChange={e => setClinicaForm({...clinicaForm, nome: e.target.value})} className={campoModal} placeholder="Nome da clínica"/></label>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-2.5 lg:grid-cols-4">
+                      <label className="min-w-0 lg:col-span-2"><span className={labelModal}>Nome <span className="text-red-500">*</span></span><input value={clinicaForm.nome} onChange={e => setClinicaForm({...clinicaForm, nome: e.target.value})} className={campoModal} placeholder="Nome da clínica"/></label>
                       <label className="min-w-0"><span className={labelModal}>CNPJ</span><input value={clinicaForm.cnpj} onChange={e => setClinicaForm({...clinicaForm, cnpj: e.target.value})} className={campoModal} placeholder="00.000.000/0000-00"/></label>
                       <label className="min-w-0"><span className={labelModal}>Responsável</span><input value={clinicaForm.responsavel_nome} onChange={e => setClinicaForm({...clinicaForm, responsavel_nome: e.target.value})} className={campoModal} placeholder="Responsável técnico"/></label>
                       <label className="min-w-0"><span className={labelModal}>E-mail</span><input value={clinicaForm.email} onChange={e => setClinicaForm({...clinicaForm, email: e.target.value})} className={campoModal} placeholder="clinica@email.com"/></label>
@@ -1737,7 +1736,7 @@ export default function Configuracoes() {
                       <label className="min-w-0"><span className={labelModal}>Início</span><input type="time" value={clinicaForm.horario_inicio} onChange={e => setClinicaForm({...clinicaForm, horario_inicio: e.target.value})} className={campoModal}/></label>
                       <label className="min-w-0"><span className={labelModal}>Término</span><input type="time" value={clinicaForm.horario_fim} onChange={e => setClinicaForm({...clinicaForm, horario_fim: e.target.value})} className={campoModal}/></label>
                       <label className="min-w-0"><span className={labelModal}>Fuso</span><CustomSelect value={clinicaForm.fuso_horario} onChange={v => setClinicaForm({...clinicaForm, fuso_horario: v})} options={FUSO_HORARIO_OPTIONS} size="md"/></label>
-                      <div className="min-w-0 sm:col-span-2">
+                      <div className="min-w-0 lg:col-span-2">
                           <span className={labelModal}>Notas fiscais em nome de</span>
                           <SegmentedControl
                               value={clinicaForm.emitir_notas_em_nome === 'profissional' ? 'profissional' : 'clinica'}
@@ -1753,7 +1752,7 @@ export default function Configuracoes() {
 
               <section className="mt-5 border-t border-black/5 pt-4">
                   <h4 className="mb-3 text-sm font-semibold text-neutral-900">Endereço</h4>
-                  <div className="grid grid-cols-1 gap-x-3 gap-y-2.5 sm:grid-cols-2 lg:grid-cols-4">
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-2.5 lg:grid-cols-4">
                       <label className="min-w-0">
                           <span className={labelModal}>CEP <span className="text-red-500">*</span> {buscandoCepClinica && <Loader2 size={12} className="ml-1 inline animate-spin" />}</span>
                           <input value={clinicaForm.cep} onChange={e => { setClinicaForm({...clinicaForm, cep: e.target.value}); if (e.target.value.replace(/\D/g, '').length === 8) buscarCepClinica(e.target.value); }} onBlur={() => buscarCepClinica(clinicaForm.cep)} className={campoModal} placeholder="00000-000"/>
@@ -1767,9 +1766,9 @@ export default function Configuracoes() {
                   </div>
               </section>
 
-              <div className="sticky bottom-0 -mx-4 mt-5 flex items-center justify-end gap-2 border-t border-black/5 bg-white/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6">
-                  <button type="button" onClick={() => { setModalClinicaCompleto(false); setClinicaEditando(null); limparLogoLocal(); }} className="h-11 px-3 text-sm font-medium text-neutral-500 hover:text-neutral-900 sm:h-10">Cancelar</button>
-                  <button type="button" onClick={salvarClinicaCompleta} className="inline-flex h-11 flex-1 items-center justify-center rounded-full bg-neutral-900 px-5 text-sm font-medium text-white hover:bg-neutral-800 sm:h-10 sm:flex-none">
+              <div className="mt-5 flex items-center justify-end gap-3 border-t border-black/5 pt-4">
+                  <button type="button" onClick={() => { setModalClinicaCompleto(false); setClinicaEditando(null); limparLogoLocal(); }} className="h-10 px-3 text-sm font-medium text-neutral-500 hover:text-neutral-900">Cancelar</button>
+                  <button type="button" onClick={salvarClinicaCompleta} className="inline-flex h-10 items-center rounded-full bg-neutral-900 px-5 text-sm font-medium text-white hover:bg-neutral-800">
                       {clinicaEditando ? 'Salvar' : 'Cadastrar'}
                   </button>
               </div>

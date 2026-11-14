@@ -251,14 +251,11 @@ export default function Perfil() {
       .join('');
   }, [form.nome, perfil?.nome]);
 
-  const rotuloNivel = isAdmin ? 'Administrador' : 'Equipe';
-  const nomeExibido = form.nome || perfil?.nome || 'Seu nome';
-
   return (
     <div className="w-full space-y-3 px-2.5 py-2.5 pb-12 font-poppins sm:px-3 sm:py-3 md:px-4 md:py-3.5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div className="min-w-0">
-          <p className="text-xs font-semibold uppercase tracking-wider text-neutral-400">Conta</p>
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400">Conta</p>
           <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 md:text-[2rem]">Meu perfil</h1>
           <p className="mt-1 text-sm text-neutral-500 sm:text-base">
             {activeClinic ? getClinicLabel(activeClinic) : 'Sua conta'} · Dados pessoais e preferências
@@ -267,148 +264,99 @@ export default function Perfil() {
         <button
           type="button"
           onClick={sair}
-          className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-red-200 bg-white px-4 text-sm font-medium text-red-700 hover:bg-red-50 sm:h-10 sm:w-auto sm:rounded-md"
+          className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md border border-red-200 bg-white px-3 text-sm font-medium text-red-700 hover:bg-red-50 sm:w-auto"
         >
           <LogOut size={18} /> Sair
         </button>
       </div>
 
-      <div className="mx-auto w-full max-w-3xl space-y-3">
-        {/* Cartão de identidade — avatar, nome e cargo em destaque */}
-        <section className={`${cardShell} overflow-hidden`}>
-          <div className="flex items-center gap-4 p-4 sm:gap-5 sm:p-5">
-            <div className="group relative h-20 w-20 shrink-0 overflow-hidden rounded-2xl bg-[#c8f053] ring-2 ring-black/5 sm:h-24 sm:w-24">
-              {fotoExibida ? (
-                <img src={fotoExibida} alt="" className="h-full w-full object-cover" />
-              ) : (
-                <span className="flex h-full w-full items-center justify-center text-xl font-bold text-neutral-900 sm:text-2xl">
-                  {iniciais !== '—' ? iniciais : <User size={32} />}
-                </span>
-              )}
-              <label className="absolute inset-0 hidden cursor-pointer flex-col items-center justify-center bg-black/50 text-white opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 sm:flex">
-                {salvando ? <Loader2 className="animate-spin" size={22} /> : <Upload size={22} />}
-                <span className="mt-1 text-xs font-semibold">Alterar foto</span>
-                <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleFotoUpload} disabled={salvando} />
-              </label>
-            </div>
-
-            <div className="min-w-0 flex-1">
-              {kpiLoading ? (
-                <div className="space-y-2">
-                  <div className="h-6 w-40 max-w-full animate-pulse rounded-lg bg-neutral-100" />
-                  <div className="h-4 w-28 max-w-full animate-pulse rounded-lg bg-neutral-50" />
-                </div>
-              ) : (
-                <>
-                  <h2 className="truncate text-lg font-semibold text-neutral-900 sm:text-xl">{nomeExibido}</h2>
-                  <p className="mt-0.5 truncate text-sm text-neutral-500">{perfil?.cargo || 'Cargo não informado'}</p>
-                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                    <span className="rounded-full bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-700">{rotuloNivel}</span>
-                    {activeClinic && (
-                      <span className="max-w-full truncate rounded-full border border-black/10 px-2.5 py-1 text-xs font-medium text-neutral-600">
-                        {getClinicLabel(activeClinic)}
-                      </span>
-                    )}
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-          <div className="border-t border-black/5 p-3 sm:hidden">
-            <label className={`flex h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-md border border-neutral-200 bg-white text-sm font-medium text-neutral-800 ${salvando ? 'pointer-events-none opacity-60' : ''}`}>
-              {salvando ? <Loader2 className="animate-spin" size={16} /> : <Upload size={16} />}
-              Trocar foto
-              <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleFotoUpload} disabled={salvando} />
-            </label>
-            <p className="mt-1.5 text-center text-xs text-neutral-400">PNG ou JPG · aparece na barra lateral</p>
-          </div>
-        </section>
-
-        {kpiLoading ? (
-          <div className={`${cardShell} ${sectionPad} space-y-3`}>
-            {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="h-11 animate-pulse rounded-xl bg-neutral-50" />
-            ))}
-          </div>
-        ) : (
-          <form onSubmit={salvar} className="space-y-3">
-            <section className={`${cardShell} ${sectionPad}`}>
-              <div className="mb-4 flex items-center gap-2">
-                <User size={16} className="text-neutral-500" />
-                <h2 className="text-sm font-semibold text-neutral-900">Dados pessoais</h2>
-              </div>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div className="min-w-0">
-                  <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-neutral-500">Nome</label>
-                  <input
-                    required
-                    autoComplete="name"
-                    className={`${bentoInput} h-11 sm:h-10`}
-                    value={form.nome}
-                    onChange={(e) => setForm({ ...form, nome: e.target.value })}
-                  />
-                </div>
-                <div className="min-w-0">
-                  <label className="mb-1.5 flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-neutral-500">
-                    Cargo {!isAdmin && <Lock size={12} />}
+      <div className={`${cardShell} mx-auto w-full max-w-3xl overflow-hidden`}>
+        <div className="divide-y divide-black/5">
+          <section className={sectionPad}>
+            <div className="flex flex-col gap-6 md:flex-row md:items-start">
+              <div className="flex shrink-0 flex-col items-center md:items-start">
+                <div className="group relative h-28 w-28 overflow-hidden rounded-2xl bg-[#c8f053] ring-2 ring-black/5 sm:h-32 sm:w-32">
+                  {fotoExibida ? (
+                    <img src={fotoExibida} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    <span className="flex h-full w-full items-center justify-center text-2xl font-bold text-neutral-900">
+                      {iniciais !== '—' ? iniciais : <User size={40} />}
+                    </span>
+                  )}
+                  <label className="absolute inset-0 flex cursor-pointer flex-col items-center justify-center bg-black/50 text-white opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+                    {salvando ? <Loader2 className="animate-spin" size={22} /> : <Upload size={22} />}
+                    <span className="mt-1 text-[10px] font-semibold">Alterar foto</span>
+                    <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleFotoUpload} disabled={salvando} />
                   </label>
-                  <input
-                    className={`${bentoInput} h-11 sm:h-10 ${!isAdmin ? 'cursor-not-allowed bg-neutral-100 text-neutral-500' : ''}`}
-                    value={form.cargo}
-                    onChange={(e) => setForm({ ...form, cargo: e.target.value })}
-                    disabled={!isAdmin}
-                  />
-                  {!isAdmin && <p className="mt-1 text-xs text-neutral-400">Somente administradores alteram o cargo.</p>}
                 </div>
+                <p className="mt-2 max-w-[8rem] text-center text-[11px] text-neutral-500 md:text-left">
+                  PNG ou JPG · aparece na barra lateral
+                </p>
               </div>
-              <div className="mt-4 min-w-0">
-                <label className="mb-1.5 flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-neutral-500">
-                  <Mail size={12} /> E-mail
-                </label>
-                <input
-                  type="email"
-                  disabled
-                  className={`${bentoInput} h-11 cursor-not-allowed bg-neutral-100 text-neutral-500 sm:h-10`}
-                  value={form.email}
-                />
-                <p className="mt-1 text-xs text-neutral-400">O e-mail é o login da conta e não pode ser alterado aqui.</p>
-              </div>
-            </section>
 
-            <section className={`${cardShell} ${sectionPad}`}>
-              <div className="mb-4 flex items-center gap-2">
-                <Lock size={16} className="text-neutral-500" />
-                <h2 className="text-sm font-semibold text-neutral-900">Segurança</h2>
-              </div>
-              <div className="min-w-0">
-                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-neutral-500">Nova senha</label>
-                <input
-                  type="password"
-                  autoComplete="new-password"
-                  placeholder="Deixe em branco para manter a atual"
-                  className={`${bentoInput} h-11 sm:h-10`}
-                  value={form.novaSenha}
-                  onChange={(e) => setForm({ ...form, novaSenha: e.target.value })}
-                />
-                <p className="mt-1 text-xs text-neutral-400">A senha é salva junto com os dados pessoais.</p>
-              </div>
-            </section>
-
-            <div className="sticky bottom-[calc(4.6rem_+_env(safe-area-inset-bottom))] z-20 lg:static lg:bottom-auto">
-              <button
-                type="submit"
-                disabled={salvando}
-                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-full bg-neutral-900 px-4 text-sm font-medium text-white shadow-[0_8px_24px_rgba(0,0,0,0.18)] hover:bg-neutral-800 disabled:opacity-40 sm:h-12 lg:h-11 lg:w-auto lg:rounded-md lg:shadow-none"
-              >
-                {salvando ? <Loader2 className="animate-spin" size={18} /> : <><Save size={18} /> Salvar alterações</>}
-              </button>
+              {kpiLoading ? (
+                <div className="min-w-0 flex-1 space-y-3">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <div key={i} className="h-11 animate-pulse rounded-xl bg-neutral-50" />
+                  ))}
+                </div>
+              ) : (
+                <form onSubmit={salvar} className="min-w-0 flex-1 space-y-4">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-neutral-500">Nome</label>
+                      <input
+                        required
+                        className={bentoInput}
+                        value={form.nome}
+                        onChange={(e) => setForm({ ...form, nome: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                        Cargo {!isAdmin && <Lock size={10} />}
+                      </label>
+                      <input
+                        className={`${bentoInput} ${!isAdmin ? 'cursor-not-allowed bg-neutral-100 text-neutral-500' : ''}`}
+                        value={form.cargo}
+                        onChange={(e) => setForm({ ...form, cargo: e.target.value })}
+                        disabled={!isAdmin}
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="mb-1 flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                      <Mail size={12} /> E-mail
+                    </label>
+                    <input
+                      type="email"
+                      disabled
+                      className={`${bentoInput} cursor-not-allowed bg-neutral-100 text-neutral-500`}
+                      value={form.email}
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                      <Lock size={12} /> Nova senha
+                    </label>
+                    <input
+                      type="password"
+                      placeholder="Opcional"
+                      className={bentoInput}
+                      value={form.novaSenha}
+                      onChange={(e) => setForm({ ...form, novaSenha: e.target.value })}
+                    />
+                  </div>
+                  <button type="submit" disabled={salvando} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-40 sm:w-auto">
+                    {salvando ? <Loader2 className="animate-spin" /> : <><Save size={18} /> Salvar</>}
+                  </button>
+                </form>
+              )}
             </div>
-          </form>
-        )}
+          </section>
 
-        <section className={`${cardShell} overflow-hidden`}>
           <ArmazenamentoSecao clinicaId={activeClinicId && activeClinicId !== 'all' ? activeClinicId : null} />
-        </section>
+        </div>
       </div>
     </div>
   );
@@ -453,8 +401,8 @@ function ArmazenamentoSecao({ clinicaId }: { clinicaId: string | null }) {
             const cor = proporcao >= 0.95 ? 'bg-red-500' : proporcao >= 0.8 ? 'bg-amber-500' : 'bg-neutral-900';
             return (
               <div key={uso.clinicaId}>
-                <div className="mb-1.5 flex flex-col gap-0.5 text-sm sm:flex-row sm:items-baseline sm:justify-between sm:gap-3">
-                  <span className="min-w-0 truncate font-medium text-neutral-800">{usos.length > 1 ? uso.nome : 'Fotos e documentos da clínica'}</span>
+                <div className="mb-1.5 flex items-baseline justify-between gap-3 text-sm">
+                  <span className="min-w-0 truncate text-neutral-700">{usos.length > 1 ? uso.nome : 'Fotos e documentos da clínica'}</span>
                   <span className="shrink-0 tabular-nums text-neutral-500">
                     {formatarBytes(uso.usado)} de {formatarBytes(uso.limite)}
                   </span>
@@ -469,7 +417,7 @@ function ArmazenamentoSecao({ clinicaId }: { clinicaId: string | null }) {
                   <div className={`h-full rounded-full transition-[width] duration-500 ${cor}`} style={{ width: `${Math.max(proporcao * 100, uso.usado > 0 ? 1 : 0)}%` }} />
                 </div>
                 {proporcao >= 0.8 && (
-                  <p className={`mt-1.5 text-xs leading-relaxed ${proporcao >= 0.95 ? 'text-red-600' : 'text-amber-700'}`}>
+                  <p className={`mt-1.5 text-xs ${proporcao >= 0.95 ? 'text-red-600' : 'text-amber-700'}`}>
                     {proporcao >= 1
                       ? 'Espaço esgotado: novos envios estão bloqueados. Apague arquivos antigos ou fale com o suporte.'
                       : 'Espaço quase no fim. Apague arquivos antigos ou fale com o suporte para aumentar o limite.'}
@@ -479,7 +427,7 @@ function ArmazenamentoSecao({ clinicaId }: { clinicaId: string | null }) {
             );
           })}
           {resumo && (
-            <p className="text-xs leading-relaxed text-neutral-500">
+            <p className="text-xs text-neutral-500">
               Conta inteira: {formatarBytesDecimais(resumo.total)} de {formatarBytesDecimais(resumo.teto)}. O envio para ao chegar nesse teto.
             </p>
           )}

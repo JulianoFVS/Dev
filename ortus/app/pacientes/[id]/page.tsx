@@ -21,7 +21,6 @@ import { useCustomAlert } from '@/components/ui/CustomAlert';
 import { validarPaciente, isMenorDeIdade } from '@/lib/pacienteValidation';
 import { cpfValido, mascaraCep, mascaraCpf, mascaraNumero, mascaraTelefone, variantesCpf } from '@/lib/mascaras';
 import { prepararFotoPaciente } from '@/lib/prepararFotoPaciente';
-import CapturaFotoPaciente from '@/components/pacientes/CapturaFotoPaciente';
 import { apagarArquivosClinica, baixarArquivoClinica, enviarArquivoClinica, extrairCaminhoArquivo } from '@/lib/armazenamento';
 import CampoData from '@/components/ui/CampoData';
 import HofPreviewRosto from '@/components/clinico/HofPreviewRosto';
@@ -646,7 +645,6 @@ export default function PacienteDetalhe() {
   const [responsavelAberto, setResponsavelAberto] = useState(true);
   const [cpfEncontrado, setCpfEncontrado] = useState<{ id: string; nome: string } | null>(null);
   const [enviandoFotoPerfil, setEnviandoFotoPerfil] = useState(false);
-  const [capturaFotoAberta, setCapturaFotoAberta] = useState(false);
 
   async function buscarPacientePorCpf(cpf: string) {
       if (!cpfValido(cpf)) { setCpfEncontrado(null); return; }
@@ -655,7 +653,7 @@ export default function PacienteDetalhe() {
       setCpfEncontrado(outro ? { id: String(outro.id), nome: outro.nome || 'Paciente' } : null);
   }
 
-  async function trocarFotoPaciente(arquivo?: File | Blob) {
+  async function trocarFotoPaciente(arquivo?: File) {
       if (!arquivo) return;
       setEnviandoFotoPerfil(true);
       try {
@@ -666,10 +664,8 @@ export default function PacienteDetalhe() {
           const { error: updErr } = await supabase.from('pacientes').update({ foto_url: publicUrl }).eq('id', id);
           if (updErr) throw updErr;
           setForm((atual: any) => ({ ...atual, foto_url: publicUrl }));
-      } catch (erro: unknown) {
-          const mensagem = erro instanceof Error && erro.message ? erro.message : 'Não foi possível salvar a foto.';
-          showAlert(mensagem, { type: 'error' });
-          throw erro instanceof Error ? erro : new Error(mensagem);
+      } catch (erro: any) {
+          showAlert(erro?.message || 'Não foi possível salvar a foto.', { type: 'error' });
       } finally {
           setEnviandoFotoPerfil(false);
       }
@@ -1956,18 +1952,9 @@ export default function PacienteDetalhe() {
         <div className="flex shrink-0 items-center justify-between gap-2 border-b border-black/10 px-3 py-2.5 sm:gap-3 sm:px-4">
             <div className="flex min-w-0 flex-1 items-center gap-2.5">
                 <Link href="/pacientes" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-black/10 bg-[#f8f8f6] text-neutral-600 transition-colors hover:bg-white"><ArrowLeft size={16}/></Link>
-                <button
-                    type="button"
-                    onClick={() => setCapturaFotoAberta(true)}
-                    disabled={enviandoFotoPerfil}
-                    className="-m-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 disabled:cursor-wait"
-                    aria-label={form.foto_url ? 'Trocar foto do paciente' : 'Adicionar foto do paciente'}
-                    title="Foto do paciente"
-                >
-                    <span className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full bg-neutral-900 text-[11px] font-semibold text-white">
-                        {form.foto_url ? <img src={form.foto_url} alt="" className="h-full w-full object-cover" /> : (form.nome || 'P').trim().split(/\s+/).slice(0, 2).map((parte: string) => parte[0] || '').join('').toUpperCase()}
-                    </span>
-                </button>
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-neutral-900 text-[11px] font-semibold text-white">
+                    {form.foto_url ? <img src={form.foto_url} alt="" className="h-full w-full object-cover" /> : (form.nome || 'P').trim().split(/\s+/).slice(0, 2).map((parte: string) => parte[0] || '').join('').toUpperCase()}
+                </div>
                 <div className="min-w-0">
                     <h1 className="truncate text-lg font-semibold text-neutral-900">{form.nome}</h1>
                     <p className="text-[11px] font-medium text-neutral-400">Prontuário digital</p>
@@ -1985,13 +1972,6 @@ export default function PacienteDetalhe() {
                 />
             </div>
         </div>
-
-        <CapturaFotoPaciente
-            open={capturaFotoAberta}
-            onClose={() => setCapturaFotoAberta(false)}
-            onConfirmar={(blob) => trocarFotoPaciente(blob)}
-            titulo={form.nome ? `Foto de ${form.nome}` : 'Foto do paciente'}
-        />
 
         {/* MODAL DE DOCUMENTOS */}
         <Modal open={modalDoc} onClose={() => setModalDoc(false)} maxWidth="2xl" hideCloseButton panelClassName="flex h-[32rem] max-h-[85vh] flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white">
@@ -2200,21 +2180,15 @@ export default function PacienteDetalhe() {
                             <section>
                                 <h4 className="mb-2 text-sm font-semibold text-neutral-900">Identificação</h4>
                                 <div className="flex flex-col items-start gap-4 sm:flex-row">
-                                <div className="group relative h-28 w-28 shrink-0 sm:h-36 sm:w-36">
-                                    <button
-                                        type="button"
-                                        onClick={() => setCapturaFotoAberta(true)}
-                                        disabled={enviandoFotoPerfil}
-                                        className="relative flex h-full w-full items-center justify-center overflow-hidden rounded-md border border-neutral-200 bg-neutral-50 text-2xl font-semibold text-neutral-700 transition-shadow hover:ring-2 hover:ring-emerald-500/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 disabled:cursor-wait"
-                                        aria-label={form.foto_url ? 'Trocar foto do paciente' : 'Adicionar foto do paciente'}
-                                        title="Foto do paciente"
-                                    >
+                                <label className="group relative h-28 w-28 shrink-0 cursor-pointer sm:h-36 sm:w-36">
+                                    <input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={(e) => { const arquivo = e.target.files?.[0]; e.target.value = ''; trocarFotoPaciente(arquivo); }} />
+                                    <span className="flex h-28 w-28 items-center justify-center overflow-hidden rounded-md border border-neutral-200 bg-neutral-50 text-2xl font-semibold text-neutral-700 sm:h-36 sm:w-36">
                                         {form.foto_url ? <img src={form.foto_url} alt="" className="h-full w-full object-cover" /> : (form.nome || 'P').trim().split(/\s+/).slice(0, 2).map((parte: string) => parte[0] || '').join('').toUpperCase()}
-                                    </button>
-                                    <span className="pointer-events-none absolute bottom-1.5 right-1.5 flex h-8 w-8 items-center justify-center rounded-md bg-neutral-900 text-white shadow-sm" aria-hidden>
+                                    </span>
+                                    <span className="absolute bottom-1.5 right-1.5 flex h-7 w-7 items-center justify-center rounded-md bg-neutral-900 text-white">
                                         {enviandoFotoPerfil ? <Loader2 size={14} className="animate-spin" /> : <Camera size={14} />}
                                     </span>
-                                </div>
+                                </label>
                                 <div className="grid min-w-0 flex-1 grid-cols-1 gap-x-3 gap-y-2.5 sm:grid-cols-2 lg:grid-cols-4">
                                     <label className="min-w-0">
                                         <span className={campoLabel}>Nome completo</span>

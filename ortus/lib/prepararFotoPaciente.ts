@@ -15,7 +15,7 @@ function canvasParaJpeg(canvas: HTMLCanvasElement, qualidade: number): Promise<B
 }
 
 /** Recorta o centro, reduz para no máximo 512px e entrega um JPEG leve, sem EXIF. */
-export async function prepararFotoPaciente(file: Blob): Promise<Blob> {
+export async function prepararFotoPaciente(file: File): Promise<Blob> {
   if (!TIPOS_ACEITOS.has(file.type)) {
     throw new Error('Use uma foto JPG, PNG ou WebP.');
   }

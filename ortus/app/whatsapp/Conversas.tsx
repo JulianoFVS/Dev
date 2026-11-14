@@ -8,7 +8,6 @@ import {
   CheckCheck,
   FileText,
   Loader2,
-  MessageCircle,
   Paperclip,
   Plus,
   Search,
@@ -299,46 +298,44 @@ export default function Conversas({ clinicaId, clinicaNome, rascunho, onRascunho
   return (
     <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden rounded-[1.5rem] border border-black/[0.06] bg-white lg:grid-cols-[20rem_1fr]">
       <aside className={`min-h-0 flex-col border-black/[0.06] lg:flex lg:border-r ${chatId ? 'hidden' : 'flex'}`}>
-        <div className="shrink-0 space-y-2 border-b border-black/[0.05] p-2.5 sm:border-0 sm:p-3">
+        <div className="shrink-0 space-y-2 p-3">
           <div className="flex gap-2">
-            <div className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-xl border border-neutral-200 bg-[#f7f7f5] px-3 sm:h-9 sm:rounded-md sm:bg-white">
-              <Search size={16} className="shrink-0 text-neutral-400" />
+            <div className="flex h-9 min-w-0 flex-1 items-center gap-2 rounded-md border border-neutral-200 px-2.5">
+              <Search size={14} className="shrink-0 text-neutral-400" />
               <input
                 value={filtro}
                 onChange={(e) => setFiltro(e.target.value)}
-                type="search"
-                inputMode="search"
                 placeholder="Buscar conversa"
-                className="min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-neutral-400 sm:text-sm"
+                className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-neutral-400"
               />
             </div>
             <button
               type="button"
               onClick={() => { setNovaAberta(true); setErroNova(''); }}
               aria-label="Nova conversa"
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-neutral-900 text-white hover:bg-neutral-800 sm:h-9 sm:w-9 sm:rounded-md"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-neutral-900 text-white hover:bg-neutral-800"
             >
-              <Plus size={18} />
+              <Plus size={16} />
             </button>
           </div>
-          <div className="flex gap-1.5">
+          <div className="flex gap-1.5 text-xs">
             <button
               type="button"
               onClick={() => setSoNaoLidas(false)}
-              className={`h-9 rounded-full px-3 text-xs font-medium ${!soNaoLidas ? 'bg-neutral-900 text-white' : 'text-neutral-500 hover:bg-neutral-100'}`}
+              className={`rounded-full px-2.5 py-1 ${!soNaoLidas ? 'bg-neutral-900 text-white' : 'text-neutral-500 hover:bg-neutral-100'}`}
             >
               Todas
             </button>
             <button
               type="button"
               onClick={() => setSoNaoLidas(true)}
-              className={`h-9 rounded-full px-3 text-xs font-medium ${soNaoLidas ? 'bg-neutral-900 text-white' : 'text-neutral-500 hover:bg-neutral-100'}`}
+              className={`rounded-full px-2.5 py-1 ${soNaoLidas ? 'bg-neutral-900 text-white' : 'text-neutral-500 hover:bg-neutral-100'}`}
             >
               Não lidas{totalNaoLidas ? ` · ${totalNaoLidas}` : ''}
             </button>
           </div>
         </div>
-        <div className="app-scroll-inner min-h-0 flex-1 overflow-y-auto pb-2">
+        <div className="min-h-0 flex-1 overflow-y-auto pb-24 lg:pb-2">
           {carregando && <div className="flex justify-center py-8 text-neutral-400"><Loader2 size={18} className="animate-spin" /></div>}
           {!carregando && visiveis.length === 0 && (
             <p className="px-4 py-6 text-sm text-neutral-400">{filtro || soNaoLidas ? 'Nenhuma conversa encontrada.' : 'Nenhuma conversa ainda.'}</p>
@@ -348,22 +345,22 @@ export default function Conversas({ clinicaId, clinicaNome, rascunho, onRascunho
               key={item.id}
               type="button"
               onClick={() => abrirConversa(item.id)}
-              className={`flex min-h-[64px] w-full items-center gap-3 px-3 py-3 text-left transition-colors hover:bg-neutral-50 active:bg-neutral-100 ${item.id === chatId ? 'bg-neutral-50' : ''}`}
+              className={`flex w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-neutral-50 ${item.id === chatId ? 'bg-neutral-50' : ''}`}
             >
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-xs font-semibold text-neutral-600">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-xs font-semibold text-neutral-600">
                 {iniciais(item.paciente?.nome || item.nome)}
               </span>
               <span className="min-w-0 flex-1">
                 <span className="flex items-center justify-between gap-2">
                   <span className="truncate text-sm font-medium text-neutral-900">{item.paciente?.nome || item.nome}</span>
-                  <span className={`shrink-0 text-xs ${item.naoLidas ? 'font-medium text-emerald-600' : 'text-neutral-400'}`}>{quando(item.em)}</span>
+                  <span className={`shrink-0 text-[11px] ${item.naoLidas ? 'font-medium text-emerald-600' : 'text-neutral-400'}`}>{quando(item.em)}</span>
                 </span>
                 <span className="mt-0.5 flex items-center justify-between gap-2">
                   <span className="truncate text-xs text-neutral-500">
                     {item.ultimaDeMim ? 'Você: ' : ''}{item.ultima || ' '}
                   </span>
                   {item.naoLidas > 0 && (
-                    <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-emerald-500 px-1 text-[11px] font-semibold text-white">
+                    <span className="flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-full bg-emerald-500 px-1 text-[10px] font-semibold text-white">
                       {item.naoLidas}
                     </span>
                   )}
@@ -377,16 +374,11 @@ export default function Conversas({ clinicaId, clinicaNome, rascunho, onRascunho
       <section className={`min-h-0 flex-col ${chatId ? 'flex' : 'hidden lg:flex'}`}>
         {chatId ? (
           <>
-            <div className="flex shrink-0 items-center gap-2 border-b border-black/[0.06] px-2 py-2 sm:px-3 sm:py-2.5">
-              <button
-                type="button"
-                onClick={() => setChatId(null)}
-                aria-label="Voltar para as conversas"
-                className="flex h-11 w-11 items-center justify-center rounded-full text-neutral-600 hover:bg-neutral-100 active:bg-neutral-200 lg:hidden"
-              >
-                <ArrowLeft size={20} />
+            <div className="flex shrink-0 items-center gap-2 border-b border-black/[0.06] px-2 py-2.5 sm:px-3">
+              <button type="button" onClick={() => setChatId(null)} aria-label="Voltar" className="flex h-8 w-8 items-center justify-center rounded-md text-neutral-500 hover:bg-neutral-100 lg:hidden">
+                <ArrowLeft size={18} />
               </button>
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-xs font-semibold text-neutral-600 sm:h-9 sm:w-9">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-xs font-semibold text-neutral-600">
                 {iniciais(nomeAtual)}
               </span>
               <div className="min-w-0 flex-1">
@@ -396,15 +388,15 @@ export default function Conversas({ clinicaId, clinicaNome, rascunho, onRascunho
               {atual?.paciente && (
                 <Link
                   href={`/pacientes/${atual.paciente.id}`}
-                  className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-full border border-neutral-200 px-3 text-xs font-medium text-neutral-700 hover:bg-neutral-50 sm:h-8 sm:rounded-md sm:px-2.5"
+                  className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-neutral-200 px-2.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
                 >
-                  <UserRound size={15} />
-                  <span className="hidden sm:inline">Ficha do paciente</span>
+                  <UserRound size={14} />
+                  <span className="max-sm:hidden">Ficha do paciente</span>
                 </Link>
               )}
             </div>
 
-            <div ref={listaRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-[#f7f7f5] px-2.5 py-3 sm:px-3">
+            <div ref={listaRef} className="min-h-0 flex-1 overflow-y-auto bg-[#f7f7f5] px-3 py-3">
               {carregandoChat && mensagens.length === 0 && (
                 <div className="flex justify-center py-8 text-neutral-400"><Loader2 size={18} className="animate-spin" /></div>
               )}
@@ -423,7 +415,7 @@ export default function Conversas({ clinicaId, clinicaNome, rascunho, onRascunho
                         </div>
                       )}
                       <div className={`flex ${msg.deMim ? 'justify-end' : 'justify-start'}`}>
-                        <div className={`max-w-[85%] rounded-2xl px-3 py-2 text-[15px] leading-relaxed sm:max-w-[70%] sm:text-sm ${msg.deMim ? 'rounded-br-md bg-neutral-900 text-white' : 'rounded-bl-md bg-white text-neutral-900 shadow-sm'}`}>
+                        <div className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm sm:max-w-[70%] ${msg.deMim ? 'rounded-br-md bg-neutral-900 text-white' : 'rounded-bl-md bg-white text-neutral-900 shadow-sm'}`}>
                           {msg.temMidia && (
                             <div className="mb-1">
                               {midia && midia !== 'carregando' && midia !== 'erro' && /^image\//.test(midia.mimetype) ? (
@@ -446,7 +438,7 @@ export default function Conversas({ clinicaId, clinicaNome, rascunho, onRascunho
                             </div>
                           )}
                           {msg.texto && <p className="whitespace-pre-wrap break-words">{msg.texto}</p>}
-                          <p className={`mt-1 flex items-center justify-end gap-1 text-[11px] ${msg.deMim ? 'text-white/60' : 'text-neutral-400'}`}>
+                          <p className={`mt-0.5 flex items-center justify-end gap-1 text-[10px] ${msg.deMim ? 'text-white/50' : 'text-neutral-400'}`}>
                             {hora(msg.em)}
                             {msg.deMim && <Confirmacao ack={msg.ack} />}
                           </p>
@@ -458,10 +450,7 @@ export default function Conversas({ clinicaId, clinicaNome, rascunho, onRascunho
               </div>
             </div>
 
-            <form
-              onSubmit={enviar}
-              className="sticky bottom-[calc(4.6rem_+_env(safe-area-inset-bottom))] z-20 shrink-0 border-t border-black/[0.06] bg-white px-2 pb-2 pt-2 sm:px-3 lg:bottom-0 lg:pb-3"
-            >
+            <form onSubmit={enviar} className="relative shrink-0 border-t border-black/[0.06] px-2 pb-24 pt-2 sm:px-3 lg:pb-3">
               {respostasAbertas && (
                 <div className="absolute bottom-full left-2 right-2 mb-2 max-h-64 overflow-y-auto rounded-xl border border-neutral-200 bg-white p-1 shadow-[0_8px_24px_rgba(0,0,0,0.08)] sm:left-3 sm:right-auto sm:w-96">
                   {templates.length === 0 && <p className="px-3 py-2.5 text-sm text-neutral-400">Cadastre modelos de WhatsApp em Configurações, Comunicação.</p>}
@@ -470,7 +459,7 @@ export default function Conversas({ clinicaId, clinicaNome, rascunho, onRascunho
                       key={template.id}
                       type="button"
                       onClick={() => usarTemplate(template)}
-                      className="block min-h-[44px] w-full rounded-lg px-3 py-2 text-left hover:bg-neutral-50"
+                      className="block w-full rounded-lg px-3 py-2 text-left hover:bg-neutral-50"
                     >
                       <span className="block text-sm font-medium text-neutral-900">{template.nome}</span>
                       <span className="line-clamp-2 text-xs text-neutral-500">{template.corpo}</span>
@@ -492,17 +481,17 @@ export default function Conversas({ clinicaId, clinicaNome, rascunho, onRascunho
                   type="button"
                   onClick={() => setRespostasAbertas((v) => !v)}
                   aria-label="Respostas prontas"
-                  className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${respostasAbertas ? 'bg-neutral-900 text-white' : 'text-neutral-500 hover:bg-neutral-100 active:bg-neutral-200'}`}
+                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-md ${respostasAbertas ? 'bg-neutral-900 text-white' : 'text-neutral-500 hover:bg-neutral-100'}`}
                 >
-                  <Zap size={18} />
+                  <Zap size={17} />
                 </button>
                 <button
                   type="button"
                   onClick={() => arquivoRef.current?.click()}
                   aria-label="Anexar arquivo"
-                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-neutral-500 hover:bg-neutral-100 active:bg-neutral-200"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-neutral-500 hover:bg-neutral-100"
                 >
-                  <Paperclip size={18} />
+                  <Paperclip size={17} />
                 </button>
                 <input
                   ref={arquivoRef}
@@ -526,13 +515,13 @@ export default function Conversas({ clinicaId, clinicaNome, rascunho, onRascunho
                   }}
                   rows={Math.min(5, Math.max(1, texto.split('\n').length))}
                   placeholder={arquivo ? 'Legenda (opcional)' : 'Escreva uma mensagem'}
-                  className="min-h-11 min-w-0 flex-1 resize-none rounded-[1.35rem] border border-neutral-200 px-3.5 py-2.5 text-base leading-6 outline-none focus:border-neutral-400 sm:min-h-10 sm:rounded-md sm:py-2 sm:text-sm sm:leading-5"
+                  className="min-h-10 min-w-0 flex-1 resize-none rounded-md border border-neutral-200 px-3 py-2 text-sm leading-5 outline-none focus:border-neutral-400"
                 />
                 <button
                   type="submit"
                   disabled={enviando || (!texto.trim() && !arquivo)}
                   aria-label="Enviar"
-                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-neutral-900 text-white disabled:opacity-40"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-neutral-900 text-white disabled:opacity-40"
                 >
                   {enviando ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
                 </button>
@@ -542,7 +531,6 @@ export default function Conversas({ clinicaId, clinicaNome, rascunho, onRascunho
           </>
         ) : (
           <div className="hidden flex-1 flex-col items-center justify-center gap-1 text-center lg:flex">
-            <MessageCircle size={26} className="mb-1 text-neutral-300" />
             <p className="text-sm font-medium text-neutral-700">Escolha uma conversa</p>
             <p className="text-xs text-neutral-400">ou comece uma nova pelo botão +</p>
           </div>

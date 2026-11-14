@@ -305,7 +305,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
 
   if (['/login', '/', '/site', '/termos', '/checkout', '/cadastro', '/teste-3d', '/selecao', '/primeiro-acesso'].includes(pathname)) return <>{children}</>;
   // Mostra spinner bloqueante APENAS se não temos cookie de auth (primeiro acesso)
-  if (loading) return <div className="flex h-[100dvh] w-[100dvw] items-center justify-center bg-[#f3f4f1]"><div className="h-8 w-8 animate-spin rounded-full border-2 border-neutral-200 border-t-neutral-900" /></div>;
+  if (loading) return <div className="flex h-screen w-screen items-center justify-center bg-[#f3f4f1]"><div className="h-8 w-8 animate-spin rounded-full border-2 border-neutral-200 border-t-neutral-900" /></div>;
   // Se validação em background ainda não terminou mas já temos cookie, continua renderizando
   // Se não tem session e não tem cookie (ex: sessão expirada), redireciona via validarSessao
   if (!session && !hasAuthCookie()) return null;

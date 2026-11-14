@@ -1,18 +1,13 @@
 'use client';
 
 import { memo, useMemo, type RefObject } from 'react';
-import ChipEvento from '@/components/agenda/ChipEvento';
-import {
-  chaveLocal,
-  mesmoDia,
-  type EventoAgenda,
-  type RegistroAgendamento,
-} from '@/lib/agendaPartes';
+import ChipEvento, { type EventoAgenda, type RegistroAgendamento } from '@/components/agenda/ChipEvento';
 
 export type ColunaProfissional = {
   id: string;
   nome: string;
   cor: string;
+  /** Coluna dos atendimentos sem profissional vinculado. */
   semProfissional?: boolean;
   /** Profissional fora da equipe visível: coluna só para exibir, sem preset. */
   desconhecido?: boolean;
@@ -24,28 +19,46 @@ type Props = {
   colunas: ColunaProfissional[];
   eventosPorDia: Map<string, EventoAgenda[]>;
   agora: Date;
-  mobile: boolean;
   gradeRef: RefObject<HTMLDivElement | null>;
   onAbrirNoDia: (dia: Date, hora: string, profissionalId?: string) => void;
   onAbrirEvento: (registro: RegistroAgendamento) => void;
-  corDoEvento: (registro: RegistroAgendamento) => string;
 };
+
+function chaveLocal(data: Date): string {
+  const mes = String(data.getMonth() + 1).padStart(2, '0');
+  const dia = String(data.getDate()).padStart(2, '0');
+  return `${data.getFullYear()}-${mes}-${dia}`;
+}
+
+function mesmoDia(a: Date, b: Date): boolean {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
 
 function rotuloHora(hora: number): string {
   return `${String(hora).padStart(2, '0')}:00`;
 }
 
+function chaveProfissional(coluna: ColunaProfissional): string {
+  return coluna.semProfissional ? '' : coluna.id;
+}
+
+/**
+ * Visão da agenda com uma coluna por profissional.
+ *
+ * Reaproveita a mesma grade de horas da visão Dia. No mobile as colunas
+ * viram um carrossel horizontal com snap (cada uma ocupa 85% da tela para
+ * nunca miniaturizar os atendimentos); a partir de `sm` elas dividem a
+ * largura disponível com um mínimo confortável de 13rem.
+ */
 function GradeProfissional({
   dia,
   horas,
   colunas,
   eventosPorDia,
   agora,
-  mobile,
   gradeRef,
   onAbrirNoDia,
   onAbrirEvento,
-  corDoEvento,
 }: Props) {
   const eventosDoDia = useMemo(
     () => eventosPorDia.get(chaveLocal(dia)) ?? [],
@@ -67,25 +80,14 @@ function GradeProfissional({
   }, [eventosDoDia]);
 
   const contagemPorProfissional = useMemo(() => {
-    const mapa = new Map<string, Set<string>>();
+    const mapa = new Map<string, number>();
     eventosDoDia.forEach((evento) => {
-      const props = evento.extendedProps;
-      const chaveProfissional = props?.profissional_id == null ? '' : String(props.profissional_id);
-      const chaveAtendimento = String(props?.grupo_id || evento.id);
-      const grupos = mapa.get(chaveProfissional) ?? new Set<string>();
-      grupos.add(chaveAtendimento);
-      mapa.set(chaveProfissional, grupos);
+      const profissionalId = evento.extendedProps?.profissional_id;
+      const chave = profissionalId == null ? '' : String(profissionalId);
+      mapa.set(chave, (mapa.get(chave) ?? 0) + 1);
     });
-    const contagem = new Map<string, number>();
-    mapa.forEach((grupos, chave) => contagem.set(chave, grupos.size));
-    return contagem;
+    return mapa;
   }, [eventosDoDia]);
-
-  // No mobile cada coluna ocupa 85% da largura visível (carrossel com snap),
-  // para nunca miniaturizar os atendimentos. No desktop, largura mínima fixa.
-  const larguraMinima = mobile ? '85%' : '13rem';
-  const colunasGrade = `3.25rem repeat(${colunas.length}, minmax(${larguraMinima}, 1fr))`;
-  const linhasGrade = `3.25rem repeat(${horas.length}, minmax(3rem, auto))`;
 
   if (!colunas.length) {
     return (
@@ -98,50 +100,24 @@ function GradeProfissional({
     );
   }
 
+  const classeColuna =
+    'min-w-[85%] flex-1 shrink-0 snap-center border-l border-neutral-100 sm:min-w-[13rem]';
+
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white max-sm:min-h-[26rem]">
       <div
         ref={gradeRef}
-        className="min-h-0 flex-1 snap-x snap-mandatory overflow-x-auto overflow-y-auto overscroll-contain custom-scrollbar sm:snap-none"
+        className="min-h-0 flex-1 snap-x snap-mandatory scroll-pl-[3.25rem] overflow-x-auto overflow-y-auto overscroll-contain sm:snap-none"
       >
-        <div
-          className="grid min-w-full"
-          style={{ gridTemplateColumns: colunasGrade, gridTemplateRows: linhasGrade }}
-        >
-          <div
-            className="sticky left-0 top-0 z-40 border-b border-r border-neutral-200 bg-white"
-            style={{ gridColumn: 1, gridRow: 1 }}
-          />
-          <div
-            className="sticky left-0 z-20 grid bg-white"
-            style={{ gridColumn: 1, gridRow: '2 / -1', gridTemplateRows: 'subgrid' }}
-          >
-            {horas.map((hora) => (
-              <div
-                key={hora}
-                className="border-b border-r border-neutral-100 bg-white px-1 pt-1 text-right text-[11px] text-neutral-400"
-              >
-                {rotuloHora(hora)}
-              </div>
-            ))}
-          </div>
-
-          {colunas.map((coluna, indice) => {
-            const chaveProfissional = coluna.semProfissional ? '' : coluna.id;
-            const total = contagemPorProfissional.get(chaveProfissional) ?? 0;
-            return (
-              <div
-                key={coluna.id}
-                className="grid min-w-0 snap-center border-l border-neutral-100"
-                style={{
-                  gridColumn: indice + 2,
-                  gridRow: '1 / -1',
-                  gridTemplateRows: 'subgrid',
-                }}
-              >
+        <div className="min-w-full">
+          <div className="sticky top-0 z-30 flex bg-white">
+            <div className="sticky left-0 z-40 w-[3.25rem] shrink-0 border-b border-r border-neutral-200 bg-white" />
+            {colunas.map((coluna) => {
+              const total = contagemPorProfissional.get(chaveProfissional(coluna)) ?? 0;
+              return (
                 <div
-                  className="sticky top-0 z-30 flex flex-col justify-center gap-0.5 border-b border-neutral-200 bg-white px-2"
-                  style={{ boxShadow: `inset 0 3px 0 ${coluna.cor}` }}
+                  key={coluna.id}
+                  className={`${classeColuna} border-b border-neutral-200 bg-white px-2 py-1.5`}
                   title={coluna.nome}
                 >
                   <div className="flex min-w-0 items-center gap-1.5">
@@ -152,50 +128,52 @@ function GradeProfissional({
                     />
                     <span className="truncate text-xs font-semibold text-neutral-800">{coluna.nome}</span>
                   </div>
-                  <span className="truncate text-[10px] font-medium text-neutral-400">
+                  <span className="mt-0.5 block truncate text-[10px] font-medium text-neutral-400">
                     {total} {total === 1 ? 'atendimento' : 'atendimentos'}
                   </span>
                 </div>
+              );
+            })}
+          </div>
 
-                {horas.map((hora) => {
-                  const lista = eventosPorProfissionalEHora.get(`${chaveProfissional}|${hora}`) ?? [];
-                  const mostraAgora = mesmoDia(dia, agora) && agora.getHours() === hora;
-                  return (
-                    <div
-                      key={`${coluna.id}-${hora}`}
-                      onClick={() =>
-                        onAbrirNoDia(
-                          dia,
-                          rotuloHora(hora),
-                          coluna.semProfissional || coluna.desconhecido ? undefined : coluna.id,
-                        )
-                      }
-                      className="relative min-h-12 cursor-pointer border-b border-neutral-100 p-0.5 hover:bg-neutral-50"
-                    >
-                      {mostraAgora && (
-                        <div
-                          data-agora=""
-                          className="pointer-events-none absolute inset-x-0 z-10"
-                          style={{ top: `${(agora.getMinutes() / 60) * 100}%` }}
-                        >
-                          <span className="absolute left-0 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-red-500" />
-                          <span className="absolute left-0 right-0 h-0.5 -translate-y-1/2 bg-red-500" />
-                        </div>
-                      )}
-                      {lista.map((evento) => (
-                        <ChipEvento
-                          key={evento.id}
-                          evento={evento}
-                          corProfissional={corDoEvento(evento.extendedProps)}
-                          onOpen={onAbrirEvento}
-                        />
-                      ))}
-                    </div>
-                  );
-                })}
+          {horas.map((hora) => (
+            <div key={hora} className="flex">
+              <div className="sticky left-0 z-20 w-[3.25rem] shrink-0 border-b border-r border-neutral-100 bg-white px-1 pt-1 text-right text-[11px] text-neutral-400">
+                {rotuloHora(hora)}
               </div>
-            );
-          })}
+              {colunas.map((coluna) => {
+                const lista = eventosPorProfissionalEHora.get(`${chaveProfissional(coluna)}|${hora}`) ?? [];
+                const mostraAgora = mesmoDia(dia, agora) && agora.getHours() === hora;
+                return (
+                  <div
+                    key={`${coluna.id}-${hora}`}
+                    onClick={() =>
+                      onAbrirNoDia(
+                        dia,
+                        rotuloHora(hora),
+                        coluna.semProfissional || coluna.desconhecido ? undefined : coluna.id,
+                      )
+                    }
+                    className={`${classeColuna} relative min-h-12 cursor-pointer border-b border-neutral-100 p-0.5 hover:bg-neutral-50`}
+                  >
+                    {mostraAgora && (
+                      <div
+                        data-agora=""
+                        className="pointer-events-none absolute inset-x-0 z-10"
+                        style={{ top: `${(agora.getMinutes() / 60) * 100}%` }}
+                      >
+                        <span className="absolute left-0 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-red-500" />
+                        <span className="absolute left-0 right-0 h-0.5 -translate-y-1/2 bg-red-500" />
+                      </div>
+                    )}
+                    {lista.map((evento) => (
+                      <ChipEvento key={evento.id} evento={evento} onOpen={onAbrirEvento} />
+                    ))}
+                  </div>
+                );
+              })}
+            </div>
+          ))}
         </div>
       </div>
     </div>

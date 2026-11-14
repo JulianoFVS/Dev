@@ -1,20 +1,36 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import DashboardSidebar, { type DashboardSidebarNavOptions } from '@/components/dashboard/DashboardSidebar';
 import MobileAppChrome from '@/components/dashboard/MobileAppChrome';
 
 /**
- * Casca do app.
- *
- * Antes existia um `zoom` calculado pela altura da janela para "espremer"
- * o desenho de 800px em qualquer monitor. Isso é exatamente o que o
- * cliente não quer: em telas baixas tudo ficava menor (fonte ilegível,
- * alvos de toque minúsculos). Agora o layout é fluido de verdade:
- *
- *  - o menu lateral ocupa a altura real da janela;
- *  - cada página rola dentro do próprio painel;
- *  - em telas estreitas o app usa a navegação mobile (barra inferior).
+ * Altura em que o layout do computador cabe inteiro.
+ * Só vale para monitor e notebook. Celular não reduz essa tela: ele tem o próprio app.
  */
+const ALTURA_DESENHO = 800;
+const LARGURA_COMPUTADOR = 1024;
+
+function useEscalaTela() {
+  const [zoom, setZoom] = useState(1);
+
+  useEffect(() => {
+    const aplicar = () => {
+      if (window.innerWidth < LARGURA_COMPUTADOR) {
+        setZoom(1);
+        return;
+      }
+      const proximo = Math.min(1, window.innerHeight / ALTURA_DESENHO);
+      setZoom(Number(proximo.toFixed(3)));
+    };
+    aplicar();
+    window.addEventListener('resize', aplicar);
+    return () => window.removeEventListener('resize', aplicar);
+  }, []);
+
+  return zoom;
+}
+
 export default function BentoShell({
   children,
   sidebarNav,
@@ -22,9 +38,23 @@ export default function BentoShell({
   children: React.ReactNode;
   sidebarNav?: DashboardSidebarNavOptions;
 }) {
+  const zoom = useEscalaTela();
+  const reduzir = zoom < 0.999;
+
   return (
     <div className="h-[100dvh] w-full overflow-hidden bg-[#f3f4f1] lg:bg-neutral-950">
-      <div className="flex h-full w-full flex-col bg-[#f3f4f1] lg:flex-row lg:gap-2 lg:bg-neutral-950 lg:p-2">
+      <div
+        className="flex h-full w-full flex-col bg-[#f3f4f1] lg:flex-row lg:gap-2 lg:bg-neutral-950 lg:p-2"
+        style={
+          reduzir
+            ? {
+                zoom,
+                width: `calc(100vw / ${zoom})`,
+                height: `calc(100vh / ${zoom})`,
+              }
+            : undefined
+        }
+      >
         <div className="hidden h-full shrink-0 overflow-visible lg:block">
           <DashboardSidebar {...sidebarNav} />
         </div>
