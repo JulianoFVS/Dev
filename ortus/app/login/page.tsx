@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useRef, type CSSProperties, type FormEvent } from 'react';
 import { supabase } from '@/lib/supabase';
-import { salvarSessaoCache } from '@/lib/local/cliente';
+import { modoDados, salvarSessaoCache } from '@/lib/local/cliente';
 import { useRouter } from 'next/navigation';
 import { Loader2, ShieldCheck, Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
@@ -201,6 +201,18 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [remember, setRemember] = useState(true);
+  // Dentro do .exe não existe landing page: esconde tudo que leva para o site.
+  const [desktop, setDesktop] = useState(false);
+
+  useEffect(() => {
+    let vivo = true;
+    void modoDados().then((modo) => {
+      if (vivo) setDesktop(modo === 'local');
+    });
+    return () => {
+      vivo = false;
+    };
+  }, []);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
@@ -344,13 +356,15 @@ export default function Login() {
 
       {/* Formulário */}
       <div className="relative z-10 flex flex-1 flex-col bg-white lg:max-w-[50%] lg:shrink-0">
-        <Link
-          href="/"
-          className="absolute left-4 top-4 z-20 inline-flex items-center gap-1 text-xs font-medium text-neutral-400 transition-colors hover:text-neutral-800 sm:left-6 sm:top-6 lg:left-8 lg:top-8"
-        >
-          <ArrowLeft size={14} aria-hidden />
-          Voltar
-        </Link>
+        {!desktop && (
+          <Link
+            href="/"
+            className="absolute left-4 top-4 z-20 inline-flex items-center gap-1 text-xs font-medium text-neutral-400 transition-colors hover:text-neutral-800 sm:left-6 sm:top-6 lg:left-8 lg:top-8"
+          >
+            <ArrowLeft size={14} aria-hidden />
+            Voltar
+          </Link>
+        )}
 
         <div className="flex flex-1 flex-col items-center justify-start px-6 py-4 sm:px-10 sm:justify-center sm:py-14">
           <div className="w-full max-w-[400px] bg-white pt-2 lg:rounded-none lg:pt-0">
@@ -423,12 +437,18 @@ export default function Login() {
                 </button>
               </div>
               <div className="flex justify-end pt-0.5">
-                <Link
-                  href="/#contato"
-                  className="text-sm font-medium text-[#2563eb] hover:underline"
-                >
-                  Esqueceu a senha?
-                </Link>
+                {desktop ? (
+                  <span className="text-sm font-medium text-neutral-400">
+                    Esqueceu a senha? Fale com o suporte da clínica.
+                  </span>
+                ) : (
+                  <Link
+                    href="/#contato"
+                    className="text-sm font-medium text-[#2563eb] hover:underline"
+                  >
+                    Esqueceu a senha?
+                  </Link>
+                )}
               </div>
             </div>
 
@@ -458,12 +478,14 @@ export default function Login() {
             </button>
           </form>
 
-          <p className="mt-8 text-center text-sm text-neutral-500">
-            Ainda não é cliente?{' '}
-            <Link href="/#precos" className="font-semibold text-neutral-900 hover:underline">
-              Conheça os planos
-            </Link>
-          </p>
+          {!desktop && (
+            <p className="mt-8 text-center text-sm text-neutral-500">
+              Ainda não é cliente?{' '}
+              <Link href="/#precos" className="font-semibold text-neutral-900 hover:underline">
+                Conheça os planos
+              </Link>
+            </p>
+          )}
 
           <p className="mt-6 hidden text-center text-[11px] text-neutral-400 lg:block">
             © {new Date().getFullYear()} Ortus · Acesso restrito a profissionais autorizados.

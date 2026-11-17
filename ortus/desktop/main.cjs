@@ -112,6 +112,19 @@ function salvarSessao(dados) {
 }
 
 // -------------------------------------------------------------------- janela
+/**
+ * Onde o app abre.
+ *
+ * Nunca na landing page (marketing não faz sentido dentro do instalador).
+ * Sem sessão em cache → tela de login. Com sessão (mesmo vencida, para o modo
+ * offline continuar abrindo) → direto no dashboard.
+ */
+function urlInicial() {
+  const sessao = lerSessao();
+  const caminho = sessao?.access_token ? '/dashboard' : '/login';
+  return `http://127.0.0.1:${estado.portas.next}${caminho}`;
+}
+
 function criarJanela() {
   const janela = new BrowserWindow({
     width: 1440,
@@ -150,7 +163,9 @@ function criarJanela() {
     }
   });
 
-  janela.loadURL(`http://127.0.0.1:${estado.portas.next}`);
+  const url = urlInicial();
+  log.info(`janela: abrindo ${url}`);
+  janela.loadURL(url);
   return janela;
 }
 
