@@ -32,6 +32,10 @@ const PUBLIC_PREFIXES = [
   // própria rota, que exige `Authorization: Bearer $CRON_SECRET` e falha
   // fechada (401) quando a variável não existe.
   '/api/lembretes/processar',
+  // Rotas do aplicativo desktop. Elas mesmas checam se estão dentro do .exe
+  // (404 no site) e exigem a sessão local; o guard não deve redirecionar
+  // chamadas de dados para a tela de login.
+  '/api/local',
 ];
 
 /**

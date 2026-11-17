@@ -1,0 +1,53 @@
+name: Ortus Desktop (Windows)
+
+# Gera o instalador .exe (NSIS, Windows x64).
+# Rodar no Windows evita depender de wine no macOS.
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'desktop-v*'
+
+jobs:
+  instalador:
+    runs-on: windows-latest
+    timeout-minutes: 45
+
+    env:
+      # Chave PÚBLICA (vai no bundle). Nunca use a service role aqui.
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Dependências do app
+        run: npm ci
+
+      - name: Dependências do WhatsApp
+        run: npm --prefix services/whatsapp ci
+
+      - name: Chromium do Puppeteer (win64)
+        run: node scripts/desktop-chromium.mjs
+
+      - name: Testes da camada local
+        run: npm run desktop:teste
+
+      - name: Build do Next (standalone) + config
+        run: npm run desktop:build
+
+      - name: Instalador NSIS
+        run: npx electron-builder --config desktop/electron-builder.yml --win nsis --x64
+
+      - name: Publicar artefato
+        uses: actions/upload-artifact@v4
+        with:
+          name: ortus-desktop-windows
+          path: dist-desktop/*.exe
+          if-no-files-found: error

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import DashboardSidebar, { type DashboardSidebarNavOptions } from '@/components/dashboard/DashboardSidebar';
 import MobileAppChrome from '@/components/dashboard/MobileAppChrome';
+import SyncStatus from '@/components/dashboard/SyncStatus';
 
 /**
  * Altura em que o layout do computador cabe inteiro.
@@ -63,6 +64,8 @@ export default function BentoShell({
           <MobileAppChrome {...sidebarNav}>{children}</MobileAppChrome>
         </div>
       </div>
+      {/* Só aparece dentro do .exe: estado do banco local e do backup. */}
+      <SyncStatus />
     </div>
   );
 }

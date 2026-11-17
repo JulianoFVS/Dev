@@ -45,3 +45,10 @@ next-env.d.ts
 /services/whatsapp/node_modules
 /services/whatsapp/.wwebjs_auth
 /services/whatsapp/.wwebjs_cache
+
+# desktop (Electron)
+/desktop/config.json
+/dist-desktop/
+/build/chromium/
+/services/whatsapp/node_modules/
+.next/standalone/

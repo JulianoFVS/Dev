@@ -1,0 +1,351 @@
+'use strict';
+
+/**
+ * Espelho local (SQLite) das tabelas que funcionam offline.
+ *
+ * Fonte única de verdade: o processo principal usa este módulo para criar o
+ * schema e para converter valores; o Next local pergunta o schema pelo
+ * endpoint `GET /esquema` da API de dados, então não existe cópia divergente.
+ *
+ * Tipos:
+ *   texto  → TEXT
+ *   inteiro→ INTEGER
+ *   real   → REAL
+ *   data   → TEXT ISO-8601 em UTC (timestamptz)
+ *   dia    → TEXT "YYYY-MM-DD" (coluna date do Postgres)
+ *   json   → TEXT (JSON serializado)
+ *   bool   → INTEGER 0/1
+ */
+
+/** @typedef {'texto'|'inteiro'|'real'|'data'|'dia'|'json'|'bool'} TipoColuna */
+
+/** @typedef {{
+ *   nome: string,
+ *   pk: string,
+ *   pkTipo: 'uuid'|'inteiro',
+ *   colunas: Record<string, string>,
+ *   clinicaCol: string|null,
+ *   pai?: { tabela: string, fk: string },
+ *   semSync?: boolean
+ * }} DefTabela */
+
+const CRIADO_EM = { created_at: 'data' };
+
+/**
+ * Ordem importa: tabelas pai antes das filhas (o bootstrap baixa nesta ordem
+ * e o pull incremental respeita a mesma sequência).
+ * @type {Record<string, DefTabela>}
+ */
+const TABELAS = {
+  pacientes: {
+    nome: 'pacientes',
+    pk: 'id',
+    pkTipo: 'uuid',
+    clinicaCol: 'clinica_id',
+    colunas: {
+      id: 'texto',
+      created_at: 'data',
+      nome: 'texto',
+      telefone: 'texto',
+      clinica_id: 'inteiro',
+      email: 'texto',
+      data_nascimento: 'dia',
+      endereco: 'texto',
+      observacoes: 'texto',
+      cpf: 'texto',
+      ficha_medica: 'json',
+      sexo: 'texto',
+      cep: 'texto',
+      rua: 'texto',
+      numero: 'texto',
+      complemento: 'texto',
+      bairro: 'texto',
+      cidade: 'texto',
+      uf: 'texto',
+      plano_id: 'texto',
+      responsavel_nome: 'texto',
+      responsavel_parentesco: 'texto',
+      responsavel_telefone: 'texto',
+      foto_url: 'texto',
+      updated_at: 'data',
+    },
+  },
+
+  agendamentos: {
+    nome: 'agendamentos',
+    pk: 'id',
+    pkTipo: 'inteiro',
+    clinicaCol: 'clinica_id',
+    colunas: {
+      id: 'inteiro',
+      created_at: 'data',
+      paciente_id: 'texto',
+      data_hora: 'data',
+      duracao_minutos: 'inteiro',
+      procedimento: 'texto',
+      cor: 'texto',
+      status: 'texto',
+      observacoes: 'texto',
+      valor: 'real',
+      clinica_id: 'inteiro',
+      profissional_id: 'inteiro',
+      desconto: 'real',
+      valor_final: 'real',
+      tratamento_base_id: 'inteiro',
+      valor_bruto: 'real',
+      valor_liquido: 'real',
+      taxa_id: 'texto',
+      taxa_nome: 'texto',
+      taxa_percentual: 'real',
+      tipo_registro: 'texto',
+      data_pagamento: 'data',
+      grupo_id: 'texto',
+      parte_indice: 'inteiro',
+      parte_total: 'inteiro',
+      parte_titulo: 'texto',
+      updated_at: 'data',
+    },
+  },
+
+  paciente_tratamentos: {
+    nome: 'paciente_tratamentos',
+    pk: 'id',
+    pkTipo: 'uuid',
+    clinicaCol: 'clinica_id',
+    pai: { tabela: 'pacientes', fk: 'paciente_id' },
+    colunas: {
+      id: 'texto',
+      paciente_id: 'texto',
+      clinica_id: 'inteiro',
+      legacy_id: 'texto',
+      procedimento: 'texto',
+      dente: 'texto',
+      valor: 'real',
+      status: 'texto',
+      data: 'dia',
+      observacoes: 'texto',
+      criado_em: 'data',
+      updated_at: 'data',
+    },
+  },
+
+  paciente_anamneses: {
+    nome: 'paciente_anamneses',
+    pk: 'id',
+    pkTipo: 'uuid',
+    clinicaCol: null,
+    pai: { tabela: 'pacientes', fk: 'paciente_id' },
+    colunas: {
+      id: 'texto',
+      paciente_id: 'texto',
+      legacy_id: 'texto',
+      modelo_id: 'texto',
+      modelo_nome: 'texto',
+      data: 'dia',
+      preenchido_por: 'texto',
+      respostas: 'json',
+      perguntas_snapshot: 'json',
+      criado_em: 'data',
+      atualizado_em: 'data',
+      updated_at: 'data',
+    },
+  },
+
+  paciente_evolucoes: {
+    nome: 'paciente_evolucoes',
+    pk: 'id',
+    pkTipo: 'uuid',
+    clinicaCol: null,
+    pai: { tabela: 'pacientes', fk: 'paciente_id' },
+    colunas: {
+      id: 'texto',
+      paciente_id: 'texto',
+      legacy_id: 'texto',
+      texto: 'texto',
+      data: 'dia',
+      profissional_nome: 'texto',
+      criado_em: 'data',
+      updated_at: 'data',
+    },
+  },
+
+  paciente_documentos: {
+    nome: 'paciente_documentos',
+    pk: 'id',
+    pkTipo: 'uuid',
+    clinicaCol: null,
+    pai: { tabela: 'pacientes', fk: 'paciente_id' },
+    colunas: {
+      id: 'texto',
+      paciente_id: 'texto',
+      legacy_id: 'texto',
+      nome: 'texto',
+      tipo: 'texto',
+      storage_path: 'texto',
+      meta: 'json',
+      criado_em: 'data',
+      updated_at: 'data',
+    },
+  },
+
+  paciente_debitos: {
+    nome: 'paciente_debitos',
+    pk: 'id',
+    pkTipo: 'inteiro',
+    clinicaCol: 'clinica_id',
+    pai: { tabela: 'pacientes', fk: 'paciente_id' },
+    colunas: {
+      id: 'inteiro',
+      paciente_id: 'texto',
+      clinica_id: 'inteiro',
+      descricao: 'texto',
+      valor: 'real',
+      agendamento_id: 'inteiro',
+      tratamento_id: 'texto',
+      status: 'texto',
+      data_pagamento: 'data',
+      created_at: 'data',
+      updated_at: 'data',
+    },
+  },
+
+  tarefas: {
+    nome: 'tarefas',
+    pk: 'id',
+    pkTipo: 'uuid',
+    clinicaCol: 'clinica_id',
+    colunas: {
+      id: 'texto',
+      clinica_id: 'inteiro',
+      titulo: 'texto',
+      descricao: 'texto',
+      responsavel_id: 'inteiro',
+      prioridade: 'texto',
+      status: 'texto',
+      data_limite: 'dia',
+      paciente_id: 'texto',
+      created_at: 'data',
+      updated_at: 'data',
+    },
+  },
+
+  configuracoes_clinica: {
+    nome: 'configuracoes_clinica',
+    pk: 'id',
+    pkTipo: 'inteiro',
+    clinicaCol: 'clinica_id',
+    colunas: {
+      id: 'inteiro',
+      clinica_id: 'inteiro',
+      chave: 'texto',
+      valor: 'json',
+      updated_at: 'data',
+    },
+  },
+
+  whatsapp_agendadas: {
+    nome: 'whatsapp_agendadas',
+    pk: 'id',
+    pkTipo: 'inteiro',
+    clinicaCol: 'clinica_id',
+    colunas: {
+      id: 'inteiro',
+      clinica_id: 'inteiro',
+      paciente_id: 'texto',
+      nome: 'texto',
+      telefone: 'texto',
+      texto: 'texto',
+      enviar_em: 'data',
+      status: 'texto',
+      erro: 'texto',
+      enviada_em: 'data',
+      criado_por: 'texto',
+      created_at: 'data',
+      updated_at: 'data',
+    },
+  },
+
+  whatsapp_envios: {
+    nome: 'whatsapp_envios',
+    pk: 'id',
+    pkTipo: 'inteiro',
+    clinicaCol: 'clinica_id',
+    colunas: {
+      id: 'inteiro',
+      clinica_id: 'inteiro',
+      chave: 'texto',
+      tipo: 'texto',
+      paciente_id: 'texto',
+      nome: 'texto',
+      telefone: 'texto',
+      texto: 'texto',
+      status: 'texto',
+      erro: 'texto',
+      ...CRIADO_EM,
+      updated_at: 'data',
+    },
+  },
+
+  whatsapp_mensagens: {
+    nome: 'whatsapp_mensagens',
+    pk: 'id',
+    pkTipo: 'uuid',
+    clinicaCol: 'clinica_id',
+    colunas: {
+      id: 'texto',
+      clinica_id: 'inteiro',
+      chat_id: 'texto',
+      wwebjs_id: 'texto',
+      texto: 'texto',
+      tipo: 'texto',
+      de_mim: 'bool',
+      em: 'data',
+      ack: 'inteiro',
+      contato_nome: 'texto',
+      contato_telefone: 'texto',
+      midia_caminho: 'texto',
+      midia_tipo: 'texto',
+      created_at: 'data',
+      updated_at: 'data',
+    },
+  },
+};
+
+/** Tabelas sincronizadas, na ordem de envio/descida. */
+const ORDEM_SYNC = Object.keys(TABELAS);
+
+/** Colunas que guardam JSON e precisam de parse/stringify na borda. */
+const COLUNAS_JSON = Object.fromEntries(
+  Object.values(TABELAS).map((t) => [
+    t.nome,
+    Object.entries(t.colunas).filter(([, tipo]) => tipo === 'json').map(([nome]) => nome),
+  ]),
+);
+
+/** @param {string} tabela */
+function def(tabela) {
+  const t = TABELAS[tabela];
+  if (!t) throw new Error(`Tabela não sincronizada: ${tabela}`);
+  return t;
+}
+
+/** SQL do CREATE TABLE a partir da definição. */
+function sqlCriacao(tabela) {
+  const t = def(tabela);
+  const tipoSql = {
+    texto: 'TEXT',
+    inteiro: 'INTEGER',
+    real: 'REAL',
+    data: 'TEXT',
+    dia: 'TEXT',
+    json: 'TEXT',
+    bool: 'INTEGER',
+  };
+  const colunas = Object.entries(t.colunas).map(([nome, tipo]) => {
+    if (nome === t.pk) return `"${nome}" ${tipoSql[tipo]} PRIMARY KEY`;
+    return `"${nome}" ${tipoSql[tipo]}`;
+  });
+  return `CREATE TABLE IF NOT EXISTS "${tabela}" (${colunas.join(', ')});`;
+}
+
+module.exports = { TABELAS, ORDEM_SYNC, COLUNAS_JSON, def, sqlCriacao };

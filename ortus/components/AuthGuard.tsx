@@ -1,6 +1,7 @@
 ﻿'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { lerSessaoCacheUI } from '@/lib/local/cliente';
 import { verificarBackupAutomatico } from '@/lib/backup';
 import { useRouter, usePathname } from 'next/navigation';
 import { PatientSlideOverProvider } from '@/components/PatientSlideOver';
@@ -187,7 +188,19 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
       .maybeSingle();
     if (carga !== cargaRef.current) return;
     if (error) {
-      console.error('[AuthGuard] profissionais:', error);
+      // Sem internet o select falha; no desktop seguimos com o perfil que ficou
+      // guardado no userData no último login online.
+      const cache = await lerSessaoCacheUI();
+      const perfilCache = cache?.perfil as Record<string, unknown> | null | undefined;
+      if (perfilCache) {
+        const saas = perfilCache.is_super_admin === true;
+        perfilRef.current = perfilCache;
+        setPerfil(perfilCache);
+        sessaoPronta.current = true;
+        writeSuperAdminCache(saas);
+      } else {
+        console.error('[AuthGuard] profissionais:', error);
+      }
       setLoading(false);
       return;
     }

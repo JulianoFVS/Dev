@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { salvarSessaoCache } from '@/lib/local/cliente';
 import {
   User,
   LogOut,
@@ -174,6 +175,7 @@ export default function Perfil() {
   }
 
   async function sair() {
+    await salvarSessaoCache(null);
     await supabase.auth.signOut();
     clearProfileSession();
     clearAuthCookies();

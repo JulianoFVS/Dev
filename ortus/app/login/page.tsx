@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useRef, type CSSProperties, type FormEvent } from 'react';
 import { supabase } from '@/lib/supabase';
+import { salvarSessaoCache } from '@/lib/local/cliente';
 import { useRouter } from 'next/navigation';
 import { Loader2, ShieldCheck, Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
@@ -273,6 +274,39 @@ export default function Login() {
 
           count = vinculos?.length || 0;
           if (count === 1) unicaClinicaId = String(vinculos![0].clinica_id);
+        }
+
+        // Guarda a sessão para o desktop abrir sem internet. No site é no-op.
+        try {
+          const { data: sessao } = await supabase.auth.getSession();
+          const { data: perfil } = await supabase
+            .from('profissionais')
+            .select('*')
+            .eq('user_id', userId)
+            .maybeSingle();
+          const ids = Array.isArray(perfil?.id) ? perfil.id : perfil?.id ? [perfil.id] : [];
+          const { data: vinculosPerfil } = ids.length
+            ? await supabase
+                .from('profissionais_clinicas')
+                .select('clinica_id, clinicas(id, nome)')
+                .eq('profissional_id', perfil!.id)
+            : { data: [] as Array<{ clinicas: { id: string | number; nome: string } | null }> };
+          const clinicas = (vinculosPerfil || [])
+            .map((v) => (v as { clinicas?: { id: string | number; nome: string } | null }).clinicas)
+            .filter((c): c is { id: string | number; nome: string } => Boolean(c));
+
+          if (sessao?.session) {
+            await salvarSessaoCache({
+              access_token: sessao.session.access_token,
+              refresh_token: sessao.session.refresh_token,
+              expires_at: sessao.session.expires_at,
+              user: { id: userId, email: sessao.session.user.email ?? null },
+              perfil: perfil ?? null,
+              clinicas,
+            });
+          }
+        } catch {
+          /* cache é melhor-esforço */
         }
       }
 

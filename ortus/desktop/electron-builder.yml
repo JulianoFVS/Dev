@@ -1,0 +1,79 @@
+# =====================================================================
+# Ortus Desktop — configuração do electron-builder
+#
+# O instalador é NSIS para Windows x64. Dentro do .exe vão:
+#   - o shell Electron (desktop/)
+#   - o servidor Next autocontido (extraResources/app)
+#   - o serviço do WhatsApp com node_modules próprio (extraResources/whatsapp)
+#   - o Chromium do Puppeteer (extraResources/chromium)
+#   - a configuração pública do Supabase (config.json)
+#
+# O que NÃO vai: SUPABASE_SERVICE_ROLE_KEY, DATABASE_URL e nenhum .env.
+# =====================================================================
+
+appId: br.com.ortus.desktop
+productName: Ortus
+copyright: Recode Systems
+
+directories:
+  output: dist-desktop
+  buildResources: build
+
+# Só o que o processo principal precisa. O Next já vai autocontido em
+# extraResources/app, então não empacotamos o node_modules inteiro.
+files:
+  - 'desktop/**/*'
+  - 'package.json'
+  # better-sqlite3 v13 traz binários NAPI prontos para win32-x64/darwin/etc.
+  - 'node_modules/better-sqlite3/**/*'
+  - '!**/*.md'
+  - '!**/*.map'
+
+# Native modules precisam ficar fora do asar para o Node conseguir dlopen.
+asar: true
+asarUnpack:
+  - 'node_modules/better-sqlite3/**/*'
+
+extraResources:
+  - from: .next/standalone
+    to: app
+  # Serviço do WhatsApp: server.mjs + node_modules (whatsapp-web.js, qrcode).
+  # Instale com `npm --prefix services/whatsapp ci` antes de empacotar.
+  - from: services/whatsapp
+    to: whatsapp
+    filter:
+      - 'server.mjs'
+      - 'package.json'
+      - 'node_modules/**/*'
+  - from: build/chromium
+    to: chromium
+    filter:
+      - '**/*'
+  - from: desktop/config.json
+    to: config.json
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  artifactName: Ortus-Setup-${version}.${ext}
+  # Sem assinatura nesta fase; ao publicar, configure certificateFile.
+  signAndEditExecutable: true
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowElevation: true
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Ortus
+  deleteAppDataOnUninstall: false
+  runAfterFinish: true
+  installerLanguages:
+    - pt_BR
+  language: '1046'
+
+# Atualização automática fica desligada até existir canal assinado.
+publish: null

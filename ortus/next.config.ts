@@ -15,6 +15,10 @@ const CABECALHOS_SEGURANCA = [
 ];
 
 const nextConfig: NextConfig = {
+  // O build do .exe precisa de um servidor autocontido para rodar dentro do
+  // Electron. O site na Vercel continua com o build normal.
+  ...(process.env.ORTUS_DESKTOP_BUILD === '1' ? { output: 'standalone' as const } : {}),
+
   poweredByHeader: false,
   productionBrowserSourceMaps: false,
   reactStrictMode: true,

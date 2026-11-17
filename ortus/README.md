@@ -36,6 +36,24 @@ Abra `http://localhost:3000`.
 
 Segurança, modelo de acesso e checklist de deploy: [`docs/SEGURANCA.md`](docs/SEGURANCA.md).
 
+## Desktop (Windows)
+
+Além do site, o Ortus roda como aplicativo instalável na clínica (Electron +
+NSIS), com **banco local** e **WhatsApp embutido** (whatsapp-web.js), sincronizando
+com o Supabase quando há internet.
+
+```bash
+npm --prefix services/whatsapp ci
+node scripts/desktop-chromium.mjs --atual
+npm run desktop            # abre o shell em desenvolvimento
+npm run desktop:teste      # testa a camada local (SQLite + outbox)
+npm run desktop:build      # build standalone + config
+npm run desktop:instalar   # gera o .exe (rodar no Windows/CI)
+```
+
+Documentação completa — arquitetura, sincronização, offline, segurança e roteiro
+de teste: [`desktop/README.md`](desktop/README.md).
+
 ## Scripts
 
 ```bash

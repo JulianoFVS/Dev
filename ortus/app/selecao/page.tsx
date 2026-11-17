@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { salvarSessaoCache } from '@/lib/local/cliente';
 import { useRouter } from 'next/navigation';
 import { useClinica } from '@/app/context/ClinicaContext';
 import { LoginBrandPanel } from '@/app/login/page';
@@ -102,6 +103,7 @@ export default function SelecaoClinica() {
     }
 
     async function sair() {
+        await salvarSessaoCache(null);
         await supabase.auth.signOut();
         localStorage.removeItem('ortus_clinica_id');
         localStorage.removeItem('ortus_clinics_cache');
