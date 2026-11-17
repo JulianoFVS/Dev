@@ -258,7 +258,6 @@ export default function Perfil() {
     <div className="w-full space-y-3 px-2.5 py-2.5 pb-12 font-poppins sm:px-3 sm:py-3 md:px-4 md:py-3.5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400">Conta</p>
           <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 md:text-[2rem]">Meu perfil</h1>
           <p className="mt-1 text-sm text-neutral-500 sm:text-base">
             {activeClinic ? getClinicLabel(activeClinic) : 'Sua conta'} · Dados pessoais e preferências
@@ -267,7 +266,7 @@ export default function Perfil() {
         <button
           type="button"
           onClick={sair}
-          className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md border border-red-200 bg-white px-3 text-sm font-medium text-red-700 hover:bg-red-50 sm:w-auto"
+          className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-700 hover:bg-neutral-50 sm:w-auto"
         >
           <LogOut size={18} /> Sair
         </button>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { dados as tabelas, usuarioDaSessao } from '@/lib/local/consulta';
@@ -31,19 +32,31 @@ import BentoClinicSwitcher from '@/components/dashboard/BentoClinicSwitcher';
 import type { ReactNode } from 'react';
 
 function DicaBotao({ texto, children }: { texto: string; children: ReactNode }) {
-  const [visivel, setVisivel] = useState(false);
+  const ancora = useRef<HTMLSpanElement>(null);
+  const [caixa, setCaixa] = useState<{ top: number; left: number; abaixo: boolean } | null>(null);
+  function mostrar() {
+    const rect = ancora.current?.getBoundingClientRect();
+    if (!rect) return;
+    const abaixo = rect.top < 48;
+    setCaixa({ top: abaixo ? rect.bottom + 6 : rect.top - 6, left: rect.left + rect.width / 2, abaixo });
+  }
   return (
     <span
+      ref={ancora}
       className="relative inline-flex"
-      onMouseEnter={() => setVisivel(true)}
-      onMouseLeave={() => setVisivel(false)}
-      onPointerDown={() => setVisivel(false)}
+      onMouseEnter={mostrar}
+      onMouseLeave={() => setCaixa(null)}
+      onPointerDown={() => setCaixa(null)}
     >
       {children}
-      {visivel && (
-        <span className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-1.5 -translate-x-1/2 whitespace-nowrap rounded-md bg-neutral-900 px-2 py-1 text-[11px] font-medium text-white">
+      {caixa && typeof document !== 'undefined' && createPortal(
+        <span
+          className="pointer-events-none fixed z-[120] -translate-x-1/2 whitespace-nowrap rounded-md bg-neutral-900 px-2 py-1 text-[11px] font-medium text-white"
+          style={{ top: caixa.top, left: caixa.left, transform: `translate(-50%, ${caixa.abaixo ? '0' : '-100%'})` }}
+        >
           {texto}
-        </span>
+        </span>,
+        document.body,
       )}
     </span>
   );
@@ -1263,7 +1276,9 @@ export default function Dashboard() {
             <section className={`${card} flex min-h-[20rem] flex-col overflow-hidden p-4 lg:min-h-0 lg:flex-[1.6]`}>
               <h2 className="shrink-0 text-base font-semibold text-neutral-900">Calculadora de taxas</h2>
               <div className="mt-2 grid shrink-0 grid-cols-2 items-end gap-2">
-                <div className="relative">
+                <div>
+                  <label className={rotulo}>Valor</label>
+                  <div className="relative">
                   <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-neutral-400">R$</span>
                   <input
                     value={calcValor}
@@ -1273,6 +1288,7 @@ export default function Dashboard() {
                     placeholder="0,00"
                     className="h-10 w-full rounded-md border border-neutral-200 bg-white pl-9 pr-3 text-sm text-neutral-900 outline-none focus:border-neutral-900"
                   />
+                  </div>
                 </div>
                 <div>
                   <label className={rotulo}>Taxa</label>

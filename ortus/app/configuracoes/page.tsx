@@ -14,6 +14,7 @@ import {
   TEMPLATES_COMUNICACAO_PADRAO,
   TAXAS_MAQUININHA_PADRAO,
   normalizarCategoriasFinanceiras,
+  proximaCorCategoria,
   normalizarTaxasMaquininha,
   type CategoriaFinanceira,
   type TemplateComunicacao,
@@ -281,7 +282,7 @@ export default function Configuracoes() {
 
   function abrirNovaCatFin() {
       setCorCatAberta(false);
-      setCatFinEdit({ id: `cat_${Date.now()}`, nome: '', tipo: 'despesa', cor: '#64748b', ativo: true });
+      setCatFinEdit({ id: `cat_${Date.now()}`, nome: '', tipo: 'despesa', cor: proximaCorCategoria(catsFin.map((c) => c.cor)), ativo: true });
       setModalCatFin(true);
   }
 
@@ -742,6 +743,7 @@ export default function Configuracoes() {
               if (vincErr) {
                   aviso = 'Clínica criada, mas não foi possível vincular você automaticamente. Vincule em Equipe.';
               }
+              await salvarConfig(novaC.id, 'categorias_financeiro', CATEGORIAS_FINANCEIRAS_PADRAO).catch(() => {});
           }
 
           if (clinicaId && logoArquivo) {
@@ -1206,8 +1208,17 @@ export default function Configuracoes() {
                 <section className={sectionPad}>
                         <div className="mb-2 flex shrink-0 items-center justify-between gap-3">
                             <div>
-                                <h3 className="text-base font-semibold text-neutral-900">Categorias financeiras</h3>
-                                <p className="text-xs text-neutral-500">Inativas não aparecem no Financeiro.</p>
+                                <h3 className="flex items-center gap-1.5 text-base font-semibold text-neutral-900">
+                                    Categorias financeiras
+                                    <span className="group relative inline-flex">
+                                        <button type="button" aria-label="Inativas não aparecem no Financeiro." className="flex h-5 w-5 items-center justify-center text-neutral-400">
+                                            <HelpCircle size={14} />
+                                        </button>
+                                        <span className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-1.5 hidden -translate-x-1/2 whitespace-nowrap rounded-md bg-neutral-900 px-2 py-1 text-[11px] font-medium normal-case tracking-normal text-white group-hover:block group-active:hidden">
+                                            Inativas não aparecem no Financeiro.
+                                        </span>
+                                    </span>
+                                </h3>
                             </div>
                             <button type="button" onClick={abrirNovaCatFin} className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800"><Plus size={14}/> Adicionar</button>
                         </div>

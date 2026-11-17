@@ -44,6 +44,7 @@ next-env.d.ts
 # sessão do WhatsApp Web (wwebjs)
 /services/whatsapp/node_modules
 /services/whatsapp/.wwebjs_auth
+/services/whatsapp/.gateway-secret
 /services/whatsapp/.wwebjs_cache
 
 # desktop (Electron)

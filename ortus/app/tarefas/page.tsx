@@ -45,7 +45,7 @@ interface Paciente {
 
 const TAREFAS_CACHE_KEY = 'ortus:tarefas:v1';
 const TAREFAS_CORES_KEY = 'ortus:tarefas:cores';
-const CORES_PASTEL = ['#fde68a', '#bbf7d0', '#bfdbfe', '#fbcfe8', '#ddd6fe', '#fed7aa'];
+const CORES_PASTEL = ['#fde68a', '#86efac', '#93c5fd', '#f9a8d4', '#fdba74'];
 
 function tintaSuave(hex?: string) {
     if (!hex || !/^#[0-9a-fA-F]{6}$/.test(hex)) return null;
@@ -54,8 +54,8 @@ function tintaSuave(hex?: string) {
     const g = (n >> 8) & 255;
     const b = n & 255;
     return {
-        fundo: `rgba(${r}, ${g}, ${b}, 0.1)`,
-        borda: `rgba(${r}, ${g}, ${b}, 0.22)`,
+        fundo: `rgba(${r}, ${g}, ${b}, 0.34)`,
+        borda: `rgba(${r}, ${g}, ${b}, 0.62)`,
         marca: hex,
     };
 }
@@ -539,7 +539,7 @@ export default function Tarefas() {
     return (
         <div className="flex h-full min-h-0 flex-col overflow-hidden px-2.5 py-2.5 font-poppins sm:px-3 sm:py-3 md:px-4 md:py-3.5">
             <div className="mb-3 shrink-0">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0">
                         <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 md:text-[2rem]">
                             Tarefas
@@ -603,19 +603,19 @@ export default function Tarefas() {
                     const items = tarefasFiltradas.filter((t) => t.status === col.id);
                     const tinta = tintaSuave(coresQuadro[col.id]);
                     return (
-                        <section key={col.id} className="flex flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white md:min-h-0" style={tinta ? { borderColor: tinta.borda, boxShadow: `inset 0 2px 0 ${tinta.marca}` } : undefined}>
-                            <div className="flex shrink-0 items-center justify-between gap-2 px-3 py-2.5" style={tinta ? { backgroundColor: tinta.fundo } : undefined}>
+                        <section key={col.id} className="flex flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white md:min-h-0" style={tinta ? { backgroundColor: tinta.fundo, borderColor: tinta.borda, boxShadow: `inset 0 2px 0 ${tinta.marca}` } : undefined}>
+                            <div className="flex shrink-0 items-center justify-between gap-2 px-3 py-2.5">
                                 <h2 className="flex min-w-0 items-center gap-1.5 text-sm font-semibold text-neutral-900">
                                     <span className="truncate">{col.label}</span>
                                     <span className="text-xs font-medium tabular-nums text-neutral-400">{kpiLoading ? '—' : items.length}</span>
                                 </h2>
-                                <div className="flex shrink-0 items-center gap-1">
-                                    {pintando === col.id ? (
-                                        <>
+                                <div className="flex shrink-0 items-center">
+                                    <div className={`grid transition-[grid-template-columns,opacity] duration-200 ease-out ${pintando === col.id ? 'grid-cols-[1fr] opacity-100' : 'grid-cols-[0fr] opacity-0'}`}>
+                                        <div className="flex min-w-0 items-center gap-1 overflow-hidden">
                                             <button
                                                 type="button"
                                                 aria-label="Sem cor"
-                                                className="h-5 w-5 rounded-md border border-neutral-300 bg-white"
+                                                className="h-5 w-5 shrink-0 rounded-md border border-neutral-300 bg-white"
                                                 onClick={() => {
                                                     const next = { ...coresQuadro };
                                                     delete next[col.id];
@@ -629,7 +629,7 @@ export default function Tarefas() {
                                                     key={hex}
                                                     type="button"
                                                     aria-label={hex}
-                                                    className="h-5 w-5 rounded-md border border-black/10"
+                                                    className="h-5 w-5 shrink-0 rounded-md border border-black/10"
                                                     style={{ backgroundColor: hex }}
                                                     onClick={() => {
                                                         const next = { ...coresQuadro, [col.id]: hex };
@@ -639,15 +639,23 @@ export default function Tarefas() {
                                                     }}
                                                 />
                                             ))}
-                                            <button type="button" aria-label="Fechar cores" className="flex h-5 w-5 items-center justify-center rounded-md text-neutral-500 hover:bg-white/70" onClick={() => setPintando(null)}>
-                                                <X size={12} />
-                                            </button>
-                                        </>
-                                    ) : (
-                                        <button type="button" aria-label="Cor do quadro" className={`flex h-5 w-5 items-center justify-center rounded-md hover:bg-white/70 hover:text-neutral-900 ${coresQuadro[col.id] ? 'text-neutral-700' : 'text-neutral-400'}`} onClick={() => setPintando(col.id)}>
-                                            <Pipette size={13} />
-                                        </button>
-                                    )}
+                                            <label className="relative h-5 w-5 shrink-0 cursor-pointer overflow-hidden rounded-md border border-neutral-200" style={{ background: 'conic-gradient(#94a3b8, #60a5fa, #34d399, #fbbf24, #fb7185, #a78bfa, #94a3b8)' }} aria-label="Cor personalizada">
+                                                <input
+                                                    type="color"
+                                                    value={/^#[0-9a-fA-F]{6}$/.test(coresQuadro[col.id] || '') ? coresQuadro[col.id] : '#94a3b8'}
+                                                    onChange={(event) => {
+                                                        const next = { ...coresQuadro, [col.id]: event.target.value };
+                                                        setCoresQuadro(next);
+                                                        localStorage.setItem(TAREFAS_CORES_KEY, JSON.stringify(next));
+                                                    }}
+                                                    className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                                                />
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <button type="button" aria-label={pintando === col.id ? 'Fechar cores' : 'Cor do quadro'} className={`flex h-5 w-5 items-center justify-center rounded-md hover:bg-white/70 hover:text-neutral-900 ${coresQuadro[col.id] ? 'text-neutral-700' : 'text-neutral-400'}`} onClick={() => setPintando(pintando === col.id ? null : col.id)}>
+                                        <Pipette size={13} />
+                                    </button>
                                 </div>
                             </div>
                             <div className="space-y-2 px-3 pb-3 md:min-h-0 md:flex-1 md:overflow-y-auto">

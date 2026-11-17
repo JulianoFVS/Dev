@@ -1,12 +1,32 @@
-import { spawn } from 'node:child_process';
+import { spawn, type ChildProcess } from 'node:child_process';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 
 const URL_BASE = (process.env.WHATSAPP_GATEWAY_URL || 'http://127.0.0.1:3920').replace(/\/$/, '');
-const SEGREDO = process.env.WHATSAPP_GATEWAY_SECRET || '';
+const ARQUIVO_SEGREDO = path.join(process.cwd(), 'services', 'whatsapp', '.gateway-secret');
 
 let subida: Promise<void> | null = null;
+let processo: ChildProcess | null = null;
+let falhaLocal = '';
+
+function segredoAtual() {
+  const doAmbiente = process.env.WHATSAPP_GATEWAY_SECRET || '';
+  if (doAmbiente) return doAmbiente;
+  try {
+    if (fs.existsSync(ARQUIVO_SEGREDO)) {
+      const salvo = fs.readFileSync(ARQUIVO_SEGREDO, 'utf8').trim();
+      if (salvo) {
+        process.env.WHATSAPP_GATEWAY_SECRET = salvo;
+        return salvo;
+      }
+    }
+  } catch {
+    /* o arquivo pode não existir ainda */
+  }
+  return '';
+}
 
 function gatewayEhLocal() {
   if (process.env.VERCEL || process.env.ORTUS_DESKTOP === '1') return false;
@@ -37,8 +57,24 @@ function saude(porta: number) {
  * A clínica não executa comando. No aplicativo, o Electron já subiu o
  * serviço. Na Vercel o processo não fica vivo, então não tentamos aqui.
  */
+function garantirSegredoLocal() {
+  const atual = segredoAtual();
+  if (atual) return atual;
+  if (!gatewayEhLocal()) return '';
+  const novo = crypto.randomBytes(32).toString('hex');
+  try {
+    fs.mkdirSync(path.dirname(ARQUIVO_SEGREDO), { recursive: true });
+    fs.writeFileSync(ARQUIVO_SEGREDO, novo, { mode: 0o600 });
+  } catch {
+    /* segue só na memória desta execução */
+  }
+  process.env.WHATSAPP_GATEWAY_SECRET = novo;
+  return novo;
+}
+
 async function garantirWhatsappLocal() {
-  if (!SEGREDO || !gatewayEhLocal()) return;
+  const segredo = garantirSegredoLocal();
+  if (!segredo || !gatewayEhLocal()) return;
   const porta = Number(new URL(URL_BASE).port || 3920);
   if (await saude(porta)) return;
   if (!subida) {
@@ -53,32 +89,54 @@ async function subirWhatsappLocal(porta: number) {
   const pasta = path.join(process.cwd(), 'services', 'whatsapp');
   const arquivo = path.join(pasta, 'server.mjs');
   if (!fs.existsSync(arquivo)) return;
+  if (processo && processo.exitCode === null && !processo.killed) {
+    /* o processo anterior ainda está abrindo */
+  } else {
+  const ambiente: NodeJS.ProcessEnv = {
+    ...process.env,
+    WHATSAPP_GATEWAY_HOST: '127.0.0.1',
+    WHATSAPP_GATEWAY_PORT: String(porta),
+    WHATSAPP_GATEWAY_SECRET: segredoAtual(),
+  };
+  delete ambiente.PORT;
   const filho = spawn(process.execPath, [arquivo], {
     cwd: pasta,
-    env: {
-      ...process.env,
-      WHATSAPP_GATEWAY_HOST: '127.0.0.1',
-      WHATSAPP_GATEWAY_PORT: String(porta),
-      WHATSAPP_GATEWAY_SECRET: SEGREDO,
-    },
-    stdio: 'ignore',
+    env: ambiente,
+    stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true,
   });
+  processo = filho;
+  falhaLocal = '';
+  const anotar = (pedaco: Buffer) => {
+    const texto = pedaco.toString('utf8').trim();
+    if (texto) falhaLocal = texto.slice(-400);
+  };
+  filho.stdout?.on('data', anotar);
+  filho.stderr?.on('data', anotar);
+  filho.on('exit', (codigo) => {
+    if (codigo) falhaLocal = falhaLocal || `O WhatsApp encerrou (código ${codigo}).`;
+  });
   filho.unref();
+  }
   const limite = Date.now() + 20_000;
   while (Date.now() < limite) {
-    if (await saude(porta)) return;
+    if (await saude(porta)) {
+      falhaLocal = '';
+      return;
+    }
+    if (!processo || processo.exitCode !== null) return;
     await new Promise((resolve) => setTimeout(resolve, 400));
   }
 }
 
 export function whatsappGatewayConfigurado() {
-  return Boolean(SEGREDO);
+  return Boolean(gatewayEhLocal() ? garantirSegredoLocal() : segredoAtual());
 }
 
 export async function chamarWhatsappGateway(caminho: string, init?: { method?: string; body?: unknown }) {
   await garantirWhatsappLocal();
-  if (!SEGREDO) {
+  const segredo = segredoAtual();
+  if (!segredo) {
     return { ok: false as const, status: 503, dados: { erro: 'Gateway do WhatsApp não configurado.' } };
   }
   try {
@@ -86,7 +144,7 @@ export async function chamarWhatsappGateway(caminho: string, init?: { method?: s
       method: init?.method || 'GET',
       headers: {
         'content-type': 'application/json',
-        'x-ortus-whatsapp-secret': SEGREDO,
+        'x-ortus-whatsapp-secret': segredo,
       },
       body: init?.body === undefined ? undefined : JSON.stringify(init.body),
       cache: 'no-store',
@@ -97,7 +155,7 @@ export async function chamarWhatsappGateway(caminho: string, init?: { method?: s
     return {
       ok: false as const,
       status: 503,
-      dados: { erro: 'O WhatsApp não abriu. Feche o Ortus e abra de novo.' },
+      dados: { erro: falhaLocal || 'O WhatsApp ainda está abrindo. Tente de novo em alguns segundos.' },
     };
   }
 }

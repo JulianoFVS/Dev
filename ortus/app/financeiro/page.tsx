@@ -18,6 +18,7 @@ import {
     CATEGORIAS_FINANCEIRAS_PADRAO,
     TAXAS_MAQUININHA_PADRAO,
     normalizarCategoriasFinanceiras,
+    proximaCorCategoria,
     normalizarTaxasMaquininha,
     nomesCategoriasAtivas,
     calcularValorLiquido,
@@ -303,7 +304,7 @@ export default function Financeiro() {
           id: `cat_${Date.now()}`,
           nome,
           tipo: novoLancamento.tipo === 'entrada' ? 'receita' : 'despesa',
-          cor: novoLancamento.tipo === 'entrada' ? '#10b981' : '#64748b',
+          cor: proximaCorCategoria(categoriasObj.map((c) => c.cor)),
           ativo: true,
       };
       const novasObj = [...categoriasObj, nova].sort((a, b) => a.nome.localeCompare(b.nome));

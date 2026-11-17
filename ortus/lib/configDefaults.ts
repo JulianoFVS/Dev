@@ -214,18 +214,36 @@ export function normalizarTaxasMaquininha(raw: unknown): TaxaMaquininha[] {
   return resultado.length ? resultado : TAXAS_MAQUININHA_PADRAO;
 }
 
+const PALETA_CATEGORIAS = ['#10b981', '#3b82f6', '#8b5cf6', '#f59e0b', '#ef4444', '#0ea5e9', '#ec4899', '#14b8a6', '#f97316', '#64748b'];
+
+export function proximaCorCategoria(usadas: string[]) {
+  const ocupadas = new Set(usadas.map((cor) => cor.toLowerCase()));
+  return PALETA_CATEGORIAS.find((cor) => !ocupadas.has(cor)) || PALETA_CATEGORIAS[usadas.length % PALETA_CATEGORIAS.length];
+}
+
+function aplicarCoresDistintas(lista: CategoriaFinanceira[]): CategoriaFinanceira[] {
+  if (lista.length < 2) return lista;
+  const unicas = new Set(lista.map((item) => (item.cor || '').toLowerCase()));
+  if (unicas.size !== 1 || !unicas.has('#64748b')) return lista;
+  const porNome = new Map(CATEGORIAS_FINANCEIRAS_PADRAO.map((item) => [item.nome.toLowerCase(), item.cor]));
+  return lista.map((item, indice) => ({
+    ...item,
+    cor: porNome.get(item.nome.toLowerCase()) || PALETA_CATEGORIAS[indice % PALETA_CATEGORIAS.length],
+  }));
+}
+
 export function normalizarCategoriasFinanceiras(raw: unknown): CategoriaFinanceira[] {
   if (!Array.isArray(raw) || raw.length === 0) return CATEGORIAS_FINANCEIRAS_PADRAO;
   if (typeof raw[0] === 'string') {
-    return (raw as string[]).map((nome, i) => ({
+    return aplicarCoresDistintas((raw as string[]).map((nome, i) => ({
       id: `cat_migrada_${i}`,
       nome,
       tipo: 'despesa' as const,
       cor: '#64748b',
       ativo: true,
-    }));
+    })));
   }
-  return raw as CategoriaFinanceira[];
+  return aplicarCoresDistintas(raw as CategoriaFinanceira[]);
 }
 
 export function nomesCategoriasAtivas(categorias: CategoriaFinanceira[]): string[] {

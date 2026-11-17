@@ -964,7 +964,7 @@ export default function TratamentosPage() {
                       </span>
                     </Legenda>
                   )}
-                  <button type="button" disabled={!ehParticular} onClick={() => abrirTratamento('novo')} className={ehParticular ? btnPrimario : btnBloqueado}>
+                  <button type="button" disabled={!ehParticular} onClick={() => abrirTratamento('novo')} className={ehParticular ? 'inline-flex h-8 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium leading-none text-white disabled:opacity-50' : 'inline-flex h-8 cursor-not-allowed items-center gap-1.5 rounded-md bg-neutral-200 px-3 text-sm font-medium leading-none text-neutral-400'}>
                     <Plus size={14} /> Novo tratamento
                   </button>
                 </div>
@@ -1238,7 +1238,7 @@ export default function TratamentosPage() {
           )}
           <div className="mt-3 flex items-center justify-between gap-2">
             {ehParticular && tratModal && tratModal !== 'novo' ? (
-              <button type="button" onClick={() => { const item = tratModal; setTratModal(null); void excluirTratamento(item); }} className={btnNeutro}>Excluir</button>
+              <button type="button" onClick={() => { const item = tratModal; setTratModal(null); void excluirTratamento(item); }} className="inline-flex h-9 items-center px-1 text-sm font-medium text-red-600 hover:text-red-700">Excluir</button>
             ) : <span />}
             <div className="flex gap-2">
               <button type="button" onClick={() => setTratModal(null)} className={btnNeutro}>Cancelar</button>

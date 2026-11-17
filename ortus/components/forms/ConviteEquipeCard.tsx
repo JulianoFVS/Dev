@@ -20,17 +20,18 @@ import {
 
 type RespostaEmAndamento = 'aceitar' | 'recusar' | null;
 
-const CLASSE_BADGE_STATUS: Record<ConviteStatus, string> = {
-    pendente: 'border-amber-200 bg-amber-100 text-amber-800',
-    aceito: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-    recusado: 'border-rose-200 bg-rose-50 text-rose-700',
-    cancelado: 'border-neutral-200 bg-neutral-100 text-neutral-600',
-    expirado: 'border-neutral-200 bg-neutral-100 text-neutral-500',
+const PONTO_STATUS: Record<ConviteStatus, string> = {
+    pendente: 'bg-amber-500',
+    aceito: 'bg-emerald-500',
+    recusado: 'bg-red-500',
+    cancelado: 'bg-neutral-300',
+    expirado: 'bg-neutral-300',
 };
 
 export function ConviteStatusBadge({ status }: { status: ConviteStatus }) {
     return (
-        <span className={`inline-flex w-fit items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold ${CLASSE_BADGE_STATUS[status]}`}>
+        <span className="inline-flex items-center gap-1.5 text-sm text-neutral-700">
+            <span className={`h-1.5 w-1.5 rounded-full ${PONTO_STATUS[status]}`} />
             {rotuloStatusConvite(status)}
         </span>
     );

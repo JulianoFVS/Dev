@@ -17,7 +17,7 @@ import {
   type FiltroLocal,
 } from '@/lib/local/cliente';
 
-import { Plus, X, Loader2, UserPlus, Trash2, Bell, ChevronDown, ChevronLeft, ChevronRight, Search, Calendar, LayoutGrid, Clock, List } from 'lucide-react';
+import { Plus, X, Loader2, UserPlus, Trash2, Bell, ChevronDown, ChevronLeft, ChevronRight, Search, Calendar, LayoutGrid, Clock, List, Users } from 'lucide-react';
 import CustomSelect from '@/components/ui/CustomSelect';
 import CampoData from '@/components/ui/CampoData';
 import CampoHora from '@/components/ui/CampoHora';
@@ -37,7 +37,7 @@ import {
 import { lerPrefillAgenda, limparPrefillAgenda } from '@/lib/agendaPrefill';
 import { tratamentosVisiveis, valorNaAgenda, type LinhaPreco, type PlanoTipo } from '@/lib/precoTratamento';
 
-type Visao = 'mes' | 'semana' | 'dia' | 'lista';
+type Visao = 'mes' | 'semana' | 'dia' | 'lista' | 'profissionais';
 
 type PacienteAgenda = {
   id: string;
@@ -613,9 +613,9 @@ export default function Agenda() {
       }
   }
 
-  function abrirNoDia(dia: Date, hora = '08:00') {
+  function abrirNoDia(dia: Date, hora = '08:00', profissionalId?: string) {
       const preClinica = clinicaFiltro !== 'todas' ? clinicaFiltro : '';
-      const preProfissional = (usuarioAtual?.nivel !== 'admin' && usuarioAtual?.profissional_id) ? usuarioAtual.profissional_id : '';
+      const preProfissional = profissionalId || ((usuarioAtual?.nivel !== 'admin' && usuarioAtual?.profissional_id) ? usuarioAtual.profissional_id : '');
       setFormData({
           id: null,
           title: '',
@@ -808,7 +808,7 @@ export default function Agenda() {
   }, []);
 
   useEffect(() => {
-    if (visao !== 'semana' && visao !== 'dia') return;
+    if (visao !== 'semana' && visao !== 'dia' && visao !== 'profissionais') return;
     const grade = gradeHorasRef.current;
     const linha = grade?.querySelector('[data-agora]') as HTMLElement | null;
     if (!grade || !linha) return;
@@ -818,7 +818,7 @@ export default function Agenda() {
   }, [visao, cursor]);
 
   const hoje = inicioDoDia(new Date());
-  const titulo = visao === 'dia'
+  const titulo = visao === 'dia' || visao === 'profissionais'
     ? capitalizar(cursor.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' }))
     : visao === 'semana'
       ? `${inicioSemana(cursor).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short' })} – ${somarDias(inicioSemana(cursor), 6).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short', year: 'numeric' })}`
@@ -826,7 +826,7 @@ export default function Agenda() {
 
   function mover(direcao: -1 | 1) {
     const proxima = new Date(cursor);
-    if (visao === 'dia') proxima.setDate(proxima.getDate() + direcao);
+    if (visao === 'dia' || visao === 'profissionais') proxima.setDate(proxima.getDate() + direcao);
     else if (visao === 'semana') proxima.setDate(proxima.getDate() + direcao * 7);
     else proxima.setMonth(proxima.getMonth() + direcao);
     setCursor(proxima);
@@ -859,16 +859,23 @@ export default function Agenda() {
     { id: 'semana', label: 'Semana', Icone: LayoutGrid },
     { id: 'mes', label: 'Mês', Icone: Calendar },
     { id: 'lista', label: 'Lista', Icone: List },
+    { id: 'profissionais', label: 'Profissionais', Icone: Users },
   ];
 
   function dentroDoPeriodo(data: Date) {
-    if (visao === 'dia') return mesmoDia(data, cursor);
+    if (visao === 'dia' || visao === 'profissionais') return mesmoDia(data, cursor);
     if (visao === 'semana') {
       const inicio = inicioSemana(cursor);
       return data >= inicio && data < somarDias(inicio, 7);
     }
     return data.getMonth() === cursor.getMonth() && data.getFullYear() === cursor.getFullYear();
   }
+
+  const colunasProfissional = profissionais.filter((profissional: any) => {
+    if (filtroProfissional !== 'todos' && String(profissional.id) !== filtroProfissional) return false;
+    if (clinicaFiltro === 'todas') return true;
+    return (profissional.profissionais_clinicas || []).some((vinculo: any) => String(vinculo.clinica_id) === String(clinicaFiltro));
+  });
 
   const eventosLista = eventosVisiveis
     .filter((evento) => dentroDoPeriodo(new Date(evento.start)))
@@ -1008,7 +1015,7 @@ export default function Agenda() {
             <button
               type="button"
               onClick={abrirNovoAgendamento}
-              className="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800"
+              className="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md bg-neutral-900 px-3 py-0 text-sm font-medium leading-none text-white hover:bg-neutral-800"
             >
               <Plus size={14} />
               Novo agendamento
@@ -1164,6 +1171,73 @@ export default function Agenda() {
           </div>
         </div>
       )}
+
+      {visao === 'profissionais' && (() => {
+        const dia = inicioDoDia(cursor);
+        const doDia = eventosPorDia.get(chaveLocal(dia)) || [];
+        const temSemProfissional = doDia.some((evento) => !evento.extendedProps?.profissional_id);
+        const colunas = temSemProfissional
+          ? [...colunasProfissional, { id: '', nome: 'Sem profissional', foto_url: null }]
+          : colunasProfissional;
+        const grade = `3.25rem repeat(${Math.max(colunas.length, 1)}, minmax(8.5rem, 1fr))`;
+        return (
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white max-sm:min-h-[26rem]">
+            <div className="min-h-0 flex-1 overflow-auto">
+              <div className="min-w-max">
+                <div className="grid shrink-0 border-b border-neutral-200" style={{ gridTemplateColumns: grade }}>
+                  <div className="sticky left-0 z-[5] bg-white" />
+                  {colunas.length === 0 ? (
+                    <div className="px-3 py-4 text-center text-sm text-neutral-400">Nenhum profissional nesta clínica.</div>
+                  ) : colunas.map((profissional: any) => {
+                    const nome = profissional.nome || 'Profissional';
+                    const partes = nome.trim().split(/\s+/);
+                    const iniciais = ((partes[0]?.[0] || '') + (partes[1]?.[0] || '')).toUpperCase();
+                    return (
+                      <div key={profissional.id || 'sem'} className="flex min-w-[8.5rem] flex-col items-center gap-1 px-2 py-2">
+                        <span className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-neutral-100 text-[10px] font-semibold text-neutral-500">
+                          {profissional.foto_url ? <img src={profissional.foto_url} alt="" className="h-full w-full object-cover" /> : iniciais || '—'}
+                        </span>
+                        <span className="w-full truncate text-center text-xs font-medium text-neutral-800">{nome}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div ref={gradeHorasRef}>
+                  {horasGrade.map((hora) => {
+                    const rotulo = `${String(hora).padStart(2, '0')}:00`;
+                    const mostraAgora = mesmoDia(dia, agora) && agora.getHours() === hora;
+                    return (
+                      <div key={hora} className="relative grid min-h-12 border-b border-neutral-100 last:border-b-0" style={{ gridTemplateColumns: grade }}>
+                        {mostraAgora && (
+                          <div data-agora="" className="pointer-events-none absolute inset-x-0 z-10" style={{ top: `${(agora.getMinutes() / 60) * 100}%` }}>
+                            <span className="absolute left-[3.25rem] h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-red-500" />
+                            <span className="absolute left-[3.25rem] right-0 h-0.5 -translate-y-1/2 bg-red-500" />
+                          </div>
+                        )}
+                        <div className="sticky left-0 z-[5] bg-white px-1 pt-1 text-right text-[11px] text-neutral-400">{rotulo}</div>
+                        {(colunas.length ? colunas : [null]).map((profissional: any, indice: number) => {
+                          const lista = profissional
+                            ? doDia.filter((evento) => String(evento.extendedProps?.profissional_id || '') === String(profissional.id || '') && new Date(evento.start).getHours() === hora)
+                            : [];
+                          return (
+                            <div
+                              key={profissional?.id || indice}
+                              onClick={() => profissional && abrirNoDia(dia, rotulo, profissional.id ? String(profissional.id) : undefined)}
+                              className="relative min-h-12 min-w-[8.5rem] cursor-pointer border-l border-neutral-100 p-0.5 hover:bg-neutral-50"
+                            >
+                              {lista.map((evento) => <ChipEvento key={evento.id} evento={evento} />)}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {visao === 'lista' && (
         <div className="min-h-0 flex-1 overflow-y-auto rounded-xl border border-neutral-200 bg-white max-sm:min-h-[22rem]">

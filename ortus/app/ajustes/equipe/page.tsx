@@ -2,6 +2,7 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { clinicScope, readRouteCache, writeRouteCache } from '@/lib/routeListCache';
+import { readProfileSession } from '@/lib/profileSession';
 import { useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { dados as tabelas, usuarioDaSessao } from '@/lib/local/consulta';
@@ -46,7 +47,21 @@ type Profissional = {
     user_id?: string | null;
     precisa_trocar_senha?: boolean | null;
     clinicas?: Array<{ id: string | number; nome: string }>;
+    foto_url?: string | null;
 };
+
+function iniciaisDe(nome: string) {
+    const partes = nome.trim().split(/\s+/);
+    return ((partes[0]?.[0] || '') + (partes[1]?.[0] || '')).toUpperCase() || '?';
+}
+
+function AvatarEquipe({ nome, foto, tamanho = 'h-9 w-9' }: { nome: string; foto?: string | null; tamanho?: string }) {
+    return (
+        <span className={`flex ${tamanho} shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#f3f4f1] text-[11px] font-medium text-neutral-500`}>
+            {foto ? <img src={foto} alt="" className="h-full w-full object-cover" /> : iniciaisDe(nome)}
+        </span>
+    );
+}
 
 const CARGOS = [
     'Dentista', 'Auxiliar', 'Recepcionista', 'Protético', 'Gestor', 'Outro',
@@ -100,7 +115,8 @@ const formatValorComissao = (tipo: string, valor: number) => (
 );
 
 const EQUIPE_CACHE_KEY = 'ortus:equipe:v1';
-const COMISSOES_CACHE_KEY = 'ortus:equipe:comissoes:v1';
+const COMISSOES_CACHE_KEY = 'ortus:equipe:comissoes:v2';
+const CONVITES_CACHE_KEY = 'ortus:equipe:convites:v1';
 
 function readEquipeBoot(): Profissional[] | null {
     if (typeof localStorage === 'undefined') return null;
@@ -119,7 +135,11 @@ export default function EquipePage() {
     const fetchGen = useRef(0);
     const [profissionais, setProfissionais] = useState<Profissional[]>(() => bootEquipe ?? []);
     const [loading, setLoading] = useState(() => !(bootEquipe?.length));
-    const [perfilCaller, setPerfilCaller] = useState<any>(null);
+    const [perfilCaller, setPerfilCaller] = useState<any>(() => {
+        const snap = readProfileSession();
+        if (!snap?.nivel_acesso && !snap?.is_super_admin) return null;
+        return { nivel_acesso: snap.nivel_acesso ?? null, is_super_admin: !!snap.is_super_admin, nome: snap.nome ?? '' };
+    });
     const [perfilResolvido, setPerfilResolvido] = useState(false);
     const [ordenacao, setOrdenacao] = useState<{ campo: 'nome' | 'cargo' | 'unidades' | 'status'; dir: 'asc' | 'desc' }>({ campo: 'nome', dir: 'asc' });
     const [ordenacaoComissao, setOrdenacaoComissao] = useState<{ campo: 'profissional' | 'gatilho' | 'tipo' | 'valor'; dir: 'asc' | 'desc' }>({ campo: 'profissional', dir: 'asc' });
@@ -137,8 +157,8 @@ export default function EquipePage() {
     const [copiado, setCopiado] = useState<'email' | 'senha' | 'tudo' | null>(null);
 
     // Convites de equipe enviados / recebidos
-    const [convites, setConvites] = useState<ConviteEquipe[]>([]);
-    const [convitesLoading, setConvitesLoading] = useState(true);
+    const [convites, setConvites] = useState<ConviteEquipe[]>(() => readRouteCache<ConviteEquipe[]>(CONVITES_CACHE_KEY, 'equipe') ?? []);
+    const [convitesLoading, setConvitesLoading] = useState(() => !readRouteCache<ConviteEquipe[]>(CONVITES_CACHE_KEY, 'equipe'));
     const [convitesErro, setConvitesErro] = useState<string | null>(null);
     const [conviteCancelandoId, setConviteCancelandoId] = useState<number | null>(null);
     const [meusConvites, setMeusConvites] = useState<MeuConvite[]>([]);
@@ -169,9 +189,9 @@ export default function EquipePage() {
     const [comissaoExcluindo, setComissaoExcluindo] = useState<string | null>(null);
     const comissaoScope = activeClinicId && activeClinicId !== 'all' ? String(activeClinicId) : null;
     const bootComissoes = comissaoScope
-        ? readRouteCache<(ComissaoRegra & { profissionais?: { nome: string } | null })[]>(COMISSOES_CACHE_KEY, comissaoScope)
+        ? readRouteCache<(ComissaoRegra & { profissionais?: { nome: string; foto_url?: string | null } | null })[]>(COMISSOES_CACHE_KEY, comissaoScope)
         : null;
-    const [comissoesConsolidadas, setComissoesConsolidadas] = useState<(ComissaoRegra & { profissionais?: { nome: string } | null })[]>(() => bootComissoes ?? []);
+    const [comissoesConsolidadas, setComissoesConsolidadas] = useState<(ComissaoRegra & { profissionais?: { nome: string; foto_url?: string | null } | null })[]>(() => bootComissoes ?? []);
     const [comissoesConsolidadasLoading, setComissoesConsolidadasLoading] = useState(() => !bootComissoes);
     const [comissaoLancamentos, setComissaoLancamentos] = useState<any[]>([]);
     const [nivelAcessoEdit, setNivelAcessoEdit] = useState<'comum' | 'admin'>('comum');
@@ -361,13 +381,13 @@ export default function EquipePage() {
 
     async function carregarConvites() {
         if (!isAdmin) return;
-        setConvitesLoading(true);
         setConvitesErro(null);
         try {
             const lista = await listarConvitesEquipe(clinicasPermitidasIds, {
                 todas: !!perfilCaller?.is_super_admin,
             });
             setConvites(lista);
+            writeRouteCache(CONVITES_CACHE_KEY, 'equipe', lista);
         } catch (error) {
             setConvitesErro(mensagemErroConvite(error, 'Não foi possível carregar os convites de equipe.'));
         } finally {
@@ -478,7 +498,7 @@ export default function EquipePage() {
             return;
         }
         const scope = String(clinicaIdNumerica);
-        const cached = readRouteCache<(ComissaoRegra & { profissionais?: { nome: string } | null })[]>(COMISSOES_CACHE_KEY, scope);
+        const cached = readRouteCache<(ComissaoRegra & { profissionais?: { nome: string; foto_url?: string | null } | null })[]>(COMISSOES_CACHE_KEY, scope);
         if (cached) {
             setComissoesConsolidadas(cached);
             setComissoesConsolidadasLoading(false);
@@ -487,7 +507,7 @@ export default function EquipePage() {
         }
         let ativo = true;
         tabelas.from('comissoes_regras')
-            .select('*, profissionais(nome)')
+            .select('*, profissionais(nome, foto_url)')
             .eq('clinica_id', clinicaIdNumerica)
             .eq('ativo', true)
             .order('profissional_id')
@@ -501,7 +521,7 @@ export default function EquipePage() {
                 setComissoesConsolidadasLoading(false);
             });
         tabelas.from('comissoes_lancamentos')
-            .select('*, profissionais(nome)')
+            .select('*, profissionais(nome, foto_url)')
             .eq('clinica_id', clinicaIdNumerica)
             .order('created_at', { ascending: false })
             .limit(20)
@@ -1130,15 +1150,11 @@ export default function EquipePage() {
                     </thead>
                     <tbody className="divide-y divide-black/5">
                         {profissionaisOrdenados.map((p) => {
-                            const partes = p.nome.trim().split(/\s+/);
-                            const iniciais = ((partes[0]?.[0] || '') + (partes[1]?.[0] || '')).toUpperCase() || '?';
                             return (
                             <tr key={p.id} className="hover:bg-neutral-50/60">
                                 <td className="px-4 py-2.5 sm:px-5">
                                     <div className="flex items-center gap-3">
-                                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#f3f4f1] text-[11px] font-medium text-neutral-500">
-                                            {iniciais}
-                                        </span>
+                                        <AvatarEquipe nome={p.nome} foto={p.foto_url} />
                                         <div className="min-w-0">
                                             <p className="truncate text-sm font-medium text-neutral-900">{p.nome}</p>
                                             {p.nivel_acesso === 'admin' && (
@@ -1181,8 +1197,9 @@ export default function EquipePage() {
                 )}
             </section>
 
+            <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-2">
             {isAdmin && (
-            <section className="flex shrink-0 flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white">
+            <section className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white">
                 <div className="flex shrink-0 items-center justify-between gap-3 px-3 pt-3">
                     <h2 className="text-base font-semibold text-neutral-900">Convites de equipe</h2>
                     {convitesPendentesEnviados > 0 && (
@@ -1191,7 +1208,7 @@ export default function EquipePage() {
                         </span>
                     )}
                 </div>
-                <div className="max-h-36 overflow-y-auto px-3 pb-3">
+                <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-3">
                     {convitesLoading && convites.length === 0 ? (
                         <div className="space-y-2 pt-2">
                             {Array.from({ length: 2 }).map((_, i) => (
@@ -1248,7 +1265,7 @@ export default function EquipePage() {
             </section>
             )}
 
-            <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white">
+            <section className={`flex min-h-0 flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white ${isAdmin ? '' : 'lg:col-span-2'}`}>
                 <div className="flex shrink-0 items-center justify-between gap-3 px-3 pt-3">
                     <h2 className="text-base font-semibold text-neutral-900">Comissões</h2>
                     {comissoesConsolidadasLoading && <Loader2 size={16} className="animate-spin text-neutral-400" />}
@@ -1298,7 +1315,12 @@ export default function EquipePage() {
                                             return ordenacaoComissao.dir === 'asc' ? cmp : -cmp;
                                         }).map((r) => (
                                             <tr key={r.id} className="hover:bg-neutral-50/50">
-                                                <td className="px-4 py-2.5 font-medium text-neutral-800">{r.profissionais?.nome || `#${r.profissional_id}`}</td>
+                                                <td className="px-4 py-2.5 font-medium text-neutral-800">
+                                                    <div className="flex items-center gap-2">
+                                                        <AvatarEquipe nome={r.profissionais?.nome || 'Profissional'} foto={r.profissionais?.foto_url || profissionais.find((p) => String(p.id) === String(r.profissional_id))?.foto_url} tamanho="h-8 w-8" />
+                                                        <span className="truncate">{r.profissionais?.nome || `#${r.profissional_id}`}</span>
+                                                    </div>
+                                                </td>
                                                 <td className="px-4 py-2.5 text-neutral-600">{getGatilhoLabel(r.gatilho)}</td>
                                                 <td className="px-4 py-2.5 capitalize text-neutral-500">{r.tipo?.replace('_', ' ')}</td>
                                                 <td className="px-4 py-2.5 text-right text-sm font-medium text-neutral-900">{formatValorComissao(r.tipo, Number(r.valor))}</td>
@@ -1352,6 +1374,7 @@ export default function EquipePage() {
                 )}
                 </div>
             </section>
+            </div>
             </div>
 
             {/* Editor avançado */}

@@ -81,6 +81,8 @@ async function esperarSaude(porta, timeoutMs = 60_000) {
  */
 function criarServicoWhatsapp(ctx) {
   let filho = null;
+  let parado = false;
+  let tentativas = 0;
 
   function script() {
     const dev = path.join(ctx.raiz, 'services', 'whatsapp', 'server.mjs');
@@ -172,11 +174,19 @@ function ehExecutavelChrome(nome) {
     filho.on('exit', (codigo) => {
       log.aviso(`whatsapp: saiu (código ${codigo})`);
       filho = null;
+      if (parado || tentativas >= 4) return;
+      tentativas += 1;
+      setTimeout(() => {
+        if (!parado) iniciar();
+      }, 2000);
     });
     filho.on('error', (err) => log.erro('whatsapp: falha ao iniciar', err));
 
     log.info(`whatsapp: iniciando em http://127.0.0.1:${ctx.porta}`);
-    return esperarSaude(ctx.porta).catch((err) => {
+    return esperarSaude(ctx.porta).then(() => {
+      tentativas = 0;
+      return true;
+    }).catch((err) => {
       log.erro('whatsapp: não subiu', err);
       return false;
     });
@@ -184,6 +194,7 @@ function ehExecutavelChrome(nome) {
 
   /** Encerra o processo sem deslogar (a sessão fica no disco). */
   function parar() {
+    parado = true;
     if (!filho) return;
     const alvo = filho;
     filho = null;

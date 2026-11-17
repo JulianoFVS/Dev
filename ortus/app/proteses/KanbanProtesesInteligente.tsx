@@ -597,14 +597,14 @@ export default function KanbanProtesesInteligente() {
           <button
             type="button"
             onClick={openNewColumn}
-            className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-md border border-neutral-200 bg-white px-4 text-sm font-medium text-neutral-800 hover:bg-neutral-50 sm:flex-none"
+            className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-md border border-neutral-200 bg-white px-4 py-0 text-sm font-medium leading-none text-neutral-800 hover:bg-neutral-50 sm:flex-none"
           >
             <Plus size={16} /> Quadro
           </button>
           <button
             type="button"
             onClick={() => openNewOrder()}
-            className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-md bg-neutral-900 px-4 text-sm font-medium text-white hover:bg-neutral-800 sm:flex-none"
+            className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-md bg-neutral-900 px-4 py-0 text-sm font-medium leading-none text-white hover:bg-neutral-800 sm:flex-none"
           >
             <Plus size={16} /> Novo pedido
           </button>

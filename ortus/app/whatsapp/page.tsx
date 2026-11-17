@@ -73,8 +73,8 @@ function WhatsappConteudo() {
   }, [atualizarStatus]);
 
   useEffect(() => {
-    if (!clinicaId || !sessao || sessao.configurado === false) return;
-    const intervalo = sessao.status === 'qr' || sessao.status === 'iniciando' ? 2000 : 10_000;
+    if (!clinicaId || !sessao) return;
+    const intervalo = sessao.configurado === false || sessao.status === 'qr' || sessao.status === 'iniciando' || sessao.status === 'offline' ? 3000 : 10_000;
     const id = window.setInterval(() => { void atualizarStatus(); }, intervalo);
     return () => window.clearInterval(id);
   }, [clinicaId, sessao?.status, sessao?.configurado, atualizarStatus]);
@@ -119,13 +119,19 @@ function WhatsappConteudo() {
       <header className="mb-3 flex shrink-0 flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 md:text-[2rem]">WhatsApp</h1>
+            <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 md:text-[2rem]">
+              WhatsApp
+              <span className="text-neutral-400">
+                <span className="max-sm:hidden"> · </span>
+                <span className="max-sm:mt-0.5 max-sm:block max-sm:text-base max-sm:font-medium">{clinicaNome}</span>
+              </span>
+            </h1>
             <p className="mt-1 flex items-center gap-1.5 text-xs text-neutral-400">
               <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${conectado ? 'bg-emerald-500' : 'bg-neutral-300'}`} />
               <span className="truncate">
                 {conectado
                   ? `${sessao?.nome || 'Conectado'}${sessao?.numero ? ` · ${formatarNumero(sessao.numero)}` : ''}`
-                  : `${clinicaNome} · desconectado`}
+                  : 'Desconectado'}
               </span>
             </p>
           </div>
@@ -151,7 +157,7 @@ function WhatsappConteudo() {
         conectado ? (
           <Conversas clinicaId={clinicaId} clinicaNome={clinicaNome} rascunho={rascunho} onRascunhoUsado={rascunhoUsado} />
         ) : (
-          <Conexao sessao={sessao} onConectar={conectar} />
+          <Conexao sessao={sessao} onConectar={conectar} onTentar={atualizarStatus} />
         )
       ) : (
         <div className="min-h-0 flex-1 overflow-y-auto">
@@ -174,13 +180,18 @@ function WhatsappConteudo() {
   );
 }
 
-function Conexao({ sessao, onConectar }: { sessao: Sessao; onConectar: () => void }) {
+function Conexao({ sessao, onConectar, onTentar }: { sessao: Sessao; onConectar: () => void; onTentar: () => void }) {
   if (sessao.configurado === false) {
     return (
       <PainelCentral
-        titulo="Serviço ainda não configurado"
-        texto="O WhatsApp desta clínica abre junto com o Ortus. Se o código não aparecer, feche o programa e abra de novo."
-      />
+        titulo="Abrindo o WhatsApp"
+        texto="O serviço desta clínica está subindo agora. O código aparece aqui assim que ele responder."
+      >
+        <button type="button" onClick={onTentar} className="inline-flex h-10 items-center gap-2 rounded-md bg-neutral-900 px-4 text-sm font-medium text-white">
+          <MessageCircle size={16} />
+          Tentar de novo
+        </button>
+      </PainelCentral>
     );
   }
   const titulo = sessao.status === 'qr'
@@ -191,11 +202,16 @@ function Conexao({ sessao, onConectar }: { sessao: Sessao; onConectar: () => voi
   return (
     <PainelCentral
       titulo={titulo}
-      texto={sessao.erro || 'No celular da clínica, abra o WhatsApp, toque em Aparelhos conectados e escaneie o código. A sessão fica salva e volta sozinha se o serviço reiniciar.'}
+      texto={sessao.erro || 'No celular da clínica, abra o WhatsApp, toque em Aparelhos conectados e escaneie o código. A sessão fica salva e volta sozinha se o serviço cair.'}
     >
       {sessao.status === 'qr' && sessao.qr ? (
         <img src={sessao.qr} alt="QR Code do WhatsApp" className="h-64 w-64 rounded-2xl bg-white p-2" />
-      ) : sessao.status !== 'offline' ? (
+      ) : sessao.status === 'offline' ? (
+        <button type="button" onClick={onTentar} className="inline-flex h-10 items-center gap-2 rounded-md bg-neutral-900 px-4 text-sm font-medium text-white">
+          <MessageCircle size={16} />
+          Tentar de novo
+        </button>
+      ) : (
         <button
           type="button"
           onClick={onConectar}
@@ -205,7 +221,7 @@ function Conexao({ sessao, onConectar }: { sessao: Sessao; onConectar: () => voi
           {sessao.status === 'iniciando' ? <Loader2 size={16} className="animate-spin" /> : <MessageCircle size={16} />}
           {sessao.status === 'iniciando' ? 'Abrindo…' : 'Gerar QR Code'}
         </button>
-      ) : null}
+      )}
     </PainelCentral>
   );
 }
