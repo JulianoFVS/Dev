@@ -161,17 +161,26 @@ function criarSync({ banco, obterConfig, obterSessao, definirSessao, aoMudarEsta
     const payload = item.payload ? JSON.parse(item.payload) : null;
     if (!payload) return;
 
+    // `return=representation` devolve a linha como o SERVIDOR a gravou —
+    // inclusive o `updated_at` dele. Aplicamos de volta para a máquina local
+    // ficar com a mesma referência de tempo da nuvem (relógio do PC não manda).
     const resposta = await fetch(`${url}/rest/v1/${tabela}`, {
       method: 'POST',
       headers: {
         ...cabecalhos(sessao),
-        Prefer: 'resolution=merge-duplicates,return=minimal',
+        Prefer: 'resolution=merge-duplicates,return=representation',
       },
       body: JSON.stringify([payload]),
     });
     if (!resposta.ok) {
       const texto = (await resposta.text()).slice(0, 300);
       throw Object.assign(new Error(`upsert ${tabela}: ${resposta.status} ${texto}`), { status: resposta.status });
+    }
+    const devolvidas = await resposta.json().catch(() => null);
+    if (Array.isArray(devolvidas)) {
+      for (const devolvida of devolvidas) {
+        if (devolvida && devolvida[t.pk] != null) banco.aplicarRemoto(tabela, devolvida);
+      }
     }
   }
 
@@ -324,6 +333,62 @@ function criarSync({ banco, obterConfig, obterSessao, definirSessao, aoMudarEsta
     return { aplicados, conflitos, parado: null };
   }
 
+  /**
+   * Exclusões feitas em outras máquinas.
+   *
+   * Sem isso, um registro apagado no computador da recepção continuaria
+   * aparecendo no consultório e poderia até ser reenviado (ressuscitando).
+   */
+  async function puxarExclusoes(sessao) {
+    const { url } = obterConfig();
+    const TABELA = 'sync_exclusoes';
+    let cursor = banco.obterCursor(TABELA);
+    let aplicados = 0;
+
+    for (let volta = 0; volta < 200; volta += 1) {
+      const filtro = cursor ? `&excluido_em=gte.${encodeURIComponent(cursor)}` : '';
+      const resposta = await fetch(
+        `${url}/rest/v1/${TABELA}?select=tabela,linha_id,excluido_em${filtro}&order=excluido_em.asc&limit=${PAGINA_PULL}`,
+        { headers: cabecalhos(sessao) },
+      );
+      if (resposta.status === 401) return { aplicados, parado: 'sessao' };
+      if (!resposta.ok) {
+        // Tabela ainda não migrada: não trava o resto da sincronização.
+        if (resposta.status === 404 || resposta.status === 400) return { aplicados, parado: null };
+        throw Object.assign(new Error(`pull exclusoes: ${resposta.status}`), { status: resposta.status });
+      }
+
+      const linhas = await resposta.json();
+      if (!Array.isArray(linhas) || linhas.length === 0) break;
+
+      let maior = cursor;
+      for (const linha of linhas) {
+        maior = maisNovo(maior, linha.excluido_em || null);
+        if (!linha.tabela || !linha.linha_id || !linha.excluido_em) continue;
+        try {
+          banco.aplicarTumulo(linha.tabela, linha.linha_id, linha.excluido_em);
+          aplicados += 1;
+        } catch (err) {
+          log.aviso('sync: falha ao aplicar exclusão', linha.tabela, err instanceof Error ? err.message : err);
+        }
+      }
+
+      if (linhas.length < PAGINA_PULL) {
+        if (maior) banco.definirCursor(TABELA, maior);
+        break;
+      }
+      if (!maior || maior === cursor) {
+        const proximo = new Date(new Date(cursor || agoraISO()).getTime() + 1).toISOString();
+        banco.definirCursor(TABELA, proximo);
+        cursor = proximo;
+      } else {
+        banco.definirCursor(TABELA, maior);
+        cursor = maior;
+      }
+    }
+    return { aplicados, parado: null };
+  }
+
   async function puxar(sessao) {
     let aplicados = 0;
     let conflitos = 0;
@@ -333,6 +398,9 @@ function criarSync({ banco, obterConfig, obterSessao, definirSessao, aoMudarEsta
       conflitos += resultado.conflitos;
       if (resultado.parado === 'sessao') return { aplicados, conflitos, parado: 'sessao' };
     }
+    const exclusoes = await puxarExclusoes(sessao);
+    aplicados += exclusoes.aplicados;
+    if (exclusoes.parado === 'sessao') return { aplicados, conflitos, parado: 'sessao' };
     return { aplicados, conflitos, parado: null };
   }
 
@@ -351,6 +419,7 @@ function criarSync({ banco, obterConfig, obterSessao, definirSessao, aoMudarEsta
 
       // Primeiro limpa cursores: baixamos tudo desde o início.
       banco.bruto.prepare('DELETE FROM sync_cursor').run();
+      banco.bruto.prepare("DELETE FROM sync_cursor WHERE tabela = 'sync_exclusoes'").run();
 
       let total = 0;
       for (const tabela of ORDEM_SYNC) {

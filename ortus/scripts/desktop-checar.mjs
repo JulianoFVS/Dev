@@ -130,10 +130,48 @@ try {
   const stats = banco.estatisticas();
   check('estatísticas por tabela', typeof stats.tabelas.pacientes === 'number', JSON.stringify(stats.tabelas));
 
-  // 11. reabrir o banco (durabilidade)
+  // 11. duas máquinas ao mesmo tempo
+  const pastaB = fs.mkdtempSync(path.join(os.tmpdir(), 'ortus-desktop-b-'));
+  const bancoB = criarBanco(path.join(pastaB, 'ortus.db'), { instalacaoId: 'maquina-b' });
+  try {
+    // ids bigint de máquinas diferentes nunca colidem
+    const idsA = new Set();
+    const idsB = new Set();
+    for (let i = 0; i < 200; i += 1) {
+      idsA.add(String(banco.gravar('agendamentos', 'insert', { paciente_id: paciente.id, clinica_id: 17, data_hora: '2026-12-01T10:00:00Z' }).id));
+      idsB.add(String(bancoB.gravar('agendamentos', 'insert', { paciente_id: paciente.id, clinica_id: 17, data_hora: '2026-12-01T10:00:00Z' }).id));
+    }
+    check('ids de máquinas diferentes não colidem', [...idsA].every((id) => !idsB.has(id)), `${idsA.size}+${idsB.size}`);
+
+    // exclusão gera túmulo local
+    const alvo = banco.gravar('tarefas', 'insert', { clinica_id: 17, titulo: 'sumir' });
+    banco.gravar('tarefas', 'delete', {}, alvo.id);
+    check('exclusão registra túmulo', Boolean(banco.tumuloDe('tarefas', alvo.id)));
+
+    // pull antigo não ressuscita o que foi apagado
+    banco.aplicarRemoto('tarefas', { ...alvo, updated_at: '2000-01-01T00:00:00Z' });
+    check('pull antigo não ressuscita', banco.obter('tarefas', alvo.id) === null);
+
+    // máquina B apaga; máquina A recebe o túmulo e apaga junto
+    const compartilhado = banco.gravar('pacientes', 'insert', { nome: 'Compartilhado', clinica_id: 17 });
+    bancoB.aplicarRemoto('pacientes', compartilhado);
+    check('B enxerga o registro criado em A', Boolean(bancoB.obter('pacientes', compartilhado.id)));
+    banco.aplicarTumulo('pacientes', compartilhado.id, new Date(Date.now() + 1000).toISOString());
+    check('túmulo de B apaga em A', banco.obter('pacientes', compartilhado.id) === null);
+
+    // se A editou DEPOIS do túmulo, a edição prevalece
+    const editado = banco.gravar('pacientes', 'insert', { nome: 'Editado', clinica_id: 17 });
+    bancoB.aplicarTumulo('pacientes', editado.id, '2000-01-01T00:00:00Z');
+    check('edição mais nova vence o túmulo antigo', Boolean(banco.obter('pacientes', editado.id)));
+  } finally {
+    bancoB.fechar();
+    fs.rmSync(pastaB, { recursive: true, force: true });
+  }
+
+  // 12. reabrir o banco (durabilidade)
   banco.fechar();
   const reaberto = criarBanco(arquivo);
-  check('dados sobrevivem ao fechar', reaberto.contar('pacientes') === 3, String(reaberto.contar('pacientes')));
+  check('dados sobrevivem ao fechar', reaberto.contar('pacientes') === 4, String(reaberto.contar('pacientes')));
   reaberto.fechar();
 } finally {
   try {

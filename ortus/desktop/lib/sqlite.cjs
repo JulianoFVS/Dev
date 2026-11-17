@@ -37,11 +37,30 @@ function hojeISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function novoId(tabela) {
+/**
+ * ids de tabelas bigint criados offline.
+ *
+ * Precisam ser únicos entre MÁQUINAS diferentes que trabalham sem internet.
+ * Layout: segundos desde 2020 (28 bits) << 20 | tag da máquina (12 bits) << 8
+ * | contador. Assim duas máquinas nunca geram o mesmo número, e a sequência do
+ * Postgres (só positivos) também nunca colide.
+ */
+let contadorLocal = 0;
+function novoId(tabela, tagMaquina = 0) {
   const t = def(tabela);
   if (t.pkTipo === 'uuid') return crypto.randomUUID();
-  // Negativo e monotônico: não colide com a sequence do Postgres.
-  return -(Date.now() * 1000 + crypto.randomInt(0, 1000));
+  const base = (Math.floor(Date.now() / 1000) << 20) | ((tagMaquina & 0xfff) << 8);
+  contadorLocal = Math.max(base, contadorLocal + 1);
+  return -contadorLocal;
+}
+
+/** Transforma o id da instalação em um número curto (12 bits). */
+function tagDeInstalacao(instalacaoId) {
+  let hash = 0;
+  for (const caractere of String(instalacaoId || '')) {
+    hash = ((hash << 5) - hash + caractere.charCodeAt(0)) | 0;
+  }
+  return Math.abs(hash) % 4096;
 }
 
 /** Converte um valor da API para o tipo físico do SQLite. */
@@ -95,6 +114,9 @@ function doBanco(tipo, valor) {
 }
 
 function criarBanco(arquivo, opcoes = {}) {
+  const tagMaquina = Number.isInteger(opcoes.maquinaTag)
+    ? opcoes.maquinaTag
+    : tagDeInstalacao(opcoes.instalacaoId);
   const db = new Database(arquivo);
   db.pragma('journal_mode = WAL');
   db.pragma('synchronous = NORMAL');
@@ -140,6 +162,13 @@ function criarBanco(arquivo, opcoes = {}) {
       CREATE TABLE IF NOT EXISTS sync_cursor (
         tabela TEXT PRIMARY KEY,
         cursor TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS sync_tombstones (
+        tabela      TEXT NOT NULL,
+        linha_id    TEXT NOT NULL,
+        excluido_em TEXT NOT NULL,
+        PRIMARY KEY (tabela, linha_id)
       );
 
       CREATE TABLE IF NOT EXISTS sync_meta (
@@ -335,7 +364,7 @@ function criarBanco(arquivo, opcoes = {}) {
     const t = def(tabela);
     const agora = agoraISO();
     const entrada = { ...dados };
-    const id = entrada[t.pk] ?? novoId(tabela);
+    const id = entrada[t.pk] ?? novoId(tabela, tagMaquina);
     entrada[t.pk] = id;
     if ('created_at' in t.colunas && entrada.created_at == null) entrada.created_at = agora;
     if ('updated_at' in t.colunas) entrada.updated_at = agora;
@@ -390,7 +419,11 @@ function criarBanco(arquivo, opcoes = {}) {
       if (!linhaApi) return null;
       linhaId = linhaApi[t.pk];
       const clinicaId = clinicDa(tabela, linhaApi);
-      enfileirar({ tabela, linhaId, clinicaId, op: 'delete', payload: null, updatedAt: agoraISO() });
+      const agora = agoraISO();
+      // Túmulo local: impede que esta máquina "ressuscite" a linha ao aplicar
+      // um pull antigo de outra máquina.
+      registrarTumulo(tabela, linhaId, agora);
+      enfileirar({ tabela, linhaId, clinicaId, op: 'delete', payload: null, updatedAt: agora });
       return linhaApi;
     }
 
@@ -420,11 +453,63 @@ function criarBanco(arquivo, opcoes = {}) {
     return linhaApi;
   });
 
+  // ------------------------------------------------------------- túmulos
+  const registrarTumulo = (tabela, linhaId, quando) => {
+    db.prepare(`
+      INSERT INTO sync_tombstones (tabela, linha_id, excluido_em) VALUES (?, ?, ?)
+      ON CONFLICT(tabela, linha_id) DO UPDATE SET excluido_em = MAX(excluido_em, excluded.excluido_em)
+    `).run(String(tabela), String(linhaId), String(quando || agoraISO()));
+  };
+
+  const tumuloDe = (tabela, linhaId) => db
+    .prepare('SELECT excluido_em FROM sync_tombstones WHERE tabela = ? AND linha_id = ?')
+    .get(String(tabela), String(linhaId))?.excluido_em || null;
+
+  const removerTumulo = (tabela, linhaId) => {
+    db.prepare('DELETE FROM sync_tombstones WHERE tabela = ? AND linha_id = ?').run(String(tabela), String(linhaId));
+  };
+
+  /**
+   * Exclusão vinda de outra máquina. Se a linha local foi editada DEPOIS do
+   * túmulo, a edição é mais nova e prevalece (o conflito aparece na tela).
+   * Caso contrário, apaga.
+   */
+  const aplicarTumulo = db.transaction((tabela, linhaId, quando) => {
+    const t = def(tabela);
+    const local = obter(tabela, linhaId);
+    const localUpdated = local?.updated_at || null;
+    if (local && localUpdated && localUpdated > quando) {
+      return { apagou: false, motivo: 'edicao-local-mais-nova' };
+    }
+    removerLinha(tabela, linhaId);
+    registrarTumulo(tabela, linhaId, quando);
+    // Escrita local pendente para essa linha perdeu: descarta.
+    db.prepare('DELETE FROM sync_outbox WHERE tabela = ? AND linha_id = ?').run(String(tabela), String(linhaId));
+    if (local) {
+      registrarConflito({
+        tabela,
+        linhaId,
+        clinicaId: local[t.clinicaCol || 'clinica_id'] ?? null,
+        versaoLocal: local,
+        versaoRemota: null,
+        escolhido: 'remoto',
+      });
+    }
+    void t;
+    return { apagou: Boolean(local), motivo: 'excluido' };
+  });
+
   /** Aplicar uma linha vinda da nuvem (não gera outbox). */
   const aplicarRemoto = db.transaction((tabela, linha) => {
     const t = def(tabela);
     const copia = { ...linha };
     if (copia[t.pk] == null) return null;
+
+    // Nunca ressuscita o que já foi excluído (aqui ou em outra máquina).
+    const tumulo = tumuloDe(tabela, copia[t.pk]);
+    if (tumulo && (!copia.updated_at || String(copia.updated_at) <= tumulo)) {
+      return null;
+    }
     if ('updated_at' in t.colunas && copia.updated_at == null) copia.updated_at = agoraISO();
     const fisica = paraLinha(tabela, copia);
     const colunas = Object.keys(fisica);
@@ -590,6 +675,11 @@ function criarBanco(arquivo, opcoes = {}) {
     contarOutbox,
     temPendencia,
     enfileirar,
+    // túmulos (exclusões compartilhadas)
+    registrarTumulo,
+    tumuloDe,
+    removerTumulo,
+    aplicarTumulo,
     // conflitos
     registrarConflito,
     listarConflitos,
@@ -600,6 +690,7 @@ function criarBanco(arquivo, opcoes = {}) {
     fechar,
     paraApi,
     paraLinha,
+    tagMaquina,
     agoraISO,
     hojeISO,
     novoId,

@@ -162,6 +162,11 @@ uma versão nova — só ao desinstalar, e mesmo assim os dados permanecem
 - **Conflito** (mesma linha editada em dois computadores): vence o
   `updated_at` mais novo. A versão perdedora vai para `sync_conflitos` e
   aparece em **Configurações → Sincronização**.
+- **Exclusão viaja**: um gatilho `AFTER DELETE` no Postgres grava em
+  `sync_exclusoes`; as outras máquinas baixam esse "túmulo" e apagam local.
+  Sem isso, um registro apagado na recepção voltaria a aparecer no consultório.
+- **Relógio único**: `updated_at` é carimbado por gatilho no servidor, em
+  INSERT e UPDATE. A hora do PC da clínica nunca decide conflito.
 - **Primeiro uso**: baixa a clínica inteira para o SQLite antes de liberar a
   tela (bootstrap). Instalação nova em outro PC, com login online, reconstrói
   o backup mais recente.
@@ -243,3 +248,49 @@ subir.
 | WhatsApp não sobe | falta `services/whatsapp/node_modules` ou `resources/chromium` |
 | Indicador preso em “Entre para sincronizar” | sessão expirada e sem rede: conecte e entre de novo |
 | Muitos conflitos | uso simultâneo de dois computadores na mesma clínica |
+
+---
+
+## Várias máquinas na mesma clínica
+
+Pode instalar em quantos computadores a clínica precisar. Cada um tem o seu
+`ortus.db`; o Supabase é o ponto de encontro.
+
+### Três garantias
+
+1. **Ids nunca colidem.** Chaves `uuid` usam uuid v4. Chaves `bigint` usam um
+   inteiro **negativo** montado com bits de tempo + **tag da máquina** +
+   contador (`desktop/lib/sqlite.cjs`). A sequence do Postgres só ocupa
+   positivos, então não há colisão nem com a nuvem nem entre PCs.
+2. **Um único relógio.** O `updated_at` é carimbado por gatilho no Postgres,
+   tanto em INSERT quanto em UPDATE. Um computador com a hora errada **não
+   ganha conflito** por isso. Depois do push, a máquina aplica de volta a linha
+   como o servidor gravou (`Prefer: return=representation`).
+3. **Exclusão é compartilhada.** `AFTER DELETE` grava `sync_exclusoes` com
+   tabela, id da linha e clínica. O pull baixa esses túmulos e apaga local —
+   inclusive descartando uma escrita antiga que tentaria ressuscitar a linha.
+
+### Cenários
+
+| Situação | O que acontece |
+|---|---|
+| Duas pessoas criam registros diferentes | os dois convivem |
+| Uma edita o paciente A, outra o paciente B | idem |
+| Uma apaga, a outra não tocou | apaga nas duas |
+| As duas editam **o mesmo** registro | vence o `updated_at` mais novo; a outra versão vai para conflitos |
+| Uma apaga e a outra editou **depois** | a edição mais nova prevalece e o conflito aparece |
+| Um PC com relógio errado | não influencia: o servidor carimba |
+| Sem internet por horas | a outbox acumula e sobe em ordem quando a rede volta |
+
+### Conflitos
+
+**Configurações → Sincronização** lista cada conflito com as duas versões
+(este computador × nuvem) e botões para escolher. Nada é descartado sem
+decisão: a versão perdedora fica em `sync_conflitos`.
+
+### Recomendação
+
+Cada máquina deve ter internet ao menos algumas vezes por dia. O app tolera
+dias offline, mas quanto maior o tempo desconectado (e mais gente mexendo nos
+mesmos registros), maior a chance de conflito — e conflito sempre pede uma
+decisão humana.

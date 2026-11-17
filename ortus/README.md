@@ -53,6 +53,7 @@ npm run desktop:instalar   # gera o .exe (rodar no Windows/CI)
 
 Documentação completa — arquitetura, sincronização, offline, segurança e roteiro
 de teste: [`desktop/README.md`](desktop/README.md).
+Passo a passo de instalação por sistema: [`docs/INSTALACAO.md`](docs/INSTALACAO.md).
 
 ## Scripts
 

@@ -211,7 +211,7 @@ async function iniciarTudo() {
   }
 
   // 1) banco local
-  estado.banco = criarBanco(caminhos.banco(app));
+  estado.banco = criarBanco(caminhos.banco(app), { instalacaoId: estado.segredos.instalacaoId });
   log.info('sqlite: aberto', caminhos.banco(app));
 
   // 2) API de dados local
