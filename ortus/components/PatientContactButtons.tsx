@@ -4,7 +4,6 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2, Mail, MessageCircle, Smartphone } from 'lucide-react';
 import { abrirComunicacaoCliente, montarMensagemEvento, type EventoComunicacao } from '@/lib/comunicacao';
-import { whatsappConectado } from '@/lib/whatsappCliente';
 import type { DocumentoContexto } from '@/lib/documentVariables';
 
 type Variant = 'icons' | 'buttons' | 'row';
@@ -13,6 +12,8 @@ type Props = {
   variant?: Variant;
   telefone?: string | null;
   email?: string | null;
+  nome?: string | null;
+  pacienteId?: string | number | null;
   clinicaId?: string | number | null;
   evento?: EventoComunicacao;
   contexto?: Partial<DocumentoContexto>;
@@ -26,6 +27,8 @@ export default function PatientContactButtons({
   variant = 'icons',
   telefone,
   email,
+  nome,
+  pacienteId,
   clinicaId,
   evento = 'pos_consulta',
   contexto = {},
@@ -53,9 +56,18 @@ export default function PatientContactButtons({
 
     setLoading(canal);
     try {
-      if (canal === 'whatsapp' && await whatsappConectado(clinicaId)) {
-        const { mensagem } = await montarMensagemEvento(clinicaId, evento, 'whatsapp', contexto);
-        router.push(`/whatsapp?${new URLSearchParams({ telefone: telefone || '', texto: mensagem, clinica: String(clinicaId) }).toString()}`);
+      if (canal === 'whatsapp') {
+        let mensagem = '';
+        try {
+          mensagem = (await montarMensagemEvento(clinicaId, evento, 'whatsapp', contexto)).mensagem || '';
+        } catch {
+          mensagem = '';
+        }
+        const params = new URLSearchParams({ telefone: telefone || '', clinica: String(clinicaId) });
+        if (mensagem) params.set('texto', mensagem);
+        if (nome?.trim()) params.set('nome', nome.trim());
+        if (pacienteId) params.set('paciente', String(pacienteId));
+        router.push(`/whatsapp?${params.toString()}`);
         onEnviado?.(canal);
         return;
       }
@@ -98,7 +110,7 @@ export default function PatientContactButtons({
   if (variant === 'icons') {
     return (
       <div className={`flex items-center gap-2 ${className}`}>
-        {channels.includes('whatsapp') && iconBtn('whatsapp', MessageCircle, 'bg-green-500 hover:bg-green-600', 'WhatsApp')}
+        {channels.includes('whatsapp') && iconBtn('whatsapp', MessageCircle, 'bg-neutral-900 hover:bg-neutral-800', 'WhatsApp')}
         {channels.includes('email') && iconBtn('email', Mail, 'bg-blue-600 hover:bg-blue-700', 'E-mail')}
         {channels.includes('sms') && iconBtn('sms', Smartphone, 'bg-slate-600 hover:bg-slate-700', 'SMS')}
       </div>
@@ -121,7 +133,7 @@ export default function PatientContactButtons({
   if (variant === 'row') {
     return (
       <div className={`flex flex-wrap gap-1.5 ${className}`}>
-        {rowBtn('whatsapp', 'WhatsApp', MessageCircle, 'bg-emerald-600 text-white hover:bg-emerald-700')}
+        {rowBtn('whatsapp', 'WhatsApp', MessageCircle, 'bg-neutral-900 text-white hover:bg-neutral-800')}
         {rowBtn('email', 'E-mail', Mail, 'bg-blue-600 text-white hover:bg-blue-700')}
         {rowBtn('sms', 'SMS', Smartphone, 'bg-slate-600 text-white hover:bg-slate-700')}
       </div>

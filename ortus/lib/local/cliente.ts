@@ -206,7 +206,7 @@ export type SessaoCache = {
   clinicas?: Array<{ id: string | number; nome: string }>;
 };
 
-export async function salvarSessaoCache(sessao: SessaoCache | null): Promise<void> {
+export async function salvarSessaoCache(sessao: SessaoCache | null, senha?: string): Promise<void> {
   const modo = await modoDados();
   if (modo !== 'local') return;
   try {
@@ -214,7 +214,7 @@ export async function salvarSessaoCache(sessao: SessaoCache | null): Promise<voi
       await fetch('/api/local/sessao', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ dados: sessao }),
+        body: JSON.stringify(senha ? { dados: sessao, senha } : { dados: sessao }),
       });
     } else {
       await fetch('/api/local/sessao', { method: 'DELETE' });
@@ -222,6 +222,20 @@ export async function salvarSessaoCache(sessao: SessaoCache | null): Promise<voi
   } catch {
     /* cache é melhor-esforço: nunca impede o login */
   }
+}
+
+/** Guarda a senha nova para o próximo acesso sem internet. No site é no-op. */
+export async function gravarVerificadorSenha(senha: string): Promise<void> {
+  if (!senha) return;
+  const { data } = await supabase.auth.getSession();
+  const sessao = data.session;
+  if (!sessao?.access_token || !sessao.user?.id) return;
+  await salvarSessaoCache({
+    access_token: sessao.access_token,
+    refresh_token: sessao.refresh_token,
+    expires_at: sessao.expires_at ?? undefined,
+    user: { id: sessao.user.id, email: sessao.user.email ?? null },
+  }, senha);
 }
 
 export type SessaoCacheUI = {

@@ -195,6 +195,13 @@ try {
   const reaberto = criarBanco(arquivo);
   check('dados sobrevivem ao fechar', reaberto.contar('pacientes') === 4, String(reaberto.contar('pacientes')));
   reaberto.fechar();
+
+  const { criarVerificadorSenha, conferirVerificadorSenha } = require(path.join(raiz, 'desktop', 'lib', 'verificadorSenha.cjs'));
+  const verificador = criarVerificadorSenha('A@Clinica.com', 'senha123');
+  check('verificador normaliza o e-mail', verificador.email === 'a@clinica.com');
+  check('verificador aceita a senha certa', conferirVerificadorSenha(verificador, 'a@clinica.com', 'senha123'));
+  check('verificador recusa senha errada', !conferirVerificadorSenha(verificador, 'a@clinica.com', 'outra'));
+  check('verificador recusa outro e-mail', !conferirVerificadorSenha(verificador, 'b@clinica.com', 'senha123'));
 } finally {
   try {
     fs.rmSync(pasta, { recursive: true, force: true });

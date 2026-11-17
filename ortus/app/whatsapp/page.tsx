@@ -47,9 +47,15 @@ function WhatsappConteudo() {
   const { showConfirm } = useCustomAlert();
   const [aba, setAba] = useState<Aba>(() => (ABAS.some((a) => a.value === params.get('aba')) ? params.get('aba') as Aba : 'conversas'));
   const [sessao, setSessao] = useState<Sessao | null>(null);
-  const [rascunho, setRascunho] = useState<{ telefone: string; texto: string } | null>(() => {
+  const [rascunho, setRascunho] = useState<{ telefone: string; texto: string; nome?: string; pacienteId?: string } | null>(() => {
     const telefone = params.get('telefone');
-    return telefone ? { telefone, texto: params.get('texto') || '' } : null;
+    if (!telefone) return null;
+    return {
+      telefone,
+      texto: params.get('texto') || '',
+      nome: params.get('nome') || undefined,
+      pacienteId: params.get('paciente') || undefined,
+    };
   });
 
   const atualizarStatus = useCallback(async () => {

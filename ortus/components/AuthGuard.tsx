@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { dados as tabelas } from '@/lib/local/consulta';
 import { lerSessaoCacheUI, modoDados, salvarSessaoCache } from '@/lib/local/cliente';
+import { prepararSessaoLocal } from '@/lib/local/sessaoNavegador';
 import { verificarBackupAutomatico } from '@/lib/backup';
 import { useRouter, usePathname } from 'next/navigation';
 import { PatientSlideOverProvider } from '@/components/PatientSlideOver';
@@ -166,6 +167,8 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     }
 
     const carga = ++cargaRef.current;
+    if ((await modoDados()) === 'local') await prepararSessaoLocal();
+    if (carga !== cargaRef.current) return;
     const { data: { session: sess } } = await supabase.auth.getSession();
     if (carga !== cargaRef.current) return;
 
@@ -265,9 +268,17 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
         return;
       }
       if (event === 'INITIAL_SESSION' && !sess) {
-        if (!ROTAS_PUBLICAS.includes(pathnameRef.current)) {
+        if (ROTAS_PUBLICAS.includes(pathnameRef.current)) return;
+        void (async () => {
+          if ((await modoDados()) === 'local' && await prepararSessaoLocal()) {
+            const { data } = await supabase.auth.getSession();
+            if (data.session) {
+              setTimeout(() => { void carregarPerfil(); }, 0);
+              return;
+            }
+          }
           setTimeout(() => router.push('/login'), 0);
-        }
+        })();
         return;
       }
       if (event === 'SIGNED_IN') sessaoPronta.current = false;

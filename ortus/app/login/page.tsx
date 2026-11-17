@@ -3,6 +3,7 @@ import { useState, useEffect, useRef, type CSSProperties, type FormEvent } from 
 import { supabase } from '@/lib/supabase';
 import { dados as tabelas } from '@/lib/local/consulta';
 import { modoDados, salvarSessaoCache, sincronizarAgoraUI } from '@/lib/local/cliente';
+import { entrarNoDesktop, falhaDeRede, prepararSessaoLocal } from '@/lib/local/sessaoNavegador';
 import { useRouter } from 'next/navigation';
 import { Loader2, ShieldCheck, Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
@@ -204,6 +205,9 @@ export default function Login() {
   const [remember, setRemember] = useState(true);
   // Dentro do .exe não existe landing page: esconde tudo que leva para o site.
   const [desktop, setDesktop] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
 
   useEffect(() => {
     let vivo = true;
@@ -214,9 +218,22 @@ export default function Login() {
       vivo = false;
     };
   }, []);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const router = useRouter();
+
+  useEffect(() => {
+    let vivo = true;
+    void (async () => {
+      if ((await modoDados()) !== 'local') return;
+      if (!(await prepararSessaoLocal())) return;
+      const { data } = await supabase.auth.getSession();
+      if (!vivo || !data.session) return;
+      setAuthMarkerCookie();
+      const destino = new URLSearchParams(window.location.search).get('redirect') || '/dashboard';
+      router.replace(destino.startsWith('/') && !destino.startsWith('//') ? destino : '/dashboard');
+    })();
+    return () => {
+      vivo = false;
+    };
+  }, [router]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -262,8 +279,15 @@ export default function Login() {
         }
       }
 
-      const { data: signIn, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
-      if (signInError) throw signInError;
+      const local = (await modoDados()) === 'local';
+      const entrada = local
+        ? await entrarNoDesktop(email, password)
+        : await supabase.auth.signInWithPassword({ email, password }).then((resultado) => {
+            if (resultado.error || !resultado.data.session || !resultado.data.user) throw resultado.error || new Error('Acesso negado. Verifique e-mail e senha.');
+            return { user: resultado.data.user, session: resultado.data.session, online: true };
+          });
+      const signIn = entrada;
+      const senhaParaCache = entrada.online ? password : undefined;
 
       const userId = signIn.user?.id;
       let count = 0;
@@ -276,7 +300,7 @@ export default function Login() {
           refresh_token: signIn.session.refresh_token,
           expires_at: signIn.session.expires_at,
           user: { id: userId, email: signIn.session.user.email ?? null },
-        });
+        }, senhaParaCache);
       }
 
       if (userId) {
@@ -333,7 +357,7 @@ export default function Login() {
               user: { id: userId, email: sessao.session.user.email ?? null },
               perfil: perfil ?? null,
               clinicas,
-            });
+            }, senhaParaCache);
           }
         } catch {
           /* cache é melhor-esforço */
@@ -356,8 +380,13 @@ export default function Login() {
         router.push('/selecao');
       }
       router.refresh();
-    } catch {
-      setError('Acesso negado. Verifique e-mail e senha.');
+    } catch (err) {
+      const mensagem = err instanceof Error ? err.message : '';
+      setError(
+        mensagem && !falhaDeRede(err) && !/invalid login credentials/i.test(mensagem)
+          ? mensagem
+          : 'Acesso negado. Verifique e-mail e senha.',
+      );
       setLoading(false);
     }
   }

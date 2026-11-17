@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { dados as tabelas, usuarioDaSessao } from '@/lib/local/consulta';
-import { salvarSessaoCache } from '@/lib/local/cliente';
+import { gravarVerificadorSenha, salvarSessaoCache } from '@/lib/local/cliente';
 import {
   User,
   LogOut,
@@ -158,7 +158,10 @@ export default function Perfil() {
     if (form.novaSenha) {
       const { error } = await supabase.auth.updateUser({ password: form.novaSenha });
       if (error) showAlert('Erro ao mudar senha: ' + error.message, { type: 'error' });
-      else showAlert('Senha atualizada com sucesso!', { type: 'success' });
+      else {
+        await gravarVerificadorSenha(form.novaSenha);
+        showAlert('Senha atualizada com sucesso!', { type: 'success' });
+      }
     }
 
     setPerfil((p) => (p ? { ...p, ...updates } : p));

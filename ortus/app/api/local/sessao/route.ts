@@ -1,9 +1,22 @@
 import { NextResponse } from 'next/server';
-import { desktopAtivo, lerSessaoLocal, salvarSessaoLocal, type SessaoLocal } from '@/lib/local/ponte';
+import { criarVerificadorSenha } from '@/desktop/lib/verificadorSenha.cjs';
+import { lerSessaoLocal, salvarSessaoLocal, type SessaoLocal } from '@/lib/local/ponte';
 import { negarForaDoDesktop } from '@/lib/local/rota';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+
+function expiraDoToken(token: string): number | undefined {
+  const parte = token.split('.')[1];
+  if (!parte) return undefined;
+  try {
+    const json = Buffer.from(parte.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8');
+    const exp = Number((JSON.parse(json) as { exp?: unknown }).exp);
+    return Number.isFinite(exp) ? exp : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 /**
  * Sessão em cache para abrir o programa sem internet.
@@ -35,11 +48,29 @@ export async function POST(req: Request) {
   const fora = negarForaDoDesktop();
   if (fora) return fora;
 
-  const corpo = (await req.json().catch(() => ({}))) as { dados?: SessaoLocal | null };
+  const corpo = (await req.json().catch(() => ({}))) as { dados?: SessaoLocal | null; senha?: string };
   if (!corpo.dados) return NextResponse.json({ erro: 'Informe a sessão.' }, { status: 400 });
   if (!corpo.dados.access_token) return NextResponse.json({ erro: 'Sessão sem token.' }, { status: 400 });
 
-  await salvarSessaoLocal({ ...corpo.dados, salvoEm: new Date().toISOString() });
+  const atual = await lerSessaoLocal();
+  const mesmoUsuario = !atual?.user?.id || !corpo.dados.user?.id || atual.user.id === corpo.dados.user.id;
+  const senha = typeof corpo.senha === 'string' && corpo.senha.length <= 200 ? corpo.senha : '';
+  const email = String(corpo.dados.user?.email || atual?.user?.email || '').trim();
+  const dados = { ...corpo.dados };
+  delete dados.verificador;
+  let verificador = mesmoUsuario ? atual?.verificador : undefined;
+  if (senha && email) verificador = criarVerificadorSenha(email, senha);
+  const expiraReal = expiraDoToken(dados.access_token);
+
+  await salvarSessaoLocal({
+    ...(mesmoUsuario && atual ? atual : {}),
+    ...dados,
+    expires_at: expiraReal ?? dados.expires_at,
+    perfil: dados.perfil ?? (mesmoUsuario ? atual?.perfil ?? null : null),
+    clinicas: dados.clinicas?.length ? dados.clinicas : (mesmoUsuario ? atual?.clinicas ?? [] : []),
+    verificador,
+    salvoEm: new Date().toISOString(),
+  });
   return NextResponse.json({ ok: true });
 }
 

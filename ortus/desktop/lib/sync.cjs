@@ -92,11 +92,17 @@ function criarSync({ banco, obterConfig, obterSessao, definirSessao, aoMudarEsta
   async function renovarSessao(sessao) {
     const { url, anonKey } = obterConfig();
     if (!sessao?.refresh_token) return null;
-    const resposta = await fetch(`${url}/auth/v1/token?grant_type=refresh_token`, {
-      method: 'POST',
-      headers: { apikey: anonKey, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refresh_token: sessao.refresh_token }),
-    });
+    let resposta;
+    try {
+      resposta = await fetch(`${url}/auth/v1/token?grant_type=refresh_token`, {
+        method: 'POST',
+        headers: { apikey: anonKey, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: sessao.refresh_token }),
+        signal: AbortSignal.timeout(8000),
+      });
+    } catch {
+      return null;
+    }
     if (!resposta.ok) return null;
     const dados = await resposta.json();
     if (!dados?.access_token) return null;

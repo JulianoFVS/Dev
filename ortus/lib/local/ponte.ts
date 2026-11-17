@@ -127,6 +127,7 @@ export type SessaoLocal = {
   user?: { id: string; email?: string | null };
   perfil?: Record<string, unknown> | null;
   clinicas?: Array<{ id: string | number; nome: string }>;
+  verificador?: { email: string; salt: string; hash: string };
   salvoEm?: string;
 };
 

@@ -2442,6 +2442,8 @@ export default function PacienteDetalhe() {
                     variant="buttons"
                     telefone={form.telefone}
                     email={form.email}
+                    nome={form.nome}
+                    pacienteId={id}
                     clinicaId={form.clinica_id}
                     evento="pos_consulta"
                     contexto={buildCtxDocumento()}

@@ -48,7 +48,7 @@ const MENSAGENS_RAPIDAS: TemplateComunicacao[] = [
 type Props = {
   clinicaId: string;
   clinicaNome: string;
-  rascunho: { telefone: string; texto: string } | null;
+  rascunho: { telefone: string; texto: string; nome?: string; pacienteId?: string } | null;
   onRascunhoUsado: () => void;
 };
 
@@ -201,14 +201,19 @@ export default function Conversas({ clinicaId, clinicaNome, rascunho, onRascunho
       id,
       nome: paciente?.nome || formatarTelefone(telefone),
       telefone,
-      paciente: paciente ? { id: paciente.id, nome: paciente.nome } : null,
+      paciente: paciente?.id ? { id: paciente.id, nome: paciente.nome } : null,
     });
   }, [abrirConversa, clinicaId]);
 
   useEffect(() => {
     if (!rascunho) return;
     onRascunhoUsado();
-    abrirPorTelefone(rascunho.telefone, null)
+    abrirPorTelefone(
+      rascunho.telefone,
+      rascunho.nome
+        ? { id: rascunho.pacienteId || '', nome: rascunho.nome, telefone: rascunho.telefone }
+        : null,
+    )
       .then(() => {
         setTexto(rascunho.texto);
         window.setTimeout(() => campoRef.current?.focus(), 50);

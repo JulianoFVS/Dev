@@ -14,25 +14,42 @@ function clinicaValida(id: string) {
   return /^[a-zA-Z0-9_-]{1,64}$/.test(id);
 }
 
+function usuarioDoToken(token: string): string | null {
+  const parte = token.split('.')[1];
+  if (!parte) return null;
+  try {
+    const json = Buffer.from(parte.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8');
+    const sub = (JSON.parse(json) as { sub?: unknown }).sub;
+    return typeof sub === 'string' ? sub : null;
+  } catch {
+    return null;
+  }
+}
+
 async function acessoPeloBancoLocal(token: string, clinicaId: string) {
   if (!desktopAtivo()) return false;
   const sessao = await lerSessaoLocal();
-  if (!sessao?.access_token || !sessao.user?.id || sessao.access_token !== token) return false;
+  if (!sessao?.user?.id) return false;
+  const mesmoUsuario = token === sessao.access_token || usuarioDoToken(token) === sessao.user.id;
+  if (!mesmoUsuario) return false;
+
   const profs = await consultarLocal<{ id: number; is_super_admin?: boolean }>('profissionais', {
     filtros: [{ col: 'user_id', op: 'eq', valor: sessao.user.id }],
     limite: 1,
   });
   const prof = profs[0];
-  if (!prof) return false;
-  if (prof.is_super_admin) return true;
-  const vinculos = await consultarLocal('profissionais_clinicas', {
-    filtros: [
-      { col: 'profissional_id', op: 'eq', valor: prof.id },
-      { col: 'clinica_id', op: 'eq', valor: Number(clinicaId) },
-    ],
-    limite: 1,
-  });
-  return vinculos.length > 0;
+  if (prof?.is_super_admin) return true;
+  if (prof) {
+    const vinculos = await consultarLocal('profissionais_clinicas', {
+      filtros: [
+        { col: 'profissional_id', op: 'eq', valor: prof.id },
+        { col: 'clinica_id', op: 'eq', valor: Number(clinicaId) },
+      ],
+      limite: 1,
+    });
+    if (vinculos.length > 0) return true;
+  }
+  return (sessao.clinicas || []).some((c) => String(c.id) === String(clinicaId));
 }
 
 async function exigirClinica(req: Request, clinicaId: string): Promise<{ negado: NextResponse } | { admin: Admin | null }> {
@@ -41,7 +58,17 @@ async function exigirClinica(req: Request, clinicaId: string): Promise<{ negado:
   if (!token) return { negado: NextResponse.json({ erro: 'Não autenticado.' }, { status: 401 }) };
   if (!clinicaValida(clinicaId)) return { negado: NextResponse.json({ erro: 'Clínica inválida.' }, { status: 400 }) };
 
-  if (await acessoPeloBancoLocal(token, clinicaId)) return { admin: null };
+  // No aplicativo o banco é o SQLite. A chave de administrador da nuvem não
+  // vem no programa, então um fallback para ela derruba a tela do WhatsApp.
+  if (desktopAtivo()) {
+    try {
+      if (await acessoPeloBancoLocal(token, clinicaId)) return { admin: null };
+    } catch (error) {
+      console.error('WhatsApp: sessão local', error);
+      return { negado: NextResponse.json({ erro: 'Não foi possível confirmar a sessão neste computador.' }, { status: 503 }) };
+    }
+    return { negado: NextResponse.json({ erro: 'Sem permissão para esta clínica.' }, { status: 403 }) };
+  }
 
   const admin = createSupabaseAdmin();
   const { data: caller, error: callerErr } = await admin.auth.getUser(token);

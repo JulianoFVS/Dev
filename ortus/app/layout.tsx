@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import Script from 'next/script';
 import { Inter, Poppins } from 'next/font/google';
 import './globals.css';
 import AuthGuard from '@/components/AuthGuard';
@@ -7,6 +8,7 @@ import CookieBanner from '@/components/CookieBanner';
 import { CustomAlertProvider } from '@/components/ui/CustomAlert';
 import ThemeProvider from '@/components/ThemeProvider';
 import BentoHoverTooltip from '@/components/bento/BentoHoverTooltip';
+import { SCRIPT_SESSAO_DESKTOP } from '@/lib/local/scriptSessaoDesktop';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -39,6 +41,13 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="pt-BR" className="h-full">
+      {process.env.ORTUS_DESKTOP === '1' ? (
+        <head>
+          <Script id="ortus-sessao-desktop" strategy="beforeInteractive">
+            {SCRIPT_SESSAO_DESKTOP}
+          </Script>
+        </head>
+      ) : null}
       <body className={`${inter.className} ${poppins.variable} h-full min-h-0`}>
         <CustomAlertProvider>
           <ClinicaProvider>

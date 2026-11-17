@@ -2,6 +2,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { supabase } from '@/lib/supabase';
 import { dados as tabelas } from '@/lib/local/consulta';
+import { gravarVerificadorSenha } from '@/lib/local/cliente';
 import { useRouter } from 'next/navigation';
 import { Lock, Loader2, ShieldCheck, Eye, EyeOff, Check, AlertTriangle } from 'lucide-react';
 
@@ -62,6 +63,7 @@ export default function PrimeiroAcesso() {
         try {
             const { error: upErr } = await supabase.auth.updateUser({ password: novaSenha });
             if (upErr) throw upErr;
+            await gravarVerificadorSenha(novaSenha);
 
             const { data: { user } } = await supabase.auth.getUser();
             if (user) {

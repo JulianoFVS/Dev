@@ -532,6 +532,8 @@ export default function Pacientes() {
                         channels={['whatsapp']}
                         telefone={p.telefone}
                         email={p.email}
+                        nome={p.nome}
+                        pacienteId={p.id}
                         clinicaId={p.clinica_id}
                         evento="pos_consulta"
                         contexto={buildDocumentoContexto({
@@ -562,7 +564,7 @@ export default function Pacientes() {
                         <p className="truncate text-xs font-medium text-neutral-500">{p.nome_clinica || 'Sem clínica'}</p>
                     </div>
                     <div className="flex items-center gap-1" onClick={stopRowClick}>
-                        <PatientContactButtons variant="icons" channels={['whatsapp']} telefone={p.telefone} email={p.email} clinicaId={p.clinica_id} evento="pos_consulta" contexto={buildDocumentoContexto({ paciente_nome: p.nome?.split(' ')[0], clinica_nome: p.nome_clinica })} />
+                        <PatientContactButtons variant="icons" channels={['whatsapp']} telefone={p.telefone} email={p.email} nome={p.nome} pacienteId={p.id} clinicaId={p.clinica_id} evento="pos_consulta" contexto={buildDocumentoContexto({ paciente_nome: p.nome?.split(' ')[0], clinica_nome: p.nome_clinica })} />
                         <DicaAcao label="Agendar consulta"><button type="button" onClick={() => window.dispatchEvent(new CustomEvent('ortus:novo-agendamento', { detail: { pacienteId: String(p.id), pacienteNome: p.nome, clinicaId: p.clinica_id ? String(p.clinica_id) : undefined } }))} className="rounded-full p-2 text-neutral-500 hover:bg-white hover:text-neutral-900"><Calendar size={16}/></button></DicaAcao>
                         <DicaAcao label="Nova prótese"><button type="button" onClick={() => abrirProtese(p)} className="rounded-full p-2 text-neutral-500 hover:bg-white hover:text-neutral-900"><Smile size={16}/></button></DicaAcao>
                     </div>
