@@ -13,6 +13,7 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 COPY server.mjs ./
+COPY lib ./lib
 
 # A sessão do WhatsApp fica em /data; monte um volume aí para não precisar de QR a cada deploy.
 VOLUME ["/data"]

@@ -44,6 +44,7 @@ extraResources:
     filter:
       - 'server.mjs'
       - 'package.json'
+      - 'lib/**/*'
       - 'node_modules/**/*'
   - from: build/chromium
     to: chromium

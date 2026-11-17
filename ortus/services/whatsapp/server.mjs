@@ -4,6 +4,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { criarRepositorio } from './lib/repositorio.mjs';
 
 const require = createRequire(import.meta.url);
 const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
@@ -13,15 +14,17 @@ const RAIZ = path.dirname(fileURLToPath(import.meta.url));
 
 carregarEnvLocal();
 
+// SQLite da clínica (desktop) ou Supabase com service role (nuvem). Escolhido
+// por ORTUS_LOCAL_DB, que o Electron injeta no processo filho.
+const repositorio = criarRepositorio();
+const AGENDADOR_ATIVO = repositorio.agendadorAtivo;
+
 const PASTA_SESSAO = process.env.WHATSAPP_DATA_DIR || path.join(RAIZ, '.wwebjs_auth');
 const SEGREDO = process.env.WHATSAPP_GATEWAY_SECRET || '';
 // Railway, Render e afins informam a porta em PORT e exigem ouvir em todas as interfaces.
 const PORTA = Number(process.env.WHATSAPP_GATEWAY_PORT || process.env.PORT || 3920);
 const HOST = process.env.WHATSAPP_GATEWAY_HOST || (process.env.PORT ? '0.0.0.0' : '127.0.0.1');
 const CHROME = process.env.PUPPETEER_EXECUTABLE_PATH || undefined;
-const SUPABASE_URL = (process.env.NEXT_PUBLIC_SUPABASE_URL || '').replace(/\/$/, '');
-const SUPABASE_CHAVE = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
-const AGENDADOR_ATIVO = Boolean(SUPABASE_URL && SUPABASE_CHAVE);
 const FUSO = 'America/Sao_Paulo';
 const CORPO_MAXIMO = 64_000;
 const CORPO_MAXIMO_MIDIA = 6_000_000;
@@ -31,7 +34,11 @@ if (!SEGREDO) {
   process.exit(1);
 }
 if (!AGENDADOR_ATIVO) {
-  console.warn('Sem NEXT_PUBLIC_SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY: mensagens automáticas e agendadas ficam desligadas.');
+  if (repositorio.modalidade === 'local') {
+    console.warn('ORTUS_LOCAL_DB=1 sem ORTUS_DB_URL e ORTUS_DB_SEGREDO: mensagens automáticas e agendadas ficam desligadas.');
+  } else {
+    console.warn('Sem NEXT_PUBLIC_SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY: mensagens automáticas e agendadas ficam desligadas.');
+  }
 }
 
 /** @type {Map<string, any>} */
@@ -90,12 +97,30 @@ function mensagemValida(id) {
   return /^[\w@.:-]{6,200}$/.test(String(id || ''));
 }
 
+/** Telefone do contato a partir do id do chat (`5511...@c.us`). */
+function telefoneDoChat(chatId) {
+  const texto = String(chatId || '');
+  if (!/@(c\.us|s\.whatsapp\.net)$/.test(texto)) return null;
+  const digitos = texto.split('@')[0].replace(/\D/g, '');
+  return digitos || null;
+}
+
+/** Nome do contato que o WhatsApp Web traz no payload da mensagem. */
+function nomeDoContato(msg) {
+  const candidatos = [msg._data?.notifyName, msg._data?.senderName, msg.contact?.name, msg.contact?.pushname];
+  for (const valor of candidatos) {
+    if (typeof valor === 'string' && valor.trim()) return valor.trim().slice(0, 120);
+  }
+  return null;
+}
+
 // ---------------------------------------------------------------------
 // Sessões
 // ---------------------------------------------------------------------
 
 function criarSessao(clinicaId) {
   const sessao = {
+    clinicaId,
     status: 'iniciando',
     qr: null,
     numero: null,
@@ -107,6 +132,9 @@ function criarSessao(clinicaId) {
     conversasEm: 0,
     diario: {},
     client: null,
+    // Fila de gravação no banco: mantém a ordem e não perde mensagem quando o
+    // WhatsApp entrega várias de uma vez.
+    gravacao: Promise.resolve(),
   };
 
   const client = new Client({
@@ -176,13 +204,39 @@ function criarSessao(clinicaId) {
 }
 
 function guardarMensagem(sessao, msg) {
-  const id = msg.id?._serialized || `${msg.timestamp}:${msg.from}:${msg.body}`;
-  if (sessao.vistos.has(id)) return;
-  sessao.vistos.add(id);
-  const chatId = msg.fromMe ? msg.to : msg.from;
-  if (!chatId) return;
-  const lista = sessao.mensagens.get(chatId) || [];
+  const dados = descreverMensagem(msg);
+  if (!dados) return;
+  if (sessao.vistos.has(dados.id)) return;
+  sessao.vistos.add(dados.id);
+  const lista = sessao.mensagens.get(dados.chatId) || [];
   lista.push({
+    id: dados.id,
+    chatId: dados.chatId,
+    deMim: dados.deMim,
+    texto: dados.texto,
+    tipo: dados.tipo,
+    temMidia: dados.temMidia,
+    arquivo: dados.arquivo,
+    em: dados.em,
+    ack: dados.ack,
+  });
+  lista.sort((a, b) => a.em - b.em);
+  if (lista.length > 120) lista.splice(0, lista.length - 120);
+  sessao.mensagens.set(dados.chatId, lista);
+  // O Map acima é só o cache da tela; a verdade (quando há banco local) é o SQLite.
+  persistirMensagem(sessao, dados);
+}
+
+/**
+ * Normaliza a mensagem do whatsapp-web.js para o que a tela usa e para as
+ * colunas de `whatsapp_mensagens`.
+ */
+function descreverMensagem(msg) {
+  const id = msg.id?._serialized || `${msg.timestamp}:${msg.from}:${msg.body}`;
+  const chatId = msg.fromMe ? msg.to : msg.from;
+  if (!chatId) return null;
+  const em = (msg.timestamp || Math.floor(Date.now() / 1000)) * 1000;
+  return {
     id,
     chatId,
     deMim: !!msg.fromMe,
@@ -190,12 +244,20 @@ function guardarMensagem(sessao, msg) {
     tipo: msg.type || 'chat',
     temMidia: !!msg.hasMedia,
     arquivo: msg._data?.filename || null,
-    em: (msg.timestamp || Math.floor(Date.now() / 1000)) * 1000,
+    em,
     ack: typeof msg.ack === 'number' ? msg.ack : null,
-  });
-  lista.sort((a, b) => a.em - b.em);
-  if (lista.length > 120) lista.splice(0, lista.length - 120);
-  sessao.mensagens.set(chatId, lista);
+    contatoNome: nomeDoContato(msg),
+    contatoTelefone: telefoneDoChat(chatId),
+    midiaTipo: typeof msg._data?.mimetype === 'string' ? msg._data.mimetype : null,
+  };
+}
+
+function persistirMensagem(sessao, dados) {
+  sessao.gravacao = sessao.gravacao
+    .then(() => repositorio.salvarMensagem(sessao.clinicaId, dados))
+    .catch((err) => {
+      console.error(`[${sessao.clinicaId}] mensagem não gravada:`, err instanceof Error ? err.message : err);
+    });
 }
 
 function resumo(sessao) {
@@ -251,8 +313,9 @@ function exigirConectado(sessao) {
   if (!sessao || sessao.status !== 'conectado') throw erroHttp(409, 'WhatsApp desconectado.');
 }
 
-async function listarConversas(sessao) {
-  if (sessao.status !== 'conectado') return [];
+async function listarConversas(clinicaId, sessao) {
+  // Sem WhatsApp conectado a lista vem do SQLite (histórico local da clínica).
+  if (!sessao || sessao.status !== 'conectado') return repositorio.listarConversas(clinicaId);
   const agora = Date.now();
   if (agora - sessao.conversasEm < 6000 && sessao.conversas.length) return sessao.conversas;
   const chats = await sessao.client.getChats();
@@ -273,17 +336,26 @@ async function listarConversas(sessao) {
   return sessao.conversas;
 }
 
-async function listarMensagens(sessao, chatId, marcarLida) {
-  if (sessao.status !== 'conectado') return [];
-  const chat = await sessao.client.getChatById(chatId);
-  const msgs = await chat.fetchMessages({ limit: 60 });
-  for (const msg of msgs) guardarMensagem(sessao, msg);
-  if (marcarLida && chat.unreadCount > 0) {
-    await chat.sendSeen().catch(() => {});
-    const item = sessao.conversas.find((c) => c.id === chatId);
-    if (item) item.naoLidas = 0;
+async function listarMensagens(clinicaId, sessao, chatId, marcarLida) {
+  if (!sessao || sessao.status !== 'conectado') {
+    return repositorio.listarMensagens(clinicaId, chatId, 120);
   }
-  return sessao.mensagens.get(chatId) || [];
+  try {
+    const chat = await sessao.client.getChatById(chatId);
+    const msgs = await chat.fetchMessages({ limit: 60 });
+    for (const msg of msgs) guardarMensagem(sessao, msg);
+    if (marcarLida && chat.unreadCount > 0) {
+      await chat.sendSeen().catch(() => {});
+      const item = sessao.conversas.find((c) => c.id === chatId);
+      if (item) item.naoLidas = 0;
+    }
+    return sessao.mensagens.get(chatId) || [];
+  } catch (err) {
+    // WhatsApp respondeu com erro (ex.: sem internet): mostra o que já está gravado.
+    const doBanco = await repositorio.listarMensagens(clinicaId, chatId, 120);
+    if (doBanco.length) return doBanco;
+    throw err;
+  }
 }
 
 async function baixarMidia(sessao, mensagemId) {
@@ -323,37 +395,6 @@ async function enviar(sessao, { chatId, telefone, texto, arquivo }) {
   guardarMensagem(sessao, msg);
   sessao.conversasEm = 0;
   return { ok: true, chatId: destino };
-}
-
-// ---------------------------------------------------------------------
-// Supabase (service role) para o agendador
-// ---------------------------------------------------------------------
-
-async function db(caminho, { method = 'GET', body, prefer } = {}) {
-  const resposta = await fetch(`${SUPABASE_URL}/rest/v1/${caminho}`, {
-    method,
-    headers: {
-      apikey: SUPABASE_CHAVE,
-      Authorization: `Bearer ${SUPABASE_CHAVE}`,
-      'content-type': 'application/json',
-      ...(prefer ? { Prefer: prefer } : {}),
-    },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
-  const texto = await resposta.text();
-  if (!resposta.ok) throw new Error(`Supabase ${resposta.status}: ${texto.slice(0, 300)}`);
-  return texto ? JSON.parse(texto) : null;
-}
-
-async function dbTodos(caminho) {
-  const linhas = [];
-  for (let inicio = 0; inicio < 20_000; inicio += 1000) {
-    const sep = caminho.includes('?') ? '&' : '?';
-    const pagina = await db(`${caminho}${sep}limit=1000&offset=${inicio}`);
-    linhas.push(...(pagina || []));
-    if (!pagina || pagina.length < 1000) break;
-  }
-  return linhas;
 }
 
 // ---------------------------------------------------------------------
@@ -417,10 +458,6 @@ function primeiroNome(nome) {
   return String(nome || '').trim().split(/\s+/)[0] || '';
 }
 
-function umPaciente(valor) {
-  return Array.isArray(valor) ? valor[0] || null : valor || null;
-}
-
 // ---------------------------------------------------------------------
 // Agendador
 // ---------------------------------------------------------------------
@@ -434,26 +471,10 @@ async function enviarAutomatico(sessao, telefone, texto) {
   sessao.conversasEm = 0;
 }
 
-async function reservarEnvio(clinicaId, chave, dados) {
-  const linhas = await db('whatsapp_envios?on_conflict=clinica_id,chave', {
-    method: 'POST',
-    body: { clinica_id: Number(clinicaId), chave, status: 'enviando', ...dados },
-    prefer: 'resolution=ignore-duplicates,return=representation',
-  });
-  return linhas?.[0] || null;
-}
-
-async function concluirEnvio(id, erro) {
-  await db(`whatsapp_envios?id=eq.${id}`, {
-    method: 'PATCH',
-    body: erro ? { status: 'falha', erro: String(erro).slice(0, 500) } : { status: 'enviada', erro: null },
-  });
-}
-
 async function dispararAutomacao(sessao, clinicaId, chave, tipo, paciente, texto) {
   const telefone = paciente?.telefone;
   if (!telefone || !digitosTelefone(telefone)) return false;
-  const reserva = await reservarEnvio(clinicaId, chave, {
+  const reserva = await repositorio.reservarEnvio(clinicaId, chave, {
     tipo,
     paciente_id: paciente.id || null,
     nome: paciente.nome || null,
@@ -463,27 +484,19 @@ async function dispararAutomacao(sessao, clinicaId, chave, tipo, paciente, texto
   if (!reserva) return false;
   try {
     await enviarAutomatico(sessao, telefone, texto);
-    await concluirEnvio(reserva.id, null);
+    await repositorio.concluirEnvio(reserva.id, null);
     return true;
   } catch (err) {
-    await concluirEnvio(reserva.id, err instanceof Error ? err.message : 'Falha ao enviar.');
+    await repositorio.concluirEnvio(reserva.id, err instanceof Error ? err.message : 'Falha ao enviar.');
     return false;
   }
 }
 
 async function processarAgendadas(sessao, clinicaId, clinica) {
-  const agora = new Date().toISOString();
-  const fila = await db(
-    `whatsapp_agendadas?clinica_id=eq.${clinicaId}&status=eq.pendente&enviar_em=lte.${encodeURIComponent(agora)}&order=enviar_em.asc&limit=20&select=id,nome,telefone,texto`,
-  );
-  for (const item of fila || []) {
+  const fila = await repositorio.agendadasPendentes(clinicaId, new Date().toISOString(), 20);
+  for (const item of fila) {
     if (sessao.status !== 'conectado') return;
-    const reservada = await db(`whatsapp_agendadas?id=eq.${item.id}&status=eq.pendente`, {
-      method: 'PATCH',
-      body: { status: 'enviando' },
-      prefer: 'return=representation',
-    });
-    if (!reservada?.length) continue;
+    if (!(await repositorio.reservarAgendada(item.id))) continue;
     const texto = aplicarVariaveis(item.texto, {
       paciente_nome: primeiroNome(item.nome),
       clinica_nome: clinica.nome || '',
@@ -491,23 +504,15 @@ async function processarAgendadas(sessao, clinicaId, clinica) {
     });
     try {
       await enviarAutomatico(sessao, item.telefone, texto);
-      await db(`whatsapp_agendadas?id=eq.${item.id}`, {
-        method: 'PATCH',
-        body: { status: 'enviada', enviada_em: new Date().toISOString(), erro: null },
-      });
+      await repositorio.concluirAgendada(item.id, null);
     } catch (err) {
-      await db(`whatsapp_agendadas?id=eq.${item.id}`, {
-        method: 'PATCH',
-        body: { status: 'falha', erro: (err instanceof Error ? err.message : 'Falha ao enviar.').slice(0, 500) },
-      });
+      await repositorio.concluirAgendada(item.id, err instanceof Error ? err.message : 'Falha ao enviar.');
     }
   }
 }
 
-const SELECT_AGENDAMENTO = 'id,data_hora,procedimento,created_at,pacientes(id,nome,telefone)';
-
 function ctxAgendamento(ag, clinica) {
-  const paciente = umPaciente(ag.pacientes);
+  const paciente = ag.paciente || null;
   return {
     paciente_nome: primeiroNome(paciente?.nome),
     clinica_nome: clinica.nome || '',
@@ -523,12 +528,10 @@ async function automacaoConfirmacao(sessao, clinicaId, clinica, cfg) {
   if (!regra?.ativo || !regra.texto || !regra.desde) return;
   const limite = new Date(Math.max(new Date(regra.desde).getTime(), Date.now() - 48 * 3600_000)).toISOString();
   const agora = new Date().toISOString();
-  const lista = await db(
-    `agendamentos?clinica_id=eq.${clinicaId}&status=eq.agendado&created_at=gte.${encodeURIComponent(limite)}&data_hora=gt.${encodeURIComponent(agora)}&order=created_at.asc&limit=30&select=${SELECT_AGENDAMENTO}`,
-  );
-  for (const ag of lista || []) {
+  const lista = await repositorio.agendamentosParaConfirmacao(clinicaId, limite, agora, 30);
+  for (const ag of lista) {
     if (sessao.status !== 'conectado') return;
-    await dispararAutomacao(sessao, clinicaId, `confirmacao:${ag.id}`, 'confirmacao', umPaciente(ag.pacientes), aplicarVariaveis(regra.texto, ctxAgendamento(ag, clinica)));
+    await dispararAutomacao(sessao, clinicaId, `confirmacao:${ag.id}`, 'confirmacao', ag.paciente, aplicarVariaveis(regra.texto, ctxAgendamento(ag, clinica)));
   }
 }
 
@@ -538,14 +541,9 @@ async function automacaoLembrete(sessao, clinicaId, clinica, cfg) {
   const horas = Math.min(Math.max(Number(regra.horasAntes) || 24, 1), 72);
   const de = new Date(Date.now() + 30 * 60_000).toISOString();
   const ate = new Date(Date.now() + horas * 3600_000).toISOString();
-  const lista = await db(
-    `agendamentos?clinica_id=eq.${clinicaId}&status=eq.agendado&data_hora=gt.${encodeURIComponent(de)}&data_hora=lte.${encodeURIComponent(ate)}&order=data_hora.asc&limit=60&select=${SELECT_AGENDAMENTO}`,
-  );
-  if (!lista?.length) return;
-  const jaLembrados = await db(
-    `lembretes_agenda?canal=eq.whatsapp&agendamento_id=in.(${lista.map((ag) => ag.id).join(',')})&select=agendamento_id`,
-  );
-  const lembrados = new Set((jaLembrados || []).map((l) => String(l.agendamento_id)));
+  const lista = await repositorio.agendamentosParaLembrete(clinicaId, de, ate, 60);
+  if (!lista.length) return;
+  const lembrados = await repositorio.lembretesEnviados(clinicaId, lista.map((ag) => ag.id));
   const confirmacaoLigada = !!(cfg.confirmacao?.ativo && cfg.confirmacao?.desde);
 
   for (const ag of lista) {
@@ -553,14 +551,8 @@ async function automacaoLembrete(sessao, clinicaId, clinica, cfg) {
     if (lembrados.has(String(ag.id))) continue;
     // Agendado já dentro da janela do lembrete: a confirmação acabou de avisar.
     if (confirmacaoLigada && ag.created_at && new Date(ag.created_at).getTime() > new Date(ag.data_hora).getTime() - horas * 3600_000) continue;
-    const enviado = await dispararAutomacao(sessao, clinicaId, `lembrete:${ag.id}`, 'lembrete', umPaciente(ag.pacientes), aplicarVariaveis(regra.texto, ctxAgendamento(ag, clinica)));
-    if (enviado) {
-      await db('lembretes_agenda?on_conflict=agendamento_id,canal', {
-        method: 'POST',
-        body: { agendamento_id: ag.id, clinica_id: Number(clinicaId), canal: 'whatsapp', enviado_em: new Date().toISOString() },
-        prefer: 'resolution=merge-duplicates',
-      }).catch(() => {});
-    }
+    const enviado = await dispararAutomacao(sessao, clinicaId, `lembrete:${ag.id}`, 'lembrete', ag.paciente, aplicarVariaveis(regra.texto, ctxAgendamento(ag, clinica)));
+    if (enviado) await repositorio.marcarLembrete(clinicaId, ag.id);
   }
 }
 
@@ -571,12 +563,10 @@ async function automacaoPosConsulta(sessao, clinicaId, clinica, cfg) {
   const ate = new Date(Date.now() - horas * 3600_000);
   const de = new Date(Math.max(new Date(regra.desde).getTime(), ate.getTime() - 48 * 3600_000));
   if (de >= ate) return;
-  const lista = await db(
-    `agendamentos?clinica_id=eq.${clinicaId}&status=in.(concluido,fiado)&data_hora=gte.${encodeURIComponent(de.toISOString())}&data_hora=lte.${encodeURIComponent(ate.toISOString())}&order=data_hora.asc&limit=40&select=${SELECT_AGENDAMENTO}`,
-  );
-  for (const ag of lista || []) {
+  const lista = await repositorio.agendamentosParaPosConsulta(clinicaId, de.toISOString(), ate.toISOString(), 40);
+  for (const ag of lista) {
     if (sessao.status !== 'conectado') return;
-    await dispararAutomacao(sessao, clinicaId, `pos_consulta:${ag.id}`, 'pos_consulta', umPaciente(ag.pacientes), aplicarVariaveis(regra.texto, ctxAgendamento(ag, clinica)));
+    await dispararAutomacao(sessao, clinicaId, `pos_consulta:${ag.id}`, 'pos_consulta', ag.paciente, aplicarVariaveis(regra.texto, ctxAgendamento(ag, clinica)));
   }
 }
 
@@ -591,9 +581,7 @@ async function automacaoAniversario(sessao, clinicaId, clinica, cfg) {
   if (hoje.hm < (regra.hora || '09:00')) return;
   if (sessao.diario.aniversario === hoje.dia) return;
 
-  const pacientes = await dbTodos(
-    `pacientes?clinica_id=eq.${clinicaId}&data_nascimento=not.is.null&telefone=not.is.null&select=id,nome,telefone,data_nascimento&order=id.asc`,
-  );
+  const pacientes = await repositorio.pacientesParaAniversario(clinicaId);
   const alvo = `${hoje.mes}-${hoje.diaMes}`;
   const incluir29 = alvo === '02-28' && !anoBissexto(hoje.ano);
   for (const paciente of pacientes) {
@@ -623,9 +611,7 @@ async function automacaoRetorno(sessao, clinicaId, clinica, cfg) {
   const inicio = new Date(corte);
   inicio.setMonth(inicio.getMonth() - 12);
 
-  const agendamentos = await dbTodos(
-    `agendamentos?clinica_id=eq.${clinicaId}&status=in.(agendado,concluido,fiado)&data_hora=gte.${encodeURIComponent(inicio.toISOString())}&paciente_id=not.is.null&select=id,paciente_id,data_hora,status&order=id.asc`,
-  );
+  const agendamentos = await repositorio.agendamentosParaRetorno(clinicaId, inicio.toISOString());
   const porPaciente = new Map();
   for (const ag of agendamentos) {
     const atual = porPaciente.get(ag.paciente_id);
@@ -639,8 +625,7 @@ async function automacaoRetorno(sessao, clinicaId, clinica, cfg) {
     return;
   }
 
-  const enviados = await dbTodos(`whatsapp_envios?clinica_id=eq.${clinicaId}&tipo=eq.retorno&select=chave`);
-  const jaFeitos = new Set(enviados.map((e) => e.chave));
+  const jaFeitos = await repositorio.chavesDeEnvio(clinicaId, 'retorno');
   const pendentes = candidatos
     .filter((ag) => !jaFeitos.has(`retorno:${ag.paciente_id}:${ag.id}`))
     .slice(0, limiteDia);
@@ -649,10 +634,8 @@ async function automacaoRetorno(sessao, clinicaId, clinica, cfg) {
     return;
   }
 
-  const pacientes = await db(
-    `pacientes?id=in.(${pendentes.map((ag) => ag.paciente_id).join(',')})&telefone=not.is.null&select=id,nome,telefone`,
-  );
-  const mapa = new Map((pacientes || []).map((p) => [p.id, p]));
+  const pacientes = await repositorio.pacientesPorIds(clinicaId, pendentes.map((ag) => ag.paciente_id));
+  const mapa = new Map(pacientes.map((p) => [p.id, p]));
   for (const ag of pendentes) {
     if (sessao.status !== 'conectado') return;
     const paciente = mapa.get(ag.paciente_id);
@@ -668,14 +651,18 @@ async function automacaoRetorno(sessao, clinicaId, clinica, cfg) {
 }
 
 async function processarClinica(clinicaId, sessao) {
-  const [clinicas, config] = await Promise.all([
-    db(`clinicas?id=eq.${clinicaId}&select=nome,telefone`),
-    db(`configuracoes_clinica?clinica_id=eq.${clinicaId}&chave=eq.whatsapp_automacoes&select=valor`),
+  const [dadosClinica, cfg] = await Promise.all([
+    repositorio.clinica(clinicaId),
+    repositorio.configAutomacoes(clinicaId),
   ]);
-  const clinica = clinicas?.[0] || {};
+  // Offline não existe a tabela `clinicas`: cai no nome/telefone do próprio
+  // WhatsApp conectado para as variáveis {{clinica_nome}}/{{clinica_telefone}}.
+  const clinica = {
+    nome: dadosClinica?.nome || sessao.nome || '',
+    telefone: dadosClinica?.telefone || sessao.numero || '',
+  };
   await processarAgendadas(sessao, clinicaId, clinica);
 
-  const cfg = config?.[0]?.valor;
   if (!cfg || typeof cfg !== 'object' || !dentroDaJanela(cfg.janela)) return;
   const etapas = [automacaoConfirmacao, automacaoLembrete, automacaoPosConsulta, automacaoAniversario, automacaoRetorno];
   for (const etapa of etapas) {
@@ -771,12 +758,12 @@ const servidor = createServer(async (req, res) => {
     if (req.method === 'DELETE' && !acao) return responder(res, 200, await encerrar(clinicaId));
 
     if (req.method === 'GET' && acao === 'conversas') {
-      return responder(res, 200, sessao ? await listarConversas(sessao) : []);
+      return responder(res, 200, await listarConversas(clinicaId, sessao));
     }
     if (req.method === 'GET' && acao === 'mensagens') {
       const chatId = url.searchParams.get('chat') || '';
       if (!chatValido(chatId)) throw erroHttp(400, 'Conversa inválida.');
-      return responder(res, 200, sessao ? await listarMensagens(sessao, chatId, url.searchParams.get('lida') === '1') : []);
+      return responder(res, 200, await listarMensagens(clinicaId, sessao, chatId, url.searchParams.get('lida') === '1'));
     }
     if (req.method === 'GET' && acao === 'midia') {
       const mensagemId = url.searchParams.get('msg') || '';
@@ -801,6 +788,11 @@ const servidor = createServer(async (req, res) => {
 
 servidor.listen(PORTA, HOST, () => {
   console.log(`WhatsApp Ortus em http://${HOST}:${PORTA}`);
+  if (AGENDADOR_ATIVO) {
+    void repositorio.verificar().catch((err) => {
+      console.warn(`Banco ${repositorio.modalidade === 'local' ? 'local' : 'da nuvem'} indisponível:`, err instanceof Error ? err.message : err);
+    });
+  }
   restaurarSessoesSalvas();
   setInterval(() => { void rodarAgendador(); }, 60_000);
 });
