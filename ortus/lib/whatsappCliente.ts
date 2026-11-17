@@ -1,7 +1,7 @@
 import { supabase } from '@/lib/supabase';
 
-/** Liga a aba WhatsApp. Só defina NEXT_PUBLIC_WHATSAPP_ATIVO=1 onde o serviço npm run whatsapp estiver acessível. */
-export const WHATSAPP_ATIVO = process.env.NEXT_PUBLIC_WHATSAPP_ATIVO === '1';
+/** A aba entra no menu do site publicado e do aplicativo. `NEXT_PUBLIC_WHATSAPP_ATIVO=0` esconde. */
+export const WHATSAPP_ATIVO = process.env.NEXT_PUBLIC_WHATSAPP_ATIVO !== '0';
 
 const cache = new Map<string, { em: number; conectado: boolean }>();
 
