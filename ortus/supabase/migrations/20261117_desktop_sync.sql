@@ -25,6 +25,10 @@ ALTER TABLE public.paciente_documentos  ADD COLUMN IF NOT EXISTS updated_at TIME
 ALTER TABLE public.paciente_debitos     ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now();
 ALTER TABLE public.whatsapp_agendadas   ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now();
 ALTER TABLE public.whatsapp_envios      ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now();
+-- Tabelas de referência que o desktop espelha só para exibir nomes offline.
+ALTER TABLE public.clinicas             ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now();
+ALTER TABLE public.profissionais        ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now();
+ALTER TABLE public.profissionais_clinicas ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now();
 
 -- Já existiam, mas garantimos o default para linhas antigas:
 UPDATE public.paciente_tratamentos SET updated_at = now() WHERE updated_at IS NULL;
@@ -53,7 +57,8 @@ DECLARE
     tabelas TEXT[] := ARRAY[
         'pacientes', 'agendamentos', 'paciente_tratamentos', 'paciente_anamneses',
         'paciente_evolucoes', 'paciente_documentos', 'paciente_debitos', 'tarefas',
-        'configuracoes_clinica', 'whatsapp_agendadas', 'whatsapp_envios', 'whatsapp_mensagens'
+        'configuracoes_clinica', 'whatsapp_agendadas', 'whatsapp_envios', 'whatsapp_mensagens',
+        'clinicas', 'profissionais', 'profissionais_clinicas'
     ];
 BEGIN
     FOREACH tabela IN ARRAY tabelas LOOP
@@ -127,7 +132,8 @@ DECLARE
     tabelas TEXT[] := ARRAY[
         'pacientes', 'agendamentos', 'paciente_tratamentos', 'paciente_anamneses',
         'paciente_evolucoes', 'paciente_documentos', 'paciente_debitos', 'tarefas',
-        'configuracoes_clinica', 'whatsapp_agendadas', 'whatsapp_envios'
+        'configuracoes_clinica', 'whatsapp_agendadas', 'whatsapp_envios', 'clinicas', 'profissionais',
+        'profissionais_clinicas'
     ];
 BEGIN
     FOREACH tabela IN ARRAY tabelas LOOP

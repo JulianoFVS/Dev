@@ -4,6 +4,8 @@ import { carregarConfig, salvarConfig } from '@/lib/configClinica';
 
 import { horarioProfissionalKey } from '@/lib/configKeys';
 
+import { contar, listar, modoDados, type FiltroLocal } from '@/lib/local/cliente';
+
 
 
 export type HorarioDia = 'seg' | 'ter' | 'qua' | 'qui' | 'sex' | 'sab' | 'dom';
@@ -76,6 +78,42 @@ function rowParaHorario(row: {
 
 
 
+/**
+
+ * Normaliza o valor JSON guardado em `configuracoes_clinica` (espelho local
+
+ * sem a tabela `profissionais_horarios`, que não é sincronizada).
+
+ */
+
+function horarioDoValor(valor: unknown): HorarioAtendimento | null {
+
+  if (!valor || typeof valor !== 'object') return null;
+
+  const bruto = valor as Partial<HorarioAtendimento>;
+
+  if (typeof bruto.inicio !== 'string' || typeof bruto.fim !== 'string') return null;
+
+  if (!bruto.dias || typeof bruto.dias !== 'object') return null;
+
+  return {
+
+    inicio: bruto.inicio.slice(0, 5),
+
+    fim: bruto.fim.slice(0, 5),
+
+    intervalo: Number(bruto.intervalo) || 0,
+
+    limiteSimultaneo: Number(bruto.limiteSimultaneo) || 1,
+
+    dias: bruto.dias as Record<HorarioDia, boolean>,
+
+    observacoes: typeof bruto.observacoes === 'string' ? bruto.observacoes : '',
+
+  };
+
+}
+
 export async function carregarHorarioProfissional(
 
   clinicaId: string | number,
@@ -83,6 +121,36 @@ export async function carregarHorarioProfissional(
   profissionalId: string | number,
 
 ): Promise<HorarioAtendimento | null> {
+
+  const modo = await modoDados();
+
+  if (modo === 'local') {
+
+    try {
+
+      const linhas = await listar<{ valor: unknown }>('configuracoes_clinica', {
+
+        filtros: [
+
+          { col: 'clinica_id', op: 'eq', valor: Number(clinicaId) },
+
+          { col: 'chave', op: 'eq', valor: horarioProfissionalKey(profissionalId) },
+
+        ],
+
+        limite: 1,
+
+      });
+
+      return horarioDoValor(linhas[0]?.valor);
+
+    } catch {
+
+      return null;
+
+    }
+
+  }
 
   const { data } = await supabase
 
@@ -265,6 +333,52 @@ async function validarLimiteSimultaneo(
   const inicioSlot = new Date(`${date}T${time}:00`);
 
   const fimSlot = new Date(inicioSlot.getTime() + horario.intervalo * 60 * 1000);
+
+
+
+  const modo = await modoDados();
+
+  if (modo === 'local') {
+
+    const filtros: FiltroLocal[] = [
+
+      { col: 'clinica_id', op: 'eq', valor: Number(clinicaId) },
+
+      { col: 'profissional_id', op: 'eq', valor: Number(profissionalId) },
+
+      { col: 'data_hora', op: 'gte', valor: inicioSlot.toISOString() },
+
+      { col: 'data_hora', op: 'lt', valor: fimSlot.toISOString() },
+
+      { col: 'status', op: 'neq', valor: 'cancelado' },
+
+    ];
+
+    if (excludeAgendamentoId) {
+
+      filtros.push({ col: 'id', op: 'neq', valor: excludeAgendamentoId });
+
+    }
+
+    try {
+
+      const total = await contar('agendamentos', filtros);
+
+      if (total >= horario.limiteSimultaneo) {
+
+        return `Limite de ${horario.limiteSimultaneo} atendimento(s) simultâneo(s) neste horário.`;
+
+      }
+
+      return null;
+
+    } catch {
+
+      return null;
+
+    }
+
+  }
 
 
 

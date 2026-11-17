@@ -1,10 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Loader2, Search } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { listar, modoDados } from '@/lib/local/cliente';
 import { formatarTelefone } from '@/lib/whatsappTelefone';
-import type { PacienteBusca } from './api';
+import { useCustomAlert } from '@/components/ui/CustomAlert';
+import { mensagemDeErro, type PacienteBusca } from './api';
 
 type Props = {
   clinicaId: string;
@@ -14,9 +16,39 @@ type Props = {
 };
 
 export default function BuscaPaciente({ clinicaId, onEscolher, ignorar = [], autoFocus }: Props) {
+  const { showAlert } = useCustomAlert();
   const [termo, setTermo] = useState('');
   const [resultados, setResultados] = useState<PacienteBusca[]>([]);
   const [buscando, setBuscando] = useState(false);
+  const cacheLocal = useRef<{ clinicaId: string; pacientes: PacienteBusca[] } | null>(null);
+
+  // O SQLite local não tem OR/embeds: listamos os pacientes com telefone da
+  // clínica uma vez e filtramos nome ou telefone no cliente.
+  async function buscarNoBancoLocal(busca: string): Promise<PacienteBusca[]> {
+    if (!cacheLocal.current || cacheLocal.current.clinicaId !== clinicaId) {
+      const pacientes = await listar<PacienteBusca>('pacientes', {
+        filtros: [
+          { col: 'clinica_id', op: 'eq', valor: Number(clinicaId) },
+          { col: 'telefone', op: 'notnull' },
+        ],
+        ordem: [{ col: 'nome', asc: true }],
+      });
+      cacheLocal.current = {
+        clinicaId,
+        pacientes: pacientes.map((p) => ({ id: p.id, nome: p.nome, telefone: p.telefone })),
+      };
+    }
+
+    const trechoNome = busca.toLowerCase();
+    const digitos = busca.replace(/\D/g, '');
+    return cacheLocal.current.pacientes
+      .filter((paciente) => {
+        if (String(paciente.nome || '').toLowerCase().includes(trechoNome)) return true;
+        if (digitos.length < 2) return false;
+        return (paciente.telefone || '').replace(/\D/g, '').includes(digitos);
+      })
+      .slice(0, 12);
+  }
 
   useEffect(() => {
     const busca = termo.trim();
@@ -27,6 +59,20 @@ export default function BuscaPaciente({ clinicaId, onEscolher, ignorar = [], aut
     let cancelado = false;
     setBuscando(true);
     const timer = window.setTimeout(async () => {
+      if (await modoDados() === 'local') {
+        try {
+          const encontrados = await buscarNoBancoLocal(busca);
+          if (cancelado) return;
+          setResultados(encontrados);
+        } catch (err) {
+          if (cancelado) return;
+          setResultados([]);
+          showAlert('Erro ao buscar pacientes: ' + mensagemDeErro(err, 'banco local indisponível.'), { type: 'error' });
+        }
+        if (!cancelado) setBuscando(false);
+        return;
+      }
+
       const { data } = await supabase
         .from('pacientes')
         .select('id, nome, telefone')

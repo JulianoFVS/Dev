@@ -29,16 +29,18 @@ import { buildDocumentoContexto, aplicarVariaveisDocumento } from '@/lib/documen
 import { printDocument, printQaBlock, printSignatureBlock, printTable, escapePrintHtml } from '@/lib/printDocument';
 import PatientContactButtons from '@/components/PatientContactButtons';
 import { carregarTaxasAtivas, type ParteRecebimento } from '@/lib/recebimentoAgendamento';
-import { criarDebitoManual, listarDebitosPaciente, listarOpcoesMarcarNaoPago, marcarAgendamentoNaoPago, receberDebito } from '@/lib/debitosPaciente';
-import { calcularValorLiquido, TAXAS_MAQUININHA_PADRAO, type TaxaMaquininha } from '@/lib/configDefaults';
+import { criarDebitoManual, listarDebitosPaciente, listarOpcoesMarcarNaoPago, marcarAgendamentoNaoPago, receberDebito, type DebitoPaciente } from '@/lib/debitosPaciente';
+import { calcularValorLiquido, normalizarTaxasMaquininha, TAXAS_MAQUININHA_PADRAO, type TaxaMaquininha } from '@/lib/configDefaults';
 import { registrarComissaoTratamentoFinalizado } from '@/lib/comissao';
 import { carregarProntuario } from '@/lib/fichaPaciente';
-import { criarAnamnese, atualizarAnamnese, excluirAnamnese as excluirAnamneseDb, gerarLinkAnamnesePaciente as gerarLinkAnamnesePacienteApi } from '@/lib/db/anamneses';
-import { criarDocumento, excluirDocumento as excluirDocumentoDb } from '@/lib/db/documentos';
-import { salvarFichaClinica } from '@/lib/db/fichaClinica';
+import { criarAnamnese, listarAnamneses, atualizarAnamnese, excluirAnamnese as excluirAnamneseDb, gerarLinkAnamnesePaciente as gerarLinkAnamnesePacienteApi } from '@/lib/db/anamneses';
+import { criarDocumento, listarDocumentos, excluirDocumento as excluirDocumentoDb } from '@/lib/db/documentos';
+import { carregarFichaClinica, salvarFichaClinica } from '@/lib/db/fichaClinica';
+import { listarEvolucoes } from '@/lib/db/evolucoes';
 import ModalNovoAgendamento from '@/components/agenda/ModalNovoAgendamento';
-import { atualizarTratamento, criarTratamento, excluirTratamento as excluirTratamentoDb } from '@/lib/db/tratamentos';
-import type { TratamentoPaciente } from '@/lib/db/types';
+import { atualizarTratamento, criarTratamento, listarTratamentos, excluirTratamento as excluirTratamentoDb } from '@/lib/db/tratamentos';
+import { legacyJsonToProntuario, type ProntuarioPaciente, type TratamentoPaciente } from '@/lib/db/types';
+import { atualizar, inserir, listar, modoDados, remover } from '@/lib/local/cliente';
 import { FACE_COLORS, FACE_LABELS, ODONTO_TOOLS } from '@/lib/odontogram/constants';
 import type { LegacyToothState, OdontoFace, OdontoFaceStatus, OdontoToothStatus } from '@/lib/odontogram/types';
 import {
@@ -74,6 +76,10 @@ function campoClass(editing: boolean) {
   return `box-border h-10 max-h-10 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm text-neutral-900 outline-none placeholder:text-neutral-400 disabled:cursor-default ${
     editing ? 'focus:border-neutral-900' : ''
   }`;
+}
+
+function semConexao(): boolean {
+  return typeof navigator !== 'undefined' && navigator.onLine === false;
 }
 
 const PATIENT_NAV_SECTIONS = [
@@ -515,6 +521,8 @@ export default function PacienteDetalhe() {
   const [registrosDebito, setRegistrosDebito] = useState<any[]>([]);
   useEffect(() => {
       let vivo = true;
+      // Offline os arquivos não estão acessíveis: evita uma enxurrada de downloads que vão falhar.
+      if (semConexao()) return;
       const pendentes = documentos.filter((d) => (documentoEhImagem(d) || documentoEhPdf(d)) && !d.previewUrl);
       if (!pendentes.length) return;
       (async () => {
@@ -637,9 +645,19 @@ export default function PacienteDetalhe() {
 
   useEffect(() => {
       if (!form.clinica_id) { setPlanos([]); return; }
-      supabase.from('planos').select('id, nome, tipo').eq('clinica_id', form.clinica_id).eq('ativo', true).order('nome')
-          .then(({ data }) => setPlanos(data || []));
-  }, [form.clinica_id]);
+      let ativo = true;
+      (async () => {
+          const modo = await modoDados();
+          if (modo === 'local') {
+              // Planos/convênios não fazem parte do espelho local: mantém ao menos o convênio vinculado.
+              if (ativo) setPlanos(form.plano_id ? [{ id: String(form.plano_id), nome: 'Convênio' }] : []);
+              return;
+          }
+          supabase.from('planos').select('id, nome, tipo').eq('clinica_id', form.clinica_id).eq('ativo', true).order('nome')
+              .then(({ data }) => { if (ativo) setPlanos(data || []); });
+      })();
+      return () => { ativo = false; };
+  }, [form.clinica_id, form.plano_id]);
 
   const menorDeIdade = isMenorDeIdade(form.data_nascimento);
   const [responsavelAberto, setResponsavelAberto] = useState(true);
@@ -648,24 +666,53 @@ export default function PacienteDetalhe() {
 
   async function buscarPacientePorCpf(cpf: string) {
       if (!cpfValido(cpf)) { setCpfEncontrado(null); return; }
-      const { data } = await supabase.from('pacientes').select('id, nome, cpf').in('cpf', variantesCpf(cpf)).limit(5);
-      const outro = (data || []).find((p) => String(p.id) !== String(id));
-      setCpfEncontrado(outro ? { id: String(outro.id), nome: outro.nome || 'Paciente' } : null);
+      try {
+          const modo = await modoDados();
+          let encontrados: Array<{ id: string | number; nome?: string | null }> = [];
+          if (modo === 'local') {
+              encontrados = await listar<{ id: string | number; nome?: string | null }>('pacientes', {
+                  filtros: [{ col: 'cpf', op: 'in', valor: variantesCpf(cpf) }],
+                  limite: 5,
+              });
+          } else {
+              const { data } = await supabase.from('pacientes').select('id, nome, cpf').in('cpf', variantesCpf(cpf)).limit(5);
+              encontrados = (data || []) as Array<{ id: string | number; nome?: string | null }>;
+          }
+          const outro = encontrados.find((p) => String(p.id) !== String(id));
+          setCpfEncontrado(outro ? { id: String(outro.id), nome: outro.nome || 'Paciente' } : null);
+      } catch {
+          setCpfEncontrado(null);
+      }
   }
 
   async function trocarFotoPaciente(arquivo?: File) {
       if (!arquivo) return;
+      const modo = await modoDados();
+      if (modo === 'local' && semConexao()) {
+          await showAlert('Sem internet: a foto de perfil não pode ser enviada agora. Os demais dados da ficha continuam disponíveis offline.', { type: 'warning' });
+          return;
+      }
       setEnviandoFotoPerfil(true);
       try {
           const blob = await prepararFotoPaciente(arquivo);
           const caminho = `pacientes/${id}/avatar.jpg`;
           const publicUrl = await enviarArquivoClinica(caminho, blob, { contentType: 'image/jpeg', upsert: true, cacheControl: '3600' });
           if (!publicUrl) throw new Error('Não foi possível salvar a foto.');
-          const { error: updErr } = await supabase.from('pacientes').update({ foto_url: publicUrl }).eq('id', id);
-          if (updErr) throw updErr;
+          if (modo === 'local') {
+              await atualizar('pacientes', String(id), { foto_url: publicUrl });
+          } else {
+              const { error: updErr } = await supabase.from('pacientes').update({ foto_url: publicUrl }).eq('id', id);
+              if (updErr) throw updErr;
+          }
           setForm((atual: any) => ({ ...atual, foto_url: publicUrl }));
-      } catch (erro: any) {
-          showAlert(erro?.message || 'Não foi possível salvar a foto.', { type: 'error' });
+      } catch (erro) {
+          const mensagem = erro instanceof Error ? erro.message : '';
+          await showAlert(
+              modo === 'local'
+                  ? 'Não foi possível enviar a foto de perfil. O envio precisa de internet; o restante da ficha permanece salvo localmente.'
+                  : mensagem || 'Não foi possível salvar a foto.',
+              { type: 'error' },
+          );
       } finally {
           setEnviandoFotoPerfil(false);
       }
@@ -698,82 +745,391 @@ export default function PacienteDetalhe() {
       }));
   }
 
+  // ===== Compatibilidade nuvem x banco local =====
+  async function mapaProfissionais(ids: number[]): Promise<Map<number, string>> {
+      const mapa = new Map<number, string>();
+      const unicos = Array.from(new Set(ids.filter((valor) => Number.isFinite(valor) && valor !== 0)));
+      if (!unicos.length) return mapa;
+      try {
+          const lista = await listar<{ id: number; nome: string }>('profissionais', {
+              filtros: [{ col: 'id', op: 'in', valor: unicos }],
+          });
+          for (const profissional of lista) mapa.set(Number(profissional.id), String(profissional.nome || ''));
+      } catch {
+          /* tabela de referência ainda não sincronizada */
+      }
+      return mapa;
+  }
+
+  async function carregarPacienteCompat(): Promise<{ data: Record<string, unknown> | null }> {
+      const modo = await modoDados();
+      if (modo === 'local') {
+          const linhas = await listar<Record<string, unknown>>('pacientes', {
+              filtros: [{ col: 'id', op: 'eq', valor: String(id) }],
+              limite: 1,
+          });
+          return { data: linhas[0] ?? null };
+      }
+      const { data } = await supabase.from('pacientes').select('*').eq('id', id).single();
+      return { data: (data as Record<string, unknown> | null) ?? null };
+  }
+
+  async function carregarHistoricoCompat(): Promise<Record<string, unknown>[]> {
+      const modo = await modoDados();
+      if (modo === 'local') {
+          const historico = await listar<Record<string, unknown>>('agendamentos', {
+              filtros: [{ col: 'paciente_id', op: 'eq', valor: String(id) }],
+              ordem: [{ col: 'data_hora', asc: false }],
+          });
+          const nomes = await mapaProfissionais(historico.map((linha) => Number(linha.profissional_id)));
+          return historico.map((linha) => {
+              const nome = nomes.get(Number(linha.profissional_id));
+              return nome ? { ...linha, profissionais: { nome } } : linha;
+          });
+      }
+      const { data } = await supabase.from('agendamentos').select('*, profissionais(nome)').eq('paciente_id', id).order('data_hora', { ascending: false });
+      return (data || []) as Record<string, unknown>[];
+  }
+
+  async function carregarRegistrosDebitoCompat(): Promise<Record<string, unknown>[]> {
+      const modo = await modoDados();
+      if (modo === 'local') {
+          return listar<Record<string, unknown>>('paciente_debitos', {
+              filtros: [{ col: 'paciente_id', op: 'eq', valor: String(id) }],
+          });
+      }
+      const { data } = await supabase.from('paciente_debitos').select('*').eq('paciente_id', id);
+      return (data || []) as Record<string, unknown>[];
+  }
+
+  async function listarDebitosCompat(pacienteId: string): Promise<DebitoPaciente[]> {
+      const modo = await modoDados();
+      if (modo === 'local') {
+          const [manuais, fiados] = await Promise.all([
+              listar<Record<string, unknown>>('paciente_debitos', {
+                  filtros: [
+                      { col: 'paciente_id', op: 'eq', valor: pacienteId },
+                      { col: 'status', op: 'eq', valor: 'pendente' },
+                  ],
+                  ordem: [{ col: 'created_at', asc: false }],
+              }),
+              listar<Record<string, unknown>>('agendamentos', {
+                  filtros: [
+                      { col: 'paciente_id', op: 'eq', valor: pacienteId },
+                      { col: 'status', op: 'eq', valor: 'fiado' },
+                  ],
+                  ordem: [{ col: 'data_hora', asc: false }],
+              }),
+          ]);
+          const itens: DebitoPaciente[] = [];
+          for (const d of manuais) {
+              itens.push({
+                  id: d.id as string | number,
+                  origem: 'manual',
+                  descricao: String(d.descricao || ''),
+                  valor: Number(d.valor) || 0,
+                  status: d.status === 'pago' ? 'pago' : 'pendente',
+                  data_pagamento: (d.data_pagamento as string) || null,
+                  created_at: (d.created_at as string) || null,
+                  agendamento_id: typeof d.agendamento_id === 'number' ? d.agendamento_id : null,
+                  tratamento_id: d.tratamento_id == null ? null : String(d.tratamento_id),
+              });
+          }
+          const nomesProfissionais = await mapaProfissionais(fiados.map((linha) => Number(linha.profissional_id)));
+          for (const a of fiados) {
+              if (a.tipo_registro === 'debito_manual' || a.observacoes === 'Débito manual') continue;
+              const agendamentoId = typeof a.id === 'number' ? a.id : Number(a.id);
+              if (itens.some((i) => i.origem === 'agendamento' && i.agendamento_id === agendamentoId)) continue;
+              const nomeProfissional = nomesProfissionais.get(Number(a.profissional_id));
+              itens.push({
+                  id: `ag_${agendamentoId}`,
+                  origem: 'agendamento',
+                  descricao: String(a.procedimento || 'Atendimento'),
+                  valor: Number(a.valor_final ?? a.valor) || 0,
+                  status: 'pendente',
+                  agendamento_id: agendamentoId,
+                  profissionais: nomeProfissional ? { nome: nomeProfissional } : null,
+                  data_hora: (a.data_hora as string) || null,
+                  created_at: (a.data_hora as string) || null,
+              });
+          }
+          return itens;
+      }
+      return listarDebitosPaciente(pacienteId);
+  }
+
+  async function listarOpcoesDebitoCompat(pacienteId: string): Promise<{ agendamentos: Record<string, unknown>[]; tratamentos: Record<string, unknown>[] }> {
+      const modo = await modoDados();
+      if (modo === 'local') {
+          const [ags, trats] = await Promise.all([
+              listar<Record<string, unknown>>('agendamentos', {
+                  filtros: [
+                      { col: 'paciente_id', op: 'eq', valor: pacienteId },
+                      { col: 'status', op: 'neq', valor: 'fiado' },
+                      { col: 'status', op: 'neq', valor: 'cancelado' },
+                  ],
+                  ordem: [{ col: 'data_hora', asc: false }],
+              }),
+              listar<Record<string, unknown>>('paciente_tratamentos', {
+                  filtros: [
+                      { col: 'paciente_id', op: 'eq', valor: pacienteId },
+                      { col: 'status', op: 'in', valor: ['concluido', 'andamento'] },
+                  ],
+                  ordem: [{ col: 'data', asc: false }],
+              }),
+          ]);
+          const agendamentos = ags.filter((a) => (
+              (a.tipo_registro == null || a.tipo_registro === 'agenda')
+              && a.observacoes !== 'Débito manual'
+          ));
+          const tratamentos = trats.map((t) => ({
+              id: String(t.id),
+              procedimento: String(t.procedimento || ''),
+              valor: Number(t.valor) || 0,
+              data: (t.data as string) || null,
+              status: String(t.status || ''),
+          }));
+          return { agendamentos, tratamentos };
+      }
+      return listarOpcoesMarcarNaoPago(pacienteId);
+  }
+
+  async function criarDebitoManualCompat(input: {
+      paciente_id: string | number;
+      clinica_id: string | number;
+      descricao: string;
+      valor: number;
+      agendamento_id?: number | null;
+      tratamento_id?: string | null;
+  }): Promise<Record<string, unknown>> {
+      const modo = await modoDados();
+      if (modo === 'local') {
+          return inserir<Record<string, unknown>>('paciente_debitos', {
+              paciente_id: input.paciente_id,
+              clinica_id: input.clinica_id,
+              descricao: input.descricao.trim(),
+              valor: input.valor,
+              agendamento_id: input.agendamento_id || null,
+              tratamento_id: input.tratamento_id || null,
+              status: 'pendente',
+          });
+      }
+      return criarDebitoManual(input);
+  }
+
+  async function marcarAgendamentoNaoPagoCompat(agendamentoId: number): Promise<void> {
+      const modo = await modoDados();
+      if (modo === 'local') {
+          const salvo = await atualizar('agendamentos', agendamentoId, { status: 'fiado' });
+          if (!salvo) throw new Error('Agendamento não encontrado no banco local.');
+          return;
+      }
+      await marcarAgendamentoNaoPago(agendamentoId);
+  }
+
+  async function receberDebitoCompat(
+      debito: DebitoPaciente & { clinica_id?: string | number },
+      taxaId?: string,
+      taxas?: TaxaMaquininha[],
+      partes?: ParteRecebimento[],
+  ): Promise<{ valorLiquido: number; comissaoLancamentos: number }> {
+      const modo = await modoDados();
+      if (modo === 'local') {
+          if (debito.origem === 'manual') {
+              const salvo = await atualizar('paciente_debitos', debito.id, { status: 'pago', data_pagamento: new Date().toISOString() });
+              if (!salvo) throw new Error('Débito não encontrado no banco local.');
+              return { valorLiquido: debito.valor, comissaoLancamentos: 0 };
+          }
+          const agendamentoId = debito.agendamento_id ?? (
+              typeof debito.id === 'string' && debito.id.startsWith('ag_') ? Number(debito.id.slice(3)) : Number(debito.id)
+          );
+          const salvo = await atualizar('agendamentos', agendamentoId, {
+              status: 'concluido',
+              data_pagamento: new Date().toISOString(),
+          });
+          if (!salvo) throw new Error('Agendamento não encontrado no banco local.');
+          return { valorLiquido: debito.valor, comissaoLancamentos: 0 };
+      }
+      return receberDebito(debito, taxaId, taxas, partes);
+  }
+
+  async function lerConfigLocal<T>(clinicaId: string | number, chave: string, padrao: T): Promise<T> {
+      try {
+          const linhas = await listar<{ valor?: T | null }>('configuracoes_clinica', {
+              filtros: [
+                  { col: 'clinica_id', op: 'eq', valor: Number(clinicaId) },
+                  { col: 'chave', op: 'eq', valor: chave },
+              ],
+              limite: 1,
+          });
+          const valor = linhas[0]?.valor;
+          return valor === undefined || valor === null ? padrao : valor;
+      } catch {
+          return padrao;
+      }
+  }
+
+  async function carregarProntuarioCompat(): Promise<ProntuarioPaciente> {
+      const modo = await modoDados();
+      if (modo === 'local') {
+          const [fichaClinica, tratamentosLista, anamneses, documentosLista, evolucoesLista] = await Promise.all([
+              carregarFichaClinica(String(id)),
+              listarTratamentos(String(id)),
+              listarAnamneses(String(id)),
+              listarDocumentos(String(id)),
+              listarEvolucoes(String(id)),
+          ]);
+          const temRelacional =
+              tratamentosLista.length + anamneses.length + documentosLista.length + evolucoesLista.length > 0;
+          if (temRelacional) {
+              return {
+                  fichaClinica,
+                  tratamentos: tratamentosLista,
+                  anamneses,
+                  documentos: documentosLista,
+                  evolucoes: evolucoesLista,
+              };
+          }
+
+          // Mesmo fallback do modo nuvem: dados antigos que só existem no JSON da ficha.
+          const linhas = await listar<{ ficha_medica?: Record<string, unknown> | null }>('pacientes', {
+              filtros: [{ col: 'id', op: 'eq', valor: String(id) }],
+              limite: 1,
+          });
+          const legado = legacyJsonToProntuario(linhas[0]?.ficha_medica ?? null);
+          return { ...legado, fichaClinica: { ...legado.fichaClinica, ...fichaClinica } };
+      }
+      return carregarProntuario(String(id));
+  }
+
   async function carregar(opts?: { silent?: boolean }) {
       if (!opts?.silent) setLoading(true);
       odontogramaFromServer.current = true;
       fichaFromServer.current = true;
 
-      // Todas as buscas independentes disparam em paralelo — sem cadeia sequencial
-      const [listaClinicas, pacienteRes, prontuario, histRes, debitosLista, debitosTodosRes] = await Promise.all([
-          clinicasContexto.length > 0 ? Promise.resolve(clinicasContexto) : fetchUserClinicas(),
-          supabase.from('pacientes').select('*').eq('id', id).single(),
-          carregarProntuario(String(id)),
-          supabase.from('agendamentos').select('*, profissionais(nome)').eq('paciente_id', id).order('data_hora', { ascending: false }),
-          listarDebitosPaciente(id),
-          supabase.from('paciente_debitos').select('*').eq('paciente_id', id),
-      ]);
+      try {
+          const modo = await modoDados();
+          const clinicasPromise = clinicasContexto.length > 0
+              ? Promise.resolve(clinicasContexto)
+              : modo === 'local'
+                  ? (async (): Promise<Array<{ id: string | number; nome: string }>> => {
+                      try {
+                          const locais = await listar<{ id: string | number; nome: string }>('clinicas', {
+                              ordem: [{ col: 'nome', asc: true }],
+                          });
+                          return locais;
+                      } catch {
+                          return [];
+                      }
+                  })()
+                  : fetchUserClinicas();
 
-      setClinicas(listaClinicas as any[]);
-      const data = pacienteRes.data;
+          // Todas as buscas independentes disparam em paralelo — sem cadeia sequencial
+          const [listaClinicas, pacienteRes, prontuario, historicoBruto, debitosLista, registrosDebito] = await Promise.all([
+              clinicasPromise,
+              carregarPacienteCompat(),
+              carregarProntuarioCompat(),
+              carregarHistoricoCompat(),
+              listarDebitosCompat(String(id)),
+              carregarRegistrosDebitoCompat(),
+          ]);
 
-      if (data) {
-          const fm = normalizarFichaMedica({ ...(data.ficha_medica || {}), ...prontuario.fichaClinica });
-          setFicha(fm);
-          setForm({
-              ...data,
-              anamnese: typeof fm.anamnese === 'string' ? fm.anamnese : '',
-          });
-          odontogramaFromServer.current = true;
-          fichaFromServer.current = true;
-          loadOdontogramFromLegacy((prontuario.fichaClinica.odontograma || {}) as Record<string, LegacyToothState>);
-          setTratamentos(prontuario.tratamentos);
-          setTextoOdontogramaLivre(prontuario.fichaClinica.texto_livre || '');
-          setMarcacoesHof((prontuario.fichaClinica.marcacoes_hof || []) as HofMarcacao[]);
-          setHofFotos(await hidratarHofFotos((prontuario.fichaClinica.hof_fotos || []) as HofFoto[]));
-          setAnamnesesAnteriores(prontuario.anamneses);
-          setDocumentos(prontuario.documentos);
-          setEvolucoes(prontuario.evolucoes);
+          setClinicas(listaClinicas);
+          const data = pacienteRes.data;
 
-          // Planos + modelos de documentos da clínica — não bloqueiam o restante da tela
-          if (data.clinica_id) {
-              supabase.from('planos').select('id, nome').eq('clinica_id', data.clinica_id).eq('ativo', true).order('nome')
-                  .then(({ data: planosData }) => { if (planosData) setPlanos(planosData); });
-              carregarConfig(data.clinica_id, 'modelos_documentos', 'ortus_modelos_documentos', []).then((d: any) => {
-                  if (Array.isArray(d)) setModelosDocumentos(d);
+          if (data) {
+              const fm = normalizarFichaMedica({ ...((data.ficha_medica as Record<string, unknown>) || {}), ...prontuario.fichaClinica });
+              setFicha(fm);
+              setForm({
+                  ...data,
+                  anamnese: typeof fm.anamnese === 'string' ? fm.anamnese : '',
               });
+              odontogramaFromServer.current = true;
+              fichaFromServer.current = true;
+              loadOdontogramFromLegacy((prontuario.fichaClinica.odontograma || {}) as Record<string, LegacyToothState>);
+              setTratamentos(prontuario.tratamentos);
+              setTextoOdontogramaLivre(prontuario.fichaClinica.texto_livre || '');
+              setMarcacoesHof((prontuario.fichaClinica.marcacoes_hof || []) as HofMarcacao[]);
+              const fotosHof = (prontuario.fichaClinica.hof_fotos || []) as HofFoto[];
+              setHofFotos(modo === 'local' && semConexao()
+                  ? fotosHof.map((foto) => ({ ...foto, dataUrl: '' }))
+                  : await hidratarHofFotos(fotosHof));
+              setAnamnesesAnteriores(prontuario.anamneses);
+              setDocumentos(prontuario.documentos);
+              setEvolucoes(prontuario.evolucoes);
+
+              // Planos + modelos de documentos da clínica — não bloqueiam o restante da tela
+              if (data.clinica_id) {
+                  if (modo === 'local') {
+                      // A tabela de planos não faz parte do espelho local; mantém o convênio vinculado.
+                      setPlanos(data.plano_id ? [{ id: String(data.plano_id), nome: 'Convênio' }] : []);
+                      lerConfigLocal<{ id: string; tipo: string; nome: string; conteudo: string }[]>(
+                          String(data.clinica_id),
+                          'modelos_documentos',
+                          [],
+                      ).then((modelos) => {
+                          if (Array.isArray(modelos)) setModelosDocumentos(modelos);
+                      });
+                      if (listaClinicas.length === 0) {
+                          setClinicas([{ id: data.clinica_id as string | number, nome: `Clínica ${String(data.clinica_id)}` }]);
+                      }
+                  } else {
+                      supabase.from('planos').select('id, nome').eq('clinica_id', data.clinica_id).eq('ativo', true).order('nome')
+                          .then(({ data: planosData }) => { if (planosData) setPlanos(planosData); });
+                      carregarConfig(data.clinica_id as number | string, 'modelos_documentos', 'ortus_modelos_documentos', []).then((d: any) => {
+                          if (Array.isArray(d)) setModelosDocumentos(d);
+                      });
+                  }
+              }
+
+              registrarAudit({ acao: 'visualizou', entidade: 'paciente', entidade_id: String(id) });
           }
 
-          registrarAudit({ acao: 'visualizou', entidade: 'paciente', entidade_id: String(id) });
+          const historicoFiltrado = historicoBruto.filter((h) => h.tipo_registro !== 'debito_manual' && h.observacoes !== 'Débito manual');
+          setHistorico(historicoFiltrado);
+          setDebitos(debitosLista);
+          setRegistrosDebito(registrosDebito);
+
+          setModelosAnamnese(carregarModelos());
+          prontuarioIdCarregado.current = String(id);
+      } catch (erro) {
+          setLoading(false);
+          const mensagem = erro instanceof Error ? erro.message : 'Falha ao consultar os dados.';
+          await showAlert('Não foi possível carregar a ficha do paciente. ' + mensagem, { type: 'error' });
+      } finally {
+          setLoading(false);
       }
-
-      const historicoFiltrado = (histRes.data || []).filter((h: any) => h.tipo_registro !== 'debito_manual' && h.observacoes !== 'Débito manual');
-      setHistorico(historicoFiltrado);
-      setDebitos(debitosLista);
-      setRegistrosDebito(debitosTodosRes.data || []);
-
-      setModelosAnamnese(carregarModelos());
-      prontuarioIdCarregado.current = String(id);
-      setLoading(false);
   }
 
   async function salvarTudo() {
       const erro = validarPaciente(form);
       if (erro) { await showAlert(erro, { type: 'warning' }); return; }
-      const fichaParaSalvar = { ...ficha };
-      LEGACY_CONDICOES.forEach((k) => delete fichaParaSalvar[k]);
-      const fichaAtualizada = await salvarFichaClinica(String(id), { odontograma: getOdontogramLegacySnapshot(), marcacoes_hof: marcacoesHof }, fichaParaSalvar);
-      const { anamnese: _anamnese, ...formSemAnamnese } = form;
-      const payload = {
-          ...formSemAnamnese,
-          plano_id: form.plano_id || null,
-          ficha_medica: { ...fichaParaSalvar, ...fichaAtualizada, anamnese: form.anamnese || '' },
-      };
-      const { error } = await supabase.from('pacientes').update(payload).eq('id', id);
-      if (error) { await showAlert('Erro ao salvar: ' + error.message, { type: 'error' }); return; }
-      setFicha({ ...ficha, ...fichaAtualizada });
-      setModoEdicao(false);
-      registrarAudit({ acao: 'editou', entidade: 'paciente', entidade_id: String(id) });
-      showAlert('Dados salvos com sucesso!', { type: 'success' });
+      try {
+          const fichaParaSalvar = { ...ficha };
+          LEGACY_CONDICOES.forEach((k) => delete fichaParaSalvar[k]);
+          const fichaAtualizada = await salvarFichaClinica(String(id), { odontograma: getOdontogramLegacySnapshot(), marcacoes_hof: marcacoesHof }, fichaParaSalvar);
+          const { anamnese: _anamnese, ...formSemAnamnese } = form;
+          const payload = {
+              ...formSemAnamnese,
+              plano_id: form.plano_id || null,
+              ficha_medica: { ...fichaParaSalvar, ...fichaAtualizada, anamnese: form.anamnese || '' },
+          };
+          const modo = await modoDados();
+          if (modo === 'local') {
+              const salvo = await atualizar('pacientes', String(id), payload);
+              if (!salvo) throw new Error('Paciente não encontrado no banco local.');
+          } else {
+              const { error } = await supabase.from('pacientes').update(payload).eq('id', id);
+              if (error) { await showAlert('Erro ao salvar: ' + error.message, { type: 'error' }); return; }
+          }
+          setFicha({ ...ficha, ...fichaAtualizada });
+          setModoEdicao(false);
+          registrarAudit({ acao: 'editou', entidade: 'paciente', entidade_id: String(id) });
+          showAlert('Dados salvos com sucesso!', { type: 'success' });
+      } catch (erro) {
+          const mensagem = erro instanceof Error ? erro.message : 'Falha ao salvar os dados.';
+          await showAlert('Erro ao salvar: ' + mensagem, { type: 'error' });
+      }
   }
 
   function handleExportarDados() {
@@ -836,12 +1192,19 @@ export default function PacienteDetalhe() {
           LEGACY_CONDICOES.forEach((k) => delete payload[k]);
           const fichaAtual = normalizarFichaMedica(form.ficha_medica || {});
           const merged = { ...fichaAtual, ...payload, anamnese: anamneseTexto };
-          const { error } = await supabase.from('pacientes').update({
-              ficha_medica: merged,
-          }).eq('id', id);
-          if (error) throw error;
-      } catch (error: any) {
-          showAlert('Erro ao salvar ficha médica: ' + error.message, { type: 'error' });
+          const modo = await modoDados();
+          if (modo === 'local') {
+              const salvo = await atualizar('pacientes', String(id), { ficha_medica: merged });
+              if (!salvo) throw new Error('Paciente não encontrado no banco local.');
+          } else {
+              const { error } = await supabase.from('pacientes').update({
+                  ficha_medica: merged,
+              }).eq('id', id);
+              if (error) throw error;
+          }
+      } catch (error) {
+          const mensagem = error instanceof Error ? error.message : 'Falha ao salvar.';
+          showAlert('Erro ao salvar ficha médica: ' + mensagem, { type: 'error' });
       }
   }, [id, showAlert, form.ficha_medica]);
 
@@ -912,6 +1275,7 @@ export default function PacienteDetalhe() {
       if (salvandoTrat) return;
       setSalvandoTrat(true);
       try {
+          const modo = await modoDados();
           const { agendarNaAgenda, horaAgendamento, pagamentoPendente, ...tratSemAgenda } = tratEdit;
           let salvo: TratamentoPaciente;
           if (tratSemAgenda.id) {
@@ -936,7 +1300,9 @@ export default function PacienteDetalhe() {
               setTratamentos([...tratamentos, salvo]);
           }
 
-          if (tratSemAgenda.status === 'concluido' && form.clinica_id) {
+          // Comissões vivem apenas na nuvem. Offline o tratamento é salvo localmente e sincronizado.
+          const registrarComissao = modo !== 'local' || !semConexao();
+          if (registrarComissao && tratSemAgenda.status === 'concluido' && form.clinica_id) {
               const { data: { user } } = await supabase.auth.getUser();
               let profId: string | number | null = null;
               if (user) {
@@ -957,35 +1323,29 @@ export default function PacienteDetalhe() {
           if (pagamentoPendente && parseFloat(tratSemAgenda.valor) > 0 && form.clinica_id) {
               try {
                   const valor = parseFloat(tratSemAgenda.valor) || 0;
-                  await criarDebitoManual({
+                  await criarDebitoManualCompat({
                       paciente_id: id,
                       clinica_id: form.clinica_id,
                       descricao: tratSemAgenda.procedimento,
                       valor,
                       tratamento_id: salvo.id ? String(salvo.id) : null,
                   });
-                  const debitosLista = await listarDebitosPaciente(id);
+                  const debitosLista = await listarDebitosCompat(id);
                   setDebitos(debitosLista);
                   debitoCriado = true;
-              } catch (e: any) {
-                  showAlert('Tratamento salvo, mas erro ao registrar débito: ' + (e.message || e), { type: 'warning' });
+              } catch (e) {
+                  const mensagem = e instanceof Error ? e.message : String(e);
+                  showAlert('Tratamento salvo, mas erro ao registrar débito: ' + mensagem, { type: 'warning' });
               }
           }
 
           if (agendarNaAgenda && tratEdit.data) {
               try {
-                  const { data: { session } } = await supabase.auth.getSession();
-                  const userId = session?.user?.id;
-                  let profId: string | null = null;
                   let clinicaId: string | null = form.clinica_id ? String(form.clinica_id) : null;
-                  if (userId) {
-                      const { data: prof } = await supabase.from('profissionais').select('id').eq('user_id', userId).maybeSingle();
-                      profId = prof?.id || null;
-                  }
                   if (!clinicaId && clinicas.length > 0) clinicaId = String(clinicas[0].id);
                   if (!clinicaId) throw new Error('Paciente sem clínica vinculada.');
                   const dataHoraISO = new Date(`${tratEdit.data}T${horaAgendamento || '09:00'}:00`).toISOString();
-                  const payload: any = {
+                  const payload: Record<string, unknown> = {
                       paciente_id: id,
                       clinica_id: clinicaId,
                       data_hora: dataHoraISO,
@@ -995,12 +1355,24 @@ export default function PacienteDetalhe() {
                       status: 'agendado',
                       observacoes: tratEdit.observacoes || '',
                   };
-                  if (profId) payload.profissional_id = profId;
-                  const { error: agErr } = await supabase.from('agendamentos').insert([payload]);
-                  if (agErr) throw agErr;
+                  if (modo === 'local') {
+                      await inserir('agendamentos', payload);
+                  } else {
+                      const { data: { session } } = await supabase.auth.getSession();
+                      const userId = session?.user?.id;
+                      let profId: string | null = null;
+                      if (userId) {
+                          const { data: prof } = await supabase.from('profissionais').select('id').eq('user_id', userId).maybeSingle();
+                          profId = prof?.id || null;
+                      }
+                      if (profId) payload.profissional_id = profId;
+                      const { error: agErr } = await supabase.from('agendamentos').insert([payload]);
+                      if (agErr) throw agErr;
+                  }
                   agendado = true;
-              } catch (e: any) {
-                  showAlert('Tratamento salvo, mas erro ao agendar: ' + (e.message || e), { type: 'warning' });
+              } catch (e) {
+                  const mensagem = e instanceof Error ? e.message : String(e);
+                  showAlert('Tratamento salvo, mas erro ao agendar: ' + mensagem, { type: 'warning' });
               }
           }
 
@@ -1019,6 +1391,9 @@ export default function PacienteDetalhe() {
                       ? 'Tratamento salvo e odontograma atualizado (cáries → tratado).'
                       : 'Tratamento salvo com sucesso!';
           showAlert(msg, { type: 'success' });
+      } catch (erro) {
+          const mensagem = erro instanceof Error ? erro.message : 'Falha ao salvar.';
+          await showAlert('Erro ao salvar tratamento: ' + mensagem, { type: 'error' });
       } finally {
           setSalvandoTrat(false);
       }
@@ -1071,6 +1446,12 @@ export default function PacienteDetalhe() {
   async function uploadHofFoto(e: any, angulo: string) {
       const file: File = e.target.files?.[0];
       if (!file || !file.type.startsWith('image/')) return;
+      const modo = await modoDados();
+      if (modo === 'local' && semConexao()) {
+          await showAlert('Sem internet: a foto não pode ser enviada agora. As marcações e observações do HOF continuam sendo salvas no banco local.', { type: 'warning' });
+          e.target.value = '';
+          return;
+      }
       setEnviandoFoto(angulo);
       try {
           const blobComprimido = await comprimirImagem(file);
@@ -1079,8 +1460,13 @@ export default function PacienteDetalhe() {
               await enviarArquivoClinica(caminhoArquivo, blobComprimido, { contentType: 'image/jpeg' });
           } catch (uploadErr: any) {
               console.error('[HOF Upload] Erro ao enviar:', uploadErr);
-              showAlert('Erro ao enviar foto: ' + (uploadErr?.message || uploadErr), { type: 'error' });
-              setEnviandoFoto(null); return;
+              showAlert(
+                  modo === 'local'
+                      ? 'Não foi possível enviar a foto. O envio precisa de internet; as demais informações do HOF continuam salvas localmente.'
+                      : 'Erro ao enviar foto: ' + (uploadErr?.message || uploadErr),
+                  { type: 'error' },
+              );
+              setEnviandoFoto(null); e.target.value = ''; return;
           }
           const nova: HofFoto = { id: Date.now().toString(), sessao: hofSessaoAtiva, angulo, dataUrl: URL.createObjectURL(blobComprimido), storagePath: caminhoArquivo, criado_em: new Date().toISOString() };
           const novasFotos = [...hofFotos, nova];
@@ -1113,16 +1499,26 @@ export default function PacienteDetalhe() {
 
   async function excluirHofFoto(fid: string) {
       const foto = hofFotos.find(f => f.id === fid);
+      const modo = await modoDados();
       if (foto?.storagePath) {
-          await apagarArquivosClinica([foto.storagePath]);
+          if (modo === 'local') {
+              try {
+                  await apagarArquivosClinica([foto.storagePath]);
+              } catch {
+                  /* sem internet: o registro local sai agora e o arquivo remoto pode ser removido depois */
+              }
+          } else {
+              await apagarArquivosClinica([foto.storagePath]);
+          }
       }
       const novasFotos = hofFotos.filter(f => f.id !== fid);
       setHofFotos(novasFotos);
       try {
           const fichaAtualizada = await salvarFichaClinica(String(id), { marcacoes_hof: marcacoesHof, hof_fotos: fotosHofParaSalvar(novasFotos) }, ficha);
           setFicha({ ...ficha, ...fichaAtualizada });
-      } catch (e: any) {
-          showAlert('Erro ao excluir foto: ' + (e.message || e), { type: 'error' });
+      } catch (e) {
+          const mensagem = e instanceof Error ? e.message : String(e);
+          showAlert('Erro ao excluir foto: ' + mensagem, { type: 'error' });
       }
   }
 
@@ -1537,12 +1933,23 @@ export default function PacienteDetalhe() {
           await showAlert('Selecione um modelo de anamnese.', { type: 'warning' });
           return;
       }
+      const modo = await modoDados();
+      if (modo === 'local' && semConexao()) {
+          await showAlert('Gerar o link de anamnese precisa de internet. A anamnese pode ser preenchida e salva normalmente offline; o link pode ser gerado quando a conexão voltar.', { type: 'warning' });
+          return;
+      }
       setGerandoLinkAnamnese(true);
       try {
           const link = await gerarLinkAnamnesePacienteApi(String(id), anamneseAtual.modelo_id, form.clinica_id);
           setLinkAnamnesePaciente(link);
-      } catch (error: any) {
-          await showAlert('Erro: ' + error.message, { type: 'error' });
+      } catch (error) {
+          const mensagem = error instanceof Error ? error.message : String(error);
+          await showAlert(
+              modo === 'local'
+                  ? 'Não foi possível gerar o link de anamnese. Essa ação precisa de internet; a anamnese salva continua disponível offline.'
+                  : 'Erro: ' + mensagem,
+              { type: 'error' },
+          );
       }
       setGerandoLinkAnamnese(false);
   }
@@ -1601,6 +2008,12 @@ export default function PacienteDetalhe() {
       if (!file) return;
       const rejeicao = validarArquivoDocumento(file);
       if (rejeicao) { showAlert(rejeicao, { type: 'warning' }); e.target.value = ''; return; }
+      const modo = await modoDados();
+      if (modo === 'local' && semConexao()) {
+          await showAlert('Sem internet: não é possível anexar arquivos agora. O documento não foi enviado; o restante da ficha continua funcionando offline.', { type: 'warning' });
+          e.target.value = '';
+          return;
+      }
       setUploadingDoc(true);
       try {
           const isImg = documentoEhImagem({ tipo: file.type, nome: file.name });
@@ -1620,8 +2033,14 @@ export default function PacienteDetalhe() {
           const caminhoArquivo = `pacientes/${id}/documentos/${timestamp}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_').substring(0, 60)}.${finalExt}`;
           try {
               await enviarArquivoClinica(caminhoArquivo, blob, { contentType });
-          } catch (uploadErr: any) {
-              showAlert('Erro ao enviar: ' + (uploadErr?.message || uploadErr), { type: 'error' });
+          } catch (uploadErr) {
+              const mensagem = uploadErr instanceof Error ? uploadErr.message : String(uploadErr);
+              showAlert(
+                  modo === 'local'
+                      ? 'Não foi possível anexar o arquivo. O envio de documentos precisa de internet; o restante da ficha continua funcionando offline.'
+                      : 'Erro ao enviar: ' + mensagem,
+                  { type: 'error' },
+              );
               setUploadingDoc(false); e.target.value = ''; return;
           }
 
@@ -1634,8 +2053,9 @@ export default function PacienteDetalhe() {
           const previewUrl = isImg || isPdf ? URL.createObjectURL(blob) : undefined;
           if (previewUrl) previewsDocumento.current.push(previewUrl);
           setDocumentos([...documentos, { ...salvo, isImg, isPdf, previewUrl }]);
-      } catch (err: any) {
-          showAlert('Erro ao processar arquivo: ' + (err?.message || err), { type: 'error' });
+      } catch (err) {
+          const mensagem = err instanceof Error ? err.message : String(err);
+          showAlert('Erro ao processar arquivo: ' + mensagem, { type: 'error' });
       }
       setUploadingDoc(false);
       e.target.value = '';
@@ -1644,14 +2064,26 @@ export default function PacienteDetalhe() {
   async function excluirDocumento(did: string) {
       if (!(await showConfirm('Excluir este documento?', { title: 'Excluir', type: 'error', confirmLabel: 'Excluir' }))) return;
       const doc = documentos.find(d => d.id === did);
+      const modo = await modoDados();
       try {
           const { storage_path } = await excluirDocumentoDb(did);
           const path = storage_path || doc?.storagePath;
-          if (path) await apagarArquivosClinica([path]);
+          if (path) {
+              if (modo === 'local') {
+                  try {
+                      await apagarArquivosClinica([path]);
+                  } catch {
+                      /* sem internet: o registro local sai agora e o arquivo remoto pode ser removido depois */
+                  }
+              } else {
+                  await apagarArquivosClinica([path]);
+              }
+          }
           if (doc?.previewUrl) URL.revokeObjectURL(doc.previewUrl);
           setDocumentos(documentos.filter(d => d.id !== did));
-      } catch (e: any) {
-          await showAlert('Erro ao excluir: ' + (e.message || e), { type: 'error' });
+      } catch (e) {
+          const mensagem = e instanceof Error ? e.message : String(e);
+          await showAlert('Erro ao excluir: ' + mensagem, { type: 'error' });
       }
   }
 
@@ -1675,8 +2107,14 @@ export default function PacienteDetalhe() {
               if (atual?.url) URL.revokeObjectURL(atual.url);
               return { nome: d.nome || 'Arquivo', url, isImg: !!d.isImg, isPdf: !!d.isPdf };
           });
-      } catch (e: any) {
-          await showAlert(e?.message || 'Não foi possível abrir o arquivo.', { type: 'error' });
+      } catch (e) {
+          const mensagem = e instanceof Error ? e.message : '';
+          await showAlert(
+              semConexao()
+                  ? 'Sem internet: este arquivo não está disponível offline. Ele será aberto quando a conexão voltar.'
+                  : mensagem || 'Não foi possível abrir o arquivo.',
+              { type: 'error' },
+          );
       }
   }
 
@@ -1696,8 +2134,14 @@ export default function PacienteDetalhe() {
           a.download = d.nome || 'arquivo';
           a.click();
           URL.revokeObjectURL(url);
-      } catch (e: any) {
-          await showAlert(e?.message || 'Não foi possível baixar o arquivo.', { type: 'error' });
+      } catch (e) {
+          const mensagem = e instanceof Error ? e.message : '';
+          await showAlert(
+              semConexao()
+                  ? 'Sem internet: este arquivo não está disponível offline. O download pode ser feito quando a conexão voltar.'
+                  : mensagem || 'Não foi possível baixar o arquivo.',
+              { type: 'error' },
+          );
       }
   }
 
@@ -1714,7 +2158,16 @@ export default function PacienteDetalhe() {
   }
 
   async function abrirModalReceber(debito: any) {
-      const taxas = form.clinica_id ? await carregarTaxasAtivas(form.clinica_id) : [];
+      const modo = await modoDados();
+      let taxas: TaxaMaquininha[] = [];
+      if (form.clinica_id) {
+          if (modo === 'local') {
+              const salvas = await lerConfigLocal<TaxaMaquininha[]>(String(form.clinica_id), 'taxas_maquininha', TAXAS_MAQUININHA_PADRAO);
+              taxas = normalizarTaxasMaquininha(salvas).filter((taxa) => taxa.ativo);
+          } else {
+              taxas = await carregarTaxasAtivas(form.clinica_id);
+          }
+      }
       const bruto = Number(debito?.valor_final ?? debito?.valor) || 0;
       setTaxasRecebimento(taxas);
       setRepassarTaxas(false);
@@ -1761,7 +2214,7 @@ export default function PacienteDetalhe() {
       }
       setRecebendo(true);
       try {
-          const { comissaoLancamentos } = await receberDebito(
+          const { comissaoLancamentos } = await receberDebitoCompat(
               { ...modalReceber, clinica_id: form.clinica_id },
               partes[0]?.taxaId,
               taxasRecebimento,
@@ -1777,8 +2230,9 @@ export default function PacienteDetalhe() {
           setModalReceber(null);
           const msgComissao = comissaoLancamentos > 0 ? ` Comissão registrada (${comissaoLancamentos} regra(s)).` : '';
           showAlert(`Pagamento registrado.${msgComissao}`, { type: 'success' });
-      } catch (e: any) {
-          showAlert('Erro ao registrar: ' + (e.message || e), { type: 'error' });
+      } catch (e) {
+          const mensagem = e instanceof Error ? e.message : String(e);
+          showAlert('Erro ao registrar: ' + mensagem, { type: 'error' });
       } finally {
           setRecebendo(false);
       }
@@ -1791,10 +2245,15 @@ export default function PacienteDetalhe() {
   }
 
   async function abrirModalDebitoManual() {
-      const opcoes = await listarOpcoesMarcarNaoPago(id);
-      setDebitoOpcoes(opcoes);
-      setFormDebito({ descricao: '', valor: '', agendamentosMarcados: [], tratamentosMarcados: [] });
-      setModalDebitoManual(true);
+      try {
+          const opcoes = await listarOpcoesDebitoCompat(id);
+          setDebitoOpcoes(opcoes);
+          setFormDebito({ descricao: '', valor: '', agendamentosMarcados: [], tratamentosMarcados: [] });
+          setModalDebitoManual(true);
+      } catch (erro) {
+          const mensagem = erro instanceof Error ? erro.message : String(erro);
+          await showAlert('Não foi possível carregar os itens para marcar como não pagos. ' + mensagem, { type: 'error' });
+      }
   }
 
   async function salvarDebitoManual() {
@@ -1808,7 +2267,7 @@ export default function PacienteDetalhe() {
       setSalvandoDebito(true);
       try {
           if (descricao && valor > 0) {
-              await criarDebitoManual({
+              await criarDebitoManualCompat({
                   paciente_id: id,
                   clinica_id: form.clinica_id,
                   descricao,
@@ -1816,12 +2275,12 @@ export default function PacienteDetalhe() {
               });
           }
           for (const agId of formDebito.agendamentosMarcados) {
-              await marcarAgendamentoNaoPago(agId);
+              await marcarAgendamentoNaoPagoCompat(agId);
           }
           for (const trId of formDebito.tratamentosMarcados) {
               const tr = debitoOpcoes.tratamentos.find((t) => String(t.id) === String(trId));
               if (!tr) continue;
-              await criarDebitoManual({
+              await criarDebitoManualCompat({
                   paciente_id: id,
                   clinica_id: form.clinica_id,
                   descricao: tr.procedimento || 'Tratamento',
@@ -1829,17 +2288,17 @@ export default function PacienteDetalhe() {
                   tratamento_id: String(tr.id),
               });
           }
-          const debitosLista = await listarDebitosPaciente(id);
+          const debitosLista = await listarDebitosCompat(id);
           setDebitos(debitosLista);
-          const { data: registros } = await supabase.from('paciente_debitos').select('*').eq('paciente_id', id);
-          setRegistrosDebito(registros || []);
-          const { data: hist } = await supabase.from('agendamentos').select('*, profissionais(nome)').eq('paciente_id', id).order('data_hora', { ascending: false });
-          setHistorico((hist || []).filter((h: any) => h.tipo_registro !== 'debito_manual' && h.observacoes !== 'Débito manual'));
+          setRegistrosDebito(await carregarRegistrosDebitoCompat());
+          const hist = await carregarHistoricoCompat();
+          setHistorico(hist.filter((h) => h.tipo_registro !== 'debito_manual' && h.observacoes !== 'Débito manual'));
           setModalDebitoManual(false);
           setFormDebito({ descricao: '', valor: '', agendamentosMarcados: [], tratamentosMarcados: [] });
           showAlert('Débito registrado com sucesso.', { type: 'success' });
-      } catch (error: any) {
-          showAlert(error.message || 'Erro ao salvar débito.', { type: 'error' });
+      } catch (error) {
+          const mensagem = error instanceof Error ? error.message : 'Erro ao salvar débito.';
+          showAlert(mensagem, { type: 'error' });
       } finally {
           setSalvandoDebito(false);
       }
@@ -1855,9 +2314,25 @@ export default function PacienteDetalhe() {
 
   async function excluir() {
       if(!(await showConfirm('Cuidado: Isso apagará o paciente e todo o histórico. Continuar?', { title: 'Excluir Paciente', type: 'error', confirmLabel: 'Excluir' }))) return;
-      await supabase.from('agendamentos').delete().eq('paciente_id', id);
-      await supabase.from('pacientes').delete().eq('id', id);
-      router.push('/pacientes');
+      try {
+          const modo = await modoDados();
+          if (modo === 'local') {
+              const agendamentosPaciente = await listar<{ id: number }>('agendamentos', {
+                  filtros: [{ col: 'paciente_id', op: 'eq', valor: String(id) }],
+              });
+              for (const agendamento of agendamentosPaciente) {
+                  await remover('agendamentos', agendamento.id);
+              }
+              await remover('pacientes', String(id));
+          } else {
+              await supabase.from('agendamentos').delete().eq('paciente_id', id);
+              await supabase.from('pacientes').delete().eq('id', id);
+          }
+          router.push('/pacientes');
+      } catch (erro) {
+          const mensagem = erro instanceof Error ? erro.message : String(erro);
+          await showAlert('Não foi possível excluir o paciente. ' + mensagem, { type: 'error' });
+      }
   }
 
   function buildCtxDocumento() {
@@ -2237,6 +2712,10 @@ export default function PacienteDetalhe() {
                                                 <button
                                                     type="button"
                                                     onClick={async () => {
+                                                        if (semConexao()) {
+                                                            await showAlert('Buscar o CEP precisa de internet. Preencha o endereço manualmente; os dados da ficha continuam disponíveis offline.', { type: 'warning' });
+                                                            return;
+                                                        }
                                                         const cep = form.cep?.replace(/\D/g, '');
                                                         if (cep?.length === 8) {
                                                             try {
@@ -2251,7 +2730,9 @@ export default function PacienteDetalhe() {
                                                                         uf: data.uf || form.uf
                                                                     });
                                                                 }
-                                                            } catch (e) { console.error('Erro ViaCEP:', e); }
+                                                            } catch {
+                                                                await showAlert('Não foi possível consultar o CEP agora. Preencha o endereço manualmente.', { type: 'warning' });
+                                                            }
                                                         }
                                                     }}
                                                     className="font-medium text-neutral-900 hover:underline"

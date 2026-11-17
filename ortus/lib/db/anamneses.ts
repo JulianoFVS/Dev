@@ -1,7 +1,20 @@
 import { supabase } from '@/lib/supabase';
 import { rowToAnamnese, type AnamnesePaciente } from '@/lib/db/types';
+import { atualizar, inserir, listar, modoDados, remover } from '@/lib/local/cliente';
 
 export async function listarAnamneses(pacienteId: string): Promise<AnamnesePaciente[]> {
+  const modo = await modoDados();
+  if (modo === 'local') {
+    const linhas = await listar<Record<string, unknown>>('paciente_anamneses', {
+      filtros: [{ col: 'paciente_id', op: 'eq', valor: pacienteId }],
+      ordem: [
+        { col: 'data', asc: false },
+        { col: 'criado_em', asc: false },
+      ],
+    });
+    return linhas.map(rowToAnamnese);
+  }
+
   const { data, error } = await supabase
     .from('paciente_anamneses')
     .select('*')
@@ -17,18 +30,26 @@ export async function criarAnamnese(
   pacienteId: string,
   input: Omit<AnamnesePaciente, 'id' | 'criado_em' | 'atualizado_em'>,
 ): Promise<AnamnesePaciente> {
+  const payload = {
+    paciente_id: pacienteId,
+    legacy_id: Date.now().toString(),
+    modelo_id: input.modelo_id || null,
+    modelo_nome: input.modelo_nome || null,
+    data: input.data || null,
+    preenchido_por: input.preenchido_por || 'profissional',
+    respostas: input.respostas || {},
+    perguntas_snapshot: input.perguntas_snapshot || null,
+  };
+
+  const modo = await modoDados();
+  if (modo === 'local') {
+    const salva = await inserir<Record<string, unknown>>('paciente_anamneses', payload);
+    return rowToAnamnese(salva);
+  }
+
   const { data, error } = await supabase
     .from('paciente_anamneses')
-    .insert({
-      paciente_id: pacienteId,
-      legacy_id: Date.now().toString(),
-      modelo_id: input.modelo_id || null,
-      modelo_nome: input.modelo_nome || null,
-      data: input.data || null,
-      preenchido_por: input.preenchido_por || 'profissional',
-      respostas: input.respostas || {},
-      perguntas_snapshot: input.perguntas_snapshot || null,
-    })
+    .insert(payload)
     .select('*')
     .single();
 
@@ -50,6 +71,13 @@ export async function atualizarAnamnese(
   if (input.respostas !== undefined) payload.respostas = input.respostas;
   if (input.perguntas_snapshot !== undefined) payload.perguntas_snapshot = input.perguntas_snapshot;
 
+  const modo = await modoDados();
+  if (modo === 'local') {
+    const salva = await atualizar<Record<string, unknown>>('paciente_anamneses', id, payload);
+    if (!salva) throw new Error('Anamnese não encontrada no banco local.');
+    return rowToAnamnese(salva);
+  }
+
   const { data, error } = await supabase
     .from('paciente_anamneses')
     .update(payload)
@@ -62,6 +90,12 @@ export async function atualizarAnamnese(
 }
 
 export async function excluirAnamnese(id: string): Promise<void> {
+  const modo = await modoDados();
+  if (modo === 'local') {
+    await remover('paciente_anamneses', id);
+    return;
+  }
+
   const { error } = await supabase.from('paciente_anamneses').delete().eq('id', id);
   if (error) throw error;
 }
@@ -71,6 +105,11 @@ export async function gerarLinkAnamnesePaciente(
   modeloId: string,
   clinicaId?: number | string | null,
 ): Promise<{ url: string; expires_at: string }> {
+  const modo = await modoDados();
+  if (modo === 'local' && typeof navigator !== 'undefined' && navigator.onLine === false) {
+    throw new Error('Gerar o link de anamnese precisa de internet. A anamnese pode ser preenchida e salva normalmente no modo offline.');
+  }
+
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.access_token) throw new Error('Sessão expirada. Faça login novamente.');
 

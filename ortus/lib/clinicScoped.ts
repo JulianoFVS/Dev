@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { listar, modoDados } from '@/lib/local/cliente';
 
 /**
  * Helpers de Multi-Tenant: garantem que toda busca de clínicas seja
@@ -52,6 +53,11 @@ if (typeof window !== 'undefined') {
  * representam um tenant específico).
  */
 export async function fetchUserClinicas(opts?: { restrictSuperAdminToVinculos?: boolean }): Promise<ClinicaSlim[]> {
+    // No desktop o banco local é a fonte; a nuvem pode estar fora do ar.
+    if ((await modoDados()) === 'local') {
+        return clinicasLocais(opts);
+    }
+
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) {
         invalidarClinicasCache();
@@ -80,6 +86,36 @@ export async function fetchUserClinicas(opts?: { restrictSuperAdminToVinculos?: 
             });
     }
     return promessa;
+}
+
+/** Clínicas permitidas, lidas do SQLite (desktop). */
+async function clinicasLocais(opts?: { restrictSuperAdminToVinculos?: boolean }): Promise<ClinicaSlim[]> {
+    try {
+        const { data } = await supabase.auth.getSession();
+        const userId = data.session?.user.id;
+        const perfil = userId
+            ? (await listar<{ id: number; is_super_admin: boolean | null }>('profissionais', {
+                filtros: [{ col: 'user_id', op: 'eq', valor: userId }],
+                limite: 1,
+            }))[0]
+            : null;
+
+        const todas = await listar<ClinicaSlim>('clinicas', { ordem: [{ col: 'nome', asc: true }] });
+        if (perfil?.is_super_admin && !opts?.restrictSuperAdminToVinculos) {
+            return todas.map((c) => ({ id: c.id, nome: c.nome, endereco: c.endereco ?? null, rede_id: c.rede_id ?? null }));
+        }
+        if (!perfil?.id) return [];
+
+        const vinculos = await listar<{ clinica_id: number }>('profissionais_clinicas', {
+            filtros: [{ col: 'profissional_id', op: 'eq', valor: perfil.id }],
+        });
+        const ids = new Set(vinculos.map((v) => String(v.clinica_id)));
+        return todas
+            .filter((c) => ids.has(String(c.id)))
+            .map((c) => ({ id: c.id, nome: c.nome, endereco: c.endereco ?? null, rede_id: c.rede_id ?? null }));
+    } catch {
+        return [];
+    }
 }
 
 async function buscarClinicasDoUsuario(
@@ -171,6 +207,10 @@ export type ProfissionalEquipe = {
 };
 
 export async function fetchUserEquipe(): Promise<ProfissionalEquipe[]> {
+    if ((await modoDados()) === 'local') {
+        return equipeLocal();
+    }
+
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) return [];
 
@@ -219,6 +259,59 @@ export async function fetchUserEquipe(): Promise<ProfissionalEquipe[]> {
         .order('nome');
 
     return montarEquipe(profs || [], vinculos || []);
+}
+
+/** Equipe visível, lida do SQLite (desktop). */
+async function equipeLocal(): Promise<ProfissionalEquipe[]> {
+    try {
+        const { data } = await supabase.auth.getSession();
+        const userId = data.session?.user.id;
+        const eu = userId
+            ? (await listar<{ id: number; is_super_admin: boolean | null }>('profissionais', {
+                filtros: [{ col: 'user_id', op: 'eq', valor: userId }],
+                limite: 1,
+            }))[0]
+            : null;
+        if (!eu?.id) return [];
+
+        const clinicas = await listar<{ id: number; nome: string }>('clinicas', { ordem: [{ col: 'nome', asc: true }] });
+        const nomeClinica = new Map(clinicas.map((c) => [String(c.id), c]));
+
+        let vinculos: Array<{ profissional_id: number; clinica_id: number }>;
+        if (eu.is_super_admin) {
+            vinculos = await listar('profissionais_clinicas');
+        } else {
+            const meus = await listar<{ clinica_id: number }>('profissionais_clinicas', {
+                filtros: [{ col: 'profissional_id', op: 'eq', valor: eu.id }],
+            });
+            const ids = meus.map((v) => v.clinica_id);
+            if (ids.length === 0) return [];
+            vinculos = await listar('profissionais_clinicas', {
+                filtros: [{ col: 'clinica_id', op: 'in', valor: ids }],
+            });
+        }
+
+        const idsProf = Array.from(new Set(vinculos.map((v) => v.profissional_id)));
+        if (idsProf.length === 0) return [];
+        const profs = await listar<ProfissionalEquipe>('profissionais', {
+            filtros: [{ col: 'id', op: 'in', valor: idsProf }],
+            ordem: [{ col: 'nome', asc: true }],
+        });
+
+        const porProf = new Map<string, Array<{ id: any; nome: string }>>();
+        for (const vinculo of vinculos) {
+            const clinica = nomeClinica.get(String(vinculo.clinica_id));
+            if (!clinica) continue;
+            const chave = String(vinculo.profissional_id);
+            const lista = porProf.get(chave) || [];
+            if (!lista.some((c) => String(c.id) === String(clinica.id))) lista.push(clinica);
+            porProf.set(chave, lista);
+        }
+
+        return profs.map((p) => ({ ...p, clinicas: porProf.get(String(p.id)) || [] }));
+    } catch {
+        return [];
+    }
 }
 
 function montarEquipe(profs: any[], vinculos: any[]): ProfissionalEquipe[] {

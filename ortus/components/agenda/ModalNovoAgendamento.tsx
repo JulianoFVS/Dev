@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Loader2, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { fetchUserClinicas, fetchUserEquipe, type ProfissionalEquipe } from '@/lib/clinicScoped';
+import { inserir, lerSessaoCacheUI, listar, modoDados } from '@/lib/local/cliente';
 import { useClinica } from '@/app/context/ClinicaContext';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
 import { validarAgendamentoCompleto } from '@/lib/horarioProfissional';
@@ -15,6 +16,15 @@ import ProcedureCombobox from '@/components/forms/ProcedureCombobox';
 import { tratamentosVisiveis, valorNaAgenda, type LinhaPreco, type PlanoTipo } from '@/lib/precoTratamento';
 
 type PacienteOpcao = { id: string | number; nome: string; clinica_id?: string | number | null; telefone?: string | null; email?: string | null; plano_id?: string | null };
+
+type PerfilSessaoLocal = {
+  id?: string | number | null;
+  nivel_acesso?: string | null;
+};
+
+function mensagemErro(erro: unknown, padrao: string): string {
+  return erro instanceof Error && erro.message ? erro.message : padrao;
+}
 
 type Props = {
   open: boolean;
@@ -48,7 +58,7 @@ export default function ModalNovoAgendamento({
   observacoes = '',
   data,
 }: Props) {
-  const { activeClinicId } = useClinica();
+  const { activeClinicId, clinics: clinicasContexto } = useClinica();
   const { showAlert } = useCustomAlert();
   const clinicaTravada = !!activeClinicId && activeClinicId !== 'all';
   const [clinicas, setClinicas] = useState<{ id: string | number; nome: string; telefone?: string | null }[]>([]);
@@ -61,6 +71,7 @@ export default function ModalNovoAgendamento({
   const [nivel, setNivel] = useState<string>('admin');
   const [meuProfissionalId, setMeuProfissionalId] = useState('');
   const [salvando, setSalvando] = useState(false);
+  const [modoLocal, setModoLocal] = useState(false);
   const [form, setForm] = useState({
     clinica_id: '',
     profissional_id: '',
@@ -85,6 +96,12 @@ export default function ModalNovoAgendamento({
   }
 
   useEffect(() => {
+    let ativo = true;
+    modoDados().then((modo) => { if (ativo) setModoLocal(modo === 'local'); }).catch(() => undefined);
+    return () => { ativo = false; };
+  }, []);
+
+  useEffect(() => {
     if (!open) return;
     let cancelado = false;
     const hoje = isoLocal(new Date());
@@ -107,21 +124,46 @@ export default function ModalNovoAgendamento({
     }
 
     async function carregar() {
-      const [{ data: { user } }, listaClinicas, equipe] = await Promise.all([
-        supabase.auth.getUser(),
-        fetchUserClinicas(),
-        fetchUserEquipe(),
-      ]);
-      if (cancelado) return;
+      const modo = await modoDados();
+      let listaClinicas: { id: string | number; nome: string }[] = [];
+      let equipe: ProfissionalEquipe[] = [];
       let nivelAtual = 'admin';
       let profAtual = '';
-      if (user) {
-        const { data: prof } = await supabase.from('profissionais').select('id, nivel_acesso').eq('user_id', user.id).maybeSingle();
-        if (prof) {
-          nivelAtual = prof.nivel_acesso || 'admin';
-          profAtual = nivelAtual !== 'admin' ? String(prof.id) : '';
+
+      if (modo === 'local') {
+        try {
+          const cache = await lerSessaoCacheUI();
+          const perfil = cache?.perfil as PerfilSessaoLocal | null | undefined;
+          nivelAtual = typeof perfil?.nivel_acesso === 'string' ? perfil.nivel_acesso : 'admin';
+          profAtual = nivelAtual !== 'admin' && perfil?.id != null ? String(perfil.id) : '';
+          listaClinicas = clinicasContexto.length > 0
+            ? clinicasContexto.map((c) => ({ id: c.id, nome: c.nome }))
+            : (cache?.clinicas || []);
+          equipe = await fetchUserEquipe();
+        } catch (erro) {
+          if (!cancelado) {
+            await showAlert(mensagemErro(erro, 'Não foi possível carregar os dados da agenda.'), { type: 'error' });
+          }
+          return;
+        }
+      } else {
+        const [{ data: { user } }, clinicasNuvem, equipeNuvem] = await Promise.all([
+          supabase.auth.getUser(),
+          fetchUserClinicas(),
+          fetchUserEquipe(),
+        ]);
+        listaClinicas = clinicasNuvem;
+        equipe = equipeNuvem;
+        if (user) {
+          const { data: prof } = await supabase.from('profissionais').select('id, nivel_acesso').eq('user_id', user.id).maybeSingle();
+          if (prof) {
+            nivelAtual = prof.nivel_acesso || 'admin';
+            profAtual = nivelAtual !== 'admin' ? String(prof.id) : '';
+          }
         }
       }
+
+      if (cancelado) return;
       setNivel(nivelAtual);
       setMeuProfissionalId(profAtual);
       setClinicas(listaClinicas);
@@ -141,12 +183,54 @@ export default function ModalNovoAgendamento({
 
     carregar();
     return () => { cancelado = true; };
-  }, [open, pacienteId, pacienteNome, clinicaId, procedimento, observacoes, data, clinicaTravada, activeClinicId]);
+  }, [open, pacienteId, pacienteNome, clinicaId, procedimento, observacoes, data, clinicaTravada, activeClinicId, clinicasContexto]);
 
   useEffect(() => {
     if (!open || !form.clinica_id) return;
     let cancelado = false;
     async function carregarClinica() {
+      const modo = await modoDados();
+      if (modo === 'local') {
+        // Pacientes primeiro: é o que a recepção precisa offline.
+        let lista: PacienteOpcao[];
+        try {
+          lista = await listar<PacienteOpcao>('pacientes', {
+            filtros: [{ col: 'clinica_id', op: 'eq', valor: form.clinica_id }],
+            ordem: [{ col: 'nome', asc: true }],
+          });
+        } catch (erro) {
+          if (!cancelado) {
+            setPacientes([]);
+            await showAlert(mensagemErro(erro, 'Não foi possível carregar os pacientes.'), { type: 'error' });
+          }
+          return;
+        }
+        if (cancelado) return;
+        if (pacienteId && !lista.some((p) => String(p.id) === String(pacienteId))) {
+          lista.unshift({ id: pacienteId, nome: pacienteNome || 'Paciente', clinica_id: form.clinica_id });
+        }
+        setPacientes(lista);
+
+        // O catálogo de tratamentos/planos não está no SQLite local: tenta a
+        // nuvem quando há conexão; offline o procedimento vira texto livre.
+        try {
+          const [tr, esp, planos, linhas] = await Promise.all([
+            supabase.from('tratamentos_base').select('id, nome, valor_sugerido, especialidade_id').eq('clinica_id', form.clinica_id).eq('ativo', true).order('nome'),
+            supabase.from('especialidades').select('id, nome').eq('clinica_id', Number(form.clinica_id)).eq('ativo', true).order('nome'),
+            supabase.from('planos').select('id, tipo').eq('clinica_id', Number(form.clinica_id)),
+            supabase.from('planos_tratamentos').select('plano_id, tratamento_id, valor, ativo').eq('clinica_id', Number(form.clinica_id)),
+          ]);
+          if (cancelado) return;
+          setTratamentos(tr.data || []);
+          setPlanosPreco((planos.data || []) as PlanoTipo[]);
+          setLinhasPreco((linhas.data || []) as LinhaPreco[]);
+          setEspecialidades((esp.data || []) as { id: string; nome: string }[]);
+        } catch {
+          /* catálogo complementar indisponível: o procedimento livre resolve */
+        }
+        return;
+      }
+
       const [tr, esp, pac, planos, linhas] = await Promise.all([
         supabase.from('tratamentos_base').select('id, nome, valor_sugerido, especialidade_id').eq('clinica_id', form.clinica_id).eq('ativo', true).order('nome'),
         supabase.from('especialidades').select('id, nome').eq('clinica_id', Number(form.clinica_id)).eq('ativo', true).order('nome'),
@@ -195,9 +279,10 @@ export default function ModalNovoAgendamento({
       }
     }
     setSalvando(true);
+    const modo = await modoDados();
     const valor = parseFloat(form.valor) || 0;
     const desconto = parseFloat(form.desconto) || 0;
-    const { error } = await supabase.from('agendamentos').insert([{
+    const dados = {
       paciente_id: form.paciente_id,
       clinica_id: form.clinica_id,
       profissional_id: form.profissional_id || null,
@@ -209,11 +294,22 @@ export default function ModalNovoAgendamento({
       valor_final: valor - desconto,
       observacoes: form.observacoes,
       status: 'agendado',
-    }]);
-    setSalvando(false);
-    if (error) {
-      await showAlert('Erro ao agendar: ' + error.message, { type: 'error' });
+    };
+    try {
+      if (modo === 'local') {
+        await inserir('agendamentos', { ...dados, duracao_minutos: 60 });
+      } else {
+        const { error } = await supabase.from('agendamentos').insert([dados]);
+        if (error) {
+          await showAlert('Erro ao agendar: ' + error.message, { type: 'error' });
+          return;
+        }
+      }
+    } catch (erro) {
+      await showAlert('Erro ao agendar: ' + mensagemErro(erro, 'Falha no banco local.'), { type: 'error' });
       return;
+    } finally {
+      setSalvando(false);
     }
     window.dispatchEvent(new CustomEvent('ortus:agenda-changed'));
     onClose();
@@ -287,17 +383,27 @@ export default function ModalNovoAgendamento({
         </div>
         <div>
           <label className="mb-1.5 block text-xs font-medium text-neutral-500">Procedimento <span className="text-red-500">*</span></label>
-          <ProcedureCombobox
-            clinicaId={form.clinica_id}
-            especialidades={especialidades}
-            tratamentos={tratamentosAgenda}
-            value={form.title}
-            onChange={(nome, t) => {
-              const preco = valorNaAgenda(t, planoDoPaciente, linhasPreco);
-              setForm((p) => ({ ...p, title: nome, valor: preco ?? p.valor }));
-            }}
-            disabled={!form.clinica_id}
-          />
+          {modoLocal && form.clinica_id && tratamentosAgenda.length === 0 ? (
+            <input
+              type="text"
+              value={form.title}
+              onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))}
+              className={`${inputClass} placeholder:text-neutral-400`}
+              placeholder="Digite o procedimento"
+            />
+          ) : (
+            <ProcedureCombobox
+              clinicaId={form.clinica_id}
+              especialidades={especialidades}
+              tratamentos={tratamentosAgenda}
+              value={form.title}
+              onChange={(nome, t) => {
+                const preco = valorNaAgenda(t, planoDoPaciente, linhasPreco);
+                setForm((p) => ({ ...p, title: nome, valor: preco ?? p.valor }));
+              }}
+              disabled={!form.clinica_id}
+            />
+          )}
         </div>
         <div className="grid grid-cols-1 gap-x-3 gap-y-2.5 sm:grid-cols-3">
           <div>

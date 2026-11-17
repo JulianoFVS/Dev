@@ -1,7 +1,20 @@
 import { supabase } from '@/lib/supabase';
 import { rowToTratamento, type TratamentoPaciente } from '@/lib/db/types';
+import { atualizar, inserir, listar, modoDados, remover } from '@/lib/local/cliente';
 
 export async function listarTratamentos(pacienteId: string): Promise<TratamentoPaciente[]> {
+  const modo = await modoDados();
+  if (modo === 'local') {
+    const linhas = await listar<Record<string, unknown>>('paciente_tratamentos', {
+      filtros: [{ col: 'paciente_id', op: 'eq', valor: pacienteId }],
+      ordem: [
+        { col: 'data', asc: false },
+        { col: 'criado_em', asc: false },
+      ],
+    });
+    return linhas.map(rowToTratamento);
+  }
+
   const { data, error } = await supabase
     .from('paciente_tratamentos')
     .select('*')
@@ -19,19 +32,27 @@ export async function criarTratamento(
   input: Omit<TratamentoPaciente, 'id' | 'paciente_id' | 'criado_em'>,
 ): Promise<TratamentoPaciente> {
   const legacyId = Date.now().toString();
+  const payload = {
+    paciente_id: pacienteId,
+    clinica_id: clinicaId ? Number(clinicaId) : null,
+    legacy_id: legacyId,
+    procedimento: input.procedimento,
+    dente: input.dente || null,
+    valor: input.valor ?? 0,
+    status: input.status || 'planejado',
+    data: input.data || null,
+    observacoes: input.observacoes || null,
+  };
+
+  const modo = await modoDados();
+  if (modo === 'local') {
+    const salvo = await inserir<Record<string, unknown>>('paciente_tratamentos', payload);
+    return rowToTratamento(salvo);
+  }
+
   const { data, error } = await supabase
     .from('paciente_tratamentos')
-    .insert({
-      paciente_id: pacienteId,
-      clinica_id: clinicaId ? Number(clinicaId) : null,
-      legacy_id: legacyId,
-      procedimento: input.procedimento,
-      dente: input.dente || null,
-      valor: input.valor ?? 0,
-      status: input.status || 'planejado',
-      data: input.data || null,
-      observacoes: input.observacoes || null,
-    })
+    .insert(payload)
     .select('*')
     .single();
 
@@ -51,6 +72,13 @@ export async function atualizarTratamento(
   if (input.data !== undefined) payload.data = input.data;
   if (input.observacoes !== undefined) payload.observacoes = input.observacoes;
 
+  const modo = await modoDados();
+  if (modo === 'local') {
+    const salvo = await atualizar<Record<string, unknown>>('paciente_tratamentos', id, payload);
+    if (!salvo) throw new Error('Tratamento não encontrado no banco local.');
+    return rowToTratamento(salvo);
+  }
+
   const { data, error } = await supabase
     .from('paciente_tratamentos')
     .update(payload)
@@ -63,6 +91,12 @@ export async function atualizarTratamento(
 }
 
 export async function excluirTratamento(id: string): Promise<void> {
+  const modo = await modoDados();
+  if (modo === 'local') {
+    await remover('paciente_tratamentos', id);
+    return;
+  }
+
   const { error } = await supabase.from('paciente_tratamentos').delete().eq('id', id);
   if (error) throw error;
 }

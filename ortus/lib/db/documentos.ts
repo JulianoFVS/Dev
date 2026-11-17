@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { rowToDocumento, type DocumentoPaciente } from '@/lib/db/types';
+import { inserir, listar, modoDados, remover } from '@/lib/local/cliente';
 
 export type DocumentoMeta = {
   isImg?: boolean;
@@ -28,6 +29,15 @@ function rowToDocumentoUI(r: Record<string, unknown>): DocumentoPacienteUI {
 }
 
 export async function listarDocumentos(pacienteId: string): Promise<DocumentoPacienteUI[]> {
+  const modo = await modoDados();
+  if (modo === 'local') {
+    const linhas = await listar<Record<string, unknown>>('paciente_documentos', {
+      filtros: [{ col: 'paciente_id', op: 'eq', valor: pacienteId }],
+      ordem: [{ col: 'criado_em', asc: false }],
+    });
+    return linhas.map(rowToDocumentoUI);
+  }
+
   const { data, error } = await supabase
     .from('paciente_documentos')
     .select('*')
@@ -47,16 +57,24 @@ export async function criarDocumento(
     meta?: DocumentoMeta;
   },
 ): Promise<DocumentoPacienteUI> {
+  const payload = {
+    paciente_id: pacienteId,
+    legacy_id: Date.now().toString(),
+    nome: input.nome,
+    tipo: input.tipo || null,
+    storage_path: input.storage_path || null,
+    meta: input.meta || {},
+  };
+
+  const modo = await modoDados();
+  if (modo === 'local') {
+    const salvo = await inserir<Record<string, unknown>>('paciente_documentos', payload);
+    return rowToDocumentoUI(salvo);
+  }
+
   const { data, error } = await supabase
     .from('paciente_documentos')
-    .insert({
-      paciente_id: pacienteId,
-      legacy_id: Date.now().toString(),
-      nome: input.nome,
-      tipo: input.tipo || null,
-      storage_path: input.storage_path || null,
-      meta: input.meta || {},
-    })
+    .insert(payload)
     .select('*')
     .single();
 
@@ -65,6 +83,16 @@ export async function criarDocumento(
 }
 
 export async function excluirDocumento(id: string): Promise<{ storage_path: string | null }> {
+  const modo = await modoDados();
+  if (modo === 'local') {
+    const linhas = await listar<Record<string, unknown>>('paciente_documentos', {
+      filtros: [{ col: 'id', op: 'eq', valor: id }],
+      limite: 1,
+    });
+    await remover('paciente_documentos', id);
+    return { storage_path: (linhas[0]?.storage_path as string) || null };
+  }
+
   const { data, error } = await supabase
     .from('paciente_documentos')
     .delete()

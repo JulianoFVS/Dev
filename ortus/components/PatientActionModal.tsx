@@ -12,6 +12,7 @@ import { prepararFotoPaciente } from '@/lib/prepararFotoPaciente';
 import { enviarArquivoClinica } from '@/lib/armazenamento';
 import { cpfValido, mascaraCep, mascaraCpf, mascaraNumero, mascaraTelefone, variantesCpf } from '@/lib/mascaras';
 import CampoData from '@/components/ui/CampoData';
+import { atualizar, inserir, listar, modoDados } from '@/lib/local/cliente';
 
 type PatientActionModalContextValue = {
   openQuickCapture: (initialClinicaId?: string | null) => void;
@@ -19,6 +20,33 @@ type PatientActionModalContextValue = {
 };
 
 const PatientActionModalContext = createContext<PatientActionModalContextValue | null>(null);
+
+/** Clínicas para o select quando o ClinicaContext não resolveu nada offline. */
+async function carregarClinicasDisponiveis(): Promise<Array<{ id: string; nome: string }>> {
+  try {
+    const locais = await listar<{ id: string | number; nome: string }>('clinicas', {
+      ordem: [{ col: 'nome', asc: true }],
+    });
+    if (locais.length > 0) return locais.map((clinica) => ({ id: String(clinica.id), nome: String(clinica.nome) }));
+  } catch {
+    /* tabela de referência ainda não sincronizada */
+  }
+  try {
+    const pacientes = await listar<{ clinica_id: number | null }>('pacientes');
+    const vistos = new Set<string>();
+    const derivadas: Array<{ id: string; nome: string }> = [];
+    for (const paciente of pacientes) {
+      if (paciente.clinica_id == null) continue;
+      const id = String(paciente.clinica_id);
+      if (vistos.has(id)) continue;
+      vistos.add(id);
+      derivadas.push({ id, nome: `Clínica ${id}` });
+    }
+    return derivadas;
+  } catch {
+    return [];
+  }
+}
 
 const qcInput = 'box-border h-10 max-h-10 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm text-neutral-900 outline-none placeholder:text-neutral-400 focus:border-neutral-900';
 const qcLabel = 'mb-1.5 block text-xs font-medium text-neutral-500';
@@ -54,6 +82,7 @@ export function PatientActionModalProvider({ children }: { children: React.React
   // Plano/Convênio
   const [qcPlanoId, setQcPlanoId] = useState<string>('');
   const [planos, setPlanos] = useState<{id: string, nome: string}[]>([]);
+  const [clinicasFallback, setClinicasFallback] = useState<Array<{ id: string; nome: string }>>([]);
   
   const [qcSaving, setQcSaving] = useState(false);
   const [qcError, setQcError] = useState<string | null>(null);
@@ -94,6 +123,25 @@ export function PatientActionModalProvider({ children }: { children: React.React
     setOpen(false);
   }, []);
 
+  const carregarPlanosClinica = useCallback(async (clinicaId: string) => {
+    if (!clinicaId) {
+      setPlanos([]);
+      return;
+    }
+    const modo = await modoDados();
+    if (modo === 'local') {
+      // Planos/convênios não fazem parte do espelho local do desktop.
+      setPlanos([]);
+      return;
+    }
+    try {
+      const { data } = await supabase.from('planos').select('id, nome').eq('clinica_id', clinicaId).eq('ativo', true).order('nome');
+      setPlanos(data || []);
+    } catch {
+      setPlanos([]);
+    }
+  }, []);
+
   const openQuickCapture = useCallback(async (initialClinicaId?: string | null) => {
     const preselect = initialClinicaId || (activeClinicId && activeClinicId !== 'all' ? activeClinicId : '');
     setQcClinicaId(preselect || '');
@@ -119,20 +167,43 @@ export function PatientActionModalProvider({ children }: { children: React.React
     limparFotoCadastro();
     setQuickCapture(true);
     setOpen(true);
-    
-    // Carregar planos da clínica selecionada
-    if (preselect) {
-      const { data } = await supabase.from('planos').select('id, nome').eq('clinica_id', preselect).eq('ativo', true).order('nome');
-      setPlanos(data || []);
+
+    // Offline o ClinicaContext pode não ter clínicas: usa a referência do SQLite para o select.
+    const modo = await modoDados();
+    let clinicaSelecionada = preselect || '';
+    if (modo === 'local' && clinics.length === 0) {
+      const locais = await carregarClinicasDisponiveis();
+      setClinicasFallback(locais);
+      if (!clinicaSelecionada && locais.length === 1) {
+        clinicaSelecionada = locais[0].id;
+        setQcClinicaId(clinicaSelecionada);
+      }
     } else {
-      setPlanos([]);
+      setClinicasFallback([]);
     }
-  }, [activeClinicId, limparFotoCadastro]);
+
+    // Carregar planos da clínica selecionada
+    await carregarPlanosClinica(clinicaSelecionada);
+  }, [activeClinicId, clinics, limparFotoCadastro, carregarPlanosClinica]);
 
   async function buscarPacientePorCpf(cpf: string) {
-    const { data } = await supabase.from('pacientes').select('id, nome, cpf').in('cpf', variantesCpf(cpf)).limit(1);
-    const achado = data?.[0];
-    setQcCpfExistente(achado ? { id: String(achado.id), nome: achado.nome || 'Paciente' } : null);
+    try {
+      const modo = await modoDados();
+      let encontrados: Array<{ id: string | number; nome?: string | null }> = [];
+      if (modo === 'local') {
+        encontrados = await listar<{ id: string | number; nome?: string | null }>('pacientes', {
+          filtros: [{ col: 'cpf', op: 'in', valor: variantesCpf(cpf) }],
+          limite: 1,
+        });
+      } else {
+        const { data } = await supabase.from('pacientes').select('id, nome, cpf').in('cpf', variantesCpf(cpf)).limit(1);
+        encontrados = (data || []) as Array<{ id: string | number; nome?: string | null }>;
+      }
+      const achado = encontrados[0];
+      setQcCpfExistente(achado ? { id: String(achado.id), nome: achado.nome || 'Paciente' } : null);
+    } catch {
+      setQcCpfExistente(null);
+    }
   }
 
   async function submitQuickCapture() {
@@ -164,7 +235,7 @@ export function PatientActionModalProvider({ children }: { children: React.React
     setQcSaving(true);
     setQcError(null);
 
-    const insertPayload: any = {
+    const insertPayload: Record<string, unknown> = {
       nome: payload.nome,
       telefone: qcTelefone.trim(),
       clinica_id: qcClinicaId,
@@ -191,33 +262,58 @@ export function PatientActionModalProvider({ children }: { children: React.React
       insertPayload.responsavel_telefone = payload.responsavel_telefone || null;
     }
 
-    const { data, error } = await supabase
-      .from('pacientes')
-      .insert([insertPayload])
-      .select('id, nome')
-      .single();
-
-    setQcSaving(false);
-
-    if (error || !data) {
-      setQcError(error?.message || 'Não foi possível cadastrar o paciente.');
+    const modo = await modoDados();
+    let data: { id: string; nome: string } | null = null;
+    try {
+      if (modo === 'local') {
+        const salvo = await inserir<Record<string, unknown>>('pacientes', insertPayload);
+        data = { id: String(salvo.id), nome: String(salvo.nome || '') };
+      } else {
+        const resposta = await supabase
+          .from('pacientes')
+          .insert([insertPayload])
+          .select('id, nome')
+          .single();
+        if (resposta.error || !resposta.data) {
+          setQcSaving(false);
+          setQcError(resposta.error?.message || 'Não foi possível cadastrar o paciente.');
+          return;
+        }
+        data = resposta.data as { id: string; nome: string };
+      }
+    } catch (erro) {
+      setQcSaving(false);
+      setQcError(erro instanceof Error ? erro.message : 'Não foi possível cadastrar o paciente.');
       return;
     }
 
+    setQcSaving(false);
+
     let avisoFoto = '';
     if (qcFotoBlob) {
-      const caminho = `pacientes/${data.id}/avatar.jpg`;
-      const publicUrl = await enviarArquivoClinica(caminho, qcFotoBlob, {
-        contentType: 'image/jpeg',
-        upsert: true,
-        cacheControl: '3600',
-      }).catch((err: unknown) => {
-        avisoFoto = ` A foto não foi salva${err instanceof Error && err.message ? `: ${err.message}` : '.'}`;
-        return null;
-      });
-      if (publicUrl) {
-        const { error: updErr } = await supabase.from('pacientes').update({ foto_url: publicUrl }).eq('id', data.id);
-        if (updErr) avisoFoto = ' A foto não foi salva.';
+      if (modo === 'local' && typeof navigator !== 'undefined' && navigator.onLine === false) {
+        avisoFoto = ' A foto não foi salva porque o aplicativo está sem internet.';
+      } else {
+        try {
+          const caminho = `pacientes/${data.id}/avatar.jpg`;
+          const publicUrl = await enviarArquivoClinica(caminho, qcFotoBlob, {
+            contentType: 'image/jpeg',
+            upsert: true,
+            cacheControl: '3600',
+          });
+          if (publicUrl) {
+            if (modo === 'local') {
+              await atualizar('pacientes', data.id, { foto_url: publicUrl });
+            } else {
+              const { error: updErr } = await supabase.from('pacientes').update({ foto_url: publicUrl }).eq('id', data.id);
+              if (updErr) avisoFoto = ' A foto não foi salva.';
+            }
+          }
+        } catch (err) {
+          avisoFoto = modo === 'local'
+            ? ' A foto não foi salva (sem conexão com o armazenamento).'
+            : ` A foto não foi salva${err instanceof Error && err.message ? `: ${err.message}` : '.'}`;
+        }
       }
     }
     limparFotoCadastro();
@@ -242,6 +338,10 @@ export function PatientActionModalProvider({ children }: { children: React.React
   async function buscarCep(cep: string) {
     const cleanCep = cep.replace(/\D/g, '');
     if (cleanCep.length !== 8) return;
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      setQcError('Sem internet para buscar o CEP. Preencha o endereço manualmente — o cadastro funciona offline.');
+      return;
+    }
     
     setQcBuscandoCep(true);
     try {
@@ -253,9 +353,10 @@ export function PatientActionModalProvider({ children }: { children: React.React
         setQcBairro(data.bairro || '');
         setQcCidade(data.localidade || '');
         setQcUf(data.uf || '');
+        setQcError(null);
       }
-    } catch (err) {
-      console.error('Erro ao buscar CEP:', err);
+    } catch {
+      setQcError('Não foi possível consultar o CEP agora. Preencha o endereço manualmente.');
     } finally {
       setQcBuscandoCep(false);
     }
@@ -329,15 +430,9 @@ export function PatientActionModalProvider({ children }: { children: React.React
                       onChange={(v) => {
                         setQcClinicaId(v);
                         setQcPlanoId('');
-                        if (v) {
-                          supabase.from('planos').select('id, nome').eq('clinica_id', v).eq('ativo', true).order('nome').then(({ data }) => {
-                            setPlanos(data || []);
-                          });
-                        } else {
-                          setPlanos([]);
-                        }
+                        void carregarPlanosClinica(v);
                       }}
-                      options={[{ value: '', label: 'Selecione a clínica' }, ...clinics.map((c: any) => ({ value: c.id, label: c.nome }))]}
+                      options={[{ value: '', label: 'Selecione a clínica' }, ...(clinics.length > 0 ? clinics.map((c: any) => ({ value: c.id, label: c.nome })) : clinicasFallback.map((c) => ({ value: c.id, label: c.nome })))]}
                       size="md"
                     />
                   </label>

@@ -299,7 +299,7 @@ function criarSync({ banco, obterConfig, obterSessao, definirSessao, aoMudarEsta
             .prepare('DELETE FROM sync_outbox WHERE tabela = ? AND linha_id = ? AND updated_at <= ?')
             .run(tabela, String(linhaId), remotoUpdated);
           if (banco.temPendencia(tabela, linhaId)) continue; // ainda há algo mais novo local
-      }
+        }
 
         banco.aplicarRemoto(tabela, linha);
         aplicados += 1;

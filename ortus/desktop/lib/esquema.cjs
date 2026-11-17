@@ -37,6 +37,101 @@ const CRIADO_EM = { created_at: 'data' };
  * @type {Record<string, DefTabela>}
  */
 const TABELAS = {
+  // ---------------------------------------------------------------------
+  // Referência (somente leitura no desktop): nomes de clínica e de
+  // profissional precisam existir offline para a agenda e as tarefas não
+  // mostrarem apenas ids. O desktop não escreve nelas; elas descem no pull.
+  // ---------------------------------------------------------------------
+  clinicas: {
+    nome: 'clinicas',
+    pk: 'id',
+    pkTipo: 'inteiro',
+    clinicaCol: null,
+    colunas: {
+      id: 'inteiro',
+      nome: 'texto',
+      cor_tema: 'texto',
+      horario_abertura: 'texto',
+      horario_fechamento: 'texto',
+      created_at: 'data',
+      endereco: 'texto',
+      rede_id: 'texto',
+      is_matriz: 'bool',
+      cnpj: 'texto',
+      responsavel_nome: 'texto',
+      email: 'texto',
+      telefone: 'texto',
+      horario_inicio: 'texto',
+      horario_fim: 'texto',
+      fuso_horario: 'texto',
+      emitir_notas_em_nome: 'texto',
+      logo_url: 'texto',
+      cep: 'texto',
+      rua: 'texto',
+      numero: 'texto',
+      complemento: 'texto',
+      bairro: 'texto',
+      cidade: 'texto',
+      uf: 'texto',
+      limite_armazenamento_mb: 'inteiro',
+      updated_at: 'data',
+    },
+  },
+
+  profissionais_clinicas: {
+    nome: 'profissionais_clinicas',
+    pk: 'id',
+    pkTipo: 'inteiro',
+    clinicaCol: 'clinica_id',
+    colunas: {
+      id: 'inteiro',
+      profissional_id: 'inteiro',
+      clinica_id: 'inteiro',
+      created_at: 'data',
+      permissao: 'texto',
+      updated_at: 'data',
+    },
+  },
+
+  profissionais: {
+    nome: 'profissionais',
+    pk: 'id',
+    pkTipo: 'inteiro',
+    clinicaCol: null,
+    colunas: {
+      id: 'inteiro',
+      nome: 'texto',
+      cargo: 'texto',
+      created_at: 'data',
+      nivel_acesso: 'texto',
+      usuario_email: 'texto',
+      user_id: 'texto',
+      foto_url: 'texto',
+      cro: 'texto',
+      especialidade: 'texto',
+      bio: 'texto',
+      email: 'texto',
+      telefone: 'texto',
+      cpf: 'texto',
+      conselho: 'texto',
+      numero_conselho: 'texto',
+      uf_conselho: 'texto',
+      sexo: 'texto',
+      endereco: 'texto',
+      cep: 'texto',
+      cidade: 'texto',
+      estado: 'texto',
+      uf: 'texto',
+      precisa_trocar_senha: 'bool',
+      is_super_admin: 'bool',
+      exclusao_solicitada_em: 'data',
+      ativo: 'bool',
+      cor_agenda: 'texto',
+      updated_at: 'data',
+    },
+  },
+
+
   pacientes: {
     nome: 'pacientes',
     pk: 'id',
@@ -285,6 +380,7 @@ const TABELAS = {
       updated_at: 'data',
     },
   },
+
 
   whatsapp_mensagens: {
     nome: 'whatsapp_mensagens',

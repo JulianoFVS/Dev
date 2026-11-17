@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
+import { modoDados, listar, inserir, atualizar, remover } from '@/lib/local/cliente';
 import { clinicScope, readRouteCache, writeRouteCache } from '@/lib/routeListCache';
 import {
     Plus, Search, Calendar,
@@ -100,11 +101,103 @@ function readTarefasBoot(): TarefasSnapshot | null {
     return readRouteCache<TarefasSnapshot>(TAREFAS_CACHE_KEY, clinicScope(clinicId));
 }
 
+function mensagemErro(err: unknown, padrao: string): string {
+    return err instanceof Error && err.message ? err.message : padrao;
+}
+
+/** Replica no cliente o `alerta_data` da view `v_tarefas_completo`. */
+function alertaDataLocal(dataLimite: string | null, status: Tarefa['status']): Tarefa['alerta_data'] {
+    if (!dataLimite || status === 'concluido') return 'normal';
+    const [ano, mes, dia] = dataLimite.slice(0, 10).split('-').map(Number);
+    if (!ano || !mes || !dia) return 'normal';
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    const limite = new Date(ano, mes - 1, dia);
+    const dias = Math.round((limite.getTime() - hoje.getTime()) / 86_400_000);
+    if (dias < 0) return 'atrasada';
+    if (dias <= 3) return 'proxima';
+    return 'normal';
+}
+
+function ordenarPorDataLimite(a: Tarefa, b: Tarefa): number {
+    if (!a.data_limite && !b.data_limite) return 0;
+    if (!a.data_limite) return 1;
+    if (!b.data_limite) return -1;
+    return a.data_limite.localeCompare(b.data_limite);
+}
+
+type CacheProfissionaisLocal = { tentado: boolean; lista: Profissional[] };
+
+/**
+ * Monta o snapshot que a tela consome a partir do SQLite local.
+ * `v_tarefas_completo` não existe offline, então os relacionamentos são
+ * resolvidos aqui (pacientes). `profissionais` não é espelhada no SQLite;
+ * quando não existe, o cartão cai para o id do responsável.
+ */
+async function carregarSnapshotLocal(
+    clinicasIds: number[],
+    cacheProfissionais: CacheProfissionaisLocal,
+): Promise<TarefasSnapshot> {
+    const [tarefasBase, pacientes] = await Promise.all([
+        listar<Tarefa>('tarefas', {
+            filtros: [{ col: 'clinica_id', op: 'in', valor: clinicasIds }],
+            ordem: [{ col: 'data_limite', asc: true }],
+        }),
+        listar<Paciente>('pacientes', {
+            filtros: [{ col: 'clinica_id', op: 'in', valor: clinicasIds }],
+            ordem: [{ col: 'nome', asc: true }],
+        }),
+    ]);
+
+    const responsavelIds = [...new Set(
+        tarefasBase
+            .map((t) => t.responsavel_id)
+            .filter((id): id is number => typeof id === 'number' && Number.isFinite(id)),
+    )];
+
+    if (!cacheProfissionais.tentado && responsavelIds.length > 0) {
+        cacheProfissionais.tentado = true;
+        try {
+            cacheProfissionais.lista = await listar<Profissional>('profissionais', {
+                filtros: [{ col: 'id', op: 'in', valor: responsavelIds }],
+            });
+        } catch {
+            // Tabela não espelhada no desktop: seguimos com o id do responsável.
+            cacheProfissionais.lista = [];
+        }
+    }
+
+    const pacientesPorId = new Map<string, Paciente>(
+        pacientes.map((p): [string, Paciente] => [p.id, p]),
+    );
+    const profissionaisPorId = new Map<number, Profissional>(
+        cacheProfissionais.lista.map((p): [number, Profissional] => [Number(p.id), p]),
+    );
+
+    const tarefas = tarefasBase
+        .slice()
+        .sort(ordenarPorDataLimite)
+        .map((t): Tarefa => {
+            const paciente = t.paciente_id ? pacientesPorId.get(t.paciente_id) : undefined;
+            const responsavel = t.responsavel_id != null ? profissionaisPorId.get(Number(t.responsavel_id)) : undefined;
+            return {
+                ...t,
+                responsavel_nome: responsavel?.nome ?? (t.responsavel_id != null ? String(t.responsavel_id) : undefined),
+                paciente_nome: paciente?.nome,
+                paciente_telefone: paciente?.telefone ?? undefined,
+                alerta_data: alertaDataLocal(t.data_limite, t.status),
+            };
+        });
+
+    return { tarefas, profissionais: cacheProfissionais.lista, pacientes };
+}
+
 export default function Tarefas() {
     const { activeClinicId, activeClinic, clinics, loading: clinicLoading } = useClinica();
     const boot = readTarefasBoot();
     const jaCarregou = useRef(!!boot?.tarefas?.length);
     const fetchGen = useRef(0);
+    const cacheProfissionaisLocal = useRef<CacheProfissionaisLocal>({ tentado: false, lista: [] });
     const { showAlert, showConfirm } = useCustomAlert();
 
     const [tarefas, setTarefas] = useState<Tarefa[]>(() => boot?.tarefas ?? []);
@@ -134,6 +227,16 @@ export default function Tarefas() {
         paciente_id: ''
     });
 
+    // No desktop a tabela `profissionais` pode não existir: mantemos o id visível
+    // em vez de o seletor cair para "Sem responsável".
+    const opcoesResponsavel = useMemo(() => {
+        const opcoes = profissionais.map((p) => ({ value: String(p.id), label: p.nome }));
+        if (form.responsavel_id && !opcoes.some((o) => o.value === form.responsavel_id)) {
+            opcoes.unshift({ value: form.responsavel_id, label: `Responsável ${form.responsavel_id}` });
+        }
+        return opcoes;
+    }, [profissionais, form.responsavel_id]);
+
     useEffect(() => {
         if (clinicLoading) return;
         const scope = clinicScope(activeClinicId);
@@ -158,6 +261,25 @@ export default function Tarefas() {
 
         if (clinicasIds.length === 0) {
             if (gen === fetchGen.current) setLoading(false);
+            return;
+        }
+
+        if (await modoDados() === 'local') {
+            try {
+                const snapshot = await carregarSnapshotLocal(clinicasIds, cacheProfissionaisLocal.current);
+                if (gen !== fetchGen.current) return;
+                writeRouteCache(TAREFAS_CACHE_KEY, clinicScope(activeClinicId), snapshot);
+                setTarefas(snapshot.tarefas);
+                setProfissionais(snapshot.profissionais);
+                setPacientes(snapshot.pacientes);
+                jaCarregou.current = true;
+            } catch (err) {
+                if (gen === fetchGen.current) {
+                    showAlert('Erro ao carregar tarefas: ' + mensagemErro(err, 'banco local indisponível.'), { type: 'error' });
+                }
+            } finally {
+                if (gen === fetchGen.current) setLoading(false);
+            }
             return;
         }
 
@@ -247,6 +369,28 @@ export default function Tarefas() {
             paciente_id: form.paciente_id || null
         };
 
+        if (await modoDados() === 'local') {
+            try {
+                if (tarefaEditando) {
+                    await atualizar<Tarefa>('tarefas', tarefaEditando.id, payload);
+                    showAlert('Tarefa atualizada!', { type: 'success' });
+                } else {
+                    await inserir<Tarefa>('tarefas', payload);
+                    showAlert('Tarefa criada!', { type: 'success' });
+                }
+                setModalOpen(false);
+                void carregarDados({ silent: true });
+            } catch (err) {
+                showAlert(
+                    'Erro ao ' + (tarefaEditando ? 'atualizar: ' : 'criar: ') + mensagemErro(err, 'banco local indisponível.'),
+                    { type: 'error' },
+                );
+            } finally {
+                setSalvando(false);
+            }
+            return;
+        }
+
         if (tarefaEditando) {
             const { error } = await supabase
                 .from('tarefas')
@@ -268,7 +412,18 @@ export default function Tarefas() {
 
     async function excluirTarefa(id: string) {
         if (!(await showConfirm('Excluir esta tarefa?', { title: 'Excluir', type: 'warning' }))) return;
-        
+
+        if (await modoDados() === 'local') {
+            try {
+                await remover('tarefas', id);
+                showAlert('Tarefa excluída!', { type: 'success' });
+                void carregarDados({ silent: true });
+            } catch (err) {
+                showAlert('Erro ao excluir: ' + mensagemErro(err, 'banco local indisponível.'), { type: 'error' });
+            }
+            return;
+        }
+
         const { error } = await supabase.from('tarefas').delete().eq('id', id);
         if (error) showAlert('Erro ao excluir: ' + error.message, { type: 'error' });
         else {
@@ -285,6 +440,19 @@ export default function Tarefas() {
     async function moverStatus(id: string, novoStatus: 'a_fazer' | 'em_andamento' | 'concluido') {
         const prev = tarefas;
         setTarefas((list) => list.map((t) => (t.id === id ? { ...t, status: novoStatus } : t)));
+
+        if (await modoDados() === 'local') {
+            try {
+                await atualizar('tarefas', id, { status: novoStatus });
+                const next = prev.map((t) => (t.id === id ? { ...t, status: novoStatus } : t));
+                writeRouteCache(TAREFAS_CACHE_KEY, clinicScope(activeClinicId), { tarefas: next, profissionais, pacientes });
+            } catch (err) {
+                setTarefas(prev);
+                showAlert('Erro ao mover: ' + mensagemErro(err, 'banco local indisponível.'), { type: 'error' });
+            }
+            return;
+        }
+
         const { error } = await supabase.from('tarefas').update({ status: novoStatus }).eq('id', id);
         if (error) {
             setTarefas(prev);
@@ -538,7 +706,7 @@ export default function Tarefas() {
                             <div className="grid grid-cols-1 gap-x-3 gap-y-4 sm:grid-cols-2">
                                 <label>
                                     <span className="mb-1.5 block text-xs font-medium text-neutral-500">Responsável</span>
-                                    <CustomSelect value={form.responsavel_id} onChange={v => setForm({...form, responsavel_id: v})} options={[{ value: '', label: 'Sem responsável' }, ...profissionais.map(p => ({ value: String(p.id), label: p.nome }))]} size="md" />
+                                    <CustomSelect value={form.responsavel_id} onChange={v => setForm({...form, responsavel_id: v})} options={[{ value: '', label: 'Sem responsável' }, ...opcoesResponsavel]} size="md" />
                                 </label>
                                 <label>
                                     <span className="mb-1.5 block text-xs font-medium text-neutral-500">Data limite</span>

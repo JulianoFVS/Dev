@@ -131,9 +131,57 @@ WHATSAPP_GATEWAY_SECRET=        # gateway do WhatsApp
       `20261114_saas_auditoria`,
       `20261114_saas_clinicas`,
       `20261114_agenda_preservar`,
-      `20261115_normalizar_urls`.
+      `20261115_normalizar_urls`,
+      `20261117_desktop_sync`.
 - [ ] `npm test` com 100% OK (`test:rls`).
 - [ ] `CRON_SECRET` definido no ambiente da Vercel.
 - [ ] Confirmar que `SUPABASE_SERVICE_ROLE_KEY` existe **apenas** no servidor.
 - [ ] Conferir no painel do Supabase que os três buckets estão privados.
 - [ ] Conferir que apenas os donos têm `is_super_admin = true`.
+
+---
+
+## 8. Ortus Desktop (.exe)
+
+O aplicativo Windows roda na máquina da clínica com banco local. O modelo de
+segurança muda de "tudo na nuvem" para "dado na máquina + backup na nuvem".
+
+### O que o instalador **não** leva
+
+| Segredo | Por quê |
+|---|---|
+| `SUPABASE_SERVICE_ROLE_KEY` | ignora RLS; com ela, um .exe extraído daria acesso total |
+| `DATABASE_URL` | conexão direta ao Postgres |
+| `.env.local` | arquivo de desenvolvimento |
+| `CRON_SECRET`, `RESEND_API_KEY`, `TWILIO_*` | rotinas do servidor do site |
+
+`scripts/desktop-config.mjs` decodifica o JWT da chave e **recusa o build** se
+a chave for `service_role`. Só a chave anônima (pública, a mesma do navegador)
+vai em `resources/config.json`.
+
+### Superfície de rede
+
+- Os três processos escutam **somente em 127.0.0.1**, em portas escolhidas em
+  runtime (nada fixo, nada exposto na rede da clínica).
+- A janela fala só com o Next local. O Next fala com o WhatsApp local. A API
+  de dados (SQLite) aceita requisições **sem cabeçalho `Origin`** — ou seja,
+  navegador não alcança; só os processos locais.
+- Next ⇄ API de dados e Next ⇄ WhatsApp usam segredos de 32 bytes gerados na
+  instalação e guardados em `userData/segredos.json` (fora do .exe). Eles nunca
+  chegam ao renderer.
+
+### Sincronização
+
+- Usa o **JWT do usuário** logado; toda escrita passa pelas policies que já
+  exigem `user_has_clinic_access`.
+- Onde o gateway antes gravava com service role, agora grava no SQLite e o
+  sincronizador envia com o token do usuário.
+- `updated_at` é carimbado por gatilho no Postgres, então edições vindas do
+  site também entram na fila do pull.
+
+### Limites conhecidos
+
+- O banco local é por máquina e por usuário do Windows: quem tem sessão aberta
+  no sistema operacional tem acesso aos dados da clínica naquele computador.
+  Proteja a máquina com senha e disco criptografado (BitLocker).
+- Sessão em cache permite abrir sem internet; ela é apagada no logout.

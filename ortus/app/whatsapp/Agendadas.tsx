@@ -3,13 +3,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Loader2, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { modoDados, listar, inserir, atualizar } from '@/lib/local/cliente';
 import CampoData from '@/components/ui/CampoData';
 import CampoHora from '@/components/ui/CampoHora';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
 import { VARIAVEIS_WHATSAPP } from '@/lib/whatsappAutomacoes';
 import { formatarTelefone } from '@/lib/whatsappTelefone';
 import BuscaPaciente from './BuscaPaciente';
-import type { PacienteBusca } from './api';
+import { mensagemDeErro, type PacienteBusca } from './api';
 
 type Props = { clinicaId: string };
 
@@ -44,7 +45,7 @@ function proximaHora() {
 }
 
 export default function Agendadas({ clinicaId }: Props) {
-  const { showConfirm } = useCustomAlert();
+  const { showAlert, showConfirm } = useCustomAlert();
   const [lista, setLista] = useState<Agendada[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [erroLista, setErroLista] = useState('');
@@ -58,6 +59,22 @@ export default function Agendadas({ clinicaId }: Props) {
   const campo = useRef<HTMLTextAreaElement>(null);
 
   const carregar = useCallback(async () => {
+    if (await modoDados() === 'local') {
+      try {
+        const linhas = await listar<Agendada>('whatsapp_agendadas', {
+          filtros: [{ col: 'clinica_id', op: 'eq', valor: Number(clinicaId) }],
+          ordem: [{ col: 'enviar_em', asc: false }],
+          limite: 150,
+        });
+        setErroLista('');
+        setLista(linhas);
+      } catch (err) {
+        setErroLista(mensagemDeErro(err, 'Não foi possível carregar as mensagens agendadas.'));
+      }
+      setCarregando(false);
+      return;
+    }
+
     const { data: linhas, error } = await supabase
       .from('whatsapp_agendadas')
       .select('id, nome, telefone, texto, enviar_em, status, erro')
@@ -115,6 +132,34 @@ export default function Agendadas({ clinicaId }: Props) {
     if (Number.isNaN(quando.getTime()) || quando.getTime() < Date.now() - 60_000) return setErro('Escolha uma data e hora no futuro.');
     setSalvando(true);
     setErro('');
+
+    if (await modoDados() === 'local') {
+      try {
+        for (const destino of destinos) {
+          await inserir('whatsapp_agendadas', {
+            clinica_id: Number(clinicaId),
+            paciente_id: destino.paciente_id,
+            nome: destino.nome,
+            telefone: destino.telefone,
+            texto: corpo,
+            enviar_em: quando.toISOString(),
+            // O SQLite local não aplica o DEFAULT do Postgres.
+            status: 'pendente',
+          });
+        }
+        setDestinos([]);
+        setTexto('');
+        void carregar();
+      } catch (err) {
+        setErro(mensagemDeErro(err, 'Não foi possível agendar. Verifique o banco local.'));
+        // Inserimos um destinatário por vez: recarrega para refletir os que entraram.
+        void carregar();
+      } finally {
+        setSalvando(false);
+      }
+      return;
+    }
+
     const { error } = await supabase.from('whatsapp_agendadas').insert(
       destinos.map((d) => ({
         clinica_id: Number(clinicaId),
@@ -137,6 +182,27 @@ export default function Agendadas({ clinicaId }: Props) {
 
   async function cancelar(item: Agendada) {
     if (!(await showConfirm('Cancelar esta mensagem agendada?', { title: 'Cancelar envio', type: 'warning', confirmLabel: 'Cancelar envio' }))) return;
+
+    if (await modoDados() === 'local') {
+      try {
+        // Mesmo update condicional da nuvem: só cancela o que ainda está pendente.
+        const pendentes = await listar<Agendada>('whatsapp_agendadas', {
+          filtros: [
+            { col: 'id', op: 'eq', valor: item.id },
+            { col: 'status', op: 'eq', valor: 'pendente' },
+          ],
+          limite: 1,
+        });
+        if (pendentes.length > 0) {
+          await atualizar('whatsapp_agendadas', item.id, { status: 'cancelada' });
+        }
+        void carregar();
+      } catch (err) {
+        showAlert('Erro ao cancelar: ' + mensagemDeErro(err, 'banco local indisponível.'), { type: 'error' });
+      }
+      return;
+    }
+
     await supabase.from('whatsapp_agendadas').update({ status: 'cancelada' }).eq('id', item.id).eq('status', 'pendente');
     void carregar();
   }

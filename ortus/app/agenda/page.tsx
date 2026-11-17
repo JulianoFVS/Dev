@@ -6,6 +6,15 @@ import { supabase } from '@/lib/supabase';
 import { usePatientActionModal } from '@/components/PatientActionModal';
 import { useClinica } from '@/app/context/ClinicaContext';
 import { fetchUserClinicas, fetchUserEquipe } from '@/lib/clinicScoped';
+import {
+  atualizar,
+  inserir,
+  lerSessaoCacheUI,
+  listar,
+  modoDados,
+  remover,
+  type FiltroLocal,
+} from '@/lib/local/cliente';
 
 import { Plus, X, Loader2, UserPlus, Trash2, Bell, ChevronDown, ChevronLeft, ChevronRight, Search, Calendar, LayoutGrid, Clock, List } from 'lucide-react';
 import CustomSelect from '@/components/ui/CustomSelect';
@@ -28,6 +37,40 @@ import { lerPrefillAgenda, limparPrefillAgenda } from '@/lib/agendaPrefill';
 import { tratamentosVisiveis, valorNaAgenda, type LinhaPreco, type PlanoTipo } from '@/lib/precoTratamento';
 
 type Visao = 'mes' | 'semana' | 'dia' | 'lista';
+
+type PacienteAgenda = {
+  id: string;
+  nome: string;
+  clinica_id: number | string | null;
+  telefone?: string | null;
+  plano_id?: string | null;
+};
+
+type AgendamentoLocal = {
+  id: number;
+  paciente_id: string | null;
+  clinica_id: number | null;
+  profissional_id: number | null;
+  data_hora: string;
+  procedimento: string;
+  cor: string | null;
+  valor: number | null;
+  desconto: number | null;
+  valor_final: number | null;
+  status: string;
+  observacoes: string | null;
+  duracao_minutos: number | null;
+  tipo_registro?: string | null;
+};
+
+type PerfilSessaoLocal = {
+  id?: string | number | null;
+  nivel_acesso?: string | null;
+};
+
+function mensagemErro(erro: unknown, padrao: string): string {
+  return erro instanceof Error && erro.message ? erro.message : padrao;
+}
 
 const DIAS_CURTOS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 const STATUS_OPCOES = [
@@ -179,7 +222,7 @@ export default function Agenda() {
   const searchParams = useSearchParams();
   const pacientePreSelecionado = searchParams?.get('paciente');
   const { openQuickCapture } = usePatientActionModal();
-  const { activeClinicId, loading: clinicLoading, clinicaNome } = useClinica();
+  const { activeClinicId, loading: clinicLoading, clinicaNome, clinics: clinicasContexto } = useClinica();
   const clinicaFiltro =
     !activeClinicId || activeClinicId === 'all' ? 'todas' : String(activeClinicId);
   const { showAlert, showConfirm } = useCustomAlert();
@@ -197,6 +240,7 @@ export default function Agenda() {
   const [openModal, setOpenModal] = useState(false);
   const [lembretesAbertos, setLembretesAbertos] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [modoLocal, setModoLocal] = useState(false);
   const [lembretesPendentes, setLembretesPendentes] = useState<LembreteAgendamento[]>([]);
   const [lembretesLoading, setLembretesLoading] = useState(false);
   const [visao, setVisao] = useState<Visao>('semana');
@@ -220,10 +264,17 @@ export default function Agenda() {
   useEffect(() => { if(usuarioAtual) carregarEventos(); }, [clinicaFiltro, usuarioAtual]);
 
   useEffect(() => {
+      let ativo = true;
+      modoDados().then((modo) => { if (ativo) setModoLocal(modo === 'local'); }).catch(() => undefined);
+      return () => { ativo = false; };
+  }, []);
+
+  useEffect(() => {
       if (!clinicLoading && clinicas.length) carregarLembretes();
   }, [clinicLoading, clinicas, clinicaFiltro]);
 
   async function carregarLembretes() {
+      const modo = await modoDados();
       setLembretesLoading(true);
       try {
           const ids = clinicaFiltro !== 'todas'
@@ -240,6 +291,11 @@ export default function Agenda() {
                   agregado.push(...p);
               }
               setLembretesPendentes(agregado);
+          }
+      } catch (erro) {
+          setLembretesPendentes([]);
+          if (modo === 'local') {
+              await showAlert(mensagemErro(erro, 'Não foi possível carregar os lembretes.'), { type: 'error' });
           }
       } finally {
           setLembretesLoading(false);
@@ -298,19 +354,44 @@ export default function Agenda() {
   }, [formData.clinica_id, profissionais]);
 
   const recarregarPacientes = useCallback(async () => {
-      const cl = await fetchUserClinicas();
-      const idsPermitidos = cl.map((c) => c.id);
-      if (idsPermitidos.length > 0) {
-          const { data: pac } = await supabase
-              .from('pacientes')
-              .select('id, nome, clinica_id, telefone, plano_id')
-              .in('clinica_id', idsPermitidos as any)
-              .order('nome');
-          if (pac) setPacientes(pac);
-      } else {
-          setPacientes([]);
+      const modo = await modoDados();
+      if (modo === 'local') {
+          try {
+              const idsLocais = clinicas.length
+                  ? clinicas.map((c) => c.id)
+                  : (clinicaFiltro !== 'todas' ? [clinicaFiltro] : []);
+              if (idsLocais.length > 0) {
+                  const pac = await listar<PacienteAgenda>('pacientes', {
+                      filtros: [{ col: 'clinica_id', op: 'in', valor: idsLocais }],
+                      ordem: [{ col: 'nome', asc: true }],
+                  });
+                  setPacientes(pac);
+              } else {
+                  setPacientes([]);
+              }
+          } catch (erro) {
+              await showAlert(mensagemErro(erro, 'Não foi possível recarregar os pacientes.'), { type: 'error' });
+          }
+          return;
       }
-  }, []);
+
+      try {
+          const cl = await fetchUserClinicas();
+          const idsPermitidos = cl.map((c) => c.id);
+          if (idsPermitidos.length > 0) {
+              const { data: pac } = await supabase
+                  .from('pacientes')
+                  .select('id, nome, clinica_id, telefone, plano_id')
+                  .in('clinica_id', idsPermitidos as any)
+                  .order('nome');
+              if (pac) setPacientes(pac);
+          } else {
+              setPacientes([]);
+          }
+      } catch (erro) {
+          await showAlert(mensagemErro(erro, 'Não foi possível recarregar os pacientes.'), { type: 'error' });
+      }
+  }, [clinicas, clinicaFiltro, showAlert]);
 
   async function carregarTratamentosBase(clinicaId: string) {
       const [tr, planos, linhas] = await Promise.all([
@@ -340,6 +421,29 @@ export default function Agenda() {
   }, [recarregarPacientes]);
 
   async function inicializar() { 
+      const modo = await modoDados();
+      if (modo === 'local') {
+          try {
+              const cache = await lerSessaoCacheUI();
+              const perfil = cache?.perfil as PerfilSessaoLocal | null | undefined;
+              const nivel = typeof perfil?.nivel_acesso === 'string' ? perfil.nivel_acesso : 'admin';
+              const profissionalId = perfil?.id ?? null;
+              if (cache?.user?.id) {
+                  setUsuarioAtual({ id: cache.user.id, nivel, profissional_id: profissionalId });
+                  if (nivel !== 'admin' && profissionalId != null) {
+                      setFormData(prev => ({ ...prev, profissional_id: String(profissionalId) }));
+                  }
+              } else {
+                  const { data: { session } } = await supabase.auth.getSession();
+                  if (session?.user) setUsuarioAtual({ id: session.user.id, nivel, profissional_id: profissionalId });
+              }
+          } catch (erro) {
+              await showAlert(mensagemErro(erro, 'Não foi possível carregar a sessão local.'), { type: 'error' });
+          }
+          await fetchDados();
+          return;
+      }
+
       const { data: { user } } = await supabase.auth.getUser(); 
       if (user) { 
           const { data: prof } = await supabase.from('profissionais').select('*').eq('user_id', user.id).single(); 
@@ -354,6 +458,34 @@ export default function Agenda() {
   }
 
   async function fetchDados() {
+      const modo = await modoDados();
+      if (modo === 'local') {
+          try {
+              const clinicasAtivas = await resolverClinicasLocal();
+              setClinicas(clinicasAtivas);
+              const idsPermitidos = clinicasAtivas.map((c) => c.id);
+              if (idsPermitidos.length > 0) {
+                  const pac = await listar<PacienteAgenda>('pacientes', {
+                      filtros: [{ col: 'clinica_id', op: 'in', valor: idsPermitidos }],
+                      ordem: [{ col: 'nome', asc: true }],
+                  });
+                  setPacientes(pac);
+              } else {
+                  setPacientes([]);
+              }
+
+              const equipe = await fetchUserEquipe();
+              const equipeNormalizada = equipe.map((p) => ({
+                  ...p,
+                  profissionais_clinicas: (p.clinicas || []).map((c) => ({ clinica_id: c.id })),
+              }));
+              setProfissionais(equipeNormalizada);
+          } catch (erro) {
+              await showAlert(mensagemErro(erro, 'Não foi possível carregar os dados da agenda.'), { type: 'error' });
+          }
+          return;
+      }
+
       // Clínicas restritas ao usuário (multi-tenant)
       const cl = await fetchUserClinicas();
       setClinicas(cl);
@@ -384,6 +516,11 @@ export default function Agenda() {
 
   async function carregarEventos() { 
       if (!usuarioAtual) return; 
+      const modo = await modoDados();
+      if (modo === 'local') {
+          await carregarEventosLocal();
+          return;
+      }
       let query = supabase.from('agendamentos').select('*, pacientes(nome), clinicas(nome, cor_tema)'); 
       if (clinicaFiltro !== 'todas') query = query.eq('clinica_id', clinicaFiltro); 
       if (usuarioAtual.nivel !== 'admin' && usuarioAtual.profissional_id) query = query.eq('profissional_id', usuarioAtual.profissional_id); 
@@ -403,6 +540,79 @@ export default function Agenda() {
           })); 
           setEvents(fmt); 
       } else setEvents([]); 
+  }
+
+  async function resolverClinicasLocal(): Promise<{ id: string | number; nome: string }[]> {
+      if (clinicasContexto.length > 0) {
+          return clinicasContexto.map((c) => ({ id: c.id, nome: c.nome }));
+      }
+      const cache = await lerSessaoCacheUI();
+      return (cache?.clinicas || []).map((c) => ({ id: c.id, nome: c.nome }));
+  }
+
+  async function carregarEventosLocal() {
+      try {
+          const clinicasAtivas = await resolverClinicasLocal();
+          const ids = clinicaFiltro !== 'todas'
+              ? [clinicaFiltro]
+              : clinicasAtivas.map((c) => c.id);
+          if (ids.length === 0) {
+              setEvents([]);
+              return;
+          }
+          const filtros: FiltroLocal[] = [
+              ids.length === 1
+                  ? { col: 'clinica_id', op: 'eq', valor: ids[0] }
+                  : { col: 'clinica_id', op: 'in', valor: ids },
+          ];
+          if (usuarioAtual?.nivel !== 'admin' && usuarioAtual?.profissional_id) {
+              filtros.push({ col: 'profissional_id', op: 'eq', valor: usuarioAtual.profissional_id });
+          }
+
+          const agendamentos = await listar<AgendamentoLocal>('agendamentos', {
+              filtros,
+              ordem: [{ col: 'data_hora', asc: true }],
+          });
+
+          const idsPacientes = Array.from(new Set(
+              agendamentos
+                  .map((a) => a.paciente_id)
+                  .filter((id): id is string => typeof id === 'string' && id.length > 0),
+          ));
+          const pacientesRelacionados = idsPacientes.length > 0
+              ? await listar<PacienteAgenda>('pacientes', {
+                  filtros: [{ col: 'id', op: 'in', valor: idsPacientes }],
+              })
+              : [];
+          const mapaPacientes = new Map(pacientesRelacionados.map((p) => [String(p.id), p]));
+          const mapaClinicas = new Map(clinicasAtivas.map((c) => [String(c.id), c.nome]));
+
+          const fmt = agendamentos
+            .filter((e) => e.tipo_registro !== 'debito_manual' && e.observacoes !== 'Débito manual')
+            .map((e) => {
+              const paciente = mapaPacientes.get(String(e.paciente_id));
+              const nomeClinica = mapaClinicas.get(String(e.clinica_id)) || clinicaNome;
+              return {
+                id: e.id,
+                title: `${paciente?.nome ?? ''} - ${e.procedimento}`,
+                start: e.data_hora,
+                end: new Date(new Date(e.data_hora).getTime() + (e.duracao_minutos ?? 60) * 60 * 1000).toISOString(),
+                extendedProps: {
+                  ...e,
+                  clinica_id: e.clinica_id != null ? String(e.clinica_id) : null,
+                  profissional_id: e.profissional_id != null ? String(e.profissional_id) : null,
+                  pacientes: paciente ? { nome: paciente.nome } : null,
+                  clinicas: { nome: nomeClinica, cor_tema: null },
+                },
+                backgroundColor: 'transparent',
+                borderColor: 'transparent',
+              };
+            });
+          setEvents(fmt);
+      } catch (erro) {
+          setEvents([]);
+          await showAlert(mensagemErro(erro, 'Não foi possível carregar a agenda local.'), { type: 'error' });
+      }
   }
 
   function abrirNoDia(dia: Date, hora = '08:00') {
@@ -479,8 +689,22 @@ export default function Agenda() {
           status: finalStatus 
       }; 
       
-      if (formData.id) await supabase.from('agendamentos').update(payload).eq('id', formData.id); 
-      else await supabase.from('agendamentos').insert([payload]); 
+      const modo = await modoDados();
+      try {
+          if (modo === 'local') {
+              const payloadLocal = { ...payload, duracao_minutos: 60 };
+              if (formData.id) await atualizar<AgendamentoLocal>('agendamentos', Number(formData.id), payloadLocal);
+              else await inserir<AgendamentoLocal>('agendamentos', payloadLocal);
+          } else if (formData.id) {
+              await supabase.from('agendamentos').update(payload).eq('id', formData.id);
+          } else {
+              await supabase.from('agendamentos').insert([payload]);
+          }
+      } catch (erro) {
+          await showAlert(mensagemErro(erro, 'Não foi possível salvar o agendamento.'), { type: 'error' });
+          setLoading(false);
+          return;
+      }
       
       setOpenModal(false); 
       carregarEventos(); 
@@ -491,7 +715,14 @@ export default function Agenda() {
   async function excluirAgendamento() {
       if(!formData.id) return;
       if(!(await showConfirm('Tem certeza que deseja excluir este agendamento?', { title: 'Excluir', type: 'error', confirmLabel: 'Excluir' }))) return;
-      await supabase.from('agendamentos').delete().eq('id', formData.id);
+      const modo = await modoDados();
+      try {
+          if (modo === 'local') await remover('agendamentos', Number(formData.id));
+          else await supabase.from('agendamentos').delete().eq('id', formData.id);
+      } catch (erro) {
+          await showAlert(mensagemErro(erro, 'Não foi possível excluir o agendamento.'), { type: 'error' });
+          return;
+      }
       setOpenModal(false);
       carregarEventos();
   }
@@ -1014,21 +1245,31 @@ export default function Agenda() {
                           </label>
                           <label className="col-span-2">
                               <span className="mb-1.5 block text-xs font-medium text-neutral-500">Procedimento</span>
-                              <ProcedureCombobox
-                                  clinicaId={formData.clinica_id}
-                                  especialidades={especialidades}
-                                  tratamentos={tratamentosAgenda}
-                                  value={formData.title}
-                                  onChange={(nome, t) => {
-                                      const preco = valorNaAgenda(t, planoDoPaciente, linhasPreco);
-                                      setFormData((p) => ({
-                                          ...p,
-                                          title: nome,
-                                          valor: preco ?? p.valor,
-                                      }));
-                                  }}
-                                  disabled={!formData.clinica_id}
-                              />
+                              {modoLocal && formData.clinica_id && tratamentosAgenda.length === 0 ? (
+                                  <input
+                                      type="text"
+                                      value={formData.title}
+                                      onChange={(e) => setFormData((p) => ({ ...p, title: e.target.value }))}
+                                      className={inputClass}
+                                      placeholder="Digite o procedimento"
+                                  />
+                              ) : (
+                                  <ProcedureCombobox
+                                      clinicaId={formData.clinica_id}
+                                      especialidades={especialidades}
+                                      tratamentos={tratamentosAgenda}
+                                      value={formData.title}
+                                      onChange={(nome, t) => {
+                                          const preco = valorNaAgenda(t, planoDoPaciente, linhasPreco);
+                                          setFormData((p) => ({
+                                              ...p,
+                                              title: nome,
+                                              valor: preco ?? p.valor,
+                                          }));
+                                      }}
+                                      disabled={!formData.clinica_id}
+                                  />
+                              )}
                           </label>
                           <label>
                               <span className="mb-1.5 block text-xs font-medium text-neutral-500">Valor (R$)</span>

@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { atualizar, listar, modoDados } from '@/lib/local/cliente';
 import type { FichaClinicaJson } from '@/lib/db/types';
 
 const CHAVES_CLINICAS = ['odontograma', 'texto_livre', 'marcacoes_hof', 'hof_fotos'] as const;
@@ -26,7 +27,21 @@ export function mesclarFichaClinica(
   return base;
 }
 
+async function carregarFichaLocal(pacienteId: string): Promise<Record<string, unknown> | null> {
+  const linhas = await listar<{ ficha_medica?: Record<string, unknown> | null }>('pacientes', {
+    filtros: [{ col: 'id', op: 'eq', valor: pacienteId }],
+    limite: 1,
+  });
+  if (!linhas.length) throw new Error('Paciente não encontrado no banco local.');
+  return linhas[0].ficha_medica || null;
+}
+
 export async function carregarFichaClinica(pacienteId: string): Promise<FichaClinicaJson> {
+  const modo = await modoDados();
+  if (modo === 'local') {
+    return extrairFichaClinica(await carregarFichaLocal(pacienteId));
+  }
+
   const { data, error } = await supabase
     .from('pacientes')
     .select('ficha_medica')
@@ -42,6 +57,15 @@ export async function salvarFichaClinica(
   parcial: Partial<FichaClinicaJson>,
   atual?: Record<string, unknown> | null,
 ): Promise<FichaClinicaJson> {
+  const modo = await modoDados();
+  if (modo === 'local') {
+    const base = atual ?? (await carregarFichaLocal(pacienteId));
+    const merged = mesclarFichaClinica(base, parcial);
+    const salvo = await atualizar('pacientes', pacienteId, { ficha_medica: merged });
+    if (!salvo) throw new Error('Paciente não encontrado no banco local.');
+    return extrairFichaClinica(merged);
+  }
+
   let base = atual;
   if (!base) {
     const { data } = await supabase.from('pacientes').select('ficha_medica').eq('id', pacienteId).single();

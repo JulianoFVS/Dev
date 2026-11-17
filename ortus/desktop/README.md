@@ -145,10 +145,11 @@ uma versão nova — só ao desinstalar, e mesmo assim os dados permanecem
 
 ### Tabelas sincronizadas
 
-`pacientes`, `agendamentos`, `paciente_tratamentos`, `paciente_anamneses`,
-`paciente_evolucoes`, `paciente_documentos`, `paciente_debitos`, `tarefas`,
-`configuracoes_clinica`, `whatsapp_agendadas`, `whatsapp_envios`,
-`whatsapp_mensagens`.
+`clinicas`, `profissionais` e `profissionais_clinicas` (referência, só leitura
+no desktop — para nomes e vínculos aparecerem offline), `pacientes`, `agendamentos`,
+`paciente_tratamentos`, `paciente_anamneses`, `paciente_evolucoes`,
+`paciente_documentos`, `paciente_debitos`, `tarefas`, `configuracoes_clinica`,
+`whatsapp_agendadas`, `whatsapp_envios`, `whatsapp_mensagens`.
 
 Todas têm `updated_at` (migration `20261117_desktop_sync.sql`, com gatilho) e
 espelho no SQLite (`desktop/lib/esquema.cjs`).

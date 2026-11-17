@@ -1,7 +1,20 @@
 import { supabase } from '@/lib/supabase';
 import { rowToEvolucao, type EvolucaoPaciente } from '@/lib/db/types';
+import { inserir, listar, modoDados, remover } from '@/lib/local/cliente';
 
 export async function listarEvolucoes(pacienteId: string): Promise<EvolucaoPaciente[]> {
+  const modo = await modoDados();
+  if (modo === 'local') {
+    const linhas = await listar<Record<string, unknown>>('paciente_evolucoes', {
+      filtros: [{ col: 'paciente_id', op: 'eq', valor: pacienteId }],
+      ordem: [
+        { col: 'data', asc: false },
+        { col: 'criado_em', asc: false },
+      ],
+    });
+    return linhas.map(rowToEvolucao);
+  }
+
   const { data, error } = await supabase
     .from('paciente_evolucoes')
     .select('*')
@@ -17,15 +30,23 @@ export async function criarEvolucao(
   pacienteId: string,
   input: { texto: string; data?: string | null; profissional?: string | null },
 ): Promise<EvolucaoPaciente> {
+  const payload = {
+    paciente_id: pacienteId,
+    legacy_id: Date.now().toString(),
+    texto: input.texto,
+    data: input.data || null,
+    profissional_nome: input.profissional || null,
+  };
+
+  const modo = await modoDados();
+  if (modo === 'local') {
+    const salva = await inserir<Record<string, unknown>>('paciente_evolucoes', payload);
+    return rowToEvolucao(salva);
+  }
+
   const { data, error } = await supabase
     .from('paciente_evolucoes')
-    .insert({
-      paciente_id: pacienteId,
-      legacy_id: Date.now().toString(),
-      texto: input.texto,
-      data: input.data || null,
-      profissional_nome: input.profissional || null,
-    })
+    .insert(payload)
     .select('*')
     .single();
 
@@ -34,6 +55,12 @@ export async function criarEvolucao(
 }
 
 export async function excluirEvolucao(id: string): Promise<void> {
+  const modo = await modoDados();
+  if (modo === 'local') {
+    await remover('paciente_evolucoes', id);
+    return;
+  }
+
   const { error } = await supabase.from('paciente_evolucoes').delete().eq('id', id);
   if (error) throw error;
 }

@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { modoDados, listar } from '@/lib/local/cliente';
 import { formatarTelefone } from '@/lib/whatsappTelefone';
+import { mensagemDeErro } from './api';
 
 type Props = { clinicaId: string };
 
@@ -40,6 +42,22 @@ export default function Historico({ clinicaId }: Props) {
   const [aberto, setAberto] = useState<number | null>(null);
 
   const carregar = useCallback(async () => {
+    if (await modoDados() === 'local') {
+      try {
+        const linhas = await listar<Envio>('whatsapp_envios', {
+          filtros: [{ col: 'clinica_id', op: 'eq', valor: Number(clinicaId) }],
+          ordem: [{ col: 'created_at', asc: false }],
+          limite: 300,
+        });
+        setErro('');
+        setEnvios(linhas);
+      } catch (err) {
+        setErro(mensagemDeErro(err, 'Não foi possível carregar o histórico.'));
+      }
+      setCarregando(false);
+      return;
+    }
+
     const { data, error } = await supabase
       .from('whatsapp_envios')
       .select('id, tipo, nome, telefone, texto, status, erro, created_at')

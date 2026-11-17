@@ -8,6 +8,8 @@ import { buildDocumentoContexto } from '@/lib/documentVariables';
 
 import { montarMensagemEvento } from '@/lib/comunicacao';
 
+import type { FiltroLocal } from '@/lib/local/cliente';
+
 
 
 export type LembreteAgendamento = {
@@ -36,7 +38,87 @@ type LembretesEnviadosLegado = Record<string, string>;
 
 
 
+type AgendamentoLocalLembrete = {
+
+  id: number;
+
+  data_hora: string;
+
+  procedimento: string;
+
+  clinica_id: number;
+
+  paciente_id: string | null;
+
+  status: string;
+
+};
+
+
+
+type PacienteLocalLembrete = {
+
+  id: string;
+
+  nome: string;
+
+  telefone: string | null;
+
+  email: string | null;
+
+};
+
+
+
+function chaveLembrete(agendamentoId: string | number): string {
+
+  return `lembrete:${agendamentoId}`;
+
+}
+
+
+
+/** No servidor (cron/rotas) o caminho é sempre a nuvem. */
+
+async function modoDadosSeguro(): Promise<'local' | 'nuvem'> {
+
+  if (typeof window === 'undefined') return 'nuvem';
+
+  const { modoDados } = await import('@/lib/local/cliente');
+
+  return modoDados();
+
+}
+
+
+
 export async function lembreteJaEnviado(clinicaId: string | number, agendamentoId: string | number): Promise<boolean> {
+
+  const modo = await modoDadosSeguro();
+
+  if (modo === 'local') {
+
+    try {
+
+      const { contar } = await import('@/lib/local/cliente');
+
+      const total = await contar('whatsapp_envios', [
+
+        { col: 'clinica_id', op: 'eq', valor: Number(clinicaId) },
+
+        { col: 'chave', op: 'eq', valor: chaveLembrete(agendamentoId) },
+
+      ]);
+
+      return total > 0;
+
+    } catch {
+
+      return false;
+
+    }
+
+  }
 
   const { count } = await supabase
 
@@ -81,6 +163,52 @@ export async function marcarLembreteEnviado(
   canal: 'whatsapp' | 'email' | 'sms' | 'manual' = 'manual',
 
 ) {
+
+  const modo = await modoDadosSeguro();
+
+  if (modo === 'local') {
+
+    // Marcação offline: a linha em `whatsapp_envios` funciona como flag
+
+    // (`chave = lembrete:<id>`); a tabela `lembretes_agenda` não é local.
+
+    try {
+
+      const { contar, inserir } = await import('@/lib/local/cliente');
+
+      const total = await contar('whatsapp_envios', [
+
+        { col: 'clinica_id', op: 'eq', valor: Number(clinicaId) },
+
+        { col: 'chave', op: 'eq', valor: chaveLembrete(agendamentoId) },
+
+      ]);
+
+      if (total === 0) {
+
+        await inserir('whatsapp_envios', {
+
+          clinica_id: Number(clinicaId),
+
+          chave: chaveLembrete(agendamentoId),
+
+          tipo: 'lembrete',
+
+          status: 'enviada',
+
+        });
+
+      }
+
+    } catch {
+
+      /* melhor-esforço: o lembrete já foi aberto no canal escolhido */
+
+    }
+
+    return;
+
+  }
 
   await supabase.from('lembretes_agenda').upsert(
 
@@ -145,6 +273,86 @@ export async function buscarAgendamentosLembrete24h(clinicaIds: (number | string
   fim.setHours(23, 59, 59, 999);
 
 
+
+  const modo = await modoDadosSeguro();
+
+  if (modo === 'local') {
+
+    const { lerSessaoCacheUI, listar } = await import('@/lib/local/cliente');
+
+    const filtros: FiltroLocal[] = [
+
+      { col: 'clinica_id', op: 'in', valor: clinicaIds },
+
+      { col: 'data_hora', op: 'gte', valor: inicio.toISOString() },
+
+      { col: 'data_hora', op: 'lte', valor: fim.toISOString() },
+
+      { col: 'status', op: 'in', valor: ['agendado'] },
+
+    ];
+
+    const agendamentos = await listar<AgendamentoLocalLembrete>('agendamentos', {
+
+      filtros,
+
+      ordem: [{ col: 'data_hora', asc: true }],
+
+    });
+
+    const idsPacientes = Array.from(new Set(
+
+      agendamentos
+
+        .map((a) => a.paciente_id)
+
+        .filter((id): id is string => typeof id === 'string' && id.length > 0),
+
+    ));
+
+    const pacientes = idsPacientes.length > 0
+
+      ? await listar<PacienteLocalLembrete>('pacientes', {
+
+          filtros: [{ col: 'id', op: 'in', valor: idsPacientes }],
+
+        })
+
+      : [];
+
+    const mapaPacientes = new Map(pacientes.map((p) => [String(p.id), p]));
+
+    const sessao = await lerSessaoCacheUI();
+
+    const mapaClinicas = new Map((sessao?.clinicas || []).map((c) => [String(c.id), c.nome]));
+
+    return agendamentos.map((a) => {
+
+      const paciente = mapaPacientes.get(String(a.paciente_id));
+
+      return {
+
+        id: a.id,
+
+        data_hora: a.data_hora,
+
+        procedimento: a.procedimento,
+
+        clinica_id: a.clinica_id,
+
+        clinica_nome: mapaClinicas.get(String(a.clinica_id)),
+
+        paciente_nome: paciente?.nome ?? '',
+
+        paciente_telefone: paciente?.telefone ?? null,
+
+        paciente_email: paciente?.email ?? null,
+
+      };
+
+    });
+
+  }
 
   const { data } = await supabase
 

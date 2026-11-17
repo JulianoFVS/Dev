@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { usePatientActionModal } from '@/components/PatientActionModal';
 import { useClinica } from '@/app/context/ClinicaContext';
 import { fetchUserClinicas } from '@/lib/clinicScoped';
+import { listar, modoDados } from '@/lib/local/cliente';
 import CustomSelect from '@/components/ui/CustomSelect';
 import Aviso from '@/components/ui/Aviso';
 import ModalPedidoProtese from '@/components/proteses/ModalPedidoProtese';
@@ -24,6 +25,36 @@ function readPacientesCache(clinicId: string | null): any[] {
     if (parsed.clinicId === clinicId && Array.isArray(parsed.items)) return parsed.items;
   } catch { /* ignore */ }
   return [];
+}
+
+type AgendamentoResumo = {
+  id: number | string;
+  paciente_id: string;
+  data_hora: string;
+  status: string;
+};
+
+type TratamentoResumo = {
+  id: string;
+  paciente_id: string;
+  procedimento: string;
+  status: string;
+};
+
+type ClinicaResumo = { id: string | number; nome: string };
+
+/** Busca linhas de uma tabela para vários pacientes, em lotes aceitos pela API local. */
+async function listarPorPacientes<T>(tabela: string, ids: string[], ordem: string): Promise<T[]> {
+  const resultado: T[] = [];
+  for (let inicio = 0; inicio < ids.length; inicio += 800) {
+    const lote = ids.slice(inicio, inicio + 800);
+    const linhas = await listar<T>(tabela, {
+      filtros: [{ col: 'paciente_id', op: 'in', valor: lote }],
+      ordem: [{ col: ordem, asc: false }],
+    });
+    resultado.push(...linhas);
+  }
+  return resultado;
 }
 
 function DicaAcao({ label, children }: { label: string; children: ReactElement<{ onPointerDown?: (e: ReactPointerEvent) => void }> }) {
@@ -92,12 +123,30 @@ export default function Pacientes() {
   const jaCarregou = useRef(cachedRef.current.length > 0);
 
   useEffect(() => {
-      // clinicLoading=true → ainda aguardando; =false → pronto
-      if (clinicLoading || !activeClinicId) return;
-      if (lastClinicRef.current === activeClinicId && jaCarregou.current) return;
-      const silent = jaCarregou.current;
-      lastClinicRef.current = activeClinicId;
-      carregarDados({ silent });
+      let cancelado = false;
+      (async () => {
+          const modo = await modoDados();
+          if (cancelado) return;
+
+          if (modo === 'local') {
+              // Offline o ClinicaContext pode não resolver a clínica ativa; o SQLite local
+              // ainda tem os pacientes e as clínicas de referência para montar a tela.
+              const chave = activeClinicId || 'local';
+              if (lastClinicRef.current === chave && jaCarregou.current) return;
+              const silent = jaCarregou.current;
+              lastClinicRef.current = chave;
+              carregarDados({ silent });
+              return;
+          }
+
+          // clinicLoading=true → ainda aguardando; =false → pronto
+          if (clinicLoading || !activeClinicId) return;
+          if (lastClinicRef.current === activeClinicId && jaCarregou.current) return;
+          const silent = jaCarregou.current;
+          lastClinicRef.current = activeClinicId;
+          carregarDados({ silent });
+      })();
+      return () => { cancelado = true; };
   }, [clinicLoading, activeClinicId]);
 
   // Atualiza a lista quando um paciente é criado/alterado em outro lugar (ex.: Quick Capture)
@@ -107,49 +156,157 @@ export default function Pacientes() {
       return () => window.removeEventListener('ortus:paciente-changed', handle);
   }, []);
 
+  async function carregarPacientesLocal(clinicasAtuais: ClinicaResumo[], idsPermitidos: Array<string | number>) {
+    const pacientesBase = await listar<Record<string, unknown>>('pacientes', {
+      ordem: [{ col: 'created_at', asc: false }],
+    });
+
+    const permitidos = idsPermitidos.length > 0
+      ? pacientesBase.filter((p) => p.clinica_id == null || idsPermitidos.some((clinicaId) => String(clinicaId) === String(p.clinica_id)))
+      : pacientesBase;
+
+    let clinicasParaFiltro = clinicasAtuais;
+    if (clinicasParaFiltro.length === 0) {
+      // Tenta a tabela de referência local (quando o espelho já a sincronizou).
+      try {
+        const clinicasLocais = await listar<ClinicaResumo>('clinicas', { ordem: [{ col: 'nome', asc: true }] });
+        if (clinicasLocais.length > 0) {
+          clinicasParaFiltro = clinicasLocais.map((clinica) => ({ id: clinica.id, nome: clinica.nome }));
+          setClinicas(clinicasParaFiltro);
+        }
+      } catch {
+        /* referência ainda não disponível: segue com os ids locais */
+      }
+    }
+    if (clinicasParaFiltro.length === 0) {
+      const idsVistos = new Set<string>();
+      clinicasParaFiltro = [];
+      for (const paciente of pacientesBase) {
+        if (paciente.clinica_id == null) continue;
+        const chave = String(paciente.clinica_id);
+        if (idsVistos.has(chave)) continue;
+        idsVistos.add(chave);
+        clinicasParaFiltro.push({ id: paciente.clinica_id as string | number, nome: `Clínica ${chave}` });
+      }
+      setClinicas(clinicasParaFiltro);
+    }
+
+    const idsPacientes = permitidos.map((p) => String(p.id));
+    const [agendamentos, tratamentos] = await Promise.all([
+      listarPorPacientes<AgendamentoResumo>('agendamentos', idsPacientes, 'data_hora'),
+      listarPorPacientes<TratamentoResumo>('paciente_tratamentos', idsPacientes, 'data'),
+    ]);
+
+    const agendamentosPorPaciente = new Map<string, AgendamentoResumo[]>();
+    for (const agendamento of agendamentos) {
+      const chave = String(agendamento.paciente_id);
+      const lista = agendamentosPorPaciente.get(chave) || [];
+      lista.push(agendamento);
+      agendamentosPorPaciente.set(chave, lista);
+    }
+    for (const lista of agendamentosPorPaciente.values()) {
+      lista.sort((a, b) => new Date(b.data_hora).getTime() - new Date(a.data_hora).getTime());
+    }
+
+    const tratamentosPorPaciente = new Map<string, TratamentoResumo[]>();
+    for (const tratamento of tratamentos) {
+      const chave = String(tratamento.paciente_id);
+      const lista = tratamentosPorPaciente.get(chave) || [];
+      lista.push(tratamento);
+      tratamentosPorPaciente.set(chave, lista);
+    }
+
+    const nomesClinicas = new Map<string, string>();
+    for (const clinica of clinicasParaFiltro) nomesClinicas.set(String(clinica.id), clinica.nome);
+
+    const formatados = permitidos.map((p) => {
+      const agendamentosPaciente = agendamentosPorPaciente.get(String(p.id)) || [];
+      const ultimo = agendamentosPaciente[0];
+      const status = ultimo ? (new Date(ultimo.data_hora) > new Date() ? 'agendado' : 'ativo') : 'novo';
+      const nomeClinica = p.clinica_id != null ? nomesClinicas.get(String(p.clinica_id)) : undefined;
+      return {
+        ...p,
+        agendamentos: agendamentosPaciente,
+        paciente_tratamentos: tratamentosPorPaciente.get(String(p.id)) || [],
+        paciente_anamneses: [],
+        paciente_documentos: [],
+        clinicas: nomeClinica ? { nome: nomeClinica } : null,
+        planos: null,
+        // Sem a tabela de planos local, sinaliza convênio pelo plano_id para a coluna/ordenação não mentir.
+        plano_sem_nome: p.plano_id ? true : undefined,
+        status,
+        nome_clinica: nomeClinica,
+      };
+    });
+
+    setPacientes(formatados);
+    try {
+      sessionStorage.setItem(
+        'ortus:pacientes-lista',
+        JSON.stringify({ clinicId: activeClinicId, items: formatados }),
+      );
+    } catch {
+      /* ignore */
+    }
+  }
+
   async function carregarDados(opts?: { silent?: boolean }) {
     if (!opts?.silent) setLoading(true);
 
-    // 1. Usar clínicas já carregadas pelo ClinicaContext (sem fetch redundante)
-    const listaClinicas = clinics.length > 0 ? clinics : await fetchUserClinicas();
-    setClinicas(listaClinicas as any[]);
-    const idsPermitidos = listaClinicas.map((c) => c.id);
+    try {
+      const modo = await modoDados();
 
-    // 2. Carregar Pacientes restritos às clínicas do usuário
-    let pacientesQuery = supabase
-        .from('pacientes')
-        .select('*, agendamentos(data_hora, status), clinicas(nome), planos(nome, tipo), paciente_tratamentos(procedimento, status), paciente_anamneses(id), paciente_documentos(id)')
-        .order('created_at', { ascending: false });
-    if (idsPermitidos.length > 0) {
-        // Inclui pacientes da clinica OU sem clinica vinculada (null)
-        const idsStr = idsPermitidos.join(',');
-        pacientesQuery = pacientesQuery.or(`clinica_id.in.(${idsStr}),clinica_id.is.null`);
-    } else {
-        // Nenhuma clínica disponível para esse usuário
-        setLoading(false); return;
+      // 1. Usar clínicas já carregadas pelo ClinicaContext (sem fetch redundante).
+      // No modo local a lista vem do cache do contexto: não há round-trip para a nuvem.
+      const listaClinicas = clinics.length > 0 ? clinics : modo === 'local' ? [] : await fetchUserClinicas();
+      setClinicas(listaClinicas);
+      const idsPermitidos = listaClinicas.map((c) => c.id);
+
+      if (modo === 'local') {
+        await carregarPacientesLocal(listaClinicas, idsPermitidos);
+        jaCarregou.current = true;
+        return;
+      }
+
+      // 2. Carregar Pacientes restritos às clínicas do usuário
+      let pacientesQuery = supabase
+          .from('pacientes')
+          .select('*, agendamentos(data_hora, status), clinicas(nome), planos(nome, tipo), paciente_tratamentos(procedimento, status), paciente_anamneses(id), paciente_documentos(id)')
+          .order('created_at', { ascending: false });
+      if (idsPermitidos.length > 0) {
+          // Inclui pacientes da clinica OU sem clinica vinculada (null)
+          const idsStr = idsPermitidos.join(',');
+          pacientesQuery = pacientesQuery.or(`clinica_id.in.(${idsStr}),clinica_id.is.null`);
+      } else {
+          // Nenhuma clínica disponível para esse usuário
+          setLoading(false); return;
+      }
+      const { data } = await pacientesQuery;
+
+      if (data) {
+          const formatados = data.map((p: any) => {
+              const agendamentos = p.agendamentos || [];
+              agendamentos.sort((a: any, b: any) => new Date(b.data_hora).getTime() - new Date(a.data_hora).getTime());
+              const ultimo = agendamentos[0];
+              const status = ultimo ? (new Date(ultimo.data_hora) > new Date() ? 'agendado' : 'ativo') : 'novo';
+              return { ...p, status, nome_clinica: p.clinicas?.nome };
+          });
+          setPacientes(formatados);
+          try {
+            sessionStorage.setItem(
+              'ortus:pacientes-lista',
+              JSON.stringify({ clinicId: activeClinicId, items: formatados }),
+            );
+          } catch {
+            /* ignore */
+          }
+      }
+      setLoading(false);
+      jaCarregou.current = true;
+    } catch (erro) {
+      setLoading(false);
+      setAviso(erro instanceof Error ? erro.message : 'Não foi possível carregar os pacientes.');
     }
-    const { data } = await pacientesQuery;
-    
-    if (data) {
-        const formatados = data.map((p: any) => {
-            const agendamentos = p.agendamentos || [];
-            agendamentos.sort((a: any, b: any) => new Date(b.data_hora).getTime() - new Date(a.data_hora).getTime());
-            const ultimo = agendamentos[0];
-            const status = ultimo ? (new Date(ultimo.data_hora) > new Date() ? 'agendado' : 'ativo') : 'novo';
-            return { ...p, status, nome_clinica: p.clinicas?.nome };
-        });
-        setPacientes(formatados);
-        try {
-          sessionStorage.setItem(
-            'ortus:pacientes-lista',
-            JSON.stringify({ clinicId: activeClinicId, items: formatados }),
-          );
-        } catch {
-          /* ignore */
-        }
-    }
-    setLoading(false);
-    jaCarregou.current = true;
   }
 
   function novoPaciente() {
@@ -159,7 +316,7 @@ export default function Pacientes() {
   }
 
   function planoDe(p: any) {
-      if (!p.planos) return 'Particular';
+      if (!p.planos) return p.plano_sem_nome ? 'Convênio' : 'Particular';
       return p.planos.tipo === 'particular' ? 'Particular' : (p.planos.nome || 'Particular');
   }
 
@@ -353,7 +510,7 @@ export default function Pacientes() {
               const iniciais = ((partes[0]?.[0] || '') + (partes[1]?.[0] || '')).toUpperCase() || '?';
               const tel = (p.telefone || '').replace(/\D/g, '');
               const telFmt = tel.length >= 11 ? `(${tel.slice(0, 2)}) ${tel.slice(2, 7)}-${tel.slice(7, 11)}` : (p.telefone || 'Sem telefone');
-              const plano = p.planos ? (p.planos.tipo === 'particular' ? 'Particular' : p.planos.nome) : 'Particular';
+              const plano = p.planos ? (p.planos.tipo === 'particular' ? 'Particular' : p.planos.nome) : (p.plano_sem_nome ? 'Convênio' : 'Particular');
               return (
                 <li key={p.id}>
                   <div
