@@ -21,8 +21,11 @@
     "desktop": "electron desktop/main.cjs",
     "desktop:config": "node scripts/desktop-config.mjs",
     "desktop:build": "node scripts/desktop-build.mjs",
-    "desktop:instalar": "npm run desktop:build && electron-builder --config desktop/electron-builder.yml --win nsis --x64",
-    "desktop:teste": "node scripts/desktop-checar.mjs"
+    "desktop:instalar": "npm run desktop:build && electron-builder --config desktop/electron-builder.yml",
+    "desktop:teste": "node scripts/desktop-checar.mjs",
+    "desktop:win": "npm run desktop:build && electron-builder --config desktop/electron-builder.yml --win --x64",
+    "desktop:mac": "npm run desktop:build && electron-builder --config desktop/electron-builder.yml --mac",
+    "desktop:linux": "npm run desktop:build && electron-builder --config desktop/electron-builder.yml --linux"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1161.0",

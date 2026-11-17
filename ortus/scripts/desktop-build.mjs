@@ -54,7 +54,9 @@ copiar(path.join(raiz, '.next', 'static'), path.join(standalone, '.next', 'stati
 
 console.log('4/4 pronto.');
 console.log('');
-console.log('Gerar o instalador Windows (rodar no Windows ou CI):');
-console.log('  npm run desktop:instalar');
+console.log('Gerar o instalador:');
+console.log('  npm run desktop:mac      → .dmg + .zip (arm64 e x64)');
+console.log('  npm run desktop:win      → .exe NSIS x64     (rodar no Windows ou CI)');
+console.log('  npm run desktop:linux    → AppImage + .deb   (rodar no Linux)');
 console.log('');
 console.log('O instalador sai em dist-desktop/ (Ortus Setup <versão>.exe).');

@@ -63,28 +63,51 @@ Em desenvolvimento os dados ficam em
 
 ---
 
-## Gerar o instalador (.exe)
+## Gerar o instalador
 
-O alvo é **Windows x64 + NSIS**. Rode no Windows ou no GitHub Actions
-(há um workflow pronto em `.github/workflows/desktop-windows.yml`).
+O mesmo código gera instalador para **Windows, macOS e Linux** — cada sistema
+empacota o seu (o binário do Electron e o Chromium são por plataforma).
+
+| Sistema | Comando | Saída |
+|---|---|---|
+| Windows x64 | `npm run desktop:win` | `dist-desktop/Ortus-Setup-<versão>.exe` (NSIS) |
+| macOS (arm64 + x64) | `npm run desktop:mac` | `dist-desktop/Ortus-<versão>-<arch>.dmg` e `.zip` |
+| Linux x64 | `npm run desktop:linux` | `dist-desktop/Ortus-<versão>-x64.AppImage` e `.deb` |
+
+> O **.exe do Windows precisa ser gerado no Windows ou no CI**. O macOS só
+> consegue montar NSIS com wine instalado. Para os outros dois, rode no
+> próprio sistema.
+
+### Passo a passo (no sistema alvo)
 
 ```bash
 # 1. variáveis públicas do Supabase (as mesmas do site)
 export NEXT_PUBLIC_SUPABASE_URL=https://SEU_PROJETO.supabase.co
 export NEXT_PUBLIC_SUPABASE_ANON_KEY=...
 
-# 2. dependências do WhatsApp e Chromium para Windows
+# 2. dependências do WhatsApp e Chromium da plataforma
 npm --prefix services/whatsapp ci
-node scripts/desktop-chromium.mjs            # baixa o Chrome win64
+node scripts/desktop-chromium.mjs            # baixa o Chrome desta máquina
+#    (para empacotar Windows a partir do macOS: --plataforma=win64)
 
 # 3. build do Next (standalone) + config.json
 npm run desktop:build
 
 # 4. instalador
-npm run desktop:instalar                     # electron-builder --win nsis --x64
+npm run desktop:instalar                     # empacota para o sistema atual
 ```
 
-Saída: `dist-desktop/Ortus-Setup-<versão>.exe`.
+**Assinatura no macOS:** sem isso o sistema encerra o app na abertura, mesmo
+sem Gatekeeper. O `desktop/afterpack.cjs` assina ad-hoc automaticamente a cada
+build. Para distribuir fora da clínica é preciso conta Apple Developer
+(Developer ID + notarização); aí basta definir `CSC_LINK`/`CSC_KEY_PASSWORD` e
+a assinatura ad-hoc deixa de ser usada.
+
+**Empacotamento — armadilhas já tratadas:** o matcher do electron-builder
+ignora `node_modules` quando copia uma pasta inteira, então o Next standalone e
+o serviço do WhatsApp entram em entradas separadas de `extraResources`; e o
+extrator do Puppeteer às vezes deixa o `.app` do Chromium incompleto — o
+`desktop-chromium.mjs` valida e refaz a extração com `ditto`/`unzip`/`tar`.
 
 ### O que entra no .exe
 

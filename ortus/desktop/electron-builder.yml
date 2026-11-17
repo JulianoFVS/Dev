@@ -15,6 +15,8 @@ appId: br.com.ortus.desktop
 productName: Ortus
 copyright: Recode Systems
 
+afterPack: desktop/afterpack.cjs
+
 directories:
   output: dist-desktop
   buildResources: build
@@ -24,6 +26,9 @@ directories:
 files:
   - 'desktop/**/*'
   - 'package.json'
+  # O Next vai autocontido em extraResources/app, então o node_modules do app
+  # não é necessário aqui — só o módulo nativo do SQLite.
+  - '!node_modules/**/*'
   # better-sqlite3 v13 traz binários NAPI prontos para win32-x64/darwin/etc.
   - 'node_modules/better-sqlite3/**/*'
   - '!**/*.md'
@@ -37,19 +42,30 @@ asarUnpack:
 extraResources:
   - from: .next/standalone
     to: app
-  # Serviço do WhatsApp: server.mjs + node_modules (whatsapp-web.js, qrcode).
-  # Instale com `npm --prefix services/whatsapp ci` antes de empacotar.
+    filter:
+      - '**/*'
+      - '!node_modules/**/*'
+  # node_modules em entrada separada: o matcher do electron-builder ignora
+  # node_modules quando está dentro de uma pasta copiada inteira.
+  - from: .next/standalone/node_modules
+    to: app/node_modules
+  # Serviço do WhatsApp: server.mjs + lib + node_modules (whatsapp-web.js,
+  # puppeteer, qrcode). Instale com `npm --prefix services/whatsapp ci`.
   - from: services/whatsapp
     to: whatsapp
     filter:
       - 'server.mjs'
       - 'package.json'
       - 'lib/**/*'
-      - 'node_modules/**/*'
+  # node_modules em entrada separada: o matcher do electron-builder ignora
+  # node_modules quando está dentro de uma pasta copiada inteira.
+  - from: services/whatsapp/node_modules
+    to: whatsapp/node_modules
   - from: build/chromium
     to: chromium
     filter:
       - '**/*'
+      - '!**/*.zip'
   - from: desktop/config.json
     to: config.json
 
@@ -61,6 +77,34 @@ win:
   artifactName: Ortus-Setup-${version}.${ext}
   # Sem assinatura nesta fase; ao publicar, configure certificateFile.
   signAndEditExecutable: true
+
+mac:
+  category: public.app-category.medical
+  target:
+    - target: dmg
+      arch:
+        - arm64
+        - x64
+    - target: zip
+      arch:
+        - arm64
+        - x64
+  artifactName: Ortus-${version}-${arch}.${ext}
+  # Build não assinado (uso interno na clínica). Para distribuir fora,
+  # configure identity + notarize com uma conta Apple Developer.
+  hardenedRuntime: false
+  gatekeeperAssess: false
+
+linux:
+  target:
+    - target: AppImage
+      arch:
+        - x64
+    - target: deb
+      arch:
+        - x64
+  category: Office
+  artifactName: Ortus-${version}-${arch}.${ext}
 
 nsis:
   oneClick: false
