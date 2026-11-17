@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { clinicScope, readRouteCache, writeRouteCache } from '@/lib/routeListCache';
 import { useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+import { dados as tabelas, usuarioDaSessao } from '@/lib/local/consulta';
 import { useClinica, getClinicLabel } from '@/app/context/ClinicaContext';
 import { fetchUserEquipe } from '@/lib/clinicScoped';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
@@ -219,7 +220,7 @@ export default function EquipePage() {
         const gen = ++fetchGen.current;
         if (!opts?.silent) setLoading(true);
         try {
-            const { data: { user } } = await supabase.auth.getUser();
+            const user = await usuarioDaSessao();
             if (!user) {
                 if (gen === fetchGen.current) {
                     setPerfilCaller(null);
@@ -229,8 +230,7 @@ export default function EquipePage() {
                 return;
             }
 
-            const { data: meu } = await supabase
-                .from('profissionais')
+            const { data: meu } = await tabelas.from('profissionais')
                 .select('id, nome, nivel_acesso, is_super_admin')
                 .eq('user_id', user.id)
                 .single();
@@ -486,8 +486,7 @@ export default function EquipePage() {
             setComissoesConsolidadasLoading(true);
         }
         let ativo = true;
-        supabase
-            .from('comissoes_regras')
+        tabelas.from('comissoes_regras')
             .select('*, profissionais(nome)')
             .eq('clinica_id', clinicaIdNumerica)
             .eq('ativo', true)
@@ -501,8 +500,7 @@ export default function EquipePage() {
                 }
                 setComissoesConsolidadasLoading(false);
             });
-        supabase
-            .from('comissoes_lancamentos')
+        tabelas.from('comissoes_lancamentos')
             .select('*, profissionais(nome)')
             .eq('clinica_id', clinicaIdNumerica)
             .order('created_at', { ascending: false })
@@ -534,8 +532,7 @@ export default function EquipePage() {
         setPermissoesSaving(true);
         try {
             if (nivelMudou) {
-                const { error } = await supabase
-                    .from('profissionais')
+                const { error } = await tabelas.from('profissionais')
                     .update({ nivel_acesso: nivelAcessoEdit })
                     .eq('id', profissionalSelecionado.id);
                 if (error) throw error;
@@ -549,8 +546,7 @@ export default function EquipePage() {
                     modulo: modulo.id,
                     pode_acessar: permissoesMapa[modulo.id],
                 }));
-                const { error } = await supabase
-                    .from('permissoes_modulos')
+                const { error } = await tabelas.from('permissoes_modulos')
                     .upsert(payload, { onConflict: 'profissional_id,clinica_id,modulo' });
                 if (error) throw error;
                 setPermissoesDirty(false);
@@ -573,8 +569,7 @@ export default function EquipePage() {
         }
         setPermissoesLoading(true);
         try {
-            const { data, error } = await supabase
-                .from('permissoes_modulos')
+            const { data, error } = await tabelas.from('permissoes_modulos')
                 .select('modulo, pode_acessar')
                 .eq('profissional_id', profissionalSelecionado.id)
                 .eq('clinica_id', clinicaIdNumerica);
@@ -672,8 +667,7 @@ export default function EquipePage() {
         }
         setComissoesLoading(true);
         try {
-            const { data, error } = await supabase
-                .from('comissoes_regras')
+            const { data, error } = await tabelas.from('comissoes_regras')
                 .select('*')
                 .eq('profissional_id', profissionalSelecionado.id)
                 .eq('clinica_id', clinicaIdNumerica)
@@ -704,8 +698,7 @@ export default function EquipePage() {
         setComissaoSaving(true);
         try {
             if (comissaoEditandoId) {
-                const { data, error } = await supabase
-                    .from('comissoes_regras')
+                const { data, error } = await tabelas.from('comissoes_regras')
                     .update({
                         gatilho: comissaoForm.gatilho,
                         tipo: comissaoForm.tipo,
@@ -727,8 +720,7 @@ export default function EquipePage() {
                 setComissaoForm({ gatilho: GATILHOS_COMISSAO[0].value, tipo: TIPOS_COMISSAO[0].value, valor: '', ativo: true });
                 avisar('Regra atualizada.');
             } else {
-                const { data, error } = await supabase
-                    .from('comissoes_regras')
+                const { data, error } = await tabelas.from('comissoes_regras')
                     .insert({
                         profissional_id: Number(profissionalSelecionado.id),
                         clinica_id: clinicaIdNumerica,
@@ -777,8 +769,7 @@ export default function EquipePage() {
 
     async function toggleComissaoAtiva(regra: ComissaoRegra) {
         try {
-            const { data, error } = await supabase
-                .from('comissoes_regras')
+            const { data, error } = await tabelas.from('comissoes_regras')
                 .update({ ativo: !regra.ativo })
                 .eq('id', regra.id)
                 .select()
@@ -803,7 +794,7 @@ export default function EquipePage() {
         if (!(await showConfirm('Deseja remover esta regra de comissão?', { type: 'warning', confirmLabel: 'Excluir' }))) return;
         setComissaoExcluindo(id);
         try {
-            const { error } = await supabase.from('comissoes_regras').delete().eq('id', id);
+            const { error } = await tabelas.from('comissoes_regras').delete().eq('id', id);
             if (error) throw error;
             setComissoes((prev) => prev.filter((regra) => regra.id !== id));
             setComissoesConsolidadas((prev) => {

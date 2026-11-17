@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
+import { dados as tabelas, usuarioDaSessao } from '@/lib/local/consulta';
 import {
     Plus,
     Download, ArrowUpCircle, ArrowDownCircle, Loader2, X, Save, AlertCircle, Search, Filter, Pencil,
@@ -166,14 +167,14 @@ export default function Financeiro() {
     const fimFull = `${fim}T23:59:59`;
 
     try {
-        let qAg = supabase.from('agendamentos')
+        let qAg = tabelas.from('agendamentos')
             .select('id, valor_final, data_hora, procedimento, status, profissional_id, pacientes(nome), profissionais(nome)')
             .gte('data_hora', inicioFull).lte('data_hora', fimFull);
         qAg = filtrarClinica ? qAg.eq('clinica_id', clinicaId) : qAg.in('clinica_id', idsClinica);
         const { data: agendamentos, error: errAg } = await qAg;
         if (errAg) throw errAg;
 
-        let qMan = supabase.from('despesas').select('*').gte('data', inicio).lte('data', fim);
+        let qMan = tabelas.from('despesas').select('*').gte('data', inicio).lte('data', fim);
         qMan = filtrarClinica ? qMan.eq('clinica_id', clinicaId) : qMan.in('clinica_id', idsClinica);
         const { data: manuais, error: errMan } = await qMan;
         if (errMan) throw errMan;
@@ -260,7 +261,7 @@ export default function Financeiro() {
       setNovaCatTemp('');
       setModalAberto(true);
       // Carrega pacientes da clínica para vinculação opcional
-      supabase.from('pacientes').select('id, nome').eq('clinica_id', activeClinicId).order('nome').then(({ data }) => {
+      tabelas.from('pacientes').select('id, nome').eq('clinica_id', activeClinicId).order('nome').then(({ data }) => {
           setPacientesOptions((data || []) as { id: string; nome: string }[]);
       });
   }
@@ -285,7 +286,7 @@ export default function Financeiro() {
       });
       setModoCategoria('lista');
       setModalAberto(true);
-      supabase.from('pacientes').select('id, nome').eq('clinica_id', activeClinicId).order('nome').then(({ data }) => {
+      tabelas.from('pacientes').select('id, nome').eq('clinica_id', activeClinicId).order('nome').then(({ data }) => {
           setPacientesOptions((data || []) as { id: string; nome: string }[]);
       });
   }
@@ -329,7 +330,7 @@ export default function Financeiro() {
           return;
       }
       const clinicaId = activeClinicId;
-      const { data: { user } } = await supabase.auth.getUser();
+      const user = await usuarioDaSessao();
       const payload: any = {
           descricao: novoLancamento.descricao,
           valor: parseFloat(novoLancamento.valor),
@@ -343,10 +344,10 @@ export default function Financeiro() {
       };
       let idAlvo = editandoId;
       if (editandoId) {
-          const { error } = await supabase.from('despesas').update(payload).eq('id', editandoId);
+          const { error } = await tabelas.from('despesas').update(payload).eq('id', editandoId);
           if (error) { await showAlert('Erro: ' + error.message, { type: 'error' }); setSalvando(false); return; }
       } else {
-          const { data: ins, error } = await supabase.from('despesas').insert([payload]).select().single();
+          const { data: ins, error } = await tabelas.from('despesas').insert([payload]).select().single();
           if (error) { await showAlert('Erro: ' + error.message, { type: 'error' }); setSalvando(false); return; }
           idAlvo = ins.id;
       }
@@ -398,7 +399,7 @@ export default function Financeiro() {
       salvarConfig(cid2, 'lancamentos_meta', updMeta);
       // Tenta também salvar no DB (caso colunas existam)
       try {
-          await supabase.from('despesas').update({ status: 'cancelado', motivo_cancelamento: motivoCancelar.trim(), cancelado_em: new Date().toISOString() }).eq('id', t.refId);
+          await tabelas.from('despesas').update({ status: 'cancelado', motivo_cancelamento: motivoCancelar.trim(), cancelado_em: new Date().toISOString() }).eq('id', t.refId);
       } catch {}
       setModalCancelar(null);
       setMotivoCancelar('');
@@ -412,7 +413,7 @@ export default function Financeiro() {
       setMeta(updMeta);
       const cid3 = (activeClinicId && activeClinicId !== 'all' ? String(activeClinicId) : '0');
       salvarConfig(cid3, 'lancamentos_meta', updMeta);
-      try { await supabase.from('despesas').update({ status: 'concluido', motivo_cancelamento: null, cancelado_em: null }).eq('id', t.refId); } catch {}
+      try { await tabelas.from('despesas').update({ status: 'concluido', motivo_cancelamento: null, cancelado_em: null }).eq('id', t.refId); } catch {}
       carregarDados(updMeta);
   }
 
@@ -423,13 +424,13 @@ export default function Financeiro() {
       setMeta(updMeta);
       const cid4 = (activeClinicId && activeClinicId !== 'all' ? String(activeClinicId) : '0');
       salvarConfig(cid4, 'lancamentos_meta', updMeta);
-      if (t.origem === 'manual') await supabase.from('despesas').delete().eq('id', t.refId);
+      if (t.origem === 'manual') await tabelas.from('despesas').delete().eq('id', t.refId);
       carregarDados(updMeta);
   }
 
   async function receberFiado(t: any) {
       if (!(await showConfirm('Registrar este valor como recebido? Ele entra no saldo do caixa.', { title: 'Receber', type: 'info', confirmLabel: 'Receber' }))) return;
-      const { error } = await supabase.from('agendamentos').update({ status: 'concluido' }).eq('id', t.refId);
+      const { error } = await tabelas.from('agendamentos').update({ status: 'concluido' }).eq('id', t.refId);
       if (error) { await showAlert('Erro: ' + error.message, { type: 'error' }); return; }
       carregarDados();
   }
@@ -441,7 +442,7 @@ export default function Financeiro() {
       setMeta(updMeta);
       const cid5 = (activeClinicId && activeClinicId !== 'all' ? String(activeClinicId) : '0');
       salvarConfig(cid5, 'lancamentos_meta', updMeta);
-      try { await supabase.from('despesas').update({ status: 'concluido' }).eq('id', t.refId); } catch {}
+      try { await tabelas.from('despesas').update({ status: 'concluido' }).eq('id', t.refId); } catch {}
       carregarDados(updMeta);
   }
 

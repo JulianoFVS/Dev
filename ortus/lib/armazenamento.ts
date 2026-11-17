@@ -58,6 +58,19 @@ export async function enviarArquivoClinica(
 ): Promise<string | null> {
   const contentType = (opcoes.contentType || arquivo.type || 'application/octet-stream').toLowerCase();
   const dados = await pedir({ caminho, tamanho: arquivo.size, upsert: opcoes.upsert === true, contentType });
+  if (dados.modo === 'local') {
+    const { Authorization } = await cabecalhos();
+    const envio = await fetch(`/api/armazenamento/arquivo?caminho=${encodeURIComponent(caminho)}`, {
+      method: 'PUT',
+      headers: { Authorization, 'Content-Type': contentType },
+      body: arquivo,
+    });
+    const gravado = await envio.json().catch(() => ({})) as { erro?: string; urlPublica?: string | null };
+    if (!envio.ok) throw new Error(gravado.erro || 'Não foi possível salvar o arquivo neste computador.');
+    disparar();
+    const url = gravado.urlPublica || dados.urlPublica;
+    return url ? comVersao(url) : null;
+  }
   if (dados.modo === 'r2') return enviarParaR2(dados, arquivo, contentType, caminho);
 
   const { error } = await supabase.storage.from(BUCKET_ARQUIVOS).uploadToSignedUrl(dados.caminho || caminho, dados.token || '', arquivo, {
@@ -75,6 +88,18 @@ export async function enviarAvatarPerfil(userId: string, arquivo: Blob): Promise
   const contentType = 'image/jpeg';
   const caminho = `avatares/${userId}/avatar.jpg`;
   const dados = await pedir({ caminho, tamanho: arquivo.size, upsert: true, contentType });
+  if (dados.modo === 'local') {
+    const { Authorization } = await cabecalhos();
+    const envio = await fetch(`/api/armazenamento/arquivo?caminho=${encodeURIComponent(caminho)}`, {
+      method: 'PUT',
+      headers: { Authorization, 'Content-Type': contentType },
+      body: arquivo,
+    });
+    const gravado = await envio.json().catch(() => ({})) as { erro?: string; urlPublica?: string | null };
+    if (!envio.ok) throw new Error(gravado.erro || 'Não foi possível salvar a foto neste computador.');
+    if (!gravado.urlPublica && !dados.urlPublica) throw new Error('Não foi possível publicar a foto.');
+    return comVersao(gravado.urlPublica || dados.urlPublica || '');
+  }
   if (dados.modo === 'r2') {
     const url = await enviarParaR2(dados, arquivo, contentType, caminho);
     if (!url) throw new Error('Não foi possível publicar a foto.');

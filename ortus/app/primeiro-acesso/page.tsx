@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState, type FormEvent } from 'react';
 import { supabase } from '@/lib/supabase';
+import { dados as tabelas } from '@/lib/local/consulta';
 import { useRouter } from 'next/navigation';
 import { Lock, Loader2, ShieldCheck, Eye, EyeOff, Check, AlertTriangle } from 'lucide-react';
 
@@ -28,8 +29,7 @@ export default function PrimeiroAcesso() {
                 router.replace('/login');
                 return;
             }
-            const { data: prof } = await supabase
-                .from('profissionais')
+            const { data: prof } = await tabelas.from('profissionais')
                 .select('nome, precisa_trocar_senha')
                 .eq('user_id', session.user.id)
                 .single();
@@ -65,8 +65,7 @@ export default function PrimeiroAcesso() {
 
             const { data: { user } } = await supabase.auth.getUser();
             if (user) {
-                const { error: flagErr } = await supabase
-                    .from('profissionais')
+                const { error: flagErr } = await tabelas.from('profissionais')
                     .update({ precisa_trocar_senha: false })
                     .eq('user_id', user.id);
                 if (flagErr) console.warn('Falha ao limpar flag:', flagErr);
@@ -76,11 +75,9 @@ export default function PrimeiroAcesso() {
             const { data: { user: u2 } } = await supabase.auth.getUser();
             let destino = '/selecao';
             if (u2) {
-                const { data: prof } = await supabase
-                    .from('profissionais').select('id').eq('user_id', u2.id).single();
+                const { data: prof } = await tabelas.from('profissionais').select('id').eq('user_id', u2.id).single();
                 if (prof?.id) {
-                    const { data: vinculos } = await supabase
-                        .from('profissionais_clinicas').select('clinica_id').eq('profissional_id', prof.id);
+                    const { data: vinculos } = await tabelas.from('profissionais_clinicas').select('clinica_id').eq('profissional_id', prof.id);
                     if (vinculos?.length === 1) {
                         localStorage.setItem('ortus_clinica_id', String(vinculos[0].clinica_id));
                         destino = '/dashboard';

@@ -1,7 +1,8 @@
 'use client';
 import { useState, useEffect, useRef, type CSSProperties, type FormEvent } from 'react';
 import { supabase } from '@/lib/supabase';
-import { modoDados, salvarSessaoCache } from '@/lib/local/cliente';
+import { dados as tabelas } from '@/lib/local/consulta';
+import { modoDados, salvarSessaoCache, sincronizarAgoraUI } from '@/lib/local/cliente';
 import { useRouter } from 'next/navigation';
 import { Loader2, ShieldCheck, Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
@@ -269,18 +270,36 @@ export default function Login() {
       let unicaClinicaId: string | null = null;
       let precisaTrocarSenha = false;
 
+      if (signIn.session && userId) {
+        await salvarSessaoCache({
+          access_token: signIn.session.access_token,
+          refresh_token: signIn.session.refresh_token,
+          expires_at: signIn.session.expires_at,
+          user: { id: userId, email: signIn.session.user.email ?? null },
+        });
+      }
+
       if (userId) {
-        const { data: prof } = await supabase
-          .from('profissionais')
+        let { data: prof } = await tabelas.from('profissionais')
           .select('id, precisa_trocar_senha')
           .eq('user_id', userId)
-          .single();
+          .maybeSingle();
+
+        // Primeira entrada no computador: o SQLite ainda está vazio até o
+        // download inicial. Espera esse download antes de decidir a clínica.
+        if (!prof?.id && (await modoDados()) === 'local') {
+          await sincronizarAgoraUI();
+          const segunda = await tabelas.from('profissionais')
+            .select('id, precisa_trocar_senha')
+            .eq('user_id', userId)
+            .maybeSingle();
+          prof = segunda.data;
+        }
 
         precisaTrocarSenha = !!prof?.precisa_trocar_senha;
 
         if (prof?.id) {
-          const { data: vinculos } = await supabase
-            .from('profissionais_clinicas')
+          const { data: vinculos } = await tabelas.from('profissionais_clinicas')
             .select('clinica_id')
             .eq('profissional_id', prof.id);
 
@@ -291,20 +310,19 @@ export default function Login() {
         // Guarda a sessão para o desktop abrir sem internet. No site é no-op.
         try {
           const { data: sessao } = await supabase.auth.getSession();
-          const { data: perfil } = await supabase
-            .from('profissionais')
+          const { data: perfil } = await tabelas.from('profissionais')
             .select('*')
             .eq('user_id', userId)
             .maybeSingle();
           const ids = Array.isArray(perfil?.id) ? perfil.id : perfil?.id ? [perfil.id] : [];
           const { data: vinculosPerfil } = ids.length
-            ? await supabase
-                .from('profissionais_clinicas')
+            ? await tabelas.from('profissionais_clinicas')
                 .select('clinica_id, clinicas(id, nome)')
                 .eq('profissional_id', perfil!.id)
             : { data: [] as Array<{ clinicas: { id: string | number; nome: string } | null }> };
-          const clinicas = (vinculosPerfil || [])
-            .map((v) => (v as { clinicas?: { id: string | number; nome: string } | null }).clinicas)
+          const linhas = (vinculosPerfil || []) as Array<{ clinicas?: { id: string | number; nome: string } | null }>;
+          const clinicas = linhas
+            .map((v) => v.clinicas)
             .filter((c): c is { id: string | number; nome: string } => Boolean(c));
 
           if (sessao?.session) {

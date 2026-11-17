@@ -168,7 +168,29 @@ try {
     fs.rmSync(pastaB, { recursive: true, force: true });
   }
 
-  // 12. reabrir o banco (durabilidade)
+  // 12. filtro OU (paciente da clínica ou sem clínica)
+  const ou = banco.consultar('pacientes', {
+    filtros: [{
+      col: 'or',
+      op: 'or',
+      valor: [
+        { col: 'clinica_id', op: 'eq', valor: 17 },
+        { col: 'clinica_id', op: 'is', valor: null },
+      ],
+    }],
+  });
+  check('filtro ou', ou.length >= 2, String(ou.length));
+
+  const despesa = banco.gravar('despesas', 'insert', {
+    descricao: 'Material',
+    valor: 40,
+    data: '2026-11-16',
+    clinica_id: 17,
+    tipo: 'despesa',
+  });
+  check('despesa local', despesa.descricao === 'Material' && Number(despesa.id) < 0, String(despesa.id));
+
+  // 13. reabrir o banco (durabilidade)
   banco.fechar();
   const reaberto = criarBanco(arquivo);
   check('dados sobrevivem ao fechar', reaberto.contar('pacientes') === 4, String(reaberto.contar('pacientes')));

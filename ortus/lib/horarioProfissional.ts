@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { dados as tabelas } from '@/lib/local/consulta';
 
 import { carregarConfig, salvarConfig } from '@/lib/configClinica';
 
@@ -152,9 +153,7 @@ export async function carregarHorarioProfissional(
 
   }
 
-  const { data } = await supabase
-
-    .from('profissionais_horarios')
+  const { data } = await tabelas.from('profissionais_horarios')
 
     .select('inicio, fim, intervalo_minutos, limite_simultaneo, dias_semana, observacoes')
 
@@ -196,7 +195,7 @@ export async function salvarHorarioProfissional(
 
 ): Promise<void> {
 
-  await supabase.from('profissionais_horarios').upsert(
+  await tabelas.from('profissionais_horarios').upsert(
 
     {
 
@@ -382,9 +381,7 @@ async function validarLimiteSimultaneo(
 
 
 
-  let query = supabase
-
-    .from('agendamentos')
+  let query = tabelas.from('agendamentos')
 
     .select('id', { count: 'exact', head: true })
 

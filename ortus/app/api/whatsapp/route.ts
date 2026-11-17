@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createSupabaseAdmin } from '@/lib/supabaseAdmin';
 import { chamarWhatsappGateway, whatsappGatewayConfigurado } from '@/lib/whatsappGateway';
 import { chaveTelefone } from '@/lib/whatsappTelefone';
+import { consultarLocal, desktopAtivo, lerSessaoLocal } from '@/lib/local/ponte';
 
 type Admin = ReturnType<typeof createSupabaseAdmin>;
 type PacienteResumo = { id: string; nome: string };
@@ -13,11 +14,34 @@ function clinicaValida(id: string) {
   return /^[a-zA-Z0-9_-]{1,64}$/.test(id);
 }
 
-async function exigirClinica(req: Request, clinicaId: string): Promise<{ negado: NextResponse } | { admin: Admin }> {
+async function acessoPeloBancoLocal(token: string, clinicaId: string) {
+  if (!desktopAtivo()) return false;
+  const sessao = await lerSessaoLocal();
+  if (!sessao?.access_token || !sessao.user?.id || sessao.access_token !== token) return false;
+  const profs = await consultarLocal<{ id: number; is_super_admin?: boolean }>('profissionais', {
+    filtros: [{ col: 'user_id', op: 'eq', valor: sessao.user.id }],
+    limite: 1,
+  });
+  const prof = profs[0];
+  if (!prof) return false;
+  if (prof.is_super_admin) return true;
+  const vinculos = await consultarLocal('profissionais_clinicas', {
+    filtros: [
+      { col: 'profissional_id', op: 'eq', valor: prof.id },
+      { col: 'clinica_id', op: 'eq', valor: Number(clinicaId) },
+    ],
+    limite: 1,
+  });
+  return vinculos.length > 0;
+}
+
+async function exigirClinica(req: Request, clinicaId: string): Promise<{ negado: NextResponse } | { admin: Admin | null }> {
   const authHeader = req.headers.get('authorization') || '';
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
   if (!token) return { negado: NextResponse.json({ erro: 'Não autenticado.' }, { status: 401 }) };
   if (!clinicaValida(clinicaId)) return { negado: NextResponse.json({ erro: 'Clínica inválida.' }, { status: 400 }) };
+
+  if (await acessoPeloBancoLocal(token, clinicaId)) return { admin: null };
 
   const admin = createSupabaseAdmin();
   const { data: caller, error: callerErr } = await admin.auth.getUser(token);
@@ -42,10 +66,25 @@ async function exigirClinica(req: Request, clinicaId: string): Promise<{ negado:
   return { admin };
 }
 
-async function pacientesPorTelefone(admin: Admin, clinicaId: string) {
+async function pacientesPorTelefone(admin: Admin | null, clinicaId: string) {
   const cache = cachePacientes.get(clinicaId);
   if (cache && Date.now() - cache.em < 60_000) return cache.mapa;
   const mapa = new Map<string, PacienteResumo>();
+  if (!admin) {
+    const linhas = await consultarLocal<{ id: string; nome: string; telefone: string | null }>('pacientes', {
+      filtros: [
+        { col: 'clinica_id', op: 'eq', valor: Number(clinicaId) },
+        { col: 'telefone', op: 'notnull' },
+      ],
+      limite: 5000,
+    });
+    for (const p of linhas) {
+      const chave = chaveTelefone(p.telefone);
+      if (chave && !mapa.has(chave)) mapa.set(chave, { id: p.id, nome: p.nome });
+    }
+    cachePacientes.set(clinicaId, { em: Date.now(), mapa });
+    return mapa;
+  }
   for (let inicio = 0; inicio < 20_000; inicio += 1000) {
     const { data } = await admin
       .from('pacientes')

@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { dados as tabelas } from '@/lib/local/consulta';
 import { rowToTratamento, type TratamentoPaciente } from '@/lib/db/types';
 import { atualizar, inserir, listar, modoDados, remover } from '@/lib/local/cliente';
 
@@ -15,8 +16,7 @@ export async function listarTratamentos(pacienteId: string): Promise<TratamentoP
     return linhas.map(rowToTratamento);
   }
 
-  const { data, error } = await supabase
-    .from('paciente_tratamentos')
+  const { data, error } = await tabelas.from('paciente_tratamentos')
     .select('*')
     .eq('paciente_id', pacienteId)
     .order('data', { ascending: false, nullsFirst: false })
@@ -50,8 +50,7 @@ export async function criarTratamento(
     return rowToTratamento(salvo);
   }
 
-  const { data, error } = await supabase
-    .from('paciente_tratamentos')
+  const { data, error } = await tabelas.from('paciente_tratamentos')
     .insert(payload)
     .select('*')
     .single();
@@ -79,8 +78,7 @@ export async function atualizarTratamento(
     return rowToTratamento(salvo);
   }
 
-  const { data, error } = await supabase
-    .from('paciente_tratamentos')
+  const { data, error } = await tabelas.from('paciente_tratamentos')
     .update(payload)
     .eq('id', id)
     .select('*')
@@ -97,6 +95,6 @@ export async function excluirTratamento(id: string): Promise<void> {
     return;
   }
 
-  const { error } = await supabase.from('paciente_tratamentos').delete().eq('id', id);
+  const { error } = await tabelas.from('paciente_tratamentos').delete().eq('id', id);
   if (error) throw error;
 }

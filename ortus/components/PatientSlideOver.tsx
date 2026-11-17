@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { flushSync } from 'react-dom';
 import { createContext, useCallback, useContext, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { dados as tabelas } from '@/lib/local/consulta';
 import { ExternalLink, X } from 'lucide-react';
 import Modal from '@/components/ui/Modal';
 
@@ -116,13 +117,11 @@ export function PatientSlideOverProvider({ children }: { children: React.ReactNo
       setKanbanProstheses([]);
     });
 
-    const ficha = supabase
-      .from('pacientes')
+    const ficha = tabelas.from('pacientes')
       .select('id, nome, telefone, email, data_nascimento, clinica_id, ficha_medica, clinicas(nome), planos(nome, tipo), agendamentos(id, data_hora, procedimento, status, valor, valor_final, profissional_id)')
       .eq('id', patientId)
       .single();
-    const cartoes = supabase
-      .from('kanban_cartoes')
+    const cartoes = tabelas.from('kanban_cartoes')
       .select('id, tipo_protese, coluna_id')
       .eq('paciente_id', String(patientId))
       .limit(4);
@@ -142,7 +141,7 @@ export function PatientSlideOverProvider({ children }: { children: React.ReactNo
       const colunaIds = [...new Set(cards.map((card: { coluna_id?: string | number | null }) => card.coluna_id).filter(Boolean))];
       let columnMap: Record<string, string> = {};
       if (colunaIds.length) {
-        const { data: columns } = await supabase.from('kanban_colunas').select('id, titulo').in('id', colunaIds);
+        const { data: columns } = await tabelas.from('kanban_colunas').select('id, titulo').in('id', colunaIds);
         columnMap = (columns || []).reduce((acc: Record<string, string>, column: { id: string | number; titulo?: string }) => {
           acc[String(column.id)] = column.titulo || '';
           return acc;

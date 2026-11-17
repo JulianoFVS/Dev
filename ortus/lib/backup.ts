@@ -1,3 +1,4 @@
+import { dados as tabelas } from '@/lib/local/consulta';
 import { supabase } from './supabase';
 
 const KEY_ULTIMO = 'ortus_ultimo_backup_check';
@@ -5,8 +6,7 @@ const HORAS_12_MS = 12 * 60 * 60 * 1000;
 
 export async function obterUltimoBackup() {
     try {
-        const { data } = await supabase
-            .from('backups')
+        const { data } = await tabelas.from('backups')
             .select('id, criado_em, tipo, observacao, tamanho_kb')
             .order('criado_em', { ascending: false })
             .limit(1)
@@ -17,8 +17,7 @@ export async function obterUltimoBackup() {
 
 export async function listarBackups(limite = 50) {
     try {
-        const { data } = await supabase
-            .from('backups')
+        const { data } = await tabelas.from('backups')
             .select('id, criado_em, tipo, observacao, tamanho_kb')
             .order('criado_em', { ascending: false })
             .limit(limite);
@@ -38,7 +37,7 @@ export async function criarBackupAgora(tipo = 'manual', observacao?: string) {
 
 export async function baixarBackupComoJson(id: number) {
     try {
-        const { data, error } = await supabase.from('backups').select('*').eq('id', id).single();
+        const { data, error } = await tabelas.from('backups').select('*').eq('id', id).single();
         if (error || !data) throw error || new Error('Backup não encontrado');
         const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
         const a = document.createElement('a');
@@ -66,7 +65,7 @@ export async function restaurarBackup(id: number) {
 
 export async function excluirBackup(id: number) {
     try {
-        const { error } = await supabase.from('backups').delete().eq('id', id);
+        const { error } = await tabelas.from('backups').delete().eq('id', id);
         if (error) throw error;
         return true;
     } catch (e: any) {

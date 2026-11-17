@@ -27,7 +27,7 @@ const TIPOS_SQL = {
   bool: 'INTEGER',
 };
 
-const OPS_FILTRO = new Set(['eq', 'neq', 'in', 'is', 'notnull', 'gte', 'lte', 'gt', 'lt', 'like', 'ilike']);
+const OPS_FILTRO = new Set(['eq', 'neq', 'in', 'is', 'notnull', 'gte', 'lte', 'gt', 'lt', 'like', 'ilike', 'or']);
 
 function agoraISO() {
   return new Date().toISOString();
@@ -224,7 +224,20 @@ function criarBanco(arquivo, opcoes = {}) {
     const valores = [];
     for (const filtro of filtros) {
       const { col, op, valor } = filtro || {};
-      if (!col || !OPS_FILTRO.has(op)) continue;
+      if (!op || !OPS_FILTRO.has(op)) continue;
+      if (op === 'or') {
+        const grupo = Array.isArray(valor) ? valor : [];
+        const pedacos = [];
+        for (const item of grupo) {
+          const sub = montarFiltros(tabela, [item]);
+          if (!sub.sql) continue;
+          pedacos.push(sub.sql.replace(/^ WHERE /, ''));
+          valores.push(...sub.valores);
+        }
+        if (pedacos.length) partes.push(`(${pedacos.join(' OR ')})`);
+        continue;
+      }
+      if (!col) continue;
       colunaValida(tabela, col);
       const coluna = `"${col}"`;
       const tipo = def(tabela).colunas[col];
@@ -423,7 +436,9 @@ function criarBanco(arquivo, opcoes = {}) {
       // Túmulo local: impede que esta máquina "ressuscite" a linha ao aplicar
       // um pull antigo de outra máquina.
       registrarTumulo(tabela, linhaId, agora);
-      enfileirar({ tabela, linhaId, clinicaId, op: 'delete', payload: null, updatedAt: agora });
+      if (!t.semFila) {
+        enfileirar({ tabela, linhaId, clinicaId, op: 'delete', payload: null, updatedAt: agora });
+      }
       return linhaApi;
     }
 
@@ -442,14 +457,16 @@ function criarBanco(arquivo, opcoes = {}) {
     }
 
     const clinicaId = clinicDa(tabela, linhaApi);
-    enfileirar({
-      tabela,
-      linhaId,
-      clinicaId,
-      op,
-      payload: JSON.stringify(linhaApi),
-      updatedAt: linhaApi.updated_at || agoraISO(),
-    });
+    if (!t.semFila) {
+      enfileirar({
+        tabela,
+        linhaId,
+        clinicaId,
+        op,
+        payload: JSON.stringify(linhaApi),
+        updatedAt: linhaApi.updated_at || agoraISO(),
+      });
+    }
     return linhaApi;
   });
 

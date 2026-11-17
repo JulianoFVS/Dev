@@ -5,6 +5,7 @@ import { carregarFichaClinica } from '@/lib/db/fichaClinica';
 import { listarTratamentos } from '@/lib/db/tratamentos';
 import { legacyJsonToProntuario, type ProntuarioPaciente } from '@/lib/db/types';
 import { supabase } from '@/lib/supabase';
+import { dados as tabelas } from '@/lib/local/consulta';
 
 /** Carrega prontuário completo (tabelas relacionais + JSON clínico). */
 export async function carregarProntuario(pacienteId: string): Promise<ProntuarioPaciente> {
@@ -24,6 +25,6 @@ export async function carregarProntuario(pacienteId: string): Promise<Prontuario
   }
 
   // Fallback: dados ainda só no JSON (pré-migration ou tabelas indisponíveis)
-  const { data } = await supabase.from('pacientes').select('ficha_medica').eq('id', pacienteId).single();
+  const { data } = await tabelas.from('pacientes').select('ficha_medica').eq('id', pacienteId).single();
   return legacyJsonToProntuario(data?.ficha_medica as Record<string, unknown>);
 }

@@ -298,6 +298,7 @@ async function iniciarTudo() {
       WHATSAPP_GATEWAY_SECRET: estado.segredos.whatsapp,
       NEXT_PUBLIC_SUPABASE_URL: config.url,
       NEXT_PUBLIC_SUPABASE_ANON_KEY: config.anonKey,
+      NEXT_PUBLIC_WHATSAPP_ATIVO: '1',
       WHATSAPP_CONFIGURADO: '1',
     },
   });

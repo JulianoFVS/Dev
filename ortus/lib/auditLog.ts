@@ -1,4 +1,4 @@
-import { supabase } from './supabase';
+import { dados as tabelas, usuarioDaSessao } from '@/lib/local/consulta';
 
 export type AuditAcao = 'visualizou' | 'editou' | 'excluiu' | 'exportou' | 'login' | 'logout' | 'criou';
 export type AuditEntidade = 'paciente' | 'agendamento' | 'profissional' | 'backup' | 'odontograma' | 'tratamento' | 'documento' | 'configuracao';
@@ -16,17 +16,16 @@ interface AuditParams {
  */
 export async function registrarAudit({ acao, entidade, entidade_id, detalhes }: AuditParams) {
     try {
-        const { data: { user } } = await supabase.auth.getUser();
+        const user = await usuarioDaSessao();
         if (!user) return;
 
         // Buscar nome do profissional (cache futuro se necessário)
-        const { data: prof } = await supabase
-            .from('profissionais')
+        const { data: prof } = await tabelas.from('profissionais')
             .select('nome')
             .eq('user_id', user.id)
             .single();
 
-        await supabase.from('audit_log').insert({
+        await tabelas.from('audit_log').insert({
             user_id: user.id,
             profissional_nome: prof?.nome || 'Desconhecido',
             acao,

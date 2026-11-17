@@ -38,8 +38,18 @@ function maisNovo(a, b) {
 
 function criarSync({ banco, obterConfig, obterSessao, definirSessao, aoMudarEstado }) {
   let timer = null;
-  let rodando = false;
-  let emCiclo = false;
+  let fila = Promise.resolve();
+
+  // Um ciclo por vez. Quem chama no meio espera o que já está rodando,
+  // em vez de receber "ocupado" e seguir com o banco ainda vazio.
+  function enfileirar(trabalho) {
+    const execucao = fila.then(trabalho, trabalho);
+    fila = execucao.then(
+      () => undefined,
+      () => undefined,
+    );
+    return execucao;
+  }
 
   const estado = {
     estado: 'iniciando', // iniciando | sincronizando | sincronizado | offline | erro | login
@@ -405,9 +415,7 @@ function criarSync({ banco, obterConfig, obterSessao, definirSessao, aoMudarEsta
   }
 
   // --------------------------------------------------------------- bootstrap
-  async function bootstrap() {
-    if (rodando) return { ok: false, motivo: 'ocupado' };
-    rodando = true;
+  async function executarBootstrap() {
     try {
       const sessao = await sessaoAtual();
       if (!sessao) {
@@ -461,15 +469,16 @@ function criarSync({ banco, obterConfig, obterSessao, definirSessao, aoMudarEsta
       publicar({ estado: 'erro', online: false, ultimoErro: err instanceof Error ? err.message : String(err) });
       return { ok: false, motivo: err instanceof Error ? err.message : 'erro' };
     } finally {
-      rodando = false;
       atualizarContadores();
     }
   }
 
+  function bootstrap() {
+    return enfileirar(() => executarBootstrap());
+  }
+
   // ------------------------------------------------------------------ ciclo
-  async function sincronizarAgora() {
-    if (emCiclo) return { ...estado };
-    emCiclo = true;
+  async function executarCiclo() {
     estado.ultimaTentativa = agoraISO();
     try {
       const sessao = await sessaoAtual();
@@ -480,8 +489,7 @@ function criarSync({ banco, obterConfig, obterSessao, definirSessao, aoMudarEsta
       }
 
       if (banco.obterMeta('bootstrap_completo') !== '1') {
-        emCiclo = false;
-        await bootstrap();
+        await executarBootstrap();
         return { ...estado };
       }
 
@@ -527,9 +535,11 @@ function criarSync({ banco, obterConfig, obterSessao, definirSessao, aoMudarEsta
       });
       atualizarContadores();
       return { ...estado };
-    } finally {
-      emCiclo = false;
     }
+  }
+
+  function sincronizarAgora() {
+    return enfileirar(() => executarCiclo());
   }
 
   function iniciar() {

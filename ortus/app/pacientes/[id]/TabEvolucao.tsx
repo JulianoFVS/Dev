@@ -5,6 +5,7 @@ import { Trash2, Save, Loader2, Printer } from 'lucide-react';
 import CampoData from '@/components/ui/CampoData';
 
 import { supabase } from '@/lib/supabase';
+import { dados as tabelas, usuarioDaSessao } from '@/lib/local/consulta';
 
 import { useCustomAlert } from '@/components/ui/CustomAlert';
 
@@ -48,11 +49,11 @@ export default function TabEvolucao({ id, form, evolucoes, setEvolucoes }: Props
 
         (async () => {
 
-            const { data: { user } } = await supabase.auth.getUser();
+            const user = await usuarioDaSessao();
 
             if (!user) return;
 
-            const { data: prof } = await supabase.from('profissionais').select('nome').eq('user_id', user.id).maybeSingle();
+            const { data: prof } = await tabelas.from('profissionais').select('nome').eq('user_id', user.id).maybeSingle();
 
             if (prof?.nome) setProfissionalNome(prof.nome);
 

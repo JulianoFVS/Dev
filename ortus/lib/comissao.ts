@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { dados as tabelas } from '@/lib/local/consulta';
 import type { ComissaoRegra } from '@/lib/types/permissions';
 
 export type ComissaoGatilho = 'debito_recebido' | 'tratamento_finalizado' | 'orcamento_aprovado';
@@ -25,8 +26,7 @@ export async function registrarComissaoAutomatica(params: RegistrarComissaoParam
 
   if (!profissionalId || valorBase <= 0) return { ok: true, lancamentos: 0 };
 
-  const { data: regras, error } = await supabase
-    .from('comissoes_regras')
+  const { data: regras, error } = await tabelas.from('comissoes_regras')
     .select('*')
     .eq('clinica_id', Number(clinicaId))
     .eq('profissional_id', Number(profissionalId))
@@ -40,7 +40,7 @@ export async function registrarComissaoAutomatica(params: RegistrarComissaoParam
     const valorComissao = calcularValorComissao(regra, valorBase);
     if (valorComissao <= 0) continue;
 
-    const { error: insErr } = await supabase.from('comissoes_lancamentos').insert({
+    const { error: insErr } = await tabelas.from('comissoes_lancamentos').insert({
       profissional_id: Number(profissionalId),
       clinica_id: Number(clinicaId),
       paciente_id: pacienteId || null,

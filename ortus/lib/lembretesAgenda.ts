@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { dados as tabelas } from '@/lib/local/consulta';
 
 import { carregarConfig, salvarConfig } from '@/lib/configClinica';
 
@@ -120,9 +121,7 @@ export async function lembreteJaEnviado(clinicaId: string | number, agendamentoI
 
   }
 
-  const { count } = await supabase
-
-    .from('lembretes_agenda')
+  const { count } = await tabelas.from('lembretes_agenda')
 
     .select('id', { count: 'exact', head: true })
 
@@ -210,7 +209,7 @@ export async function marcarLembreteEnviado(
 
   }
 
-  await supabase.from('lembretes_agenda').upsert(
+  await tabelas.from('lembretes_agenda').upsert(
 
     {
 
@@ -354,9 +353,7 @@ export async function buscarAgendamentosLembrete24h(clinicaIds: (number | string
 
   }
 
-  const { data } = await supabase
-
-    .from('agendamentos')
+  const { data } = await tabelas.from('agendamentos')
 
     .select('id, data_hora, procedimento, clinica_id, pacientes(nome, telefone, email), clinicas(nome)')
 

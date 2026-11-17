@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Check, Loader2, Plus, Search, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { dados as tabelas } from '@/lib/local/consulta';
 import Modal from '@/components/ui/Modal';
 import CustomSelect from '@/components/ui/CustomSelect';
 
@@ -153,8 +154,8 @@ export default function ModalPedidoProtese({
     if (columns.length > 0 && patients.length > 0) return;
     let cancelado = false;
     async function completar() {
-      let cols = supabase.from('kanban_colunas').select('id, titulo').order('ordem', { ascending: true });
-      let pacs = supabase.from('pacientes').select('id, nome, telefone, clinica_id').order('nome', { ascending: true });
+      let cols = tabelas.from('kanban_colunas').select('id, titulo').order('ordem', { ascending: true });
+      let pacs = tabelas.from('pacientes').select('id, nome, telefone, clinica_id').order('nome', { ascending: true });
       if (clinicId) {
         cols = cols.eq('clinica_id', clinicId);
         pacs = pacs.eq('clinica_id', clinicId);
@@ -189,7 +190,7 @@ export default function ModalPedidoProtese({
     setCreatingPatient(true);
     const payload: { nome: string; clinica_id?: string } = { nome };
     if (clinicId) payload.clinica_id = clinicId;
-    const { data, error } = await supabase.from('pacientes').insert([payload]).select('id, nome, telefone, clinica_id').single();
+    const { data, error } = await tabelas.from('pacientes').insert([payload]).select('id, nome, telefone, clinica_id').single();
     setCreatingPatient(false);
     if (error || !data) {
       onAviso?.('warning', 'Não foi possível criar o paciente: ' + (error?.message || 'erro desconhecido'));
@@ -231,8 +232,8 @@ export default function ModalPedidoProtese({
       checklist: pedido?.tipo_protese === form.tipo_protese && Array.isArray(pedido.checklist) ? pedido.checklist : buildChecklist(form.tipo_protese),
     };
     const { error } = pedido
-      ? await supabase.from('kanban_cartoes').update(payload).eq('id', pedido.id)
-      : await supabase.from('kanban_cartoes').insert([payload]);
+      ? await tabelas.from('kanban_cartoes').update(payload).eq('id', pedido.id)
+      : await tabelas.from('kanban_cartoes').insert([payload]);
     setSaving(false);
     if (error) return onAviso?.('warning', `Erro ao ${pedido ? 'atualizar' : 'criar'} pedido: ${error.message}`);
     if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('ortus:protese-changed'));

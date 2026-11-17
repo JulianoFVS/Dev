@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { dados as tabelas } from '@/lib/local/consulta';
 
 export function useInboxCounts() {
   const [mensagensCount, setMensagensCount] = useState(0);
@@ -19,15 +20,13 @@ export function useInboxCounts() {
       const agoraIso = new Date().toISOString();
       const tiposAlerta = ['agenda', 'alerta', 'sistema', 'aviso'];
       const [{ count: alertasCount }, { count: msgsCount }] = await Promise.all([
-        supabase
-          .from('notificacoes')
+        tabelas.from('notificacoes')
           .select('*', { count: 'exact', head: true })
           .eq('user_id', session.user.id)
           .eq('lida', false)
           .in('tipo', tiposAlerta)
           .or(`expires_at.is.null,expires_at.gt.${agoraIso}`),
-        supabase
-          .from('notificacoes')
+        tabelas.from('notificacoes')
           .select('*', { count: 'exact', head: true })
           .eq('user_id', session.user.id)
           .eq('lida', false)

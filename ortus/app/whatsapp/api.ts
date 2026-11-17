@@ -34,6 +34,7 @@ export type Mensagem = {
   arquivo: string | null;
   em: number;
   ack: number | null;
+  autor?: string | null;
 };
 
 export type Midia = { mimetype: string; data: string; nome: string | null };

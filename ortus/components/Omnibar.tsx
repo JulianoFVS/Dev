@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import type { ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+import { dados as tabelas } from '@/lib/local/consulta';
 import { useClinica } from '@/app/context/ClinicaContext';
 import { usePatientSlideOver } from '@/components/PatientSlideOver';
 import { usePatientActionModal } from '@/components/PatientActionModal';
@@ -147,8 +148,7 @@ export default function Omnibar({ moduleAccess, isAdmin }: OmnibarProps) {
       return;
     }
     let cancelado = false;
-    supabase
-      .from('pacientes')
+    tabelas.from('pacientes')
       .select('id, nome, telefone, cpf')
       .in('clinica_id', clinicIds)
       .order('nome')

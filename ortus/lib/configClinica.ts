@@ -1,12 +1,12 @@
 import { supabase } from '@/lib/supabase';
+import { dados as tabelas } from '@/lib/local/consulta';
 
 /**
  * Carrega uma configuração por chave para a clínica ativa.
  * Fallback para localStorage para retrocompatibilidade.
  */
 export async function carregarConfig<T>(clinicaId: number | string, chave: string, fallbackLocal?: string, padrao?: T): Promise<T> {
-    const { data } = await supabase
-        .from('configuracoes_clinica')
+    const { data } = await tabelas.from('configuracoes_clinica')
         .select('valor')
         .eq('clinica_id', Number(clinicaId))
         .eq('chave', chave)
@@ -36,8 +36,7 @@ export async function carregarConfig<T>(clinicaId: number | string, chave: strin
  * Salva uma configuração no Supabase por clínica.
  */
 export async function salvarConfig<T>(clinicaId: number | string, chave: string, valor: T): Promise<void> {
-    await supabase
-        .from('configuracoes_clinica')
+    await tabelas.from('configuracoes_clinica')
         .upsert(
             { clinica_id: Number(clinicaId), chave, valor: valor as any, updated_at: new Date().toISOString() },
             { onConflict: 'clinica_id,chave' }

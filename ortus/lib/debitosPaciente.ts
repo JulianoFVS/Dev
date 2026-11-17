@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { dados as tabelas } from '@/lib/local/consulta';
 import { receberAgendamento, type ParteRecebimento } from '@/lib/recebimentoAgendamento';
 import type { TaxaMaquininha } from '@/lib/configDefaults';
 
@@ -19,8 +20,7 @@ export type DebitoPaciente = {
 export async function listarDebitosPaciente(pacienteId: string | number): Promise<DebitoPaciente[]> {
   const items: DebitoPaciente[] = [];
 
-  const { data: manuais } = await supabase
-    .from('paciente_debitos')
+  const { data: manuais } = await tabelas.from('paciente_debitos')
     .select('*')
     .eq('paciente_id', pacienteId)
     .eq('status', 'pendente')
@@ -40,8 +40,7 @@ export async function listarDebitosPaciente(pacienteId: string | number): Promis
     });
   });
 
-  const { data: fiados } = await supabase
-    .from('agendamentos')
+  const { data: fiados } = await tabelas.from('agendamentos')
     .select('*, profissionais(nome)')
     .eq('paciente_id', pacienteId)
     .eq('status', 'fiado')
@@ -68,8 +67,7 @@ export async function listarDebitosPaciente(pacienteId: string | number): Promis
 }
 
 export async function listarOpcoesMarcarNaoPago(pacienteId: string | number) {
-  const { data: ags } = await supabase
-    .from('agendamentos')
+  const { data: ags } = await tabelas.from('agendamentos')
     .select('id, procedimento, data_hora, valor_final, valor, status, observacoes, tipo_registro')
     .eq('paciente_id', pacienteId)
     .neq('status', 'fiado')
@@ -77,8 +75,7 @@ export async function listarOpcoesMarcarNaoPago(pacienteId: string | number) {
     .or('tipo_registro.is.null,tipo_registro.eq.agenda')
     .order('data_hora', { ascending: false });
 
-  const { data: trats } = await supabase
-    .from('paciente_tratamentos')
+  const { data: trats } = await tabelas.from('paciente_tratamentos')
     .select('id, procedimento, valor, data, status')
     .eq('paciente_id', pacienteId)
     .in('status', ['concluido', 'andamento'])
@@ -97,8 +94,7 @@ export async function receberDebito(
   partes?: ParteRecebimento[],
 ) {
   if (debito.origem === 'manual') {
-    const { error } = await supabase
-      .from('paciente_debitos')
+    const { error } = await tabelas.from('paciente_debitos')
       .update({ status: 'pago', data_pagamento: new Date().toISOString() })
       .eq('id', debito.id);
     if (error) throw error;
@@ -131,8 +127,7 @@ export async function criarDebitoManual(input: {
   agendamento_id?: number | null;
   tratamento_id?: string | null;
 }) {
-  const { data, error } = await supabase
-    .from('paciente_debitos')
+  const { data, error } = await tabelas.from('paciente_debitos')
     .insert([{
       paciente_id: input.paciente_id,
       clinica_id: input.clinica_id,
@@ -150,8 +145,7 @@ export async function criarDebitoManual(input: {
 }
 
 export async function marcarAgendamentoNaoPago(agendamentoId: number) {
-  const { data, error } = await supabase
-    .from('agendamentos')
+  const { data, error } = await tabelas.from('agendamentos')
     .update({ status: 'fiado' })
     .eq('id', agendamentoId)
     .select('*, profissionais(nome)')
@@ -163,8 +157,7 @@ export async function marcarAgendamentoNaoPago(agendamentoId: number) {
 export async function marcarTratamentoNaoPago(tratamentoId: string, valor?: number) {
   const updates: Record<string, unknown> = { status: 'andamento' };
   if (valor != null) updates.valor = valor;
-  const { data, error } = await supabase
-    .from('paciente_tratamentos')
+  const { data, error } = await tabelas.from('paciente_tratamentos')
     .update(updates)
     .eq('id', tratamentoId)
     .select('*')

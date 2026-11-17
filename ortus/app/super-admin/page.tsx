@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AlertTriangle, Plus, RefreshCw, ShieldCheck, UserPlus, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { dados as tabelas } from '@/lib/local/consulta';
 import Modal from '@/components/ui/Modal';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
 import SaaSKpis from '@/components/saas/SaaSKpis';
@@ -180,8 +181,7 @@ export default function SuperAdminPage() {
           return;
         }
 
-        const { data: perfilData, error: erroPerfil } = await supabase
-          .from('profissionais')
+        const { data: perfilData, error: erroPerfil } = await tabelas.from('profissionais')
           .select('is_super_admin')
           .eq('user_id', session.user.id)
           .single();

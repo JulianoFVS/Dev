@@ -1,6 +1,7 @@
 'use client';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, ReactNode } from 'react';
 import { supabase } from '@/lib/supabase';
+import { dados as tabelas } from '@/lib/local/consulta';
 
 export type ClinicRecord = {
   id: string;
@@ -103,8 +104,7 @@ export function ClinicaProvider({ children }: { children: ReactNode }) {
       };
 
       // 1) profissional do usuário logado
-      const { data: prof, error: profErr } = await supabase
-        .from('profissionais')
+      const { data: prof, error: profErr } = await tabelas.from('profissionais')
         .select('id, is_super_admin')
         .eq('user_id', session.user.id)
         .maybeSingle();
@@ -114,16 +114,14 @@ export function ClinicaProvider({ children }: { children: ReactNode }) {
 
       if (prof?.is_super_admin) {
         // Super admin: vê todas as clínicas (bypass intencional para o backoffice).
-        const { data, error } = await supabase
-          .from('clinicas')
+        const { data, error } = await tabelas.from('clinicas')
           .select('id, nome, endereco, rede_id, redes(id, nome)')
           .order('nome');
         logErro('clinicas.select (super admin)', error);
         lista = (data || []) as ClinicRecord[];
       } else if (prof?.id) {
         // 2) clinica_ids vinculados a esse profissional
-        const { data: vinculos, error: vincErr } = await supabase
-          .from('profissionais_clinicas')
+        const { data: vinculos, error: vincErr } = await tabelas.from('profissionais_clinicas')
           .select('clinica_id')
           .eq('profissional_id', prof.id);
         logErro('profissionais_clinicas.select', vincErr);
@@ -132,8 +130,7 @@ export function ClinicaProvider({ children }: { children: ReactNode }) {
 
         if (ids.length > 0) {
           // 3) clinicas que o usuário pode acessar (RLS já é redundante aqui)
-          const { data: clins, error: clErr } = await supabase
-            .from('clinicas')
+          const { data: clins, error: clErr } = await tabelas.from('clinicas')
             .select('id, nome, endereco, rede_id, redes(id, nome)')
             .in('id', ids as any)
             .order('nome');

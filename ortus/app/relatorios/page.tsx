@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { dados as tabelas } from '@/lib/local/consulta';
 import { clinicScope, readRouteCache, writeRouteCache } from '@/lib/routeListCache';
 import { carregarConfig } from '@/lib/configClinica';
 import CustomSelect from '@/components/ui/CustomSelect';
@@ -353,13 +354,13 @@ export default function Relatorios() {
         const cidMeta = activeClinicId !== 'all' ? String(activeClinicId) : String(ids[0]);
 
         const [agendamentos, despesas, pacientes, fiados, horarios, meta, vinculos] = await Promise.all([
-            ler<Ag[]>(supabase.from('agendamentos').select('id, data_hora, procedimento, status, valor, desconto, valor_final, paciente_id, profissional_id, pacientes(nome), profissionais(nome)').gte('data_hora', fetchInicio.toISOString()).lte('data_hora', range.fim.toISOString()).in('clinica_id', ids)),
-            ler<Despesa[]>(supabase.from('despesas').select('id, descricao, valor, data, categoria, tipo, status').gte('data', isoDia(fetchInicio)).lte('data', isoDia(range.fim)).in('clinica_id', ids)),
-            ler<Pac[]>(supabase.from('pacientes').select('id, nome, created_at, plano_id').in('clinica_id', ids)),
-            ler<Ag[]>(supabase.from('agendamentos').select('id, data_hora, procedimento, status, valor, desconto, valor_final, paciente_id, profissional_id, pacientes(nome), profissionais(nome)').eq('status', 'fiado').in('clinica_id', ids)),
-            ler<Horario[]>(supabase.from('profissionais_horarios').select('profissional_id, inicio, fim, intervalo_minutos, dias_semana').in('clinica_id', ids)),
+            ler<Ag[]>(tabelas.from('agendamentos').select('id, data_hora, procedimento, status, valor, desconto, valor_final, paciente_id, profissional_id, pacientes(nome), profissionais(nome)').gte('data_hora', fetchInicio.toISOString()).lte('data_hora', range.fim.toISOString()).in('clinica_id', ids)),
+            ler<Despesa[]>(tabelas.from('despesas').select('id, descricao, valor, data, categoria, tipo, status').gte('data', isoDia(fetchInicio)).lte('data', isoDia(range.fim)).in('clinica_id', ids)),
+            ler<Pac[]>(tabelas.from('pacientes').select('id, nome, created_at, plano_id').in('clinica_id', ids)),
+            ler<Ag[]>(tabelas.from('agendamentos').select('id, data_hora, procedimento, status, valor, desconto, valor_final, paciente_id, profissional_id, pacientes(nome), profissionais(nome)').eq('status', 'fiado').in('clinica_id', ids)),
+            ler<Horario[]>(tabelas.from('profissionais_horarios').select('profissional_id, inicio, fim, intervalo_minutos, dias_semana').in('clinica_id', ids)),
             carregarConfig<Record<string, unknown>>(cidMeta, 'lancamentos_meta', 'ortus_lancamentos_meta', {}).catch(() => ({})),
-            ler<{ profissionais: Prof | Prof[] | null }[]>(supabase.from('profissionais_clinicas').select('profissionais(id, nome)').in('clinica_id', ids)),
+            ler<{ profissionais: Prof | Prof[] | null }[]>(tabelas.from('profissionais_clinicas').select('profissionais(id, nome)').in('clinica_id', ids)),
         ]);
 
         if (gen !== fetchGen.current) return;
@@ -376,11 +377,11 @@ export default function Relatorios() {
         setLoading(false);
 
         const [planos, visitas, cards, colunas, comissoes] = await Promise.all([
-            ler<Plano[]>(supabase.from('planos').select('id, nome, tipo').in('clinica_id', ids)),
-            ler<Visita[]>(supabase.from('agendamentos').select('paciente_id, data_hora').eq('status', 'concluido').in('clinica_id', ids).order('data_hora', { ascending: false }).limit(5000)),
-            ler<CardLab[]>(supabase.from('kanban_cartoes').select('id, paciente_nome, descricao, tipo_protese, data_entrega, valor, coluna_id').in('clinica_id', ids).limit(2000)),
-            ler<Coluna[]>(supabase.from('kanban_colunas').select('id, titulo').in('clinica_id', ids)),
-            ler<Comissao[]>(supabase.from('comissoes_lancamentos').select('id, profissional_id, descricao, valor_comissao, status').in('clinica_id', ids).limit(2000)),
+            ler<Plano[]>(tabelas.from('planos').select('id, nome, tipo').in('clinica_id', ids)),
+            ler<Visita[]>(tabelas.from('agendamentos').select('paciente_id, data_hora').eq('status', 'concluido').in('clinica_id', ids).order('data_hora', { ascending: false }).limit(5000)),
+            ler<CardLab[]>(tabelas.from('kanban_cartoes').select('id, paciente_nome, descricao, tipo_protese, data_entrega, valor, coluna_id').in('clinica_id', ids).limit(2000)),
+            ler<Coluna[]>(tabelas.from('kanban_colunas').select('id, titulo').in('clinica_id', ids)),
+            ler<Comissao[]>(tabelas.from('comissoes_lancamentos').select('id, profissional_id, descricao, valor_comissao, status').in('clinica_id', ids).limit(2000)),
         ]);
 
         if (gen !== fetchGen.current) return;

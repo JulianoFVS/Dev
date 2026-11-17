@@ -20,12 +20,25 @@ function tokenDoCabecalho(req: Request): string {
   return cabecalho.startsWith('Bearer ') ? cabecalho.slice(7) : '';
 }
 
+/** `sub` do JWT, sem validar assinatura. A rota só escuta em 127.0.0.1. */
+function usuarioDoToken(token: string): string | null {
+  const parte = token.split('.')[1];
+  if (!parte) return null;
+  try {
+    const json = Buffer.from(parte.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8');
+    const corpo = JSON.parse(json) as { sub?: unknown };
+    return typeof corpo.sub === 'string' ? corpo.sub : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Quem pode falar com o banco local: a própria sessão guardada no userData.
  *
  * O programa é mono-usuário por máquina e as rotas só escutam em 127.0.0.1;
  * a sessão em cache é gravada pelo fluxo de login (online) e é a mesma que o
- * sincronizador usa. Token diferente do cache é recusado.
+ * sincronizador usa. Um JWT mais novo do mesmo usuário também passa.
  */
 export async function exigirSessaoLocal(req: Request): Promise<{ sessao: SessaoLocal } | { resposta: NextResponse }> {
   const fora = negarForaDoDesktop();
@@ -38,14 +51,12 @@ export async function exigirSessaoLocal(req: Request): Promise<{ sessao: SessaoL
     return { resposta: NextResponse.json({ erro: 'Nenhuma sessão local. Conecte-se à internet e entre uma vez.' }, { status: 401 }) };
   }
 
-  // Com token: precisa ser o mesmo da sessão em cache.
-  if (token && sessao.access_token !== token) {
-    return { resposta: NextResponse.json({ erro: 'Sessão local inválida.' }, { status: 401 }) };
-  }
+  // Sem token: o access token do Supabase venceu e a máquina está sem internet.
+  // Com outro token do mesmo usuário: o cliente renovou o JWT e o cache ainda
+  // tem o anterior. Os dois casos seguem, porque a rota só escuta em 127.0.0.1.
+  if (!token || token === sessao.access_token) return { sessao };
+  const sub = usuarioDoToken(token);
+  if (sub && sessao.user?.id && sub === sessao.user.id) return { sessao };
 
-  // Sem token: só acontece quando o token do Supabase venceu e a máquina está
-  // sem internet. Como a sessão em cache existe e as rotas só escutam em
-  // 127.0.0.1 (mesma máquina, mesmo usuário do sistema), seguimos com ela —
-  // é o que mantém a clínica trabalhando offline.
-  return { sessao };
+  return { resposta: NextResponse.json({ erro: 'Sessão local inválida.' }, { status: 401 }) };
 }

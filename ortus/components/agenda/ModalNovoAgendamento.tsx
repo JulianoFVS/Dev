@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Loader2, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { dados as tabelas, usuarioDaSessao } from '@/lib/local/consulta';
 import { fetchUserClinicas, fetchUserEquipe, type ProfissionalEquipe } from '@/lib/clinicScoped';
 import { inserir, lerSessaoCacheUI, listar, modoDados } from '@/lib/local/cliente';
 import { useClinica } from '@/app/context/ClinicaContext';
@@ -147,15 +148,15 @@ export default function ModalNovoAgendamento({
           return;
         }
       } else {
-        const [{ data: { user } }, clinicasNuvem, equipeNuvem] = await Promise.all([
-          supabase.auth.getUser(),
+        const [user, clinicasNuvem, equipeNuvem] = await Promise.all([
+          usuarioDaSessao(),
           fetchUserClinicas(),
           fetchUserEquipe(),
         ]);
         listaClinicas = clinicasNuvem;
         equipe = equipeNuvem;
         if (user) {
-          const { data: prof } = await supabase.from('profissionais').select('id, nivel_acesso').eq('user_id', user.id).maybeSingle();
+          const { data: prof } = await tabelas.from('profissionais').select('id, nivel_acesso').eq('user_id', user.id).maybeSingle();
           if (prof) {
             nivelAtual = prof.nivel_acesso || 'admin';
             profAtual = nivelAtual !== 'admin' ? String(prof.id) : '';
@@ -215,10 +216,10 @@ export default function ModalNovoAgendamento({
         // nuvem quando há conexão; offline o procedimento vira texto livre.
         try {
           const [tr, esp, planos, linhas] = await Promise.all([
-            supabase.from('tratamentos_base').select('id, nome, valor_sugerido, especialidade_id').eq('clinica_id', form.clinica_id).eq('ativo', true).order('nome'),
-            supabase.from('especialidades').select('id, nome').eq('clinica_id', Number(form.clinica_id)).eq('ativo', true).order('nome'),
-            supabase.from('planos').select('id, tipo').eq('clinica_id', Number(form.clinica_id)),
-            supabase.from('planos_tratamentos').select('plano_id, tratamento_id, valor, ativo').eq('clinica_id', Number(form.clinica_id)),
+            tabelas.from('tratamentos_base').select('id, nome, valor_sugerido, especialidade_id').eq('clinica_id', form.clinica_id).eq('ativo', true).order('nome'),
+            tabelas.from('especialidades').select('id, nome').eq('clinica_id', Number(form.clinica_id)).eq('ativo', true).order('nome'),
+            tabelas.from('planos').select('id, tipo').eq('clinica_id', Number(form.clinica_id)),
+            tabelas.from('planos_tratamentos').select('plano_id, tratamento_id, valor, ativo').eq('clinica_id', Number(form.clinica_id)),
           ]);
           if (cancelado) return;
           setTratamentos(tr.data || []);
@@ -232,11 +233,11 @@ export default function ModalNovoAgendamento({
       }
 
       const [tr, esp, pac, planos, linhas] = await Promise.all([
-        supabase.from('tratamentos_base').select('id, nome, valor_sugerido, especialidade_id').eq('clinica_id', form.clinica_id).eq('ativo', true).order('nome'),
-        supabase.from('especialidades').select('id, nome').eq('clinica_id', Number(form.clinica_id)).eq('ativo', true).order('nome'),
-        supabase.from('pacientes').select('id, nome, clinica_id, telefone, plano_id').eq('clinica_id', form.clinica_id).order('nome'),
-        supabase.from('planos').select('id, tipo').eq('clinica_id', Number(form.clinica_id)),
-        supabase.from('planos_tratamentos').select('plano_id, tratamento_id, valor, ativo').eq('clinica_id', Number(form.clinica_id)),
+        tabelas.from('tratamentos_base').select('id, nome, valor_sugerido, especialidade_id').eq('clinica_id', form.clinica_id).eq('ativo', true).order('nome'),
+        tabelas.from('especialidades').select('id, nome').eq('clinica_id', Number(form.clinica_id)).eq('ativo', true).order('nome'),
+        tabelas.from('pacientes').select('id, nome, clinica_id, telefone, plano_id').eq('clinica_id', form.clinica_id).order('nome'),
+        tabelas.from('planos').select('id, tipo').eq('clinica_id', Number(form.clinica_id)),
+        tabelas.from('planos_tratamentos').select('plano_id, tratamento_id, valor, ativo').eq('clinica_id', Number(form.clinica_id)),
       ]);
       if (cancelado) return;
       setTratamentos(tr.data || []);
@@ -299,7 +300,7 @@ export default function ModalNovoAgendamento({
       if (modo === 'local') {
         await inserir('agendamentos', { ...dados, duracao_minutos: 60 });
       } else {
-        const { error } = await supabase.from('agendamentos').insert([dados]);
+        const { error } = await tabelas.from('agendamentos').insert([dados]);
         if (error) {
           await showAlert('Erro ao agendar: ' + error.message, { type: 'error' });
           return;

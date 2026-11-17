@@ -6,8 +6,10 @@ import {
   ArrowLeft,
   Check,
   CheckCheck,
+  Clock,
   FileText,
   Loader2,
+  MessageCircle,
   Paperclip,
   Plus,
   Search,
@@ -34,6 +36,14 @@ import {
 } from './api';
 
 const ARQUIVO_MAXIMO = 3 * 1024 * 1024;
+
+const MENSAGENS_RAPIDAS: TemplateComunicacao[] = [
+  { id: 'rapida_ola', canal: 'whatsapp', nome: 'Olá', corpo: 'Olá {{paciente_nome}}! Aqui é da {{clinica_nome}}. Como posso ajudar?', ativo: true },
+  { id: 'rapida_confirmar', canal: 'whatsapp', nome: 'Confirmar', corpo: 'Olá {{paciente_nome}}! Podemos confirmar sua consulta na {{clinica_nome}}?', ativo: true },
+  { id: 'rapida_lembrete', canal: 'whatsapp', nome: 'Lembrete', corpo: 'Oi {{paciente_nome}}, passando para lembrar da sua consulta na {{clinica_nome}}. Se precisar remarcar, é só responder por aqui.', ativo: true },
+  { id: 'rapida_chegou', canal: 'whatsapp', nome: 'Chegou a vez', corpo: '{{paciente_nome}}, sua vez chegou. Estamos te aguardando na recepção da {{clinica_nome}}.', ativo: true },
+  { id: 'rapida_obrigado', canal: 'whatsapp', nome: 'Obrigado', corpo: 'Obrigado, {{paciente_nome}}! Qualquer dúvida, a {{clinica_nome}} está à disposição.', ativo: true },
+];
 
 type Props = {
   clinicaId: string;
@@ -76,6 +86,7 @@ function rotuloMidia(tipo: string) {
   return 'Abrir arquivo';
 }
 
+
 function lerBase64(arquivo: File) {
   return new Promise<string>((resolve, reject) => {
     const leitor = new FileReader();
@@ -86,9 +97,9 @@ function lerBase64(arquivo: File) {
 }
 
 function Confirmacao({ ack }: { ack: number | null }) {
-  if (ack == null || ack < 1) return null;
-  if (ack === 1) return <Check size={12} className="text-white/50" />;
-  return <CheckCheck size={12} className={ack >= 3 ? 'text-sky-300' : 'text-white/50'} />;
+  if (ack == null || ack < 1) return <Clock size={12} className="text-white/45" />;
+  if (ack === 1) return <Check size={14} className="text-white/55" />;
+  return <CheckCheck size={15} className={ack >= 3 ? 'text-[#c8f053]' : 'text-white/55'} />;
 }
 
 export default function Conversas({ clinicaId, clinicaNome, rascunho, onRascunhoUsado }: Props) {
@@ -116,7 +127,17 @@ export default function Conversas({ clinicaId, clinicaNome, rascunho, onRascunho
   const arquivoRef = useRef<HTMLInputElement>(null);
   const chatAberto = useRef<string | null>(null);
   const ultimoTotal = useRef(0);
+  const versaoMensagens = useRef(0);
   chatAberto.current = chatId;
+
+  const aplicarMensagens = useCallback((id: string, lista: Mensagem[], versao: number) => {
+    if (versao !== versaoMensagens.current || chatAberto.current !== id) return;
+    setMensagens((atual) => {
+      const locais = atual.filter((item) => item.id.startsWith('local-') && !lista.some((outra) => outra.deMim && outra.texto === item.texto && Math.abs(outra.em - item.em) < 60000));
+      const ids = new Set(lista.map((item) => item.id));
+      return [...lista, ...locais.filter((item) => !ids.has(item.id))].sort((a, b) => a.em - b.em);
+    });
+  }, []);
 
   const carregarConversas = useCallback(async () => {
     const lista = await chamarWhatsapp<Conversa[]>(urlWhatsapp(clinicaId, { acao: 'conversas' }));
@@ -125,10 +146,11 @@ export default function Conversas({ clinicaId, clinicaNome, rascunho, onRascunho
   }, [clinicaId]);
 
   const carregarMensagens = useCallback(async (id: string) => {
+    const versao = ++versaoMensagens.current;
     const lida = typeof document !== 'undefined' && document.visibilityState === 'visible' ? '1' : '0';
     const lista = await chamarWhatsapp<Mensagem[]>(urlWhatsapp(clinicaId, { acao: 'mensagens', chat: id, lida }));
-    if (chatAberto.current === id && Array.isArray(lista)) setMensagens(lista);
-  }, [clinicaId]);
+    if (Array.isArray(lista)) aplicarMensagens(id, lista, versao);
+  }, [aplicarMensagens, clinicaId]);
 
   useEffect(() => {
     let ativo = true;
@@ -142,7 +164,7 @@ export default function Conversas({ clinicaId, clinicaNome, rascunho, onRascunho
       }
     };
     void ciclo();
-    const id = window.setInterval(ciclo, 4000);
+    const id = window.setInterval(ciclo, 2000);
     return () => {
       ativo = false;
       window.clearInterval(id);
@@ -243,17 +265,62 @@ export default function Conversas({ clinicaId, clinicaNome, rascunho, onRascunho
     if ((!corpo && !arquivo) || !chatId || enviando) return;
     setEnviando(true);
     setErro('');
+    const otimista: Mensagem = {
+      id: `local-${Date.now()}`,
+      chatId,
+      deMim: true,
+      texto: corpo,
+      tipo: arquivo ? 'image' : 'chat',
+      temMidia: !!arquivo,
+      arquivo: arquivo?.name || null,
+      em: Date.now(),
+      ack: 0,
+    };
+    setMensagens((atual) => [...atual, otimista]);
     try {
       const anexo = arquivo
         ? { mimetype: arquivo.type || 'application/octet-stream', data: await lerBase64(arquivo), nome: arquivo.name }
         : null;
-      await chamarWhatsapp('/api/whatsapp', { clinicaId, acao: 'enviar', chatId, texto: corpo, arquivo: anexo });
+      const aberta = conversas.find((item) => item.id === chatId) || avulso;
+      const resposta = await chamarWhatsapp<{ ok?: boolean; chatId?: string }>('/api/whatsapp', {
+        clinicaId,
+        acao: 'enviar',
+        chatId,
+        telefone: aberta?.telefone || null,
+        texto: corpo,
+        arquivo: anexo,
+      });
+      const aberto = resposta.chatId || chatId;
+      if (aberto !== chatId) {
+        chatAberto.current = aberto;
+        setChatId(aberto);
+        setAvulso((item) => (item ? { ...item, id: aberto } : item));
+      }
       setTexto('');
       setArquivo(null);
-      await carregarMensagens(chatId);
+      await carregarMensagens(aberto);
       void carregarConversas();
     } catch (err) {
-      setErro(mensagemDeErro(err, 'Não foi possível enviar.'));
+      const mensagem = mensagemDeErro(err, 'Não foi possível enviar.');
+      let apareceu = false;
+      try {
+        const lida = document.visibilityState === 'visible' ? '1' : '0';
+        const lista = await chamarWhatsapp<Mensagem[]>(urlWhatsapp(clinicaId, { acao: 'mensagens', chat: chatId, lida }));
+        if (Array.isArray(lista)) {
+          aplicarMensagens(chatId, lista, versaoMensagens.current);
+          apareceu = lista.some((item) => item.deMim && item.texto === corpo && Date.now() - item.em < 20000);
+        }
+      } catch {
+        // Mantém a conversa que já estava na tela.
+      }
+      if (apareceu) {
+        setTexto('');
+        setArquivo(null);
+        setErro('');
+      } else {
+        setMensagens((atual) => atual.filter((item) => item.id !== otimista.id));
+        setErro(mensagem);
+      }
     } finally {
       setEnviando(false);
     }
@@ -278,7 +345,7 @@ export default function Conversas({ clinicaId, clinicaNome, rascunho, onRascunho
     const textoPronto = montarMensagemTemplate(template, {
       paciente_nome: primeiroNome(atual?.paciente?.nome || atual?.nome),
       clinica_nome: clinicaNome,
-    });
+    }).replace(/\{\{[^}]+\}\}/g, '').replace(/[ ]{2,}/g, ' ').replace(/\s+([,!.?])/g, '$1').trim();
     setTexto((anterior) => (anterior.trim() ? `${anterior}\n${textoPronto}` : textoPronto));
     setRespostasAbertas(false);
     window.setTimeout(() => campoRef.current?.focus(), 30);
@@ -296,11 +363,11 @@ export default function Conversas({ clinicaId, clinicaNome, rascunho, onRascunho
   const totalNaoLidas = conversas.reduce((soma, item) => soma + (item.naoLidas > 0 ? 1 : 0), 0);
 
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden rounded-[1.5rem] border border-black/[0.06] bg-white lg:grid-cols-[20rem_1fr]">
+    <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden rounded-[1.5rem] border border-black/[0.06] bg-white shadow-[0_8px_30px_rgba(17,27,33,0.06)] lg:grid-cols-[22rem_1fr]">
       <aside className={`min-h-0 flex-col border-black/[0.06] lg:flex lg:border-r ${chatId ? 'hidden' : 'flex'}`}>
         <div className="shrink-0 space-y-2 p-3">
           <div className="flex gap-2">
-            <div className="flex h-9 min-w-0 flex-1 items-center gap-2 rounded-md border border-neutral-200 px-2.5">
+            <div className="flex h-10 min-w-0 flex-1 items-center gap-2 rounded-lg bg-[#f3f4f1] px-3">
               <Search size={14} className="shrink-0 text-neutral-400" />
               <input
                 value={filtro}
@@ -313,7 +380,7 @@ export default function Conversas({ clinicaId, clinicaNome, rascunho, onRascunho
               type="button"
               onClick={() => { setNovaAberta(true); setErroNova(''); }}
               aria-label="Nova conversa"
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-neutral-900 text-white hover:bg-neutral-800"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-neutral-900 text-white hover:bg-neutral-800"
             >
               <Plus size={16} />
             </button>
@@ -322,14 +389,14 @@ export default function Conversas({ clinicaId, clinicaNome, rascunho, onRascunho
             <button
               type="button"
               onClick={() => setSoNaoLidas(false)}
-              className={`rounded-full px-2.5 py-1 ${!soNaoLidas ? 'bg-neutral-900 text-white' : 'text-neutral-500 hover:bg-neutral-100'}`}
+              className={`rounded-full px-3 py-1 ${!soNaoLidas ? 'bg-neutral-900 text-white' : 'text-neutral-500 hover:bg-[#f3f4f1]'}`}
             >
               Todas
             </button>
             <button
               type="button"
               onClick={() => setSoNaoLidas(true)}
-              className={`rounded-full px-2.5 py-1 ${soNaoLidas ? 'bg-neutral-900 text-white' : 'text-neutral-500 hover:bg-neutral-100'}`}
+              className={`rounded-full px-3 py-1 ${soNaoLidas ? 'bg-neutral-900 text-white' : 'text-neutral-500 hover:bg-[#f3f4f1]'}`}
             >
               Não lidas{totalNaoLidas ? ` · ${totalNaoLidas}` : ''}
             </button>
@@ -340,50 +407,55 @@ export default function Conversas({ clinicaId, clinicaNome, rascunho, onRascunho
           {!carregando && visiveis.length === 0 && (
             <p className="px-4 py-6 text-sm text-neutral-400">{filtro || soNaoLidas ? 'Nenhuma conversa encontrada.' : 'Nenhuma conversa ainda.'}</p>
           )}
-          {visiveis.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => abrirConversa(item.id)}
-              className={`flex w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-neutral-50 ${item.id === chatId ? 'bg-neutral-50' : ''}`}
-            >
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-xs font-semibold text-neutral-600">
-                {iniciais(item.paciente?.nome || item.nome)}
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="flex items-center justify-between gap-2">
-                  <span className="truncate text-sm font-medium text-neutral-900">{item.paciente?.nome || item.nome}</span>
-                  <span className={`shrink-0 text-[11px] ${item.naoLidas ? 'font-medium text-emerald-600' : 'text-neutral-400'}`}>{quando(item.em)}</span>
+          {visiveis.map((item) => {
+            const nome = item.paciente?.nome || item.nome;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => abrirConversa(item.id)}
+                className={`flex w-full items-center gap-3 border-l-[3px] px-3 py-3 text-left ${item.id === chatId ? 'border-neutral-900 bg-[#f3f4f1]' : 'border-transparent hover:bg-neutral-50'}`}
+              >
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-neutral-900 text-[13px] font-semibold text-white">
+                  {iniciais(nome)}
                 </span>
-                <span className="mt-0.5 flex items-center justify-between gap-2">
-                  <span className="truncate text-xs text-neutral-500">
-                    {item.ultimaDeMim ? 'Você: ' : ''}{item.ultima || ' '}
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-center justify-between gap-2">
+                    <span className="truncate text-[15px] font-medium text-neutral-900">{nome}</span>
+                    <span className={`shrink-0 text-[11px] ${item.naoLidas ? 'font-semibold text-neutral-900' : 'text-neutral-400'}`}>{quando(item.em)}</span>
                   </span>
-                  {item.naoLidas > 0 && (
-                    <span className="flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-full bg-emerald-500 px-1 text-[10px] font-semibold text-white">
-                      {item.naoLidas}
+                  <span className="mt-0.5 flex items-center justify-between gap-2">
+                    <span className="truncate text-[13px] text-neutral-500">
+                      {item.ultimaDeMim ? 'Você: ' : ''}{item.ultima || (item.grupo ? 'Grupo' : 'Conversa')}
                     </span>
-                  )}
+                    {item.naoLidas > 0 && (
+                      <span className="flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-full bg-[#c8f053] px-1 text-[10px] font-bold text-neutral-900">
+                        {item.naoLidas}
+                      </span>
+                    )}
+                  </span>
                 </span>
-              </span>
-            </button>
-          ))}
+              </button>
+            );
+          })}
         </div>
       </aside>
 
-      <section className={`min-h-0 flex-col ${chatId ? 'flex' : 'hidden lg:flex'}`}>
+      <section className={`min-h-0 min-w-0 flex-col bg-[#f3f4f1] ${chatId ? 'flex' : 'hidden lg:flex'}`}>
         {chatId ? (
           <>
-            <div className="flex shrink-0 items-center gap-2 border-b border-black/[0.06] px-2 py-2.5 sm:px-3">
-              <button type="button" onClick={() => setChatId(null)} aria-label="Voltar" className="flex h-8 w-8 items-center justify-center rounded-md text-neutral-500 hover:bg-neutral-100 lg:hidden">
+            <div className="flex shrink-0 items-center gap-3 border-b border-black/[0.06] bg-white px-2 py-2.5 sm:px-4">
+              <button type="button" onClick={() => setChatId(null)} aria-label="Voltar" className="flex h-8 w-8 items-center justify-center rounded-full text-neutral-500 hover:bg-black/[0.05] lg:hidden">
                 <ArrowLeft size={18} />
               </button>
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-xs font-semibold text-neutral-600">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-neutral-900 text-xs font-semibold text-white">
                 {iniciais(nomeAtual)}
               </span>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-neutral-900">{nomeAtual}</p>
-                {atual?.telefone && <p className="truncate text-xs text-neutral-400">{formatarTelefone(atual.telefone)}</p>}
+                <p className="truncate text-[15px] font-medium text-neutral-900">{nomeAtual}</p>
+                <p className="truncate text-xs text-neutral-500">
+                  {conversa?.grupo ? 'Grupo' : atual?.telefone ? formatarTelefone(atual.telefone) : 'WhatsApp'}
+                </p>
               </div>
               {atual?.paciente && (
                 <Link
@@ -396,26 +468,36 @@ export default function Conversas({ clinicaId, clinicaNome, rascunho, onRascunho
               )}
             </div>
 
-            <div ref={listaRef} className="min-h-0 flex-1 overflow-y-auto bg-[#f7f7f5] px-3 py-3">
+            <div
+              ref={listaRef}
+              className="min-h-0 flex-1 overflow-y-auto px-3 py-4 sm:px-5"
+              style={{
+                backgroundColor: '#f3f4f1',
+                backgroundImage: 'radial-gradient(rgba(23,23,23,0.14) 0.7px, transparent 0.7px)',
+                backgroundSize: '16px 16px',
+              }}
+            >
               {carregandoChat && mensagens.length === 0 && (
-                <div className="flex justify-center py-8 text-neutral-400"><Loader2 size={18} className="animate-spin" /></div>
+                <div className="flex justify-center py-8 text-neutral-500"><Loader2 size={18} className="animate-spin" /></div>
               )}
               {!carregandoChat && mensagens.length === 0 && (
-                <p className="py-8 text-center text-sm text-neutral-400">Nenhuma mensagem. Escreva a primeira abaixo.</p>
+                <p className="mx-auto mt-8 max-w-xs rounded-lg bg-white/80 px-4 py-3 text-center text-sm text-neutral-500 shadow-sm">Nenhuma mensagem ainda. Escreva a primeira abaixo.</p>
               )}
-              <div className="space-y-1.5">
+              <div className="mx-auto flex max-w-3xl flex-col gap-1">
                 {mensagens.map((msg, i) => {
                   const novoDia = i === 0 || new Date(mensagens[i - 1].em).toDateString() !== new Date(msg.em).toDateString();
                   const midia = midias[msg.id];
+                  const autor = !msg.deMim && conversa?.grupo ? msg.autor : '';
                   return (
                     <div key={msg.id}>
                       {novoDia && (
                         <div className="my-3 flex justify-center">
-                          <span className="rounded-full bg-white px-2.5 py-0.5 text-[11px] text-neutral-500 shadow-sm">{rotuloDia(msg.em)}</span>
+                          <span className="rounded-lg bg-white/90 px-3 py-1 text-[12px] font-medium text-neutral-500 shadow-sm">{rotuloDia(msg.em)}</span>
                         </div>
                       )}
                       <div className={`flex ${msg.deMim ? 'justify-end' : 'justify-start'}`}>
-                        <div className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm sm:max-w-[70%] ${msg.deMim ? 'rounded-br-md bg-neutral-900 text-white' : 'rounded-bl-md bg-white text-neutral-900 shadow-sm'}`}>
+                        <div className={`max-w-[min(82%,32rem)] px-2.5 py-1.5 text-[14.5px] leading-5 shadow-[0_1px_0.5px_rgba(0,0,0,0.08)] ${msg.deMim ? 'rounded-lg rounded-br-none bg-neutral-900 text-white' : 'rounded-lg rounded-bl-none bg-white text-neutral-900'}`}>
+                          {autor && <p className="mb-0.5 text-[12.5px] font-semibold text-neutral-900">{autor}</p>}
                           {msg.temMidia && (
                             <div className="mb-1">
                               {midia && midia !== 'carregando' && midia !== 'erro' && /^image\//.test(midia.mimetype) ? (
@@ -429,7 +511,7 @@ export default function Conversas({ clinicaId, clinicaNome, rascunho, onRascunho
                                   type="button"
                                   onClick={() => carregarMidia(msg)}
                                   disabled={midia === 'carregando'}
-                                  className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium ${msg.deMim ? 'bg-white/10 hover:bg-white/15' : 'bg-neutral-100 hover:bg-neutral-200'}`}
+                                  className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium ${msg.deMim ? 'bg-white/10 text-white hover:bg-white/15' : 'bg-black/[0.05] text-neutral-900 hover:bg-black/[0.08]'}`}
                                 >
                                   {midia === 'carregando' ? <Loader2 size={13} className="animate-spin" /> : <FileText size={13} />}
                                   {midia === 'erro' ? 'Mídia indisponível' : msg.arquivo || rotuloMidia(msg.tipo)}
@@ -438,7 +520,7 @@ export default function Conversas({ clinicaId, clinicaNome, rascunho, onRascunho
                             </div>
                           )}
                           {msg.texto && <p className="whitespace-pre-wrap break-words">{msg.texto}</p>}
-                          <p className={`mt-0.5 flex items-center justify-end gap-1 text-[10px] ${msg.deMim ? 'text-white/50' : 'text-neutral-400'}`}>
+                          <p className={`mt-0.5 flex items-center justify-end gap-1 text-[11px] ${msg.deMim ? 'text-white/55' : 'text-neutral-400'}`}>
                             {hora(msg.em)}
                             {msg.deMim && <Confirmacao ack={msg.ack} />}
                           </p>
@@ -450,7 +532,19 @@ export default function Conversas({ clinicaId, clinicaNome, rascunho, onRascunho
               </div>
             </div>
 
-            <form onSubmit={enviar} className="relative shrink-0 border-t border-black/[0.06] px-2 pb-24 pt-2 sm:px-3 lg:pb-3">
+            <form onSubmit={enviar} className="relative shrink-0 bg-[#f3f4f1] px-2 pb-24 pt-2 sm:px-3 lg:pb-3">
+              <div className="mb-2 flex gap-1.5 overflow-x-auto pb-0.5">
+                {MENSAGENS_RAPIDAS.map((template) => (
+                  <button
+                    key={template.id}
+                    type="button"
+                    onClick={() => usarTemplate(template)}
+                    className="shrink-0 rounded-full border border-black/[0.06] bg-white px-3 py-1 text-xs font-medium text-neutral-900 shadow-sm hover:bg-neutral-100"
+                  >
+                    {template.nome}
+                  </button>
+                ))}
+              </div>
               {respostasAbertas && (
                 <div className="absolute bottom-full left-2 right-2 mb-2 max-h-64 overflow-y-auto rounded-xl border border-neutral-200 bg-white p-1 shadow-[0_8px_24px_rgba(0,0,0,0.08)] sm:left-3 sm:right-auto sm:w-96">
                   {templates.length === 0 && <p className="px-3 py-2.5 text-sm text-neutral-400">Cadastre modelos de WhatsApp em Configurações, Comunicação.</p>}
@@ -481,7 +575,7 @@ export default function Conversas({ clinicaId, clinicaNome, rascunho, onRascunho
                   type="button"
                   onClick={() => setRespostasAbertas((v) => !v)}
                   aria-label="Respostas prontas"
-                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-md ${respostasAbertas ? 'bg-neutral-900 text-white' : 'text-neutral-500 hover:bg-neutral-100'}`}
+                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${respostasAbertas ? 'bg-neutral-900 text-white' : 'text-neutral-500 hover:bg-white'}`}
                 >
                   <Zap size={17} />
                 </button>
@@ -489,7 +583,7 @@ export default function Conversas({ clinicaId, clinicaNome, rascunho, onRascunho
                   type="button"
                   onClick={() => arquivoRef.current?.click()}
                   aria-label="Anexar arquivo"
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-neutral-500 hover:bg-neutral-100"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-neutral-500 hover:bg-white"
                 >
                   <Paperclip size={17} />
                 </button>
@@ -515,13 +609,13 @@ export default function Conversas({ clinicaId, clinicaNome, rascunho, onRascunho
                   }}
                   rows={Math.min(5, Math.max(1, texto.split('\n').length))}
                   placeholder={arquivo ? 'Legenda (opcional)' : 'Escreva uma mensagem'}
-                  className="min-h-10 min-w-0 flex-1 resize-none rounded-md border border-neutral-200 px-3 py-2 text-sm leading-5 outline-none focus:border-neutral-400"
+                  className="min-h-10 min-w-0 flex-1 resize-none rounded-lg border-0 bg-white px-3 py-2.5 text-sm leading-5 text-neutral-900 shadow-sm outline-none placeholder:text-neutral-400"
                 />
                 <button
                   type="submit"
                   disabled={enviando || (!texto.trim() && !arquivo)}
                   aria-label="Enviar"
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-neutral-900 text-white disabled:opacity-40"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-neutral-900 text-white hover:bg-neutral-800 disabled:opacity-40"
                 >
                   {enviando ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
                 </button>
@@ -530,9 +624,12 @@ export default function Conversas({ clinicaId, clinicaNome, rascunho, onRascunho
             </form>
           </>
         ) : (
-          <div className="hidden flex-1 flex-col items-center justify-center gap-1 text-center lg:flex">
-            <p className="text-sm font-medium text-neutral-700">Escolha uma conversa</p>
-            <p className="text-xs text-neutral-400">ou comece uma nova pelo botão +</p>
+          <div className="hidden flex-1 flex-col items-center justify-center gap-2 px-6 text-center lg:flex">
+            <span className="flex h-16 w-16 items-center justify-center rounded-full bg-[#c8f053] text-neutral-900 shadow-sm">
+              <MessageCircle size={28} />
+            </span>
+            <p className="text-lg font-medium text-neutral-900">Suas conversas</p>
+            <p className="max-w-sm text-sm text-neutral-500">Escolha um contato na lista ou comece uma conversa nova pelo botão +.</p>
           </div>
         )}
       </section>

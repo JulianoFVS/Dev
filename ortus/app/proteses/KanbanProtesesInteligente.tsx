@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+import { dados as tabelas } from '@/lib/local/consulta';
 import { usePatientSlideOver } from '@/components/PatientSlideOver';
 import { useClinica, getClinicLabel } from '@/app/context/ClinicaContext';
 import { carregarConfig, salvarConfig } from '@/lib/configClinica';
@@ -324,10 +325,10 @@ export default function KanbanProtesesInteligente() {
     if (!opts?.silent) setLoading(true);
     const syncedColumns = await ensureStandardColumns(nextClinicId);
 
-    let cardsQuery = supabase.from('kanban_cartoes').select('*').order('created_at', { ascending: false });
+    let cardsQuery = tabelas.from('kanban_cartoes').select('*').order('created_at', { ascending: false });
     if (nextClinicId) cardsQuery = cardsQuery.eq('clinica_id', nextClinicId);
 
-    let patientsQuery = supabase.from('pacientes').select('id, nome, telefone, clinica_id').order('nome', { ascending: true });
+    let patientsQuery = tabelas.from('pacientes').select('id, nome, telefone, clinica_id').order('nome', { ascending: true });
     if (nextClinicId) patientsQuery = patientsQuery.eq('clinica_id', nextClinicId);
 
     const coresPromise = nextClinicId
@@ -354,7 +355,7 @@ export default function KanbanProtesesInteligente() {
   }
 
   async function ensureStandardColumns(nextClinicId: string | null) {
-    let query = supabase.from('kanban_colunas').select('*').order('ordem', { ascending: true });
+    let query = tabelas.from('kanban_colunas').select('*').order('ordem', { ascending: true });
     if (nextClinicId) query = query.eq('clinica_id', nextClinicId);
     else query = query.is('clinica_id', null);
 
@@ -369,11 +370,11 @@ export default function KanbanProtesesInteligente() {
         clinica_id: nextClinicId,
       }));
 
-      const { error } = await supabase.from('kanban_colunas').insert(payload);
+      const { error } = await tabelas.from('kanban_colunas').insert(payload);
       if (error) showToast('warning', 'Não foi possível criar as etapas padrão: ' + error.message);
     }
 
-    let refreshedQuery = supabase.from('kanban_colunas').select('*').order('ordem', { ascending: true });
+    let refreshedQuery = tabelas.from('kanban_colunas').select('*').order('ordem', { ascending: true });
     if (nextClinicId) refreshedQuery = refreshedQuery.eq('clinica_id', nextClinicId);
     else refreshedQuery = refreshedQuery.is('clinica_id', null);
 
@@ -445,8 +446,8 @@ export default function KanbanProtesesInteligente() {
     setSaving(true);
     const payload = { titulo: title, icone: columnIcon, checklist_ativo: columnChecklist };
     const { data, error } = editingColumn
-      ? await supabase.from('kanban_colunas').update(payload).eq('id', editingColumn.id).select('id').single()
-      : await supabase.from('kanban_colunas').insert([{ ...payload, ordem: columns.length + 1, clinica_id: clinicId }]).select('id').single();
+      ? await tabelas.from('kanban_colunas').update(payload).eq('id', editingColumn.id).select('id').single()
+      : await tabelas.from('kanban_colunas').insert([{ ...payload, ordem: columns.length + 1, clinica_id: clinicId }]).select('id').single();
     setSaving(false);
 
     if (error) return showToast('warning', 'Não foi possível salvar o quadro: ' + error.message);
@@ -480,7 +481,7 @@ export default function KanbanProtesesInteligente() {
 
     if (!(await showConfirm(message, { title: 'Remover Quadro', type: 'warning', confirmLabel: 'Remover' }))) return;
 
-    const { error } = await supabase.from('kanban_colunas').delete().eq('id', column.id);
+    const { error } = await tabelas.from('kanban_colunas').delete().eq('id', column.id);
     if (error) return showToast('warning', 'Não foi possível remover o quadro: ' + error.message);
 
     await gravarCorQuadro(column.id, '');
@@ -535,7 +536,7 @@ export default function KanbanProtesesInteligente() {
     const previousCards = cards;
     setCards((current) => current.map((item) => item.id === card.id ? { ...item, coluna_id: column.id } : item));
 
-    const { error } = await supabase.from('kanban_cartoes').update({ coluna_id: column.id }).eq('id', card.id);
+    const { error } = await tabelas.from('kanban_cartoes').update({ coluna_id: column.id }).eq('id', card.id);
     if (error) {
       setCards(previousCards);
       showToast('warning', 'Não foi possível mover o cartão: ' + error.message);
@@ -556,7 +557,7 @@ export default function KanbanProtesesInteligente() {
     const previousCards = cards;
 
     setCards((current) => current.map((item) => item.id === card.id ? { ...item, checklist: nextChecklist } : item));
-    const { error } = await supabase.from('kanban_cartoes').update({ checklist: nextChecklist }).eq('id', card.id);
+    const { error } = await tabelas.from('kanban_cartoes').update({ checklist: nextChecklist }).eq('id', card.id);
 
     if (error) {
       setCards(previousCards);
@@ -569,7 +570,7 @@ export default function KanbanProtesesInteligente() {
     const previousCards = cards;
     setCards((current) => current.filter((card) => card.id !== cardId));
 
-    const { error } = await supabase.from('kanban_cartoes').delete().eq('id', cardId);
+    const { error } = await tabelas.from('kanban_cartoes').delete().eq('id', cardId);
     if (error) {
       setCards(previousCards);
       showToast('warning', 'Não foi possível excluir: ' + error.message);

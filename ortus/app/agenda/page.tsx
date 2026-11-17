@@ -3,6 +3,7 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+import { dados as tabelas, usuarioDaSessao } from '@/lib/local/consulta';
 import { usePatientActionModal } from '@/components/PatientActionModal';
 import { useClinica } from '@/app/context/ClinicaContext';
 import { fetchUserClinicas, fetchUserEquipe } from '@/lib/clinicScoped';
@@ -379,8 +380,7 @@ export default function Agenda() {
           const cl = await fetchUserClinicas();
           const idsPermitidos = cl.map((c) => c.id);
           if (idsPermitidos.length > 0) {
-              const { data: pac } = await supabase
-                  .from('pacientes')
+              const { data: pac } = await tabelas.from('pacientes')
                   .select('id, nome, clinica_id, telefone, plano_id')
                   .in('clinica_id', idsPermitidos as any)
                   .order('nome');
@@ -395,9 +395,9 @@ export default function Agenda() {
 
   async function carregarTratamentosBase(clinicaId: string) {
       const [tr, planos, linhas] = await Promise.all([
-          supabase.from('tratamentos_base').select('id, nome, valor_sugerido, especialidade_id').eq('clinica_id', clinicaId).eq('ativo', true).order('nome'),
-          supabase.from('planos').select('id, tipo').eq('clinica_id', Number(clinicaId)),
-          supabase.from('planos_tratamentos').select('plano_id, tratamento_id, valor, ativo').eq('clinica_id', Number(clinicaId)),
+          tabelas.from('tratamentos_base').select('id, nome, valor_sugerido, especialidade_id').eq('clinica_id', clinicaId).eq('ativo', true).order('nome'),
+          tabelas.from('planos').select('id, tipo').eq('clinica_id', Number(clinicaId)),
+          tabelas.from('planos_tratamentos').select('plano_id, tratamento_id, valor, ativo').eq('clinica_id', Number(clinicaId)),
       ]);
       setTratamentosBase(tr.data || []);
       setPlanosPreco((planos.data || []) as PlanoTipo[]);
@@ -405,8 +405,7 @@ export default function Agenda() {
   }
 
   async function carregarEspecialidades(clinicaId: string) {
-      const { data } = await supabase
-          .from('especialidades')
+      const { data } = await tabelas.from('especialidades')
           .select('id, nome')
           .eq('clinica_id', Number(clinicaId))
           .eq('ativo', true)
@@ -444,9 +443,9 @@ export default function Agenda() {
           return;
       }
 
-      const { data: { user } } = await supabase.auth.getUser(); 
+      const user = await usuarioDaSessao(); 
       if (user) { 
-          const { data: prof } = await supabase.from('profissionais').select('*').eq('user_id', user.id).single(); 
+          const { data: prof } = await tabelas.from('profissionais').select('*').eq('user_id', user.id).single(); 
           if (prof) { 
               setUsuarioAtual({ id: user.id, nivel: prof.nivel_acesso, profissional_id: prof.id }); 
               if (prof.nivel_acesso !== 'admin') setFormData(prev => ({ ...prev, profissional_id: prof.id })); 
@@ -503,8 +502,7 @@ export default function Agenda() {
 
       // Pacientes apenas das clínicas permitidas
       if (idsPermitidos.length > 0) {
-          const { data: pac } = await supabase
-              .from('pacientes')
+          const { data: pac } = await tabelas.from('pacientes')
               .select('id, nome, clinica_id, telefone, plano_id')
               .in('clinica_id', idsPermitidos as any)
               .order('nome');
@@ -521,7 +519,7 @@ export default function Agenda() {
           await carregarEventosLocal();
           return;
       }
-      let query = supabase.from('agendamentos').select('*, pacientes(nome), clinicas(nome, cor_tema)'); 
+      let query = tabelas.from('agendamentos').select('*, pacientes(nome), clinicas(nome, cor_tema)'); 
       if (clinicaFiltro !== 'todas') query = query.eq('clinica_id', clinicaFiltro); 
       if (usuarioAtual.nivel !== 'admin' && usuarioAtual.profissional_id) query = query.eq('profissional_id', usuarioAtual.profissional_id); 
       
@@ -696,9 +694,9 @@ export default function Agenda() {
               if (formData.id) await atualizar<AgendamentoLocal>('agendamentos', Number(formData.id), payloadLocal);
               else await inserir<AgendamentoLocal>('agendamentos', payloadLocal);
           } else if (formData.id) {
-              await supabase.from('agendamentos').update(payload).eq('id', formData.id);
+              await tabelas.from('agendamentos').update(payload).eq('id', formData.id);
           } else {
-              await supabase.from('agendamentos').insert([payload]);
+              await tabelas.from('agendamentos').insert([payload]);
           }
       } catch (erro) {
           await showAlert(mensagemErro(erro, 'Não foi possível salvar o agendamento.'), { type: 'error' });
@@ -718,7 +716,7 @@ export default function Agenda() {
       const modo = await modoDados();
       try {
           if (modo === 'local') await remover('agendamentos', Number(formData.id));
-          else await supabase.from('agendamentos').delete().eq('id', formData.id);
+          else await tabelas.from('agendamentos').delete().eq('id', formData.id);
       } catch (erro) {
           await showAlert(mensagemErro(erro, 'Não foi possível excluir o agendamento.'), { type: 'error' });
           return;

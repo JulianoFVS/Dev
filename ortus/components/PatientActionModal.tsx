@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { supabase } from '@/lib/supabase';
+import { dados as tabelas } from '@/lib/local/consulta';
 import { AlertCircle, Camera, CheckCircle2, Loader2, User, X } from 'lucide-react';
 import { useClinica } from '@/app/context/ClinicaContext';
 import { validarPaciente, isMenorDeIdade } from '@/lib/pacienteValidation';
@@ -135,7 +136,7 @@ export function PatientActionModalProvider({ children }: { children: React.React
       return;
     }
     try {
-      const { data } = await supabase.from('planos').select('id, nome').eq('clinica_id', clinicaId).eq('ativo', true).order('nome');
+      const { data } = await tabelas.from('planos').select('id, nome').eq('clinica_id', clinicaId).eq('ativo', true).order('nome');
       setPlanos(data || []);
     } catch {
       setPlanos([]);
@@ -196,7 +197,7 @@ export function PatientActionModalProvider({ children }: { children: React.React
           limite: 1,
         });
       } else {
-        const { data } = await supabase.from('pacientes').select('id, nome, cpf').in('cpf', variantesCpf(cpf)).limit(1);
+        const { data } = await tabelas.from('pacientes').select('id, nome, cpf').in('cpf', variantesCpf(cpf)).limit(1);
         encontrados = (data || []) as Array<{ id: string | number; nome?: string | null }>;
       }
       const achado = encontrados[0];
@@ -269,8 +270,7 @@ export function PatientActionModalProvider({ children }: { children: React.React
         const salvo = await inserir<Record<string, unknown>>('pacientes', insertPayload);
         data = { id: String(salvo.id), nome: String(salvo.nome || '') };
       } else {
-        const resposta = await supabase
-          .from('pacientes')
+        const resposta = await tabelas.from('pacientes')
           .insert([insertPayload])
           .select('id, nome')
           .single();
@@ -305,7 +305,7 @@ export function PatientActionModalProvider({ children }: { children: React.React
             if (modo === 'local') {
               await atualizar('pacientes', data.id, { foto_url: publicUrl });
             } else {
-              const { error: updErr } = await supabase.from('pacientes').update({ foto_url: publicUrl }).eq('id', data.id);
+              const { error: updErr } = await tabelas.from('pacientes').update({ foto_url: publicUrl }).eq('id', data.id);
               if (updErr) avisoFoto = ' A foto não foi salva.';
             }
           }

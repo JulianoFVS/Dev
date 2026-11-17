@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { dados as tabelas, usuarioDaSessao } from '@/lib/local/consulta';
 import ProcedureCombobox from '@/components/forms/ProcedureCombobox';
 import { Building2, Calendar, Clock, DollarSign, Loader2, Save, User } from 'lucide-react';
 import { fetchUserClinicas } from '@/lib/clinicScoped';
@@ -62,19 +62,19 @@ export default function AppointmentForm({ paciente, defaultDate, defaultTime, on
   useEffect(() => {
     let mounted = true;
     (async () => {
-      const [{ data: user }, clinicasUsuario] = await Promise.all([
-        supabase.auth.getUser(),
+      const [user, clinicasUsuario] = await Promise.all([
+        usuarioDaSessao(),
         fetchUserClinicas(),
       ]);
       if (!mounted) return;
 
-      const { data: pr } = await supabase.from('profissionais').select('id, nome, user_id, profissionais_clinicas(clinica_id)');
+      const { data: pr } = await tabelas.from('profissionais').select('id, nome, user_id, profissionais_clinicas(clinica_id)');
       setClinicas(clinicasUsuario.map((c) => ({ id: c.id, nome: c.nome })));
       setProfissionais(pr || []);
 
-      const authedUserId = user?.user?.id;
+      const authedUserId = user?.id;
       if (authedUserId) {
-        const me = (pr || []).find((p) => p.user_id === authedUserId);
+        const me = (pr || []).find((p: { user_id?: string | null; id?: string | number }) => p.user_id === authedUserId);
         if (me) {
           setMeuProfissionalId(me.id);
           setUsuarioNivel('user');
@@ -95,11 +95,11 @@ export default function AppointmentForm({ paciente, defaultDate, defaultTime, on
 
   const carregarCatalogo = useCallback(async (clinicaId: string) => {
     const [{ data: tr }, { data: esp }, { data: pac }, { data: planos }, { data: linhas }] = await Promise.all([
-      supabase.from('tratamentos_base').select('id, nome, valor_sugerido, especialidade_id').eq('clinica_id', clinicaId).eq('ativo', true).order('nome'),
-      supabase.from('especialidades').select('id, nome').eq('clinica_id', Number(clinicaId)).eq('ativo', true).order('nome'),
-      supabase.from('pacientes').select('plano_id').eq('id', paciente.id).maybeSingle(),
-      supabase.from('planos').select('id, tipo').eq('clinica_id', Number(clinicaId)),
-      supabase.from('planos_tratamentos').select('plano_id, tratamento_id, valor, ativo').eq('clinica_id', Number(clinicaId)),
+      tabelas.from('tratamentos_base').select('id, nome, valor_sugerido, especialidade_id').eq('clinica_id', clinicaId).eq('ativo', true).order('nome'),
+      tabelas.from('especialidades').select('id, nome').eq('clinica_id', Number(clinicaId)).eq('ativo', true).order('nome'),
+      tabelas.from('pacientes').select('plano_id').eq('id', paciente.id).maybeSingle(),
+      tabelas.from('planos').select('id, tipo').eq('clinica_id', Number(clinicaId)),
+      tabelas.from('planos_tratamentos').select('plano_id, tratamento_id, valor, ativo').eq('clinica_id', Number(clinicaId)),
     ]);
     setTratamentosBase(tr || []);
     setEspecialidades(esp || []);
@@ -155,8 +155,7 @@ export default function AppointmentForm({ paciente, defaultDate, defaultTime, on
       status: form.status,
     };
 
-    const { data, error: insertError } = await supabase
-      .from('agendamentos')
+    const { data, error: insertError } = await tabelas.from('agendamentos')
       .insert([payload])
       .select('id, data_hora')
       .single();

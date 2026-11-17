@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { dados as tabelas } from '@/lib/local/consulta';
 import { atualizar, listar, modoDados } from '@/lib/local/cliente';
 import type { FichaClinicaJson } from '@/lib/db/types';
 
@@ -42,8 +43,7 @@ export async function carregarFichaClinica(pacienteId: string): Promise<FichaCli
     return extrairFichaClinica(await carregarFichaLocal(pacienteId));
   }
 
-  const { data, error } = await supabase
-    .from('pacientes')
+  const { data, error } = await tabelas.from('pacientes')
     .select('ficha_medica')
     .eq('id', pacienteId)
     .single();
@@ -68,11 +68,11 @@ export async function salvarFichaClinica(
 
   let base = atual;
   if (!base) {
-    const { data } = await supabase.from('pacientes').select('ficha_medica').eq('id', pacienteId).single();
+    const { data } = await tabelas.from('pacientes').select('ficha_medica').eq('id', pacienteId).single();
     base = (data?.ficha_medica as Record<string, unknown>) || {};
   }
   const merged = mesclarFichaClinica(base, parcial);
-  const { error } = await supabase.from('pacientes').update({ ficha_medica: merged }).eq('id', pacienteId);
+  const { error } = await tabelas.from('pacientes').update({ ficha_medica: merged }).eq('id', pacienteId);
   if (error) throw error;
   return extrairFichaClinica(merged);
 }

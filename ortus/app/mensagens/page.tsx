@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { supabase } from '@/lib/supabase';
+import { dados as tabelas, usuarioDaSessao } from '@/lib/local/consulta';
 import { AlertTriangle, Bell, Calendar, Info, Mail } from 'lucide-react';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
 import BentoNotificationFeed from '@/components/bento/BentoNotificationFeed';
@@ -42,14 +43,14 @@ function Painel({
   useEffect(() => {
     let cancelado = false;
     async function carregar() {
-      const { data: { user } } = await supabase.auth.getUser();
+      const user = await usuarioDaSessao();
       if (!user || cancelado) {
         if (!cancelado) setLoading(false);
         return;
       }
-      const { data } = await supabase.from('notificacoes').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(200);
+      const { data } = await tabelas.from('notificacoes').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(200);
       if (!cancelado) {
-        setTodos((data || []).filter((item) => modo === 'mensagem' ? item.tipo === 'mensagem' : TIPOS_ALERTA.has(String(item.tipo || ''))));
+        setTodos((data || []).filter((item: { tipo?: string | null }) => modo === 'mensagem' ? item.tipo === 'mensagem' : TIPOS_ALERTA.has(String(item.tipo || ''))));
         setLoading(false);
       }
     }
@@ -69,13 +70,13 @@ function Painel({
 
   async function marcarLida(id: any) {
     setTodos((prev) => prev.map((n) => (n.id === id ? { ...n, lida: true } : n)));
-    await supabase.from('notificacoes').update({ lida: true }).eq('id', id);
+    await tabelas.from('notificacoes').update({ lida: true }).eq('id', id);
   }
 
   async function excluir(id: any) {
     if (!(await showConfirm(`Apagar este item de ${titulo.toLowerCase()}?`, { title: 'Excluir', type: 'warning', confirmLabel: 'Apagar' }))) return;
     setTodos((prev) => prev.filter((n) => n.id !== id));
-    await supabase.from('notificacoes').delete().eq('id', id);
+    await tabelas.from('notificacoes').delete().eq('id', id);
   }
 
   return (

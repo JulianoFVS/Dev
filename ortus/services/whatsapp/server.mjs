@@ -24,7 +24,14 @@ const SEGREDO = process.env.WHATSAPP_GATEWAY_SECRET || '';
 // Railway, Render e afins informam a porta em PORT e exigem ouvir em todas as interfaces.
 const PORTA = Number(process.env.WHATSAPP_GATEWAY_PORT || process.env.PORT || 3920);
 const HOST = process.env.WHATSAPP_GATEWAY_HOST || (process.env.PORT ? '0.0.0.0' : '127.0.0.1');
-const CHROME = process.env.PUPPETEER_EXECUTABLE_PATH || undefined;
+// O sandbox do editor aponta o cache do Puppeteer para um Chrome incompleto.
+if ((process.env.PUPPETEER_CACHE_DIR || '').includes('cursor-sandbox-cache')) {
+  delete process.env.PUPPETEER_CACHE_DIR;
+}
+const CHROME_EXPLICITO = process.env.PUPPETEER_EXECUTABLE_PATH || '';
+const CHROME = CHROME_EXPLICITO && !CHROME_EXPLICITO.includes('cursor-sandbox-cache') && existsSync(CHROME_EXPLICITO)
+  ? CHROME_EXPLICITO
+  : undefined;
 const FUSO = 'America/Sao_Paulo';
 const CORPO_MAXIMO = 64_000;
 const CORPO_MAXIMO_MIDIA = 6_000_000;
@@ -107,11 +114,23 @@ function telefoneDoChat(chatId) {
 
 /** Nome do contato que o WhatsApp Web traz no payload da mensagem. */
 function nomeDoContato(msg) {
-  const candidatos = [msg._data?.notifyName, msg._data?.senderName, msg.contact?.name, msg.contact?.pushname];
+  if (!msg) return null;
+  const candidatos = [msg._data?.notifyName, msg.notifyName, msg._data?.senderName, msg.contact?.name, msg.contact?.pushname];
   for (const valor of candidatos) {
     if (typeof valor === 'string' && valor.trim()) return valor.trim().slice(0, 120);
   }
   return null;
+}
+
+function valorId(valor) {
+  if (!valor) return null;
+  if (typeof valor === 'string') return valor;
+  return typeof valor._serialized === 'string' ? valor._serialized : null;
+}
+
+function normalizarChatId(id) {
+  const texto = valorId(id) || '';
+  return texto.endsWith('@s.whatsapp.net') ? texto.replace('@s.whatsapp.net', '@c.us') : texto;
 }
 
 // ---------------------------------------------------------------------
@@ -130,6 +149,7 @@ function criarSessao(clinicaId) {
     mensagens: new Map(),
     conversas: [],
     conversasEm: 0,
+    lids: new Map(),
     diario: {},
     client: null,
     // Fila de gravação no banco: mantém a ordem e não perde mensagem quando o
@@ -162,13 +182,19 @@ function criarSessao(clinicaId) {
     sessao.qr = null;
   });
 
-  client.on('ready', () => {
+  function marcarConectado(numero, nome) {
+    if (sessao.status === 'conectado') return;
     sessao.status = 'conectado';
     sessao.qr = null;
     sessao.erro = null;
-    sessao.numero = client.info?.wid?.user || null;
-    sessao.nome = client.info?.pushname || null;
+    if (numero) sessao.numero = numero;
+    if (nome) sessao.nome = nome;
     console.log(`[${clinicaId}] conectado como ${sessao.numero}`);
+  }
+
+  client.on('ready', () => {
+    void garantirOuvintes(sessao);
+    marcarConectado(client.info?.wid?.user || null, client.info?.pushname || null);
   });
 
   client.on('auth_failure', () => {
@@ -195,20 +221,277 @@ function criarSessao(clinicaId) {
     }
   });
 
+  console.log(`[${clinicaId}] abrindo navegador`);
   client.initialize().catch((err) => {
     sessao.status = 'falha';
     sessao.erro = err instanceof Error ? err.message : 'Falha ao abrir o WhatsApp.';
+    console.error(`[${clinicaId}] ${sessao.erro}`);
   });
 
+  // O WhatsApp às vezes termina a sincronização antes do evento ready.
+  const vigia = setInterval(async () => {
+    if (sessao.status !== 'iniciando') {
+      clearInterval(vigia);
+      return;
+    }
+    try {
+      const pagina = sessao.client?.pupPage;
+      if (!pagina) return;
+      const info = await pagina.evaluate(() => {
+        const Socket = window.require?.('WAWebSocketModel')?.Socket;
+        if (!Socket?.hasSynced || typeof window.WWebJS === 'undefined') return null;
+        const me = window.require('WAWebUserPrefsMeUser');
+        const pn = me.getMaybeMePnUser?.() || me.getMaybeMeLidUser?.();
+        return { numero: pn?.user || null };
+      });
+      if (!info) return;
+      await garantirOuvintes(sessao);
+      marcarConectado(info.numero, null);
+      clearInterval(vigia);
+    } catch {
+      // A página ainda está abrindo.
+    }
+  }, 2000);
+  setTimeout(() => clearInterval(vigia), 120000);
+  observarNovas(sessao);
+
   return sessao;
+}
+
+async function garantirOuvintes(sessao) {
+  if (!sessao.client?.attachEventListeners) return;
+  if (!sessao.ouvintes) {
+    sessao.ouvintes = true;
+    try {
+      await sessao.client.attachEventListeners();
+    } catch {
+      sessao.ouvintes = false;
+    }
+  }
+  await instalarHook(sessao);
+}
+
+function textoErro(err) {
+  return err instanceof Error ? err.message : String(err);
+}
+
+function erroDePagina(err) {
+  return /detached Frame|Execution context was destroyed|Session closed|Target closed|Protocol error|Cannot find context|main frame too early/i.test(textoErro(err));
+}
+
+async function paginaViva(page) {
+  if (!page || page.isClosed?.()) return false;
+  for (let i = 0; i < 2; i++) {
+    try {
+      await page.evaluate(() => true);
+      return true;
+    } catch (err) {
+      if (!erroDePagina(err) || i === 1) return false;
+      await espera(300);
+    }
+  }
+  return false;
+}
+
+async function religarPaginaAgora(sessao, forcar) {
+  if (!forcar && sessao.religarEm && Date.now() - sessao.religarEm < 4000) return false;
+  sessao.religarEm = Date.now();
+  const client = sessao.client;
+  const browser = client?.pupBrowser;
+  if (!browser) return false;
+  let pages = [];
+  try {
+    pages = await browser.pages();
+  } catch {
+    return false;
+  }
+  const pagina = pages.find((p) => !p.isClosed() && /web\.whatsapp\.com/.test(p.url() || ''));
+  if (!pagina) return false;
+  client.pupPage = pagina;
+  sessao.hook = false;
+  sessao.ouvintes = false;
+  try {
+    const pronta = await pagina.evaluate(() => typeof window.WWebJS !== 'undefined' && typeof window.WWebJS.getChat === 'function');
+    if (!pronta) await client.inject();
+  } catch (err) {
+    console.error(`[${sessao.clinicaId}] página:`, textoErro(err));
+    return false;
+  }
+  await garantirOuvintes(sessao);
+  console.log(`[${sessao.clinicaId}] página do WhatsApp recuperada`);
+  return true;
+}
+
+function religarPagina(sessao, forcar) {
+  if (!sessao.religando) {
+    sessao.religando = religarPaginaAgora(sessao, forcar).finally(() => {
+      sessao.religando = null;
+    });
+  }
+  return sessao.religando;
+}
+
+async function garantirPagina(sessao) {
+  if (await paginaViva(sessao.client?.pupPage)) return;
+  const ok = await religarPagina(sessao, true);
+  if (!ok) throw erroHttp(503, 'O WhatsApp atualizou a tela. Tente enviar de novo.');
+}
+
+async function lerNaPagina(sessao, fn) {
+  try {
+    await garantirPagina(sessao);
+    return await fn();
+  } catch (err) {
+    if (!erroDePagina(err)) throw err;
+    sessao.hook = false;
+    if (!(await religarPagina(sessao, true))) throw err;
+    return await fn();
+  }
+}
+
+async function instalarHook(sessao) {
+  if (!sessao.client?.pupPage) return;
+  if (sessao.hook) {
+    const segue = await sessao.client.pupPage.evaluate(() => !!window.__ortusHook).catch(() => false);
+    if (segue) return;
+    sessao.hook = false;
+  }
+  const instalado = await sessao.client.pupPage.evaluate(() => {
+    if (window.__ortusHook) return true;
+    if (typeof window.WWebJS === 'undefined' || typeof window.require !== 'function') return false;
+    let Msg;
+    try {
+      Msg = window.require('WAWebCollections').Msg;
+    } catch {
+      return false;
+    }
+    if (!Msg?.on) return false;
+    window.__ortusHook = true;
+    window.__ortusFila = [];
+    const serial = (valor) => {
+      if (!valor) return null;
+      if (typeof valor === 'string') return valor;
+      return typeof valor._serialized === 'string' ? valor._serialized : null;
+    };
+    const enxugar = (msg) => {
+      if (!msg || !msg.id || msg.isNotification) return null;
+      const remote = serial(msg.id.remote);
+      if (!remote || remote === 'status@broadcast') return null;
+      const deMim = !!msg.id.fromMe;
+      const bruto = typeof msg.id.id === 'string' ? msg.id.id : '';
+      const ident = typeof msg.id._serialized === 'string' && msg.id._serialized
+        ? msg.id._serialized
+        : (bruto ? `${deMim ? 'true' : 'false'}_${remote}_${bruto}` : null);
+      if (!ident) return null;
+      const tipo = msg.type || 'chat';
+      const corpo = (typeof msg.body === 'string' && msg.body) || (typeof msg.caption === 'string' && msg.caption) || '';
+      return {
+        id: { fromMe: deMim, remote, id: bruto || null, _serialized: ident },
+        fromMe: deMim,
+        from: serial(msg.from),
+        to: serial(msg.to),
+        chatId: remote,
+        body: corpo,
+        type: tipo,
+        timestamp: msg.t || 0,
+        ack: typeof msg.ack === 'number' ? msg.ack : null,
+        hasMedia: ['image', 'video', 'audio', 'ptt', 'document', 'sticker'].includes(tipo) || !!msg.directPath,
+        mimetype: typeof msg.mimetype === 'string' ? msg.mimetype : null,
+        filename: typeof msg.filename === 'string' ? msg.filename : null,
+        notifyName: typeof msg.notifyName === 'string' ? msg.notifyName : null,
+      };
+    };
+    const guardar = (msg) => {
+      if (!msg || msg.isNotification) return;
+      const recente = msg.isNewMsg || (msg.t && Date.now() / 1000 - msg.t < 120);
+      if (!recente) return;
+      const modelo = enxugar(msg);
+      if (!modelo?.id) return;
+      window.__ortusFila.push(modelo);
+      if (window.__ortusFila.length > 300) window.__ortusFila.splice(0, window.__ortusFila.length - 300);
+    };
+    Msg.on('add', guardar);
+    Msg.on('change:ack', (msg) => {
+      if (!msg || msg.isNotification) return;
+      const modelo = enxugar(msg);
+      if (modelo?.id) window.__ortusFila.push(modelo);
+    });
+    return true;
+  }).catch(() => false);
+  if (instalado) sessao.hook = true;
+}
+
+function observarNovas(sessao) {
+  if (sessao.observador) return;
+  sessao.observador = setInterval(() => {
+    void drenarNovas(sessao);
+  }, 1000);
+}
+
+async function drenarNovas(sessao) {
+  if (sessao.status !== 'conectado' || !sessao.client?.pupPage || sessao.drenando) return;
+  sessao.drenando = true;
+  try {
+    if (!(await paginaViva(sessao.client.pupPage))) {
+      await religarPagina(sessao, false);
+      return;
+    }
+    await instalarHook(sessao);
+    const novas = await sessao.client.pupPage.evaluate(() => {
+      const fila = Array.isArray(window.__ortusFila) ? window.__ortusFila.splice(0) : [];
+      return fila;
+    });
+    if (novas?.length) {
+      for (const msg of novas) guardarMensagem(sessao, msg);
+    }
+  } catch (err) {
+    if (erroDePagina(err)) {
+      sessao.hook = false;
+      await religarPagina(sessao, false);
+    }
+  } finally {
+    sessao.drenando = false;
+  }
 }
 
 function guardarMensagem(sessao, msg) {
   const dados = descreverMensagem(msg);
   if (!dados) return;
-  if (sessao.vistos.has(dados.id)) return;
-  sessao.vistos.add(dados.id);
+  if (!String(dados.id).startsWith('local-')) {
+    for (const listaSalva of sessao.mensagens.values()) {
+      const eco = listaSalva.findIndex((item) => String(item.id).startsWith('local-') && item.deMim === dados.deMim && item.texto === dados.texto && Math.abs(item.em - dados.em) < 60000);
+      if (eco >= 0) {
+        sessao.vistos.delete(listaSalva[eco].id);
+        listaSalva.splice(eco, 1);
+      }
+    }
+  }
   const lista = sessao.mensagens.get(dados.chatId) || [];
+  if (sessao.vistos.has(dados.id)) {
+    let noLugarCerto = false;
+    for (const [chave, listaSalva] of sessao.mensagens) {
+      const indice = listaSalva.findIndex((item) => item.id === dados.id);
+      if (indice < 0) continue;
+      const item = listaSalva[indice];
+      if (typeof dados.ack === 'number' && (item.ack ?? -1) < dados.ack) item.ack = dados.ack;
+      if (!item.autor && dados.contatoNome) item.autor = dados.contatoNome;
+      if (chave === dados.chatId) {
+        item.deMim = dados.deMim;
+        noLugarCerto = true;
+        continue;
+      }
+      listaSalva.splice(indice, 1);
+      item.chatId = dados.chatId;
+      item.deMim = dados.deMim;
+      if (!lista.some((outro) => outro.id === dados.id)) lista.push(item);
+    }
+    if (noLugarCerto || lista.some((item) => item.id === dados.id)) {
+      lista.sort((a, b) => a.em - b.em);
+      sessao.mensagens.set(dados.chatId, lista);
+      return;
+    }
+  }
+  sessao.vistos.add(dados.id);
   lista.push({
     id: dados.id,
     chatId: dados.chatId,
@@ -219,36 +502,79 @@ function guardarMensagem(sessao, msg) {
     arquivo: dados.arquivo,
     em: dados.em,
     ack: dados.ack,
+    autor: dados.contatoNome || null,
   });
   lista.sort((a, b) => a.em - b.em);
   if (lista.length > 120) lista.splice(0, lista.length - 120);
   sessao.mensagens.set(dados.chatId, lista);
+  espelharMensagem(sessao, dados);
   // O Map acima é só o cache da tela; a verdade (quando há banco local) é o SQLite.
-  persistirMensagem(sessao, dados);
+  if (!String(dados.id).startsWith('local-')) persistirMensagem(sessao, dados);
+}
+
+function espelharMensagem(sessao, dados) {
+  const relacionados = idsRelacionados(sessao, dados.chatId).filter((id) => id !== dados.chatId);
+  for (const id of relacionados) {
+    const lista = sessao.mensagens.get(id) || [];
+    if (lista.some((item) => item.id === dados.id)) continue;
+    lista.push({ ...dados, chatId: id, autor: dados.contatoNome || null });
+    lista.sort((a, b) => a.em - b.em);
+    if (lista.length > 120) lista.splice(0, lista.length - 120);
+    sessao.mensagens.set(id, lista);
+  }
+}
+
+function idsRelacionados(sessao, chatId) {
+  const ids = new Set([chatId].filter(Boolean));
+  const direto = sessao.lids?.get(chatId);
+  if (direto) ids.add(direto);
+  if (sessao.lids) {
+    for (const [lid, pn] of sessao.lids) {
+      if (pn === chatId) ids.add(lid);
+    }
+  }
+  return [...ids];
 }
 
 /**
  * Normaliza a mensagem do whatsapp-web.js para o que a tela usa e para as
  * colunas de `whatsapp_mensagens`.
  */
+function idDaMensagem(msg) {
+  if (!msg) return null;
+  const idObj = msg.id && typeof msg.id === 'object' ? msg.id : null;
+  if (typeof idObj?._serialized === 'string') return idObj._serialized;
+  if (typeof msg.id === 'string') return msg.id;
+  const remote = typeof idObj?.remote === 'string' ? idObj.remote : idObj?.remote?._serialized;
+  if (remote && idObj?.id) return `${idObj.fromMe ? 'true' : 'false'}_${remote}_${idObj.id}`;
+  return null;
+}
+
 function descreverMensagem(msg) {
-  const id = msg.id?._serialized || `${msg.timestamp}:${msg.from}:${msg.body}`;
-  const chatId = msg.fromMe ? msg.to : msg.from;
-  if (!chatId) return null;
-  const em = (msg.timestamp || Math.floor(Date.now() / 1000)) * 1000;
+  if (!msg) return null;
+  const idObj = msg.id && typeof msg.id === 'object' ? msg.id : null;
+  const id = idDaMensagem(msg);
+  if (!id) return null;
+  const deMim = !!(msg.fromMe ?? idObj?.fromMe);
+  const remoto = normalizarChatId(typeof msg.chatId === 'string' ? msg.chatId : (typeof idObj?.remote === 'string' ? idObj.remote : idObj?.remote?._serialized));
+  const chatId = chatValido(remoto) ? remoto : normalizarChatId(valorId(deMim ? msg.to : msg.from));
+  if (!chatId || chatId === 'status@broadcast') return null;
+  const segundos = Number(msg.timestamp || msg.t || 0);
+  const em = segundos > 1e12 ? segundos : (segundos || Math.floor(Date.now() / 1000)) * 1000;
+  const mimetype = typeof msg._data?.mimetype === 'string' ? msg._data.mimetype : (typeof msg.mimetype === 'string' ? msg.mimetype : null);
   return {
     id,
     chatId,
-    deMim: !!msg.fromMe,
-    texto: msg.body || '',
+    deMim,
+    texto: msg.body || msg.caption || '',
     tipo: msg.type || 'chat',
-    temMidia: !!msg.hasMedia,
-    arquivo: msg._data?.filename || null,
+    temMidia: !!(msg.hasMedia || msg.directPath),
+    arquivo: msg._data?.filename || msg.filename || null,
     em,
     ack: typeof msg.ack === 'number' ? msg.ack : null,
-    contatoNome: nomeDoContato(msg),
+    contatoNome: (typeof msg.notifyName === 'string' && msg.notifyName.trim()) ? msg.notifyName.trim().slice(0, 120) : nomeDoContato(msg),
     contatoTelefone: telefoneDoChat(chatId),
-    midiaTipo: typeof msg._data?.mimetype === 'string' ? msg._data.mimetype : null,
+    midiaTipo: mimetype,
   };
 }
 
@@ -288,6 +614,7 @@ async function encerrar(clinicaId) {
   const sessao = sessoes.get(clinicaId);
   sessoes.delete(clinicaId);
   if (sessao) {
+    if (sessao.observador) clearInterval(sessao.observador);
     try { await sessao.client.logout(); } catch { /* sessão já caída */ }
     try { await sessao.client.destroy(); } catch { /* navegador já fechado */ }
   }
@@ -313,49 +640,215 @@ function exigirConectado(sessao) {
   if (!sessao || sessao.status !== 'conectado') throw erroHttp(409, 'WhatsApp desconectado.');
 }
 
+async function lerConversas(client) {
+  return client.pupPage.evaluate(async () => {
+    const serial = (valor) => {
+      if (!valor) return null;
+      if (typeof valor === 'string') return valor;
+      return typeof valor._serialized === 'string' ? valor._serialized : null;
+    };
+    const rotulo = {
+      image: 'Foto', video: 'Vídeo', audio: 'Áudio', ptt: 'Áudio', document: 'Documento',
+      sticker: 'Figurinha', location: 'Localização', vcard: 'Contato', call_log: 'Ligação',
+    };
+    const lista = window.require('WAWebCollections').Chat.getModelsArray();
+    const saida = [];
+    for (const chat of lista) {
+      const id = serial(chat?.id);
+      if (!id || id === 'status@broadcast') continue;
+      const msgs = chat.msgs?.getModelsArray?.() || [];
+      const ultima = [...msgs].reverse().find((m) => m && m.id && !m.isNotification) || null;
+      const tipo = ultima?.type || '';
+      const texto = (typeof ultima?.body === 'string' && ultima.body)
+        || (typeof ultima?.caption === 'string' && ultima.caption)
+        || rotulo[tipo]
+        || '';
+      const servidor = chat.id?.server || id.split('@')[1];
+      saida.push({
+        id,
+        nome: chat.formattedTitle || chat.name || chat.id?.user || id.split('@')[0],
+        telefone: servidor === 'c.us' ? chat.id.user : null,
+        grupo: servidor === 'g.us' || !!chat.groupMetadata,
+        ultima: texto,
+        ultimaDeMim: !!ultima?.id?.fromMe,
+        em: (chat.t || ultima?.t || 0) * 1000,
+        naoLidas: chat.unreadCount || 0,
+      });
+    }
+    saida.sort((a, b) => b.em - a.em);
+    return saida.slice(0, 80);
+  });
+}
+
+async function telefoneDoLid(sessao, lid) {
+  const guardado = sessao.lids?.get(lid);
+  if (guardado) return guardado;
+  try {
+    const pares = await sessao.client.getContactLidAndPhone([lid]);
+    const pn = normalizarChatId(pares?.[0]?.pn);
+    if (pn.endsWith('@c.us')) {
+      sessao.lids?.set(lid, pn);
+      return pn;
+    }
+  } catch {
+    // O contato ainda não tem o telefone resolvido.
+  }
+  return null;
+}
+
+async function completarTelefones(sessao, conversas) {
+  const faltam = conversas.filter((c) => String(c.id).endsWith('@lid') && !c.telefone && !sessao.lids.has(c.id));
+  if (faltam.length) {
+    try {
+      const pares = await sessao.client.getContactLidAndPhone(faltam.map((c) => c.id));
+      for (const par of pares || []) {
+        const pn = normalizarChatId(par?.pn);
+        if (par?.lid) sessao.lids.set(par.lid, pn.endsWith('@c.us') ? pn : '');
+      }
+    } catch {
+      // A lista abre mesmo sem o telefone.
+    }
+  }
+  return conversas.map((c) => {
+    if (c.telefone || !String(c.id).endsWith('@lid')) return c;
+    const pn = sessao.lids.get(c.id);
+    const fone = pn ? telefoneDoChat(pn) : null;
+    return fone ? { ...c, telefone: fone } : c;
+  });
+}
+
 async function listarConversas(clinicaId, sessao) {
   // Sem WhatsApp conectado a lista vem do SQLite (histórico local da clínica).
   if (!sessao || sessao.status !== 'conectado') return repositorio.listarConversas(clinicaId);
   const agora = Date.now();
   if (agora - sessao.conversasEm < 6000 && sessao.conversas.length) return sessao.conversas;
-  const chats = await sessao.client.getChats();
-  sessao.conversas = chats
-    .filter((chat) => chat.id?._serialized !== 'status@broadcast')
-    .slice(0, 80)
-    .map((chat) => ({
-      id: chat.id._serialized,
-      nome: chat.name || chat.id.user,
-      telefone: chat.id.server === 'c.us' ? chat.id.user : null,
-      grupo: !!chat.isGroup,
-      ultima: chat.lastMessage?.body || (chat.lastMessage?.hasMedia ? 'Mídia' : ''),
-      ultimaDeMim: !!chat.lastMessage?.fromMe,
-      em: (chat.timestamp || 0) * 1000,
-      naoLidas: chat.unreadCount || 0,
-    }));
-  sessao.conversasEm = agora;
-  return sessao.conversas;
+  try {
+    const lidas = await lerNaPagina(sessao, () => lerConversas(sessao.client));
+    sessao.conversas = await completarTelefones(sessao, lidas);
+    sessao.conversasEm = agora;
+    return sessao.conversas;
+  } catch (err) {
+    const doBanco = await repositorio.listarConversas(clinicaId);
+    if (doBanco.length) return doBanco;
+    if (sessao.conversas.length) return sessao.conversas;
+    throw err;
+  }
+}
+
+async function buscarMensagens(client, chatId) {
+  return client.pupPage.evaluate(async (id) => {
+    const serial = (valor) => {
+      if (!valor) return null;
+      if (typeof valor === 'string') return valor;
+      return typeof valor._serialized === 'string' ? valor._serialized : null;
+    };
+    const enxugar = (msg) => {
+      if (!msg || !msg.id || msg.isNotification) return null;
+      const remote = serial(msg.id.remote);
+      if (!remote || remote === 'status@broadcast') return null;
+      const deMim = !!msg.id.fromMe;
+      const bruto = typeof msg.id.id === 'string' ? msg.id.id : '';
+      const ident = typeof msg.id._serialized === 'string' && msg.id._serialized
+        ? msg.id._serialized
+        : (bruto ? `${deMim ? 'true' : 'false'}_${remote}_${bruto}` : null);
+      if (!ident) return null;
+      const tipo = msg.type || 'chat';
+      const corpo = (typeof msg.body === 'string' && msg.body) || (typeof msg.caption === 'string' && msg.caption) || '';
+      return {
+        id: { fromMe: deMim, remote, id: bruto || null, _serialized: ident },
+        fromMe: deMim,
+        from: serial(msg.from),
+        to: serial(msg.to),
+        chatId: remote,
+        body: corpo,
+        type: tipo,
+        timestamp: msg.t || 0,
+        ack: typeof msg.ack === 'number' ? msg.ack : null,
+        hasMedia: ['image', 'video', 'audio', 'ptt', 'document', 'sticker'].includes(tipo) || !!msg.directPath,
+        mimetype: typeof msg.mimetype === 'string' ? msg.mimetype : null,
+        filename: typeof msg.filename === 'string' ? msg.filename : null,
+        notifyName: typeof msg.notifyName === 'string' ? msg.notifyName : null,
+      };
+    };
+    const filtro = (m) => m && m.id && !m.isNotification;
+    const chat = await window.WWebJS.getChat(id, { getAsModel: false });
+    let msgs = chat?.msgs?.getModelsArray ? chat.msgs.getModelsArray().filter(filtro) : [];
+    if (chat && msgs.length < 80) {
+      try {
+        const anteriores = await window.require('WAWebChatLoadMessages').loadEarlierMsgs({ chat });
+        if (anteriores?.length) msgs = [...anteriores.filter(filtro), ...msgs];
+      } catch {
+        // Fica com as mensagens que já estão abertas.
+      }
+    }
+    try {
+      const todas = window.require('WAWebCollections').Msg.getModelsArray();
+      for (const m of todas) {
+        if (!filtro(m)) continue;
+        if (serial(m.id?.remote) === id) msgs.push(m);
+      }
+    } catch {
+      // A coleção geral ainda não está pronta.
+    }
+    const vistos = new Set();
+    const unicos = [];
+    for (const m of msgs) {
+      const remote = serial(m.id?.remote);
+      const bruto = typeof m.id?.id === 'string' ? m.id.id : '';
+      const chave = remote && bruto ? `${m.id.fromMe ? '1' : '0'}_${remote}_${bruto}` : '';
+      if (!chave || vistos.has(chave)) continue;
+      vistos.add(chave);
+      unicos.push(m);
+    }
+    unicos.sort((a, b) => (a.t || 0) - (b.t || 0));
+    const saida = [];
+    for (const m of unicos.slice(-80)) {
+      const item = enxugar(m);
+      if (item && (item.chatId === id || item.from === id || item.to === id)) saida.push(item);
+    }
+    return saida;
+  }, chatId);
+}
+
+function juntarMensagens(sessao, ...ids) {
+  const vistos = new Set();
+  const juntas = [];
+  for (const id of ids) {
+    for (const msg of sessao.mensagens.get(id) || []) {
+      if (!msg?.id || vistos.has(msg.id)) continue;
+      vistos.add(msg.id);
+      juntas.push(msg);
+    }
+  }
+  juntas.sort((a, b) => a.em - b.em);
+  return juntas;
 }
 
 async function listarMensagens(clinicaId, sessao, chatId, marcarLida) {
   if (!sessao || sessao.status !== 'conectado') {
     return repositorio.listarMensagens(clinicaId, chatId, 120);
   }
-  try {
-    const chat = await sessao.client.getChatById(chatId);
-    const msgs = await chat.fetchMessages({ limit: 60 });
-    for (const msg of msgs) guardarMensagem(sessao, msg);
-    if (marcarLida && chat.unreadCount > 0) {
-      await chat.sendSeen().catch(() => {});
-      const item = sessao.conversas.find((c) => c.id === chatId);
-      if (item) item.naoLidas = 0;
+  const destino = await destinoEnvio(sessao, chatId, '').catch(() => chatId);
+  const ids = [...new Set([...idsRelacionados(sessao, chatId), ...idsRelacionados(sessao, destino)])];
+  for (const id of ids) {
+    try {
+      const msgs = await lerNaPagina(sessao, () => buscarMensagens(sessao.client, id));
+      for (const msg of msgs) guardarMensagem(sessao, msg);
+      if (marcarLida) await sessao.client.sendSeen(id).catch(() => {});
+    } catch (err) {
+      console.error(`[${clinicaId}] histórico:`, err instanceof Error ? err.message : err);
     }
-    return sessao.mensagens.get(chatId) || [];
-  } catch (err) {
-    // WhatsApp respondeu com erro (ex.: sem internet): mostra o que já está gravado.
-    const doBanco = await repositorio.listarMensagens(clinicaId, chatId, 120);
-    if (doBanco.length) return doBanco;
-    throw err;
   }
+  if (marcarLida) {
+    const item = sessao.conversas.find((c) => ids.includes(c.id));
+    if (item) item.naoLidas = 0;
+  }
+  const lista = juntarMensagens(sessao, ...ids);
+  if (lista.length) {
+    for (const id of ids) sessao.mensagens.set(id, lista);
+    return lista;
+  }
+  return repositorio.listarMensagens(clinicaId, chatId, 120);
 }
 
 async function baixarMidia(sessao, mensagemId) {
@@ -367,34 +860,110 @@ async function baixarMidia(sessao, mensagemId) {
   return { mimetype: midia.mimetype, data: midia.data, nome: midia.filename || null };
 }
 
+async function destinoEnvio(sessao, chatId, telefone) {
+  const id = normalizarChatId(chatId);
+  if (id.endsWith('@c.us') || id.endsWith('@g.us')) return id;
+  if (id.endsWith('@lid')) {
+    const pn = await telefoneDoLid(sessao, id);
+    if (pn) return pn;
+    const digitos = digitosTelefone(telefone);
+    if (digitos) return `${digitos}@c.us`;
+    return id;
+  }
+  const digitos = digitosTelefone(telefone);
+  if (!digitos) throw erroHttp(400, 'Conversa inválida.');
+  const wid = await sessao.client.getNumberId(digitos);
+  if (!wid?._serialized) throw erroHttp(404, 'Este número não tem WhatsApp.');
+  const serial = normalizarChatId(wid._serialized);
+  if (!serial.endsWith('@lid')) return serial;
+  const pn = await telefoneDoLid(sessao, serial);
+  if (pn) {
+    sessao.lids?.set(serial, pn);
+    return pn;
+  }
+  return `${digitos}@c.us`;
+}
+
 async function resolverChat(sessao, telefone) {
   exigirConectado(sessao);
-  const digitos = digitosTelefone(telefone);
-  if (!digitos) throw erroHttp(400, 'Telefone inválido.');
-  const wid = await sessao.client.getNumberId(digitos);
-  if (!wid) throw erroHttp(404, 'Este número não tem WhatsApp.');
-  return wid._serialized;
+  return destinoEnvio(sessao, '', telefone);
+}
+
+async function confirmarEnvio(client, destino, conteudo, opcoes) {
+  try {
+    return await client.sendMessage(destino, conteudo, { sendSeen: false, ...opcoes }) || null;
+  } catch (err) {
+    const textoErro = err instanceof Error ? err.message : String(err);
+    // O WhatsApp já entregou a mensagem e só falhou ao devolver o identificador.
+    if (/reading ['"]id['"]/.test(textoErro)) return null;
+    throw err;
+  }
+}
+
+function textoJaNaConversa(lista, corpo) {
+  const agora = Date.now();
+  return lista.some((item) => item.deMim && item.texto === corpo && agora - item.em < 20000);
 }
 
 async function enviar(sessao, { chatId, telefone, texto, arquivo }) {
   exigirConectado(sessao);
-  const destino = chatValido(chatId) ? chatId : await resolverChat(sessao, telefone);
+  await garantirPagina(sessao);
+  const origem = chatValido(chatId) ? chatId : '';
+  const destino = await destinoEnvio(sessao, origem, telefone);
   const corpo = String(texto || '').trim();
   if (corpo.length > 4000) throw erroHttp(400, 'A mensagem passa de 4000 caracteres.');
 
-  let msg;
-  if (arquivo && typeof arquivo === 'object') {
-    const { mimetype, data, nome } = arquivo;
-    if (typeof mimetype !== 'string' || typeof data !== 'string' || !data) throw erroHttp(400, 'Arquivo inválido.');
-    const midia = new MessageMedia(mimetype, data, typeof nome === 'string' ? nome.slice(0, 120) : undefined);
-    msg = await sessao.client.sendMessage(destino, midia, corpo ? { caption: corpo } : {});
-  } else {
+  const mandar = () => {
+    if (arquivo && typeof arquivo === 'object') {
+      const { mimetype, data, nome } = arquivo;
+      if (typeof mimetype !== 'string' || typeof data !== 'string' || !data) throw erroHttp(400, 'Arquivo inválido.');
+      const midia = new MessageMedia(mimetype, data, typeof nome === 'string' ? nome.slice(0, 120) : undefined);
+      return confirmarEnvio(sessao.client, destino, midia, corpo ? { caption: corpo } : {});
+    }
     if (!corpo) throw erroHttp(400, 'Escreva uma mensagem.');
-    msg = await sessao.client.sendMessage(destino, corpo);
+    return confirmarEnvio(sessao.client, destino, corpo, {});
+  };
+
+  let msg;
+  try {
+    msg = await mandar();
+  } catch (err) {
+    if (!erroDePagina(err)) throw err;
+    sessao.hook = false;
+    await garantirPagina(sessao);
+    const recentes = corpo ? await buscarMensagens(sessao.client, destino).catch(() => []) : [];
+    for (const item of recentes) guardarMensagem(sessao, item);
+    const jaFoi = corpo && textoJaNaConversa(
+      juntarMensagens(sessao, ...idsRelacionados(sessao, origem || destino), ...idsRelacionados(sessao, destino)),
+      corpo,
+    );
+    if (!jaFoi) msg = await mandar();
   }
-  guardarMensagem(sessao, msg);
+  if (msg) guardarMensagem(sessao, msg);
+  if (!msg) await espera(800);
+  const ids = [...new Set([origem, destino].filter(Boolean))];
+  for (const id of ids) {
+    try {
+      const recentes = await buscarMensagens(sessao.client, id);
+      for (const item of recentes) guardarMensagem(sessao, item);
+    } catch {
+      // A conversa aberta ainda mostra o que já estava em cache.
+    }
+  }
+  const lista = juntarMensagens(sessao, ...idsRelacionados(sessao, origem || destino), ...idsRelacionados(sessao, destino));
+  if (!msg && corpo && !textoJaNaConversa(lista, corpo)) {
+    guardarMensagem(sessao, {
+      id: `local-${Date.now()}`,
+      fromMe: true,
+      to: origem || destino,
+      body: corpo,
+      timestamp: Math.floor(Date.now() / 1000),
+      type: 'chat',
+      ack: 0,
+    });
+  }
   sessao.conversasEm = 0;
-  return { ok: true, chatId: destino };
+  return { ok: true, chatId: origem || destino };
 }
 
 // ---------------------------------------------------------------------
@@ -465,8 +1034,9 @@ function primeiroNome(nome) {
 async function enviarAutomatico(sessao, telefone, texto) {
   // Intervalo entre envios automáticos para o número não ser marcado como spam.
   await espera(4000 + Math.random() * 5000);
+  await garantirPagina(sessao);
   const chatId = await resolverChat(sessao, telefone);
-  const msg = await sessao.client.sendMessage(chatId, texto);
+  const msg = await confirmarEnvio(sessao.client, chatId, texto, {});
   guardarMensagem(sessao, msg);
   sessao.conversasEm = 0;
 }
@@ -782,7 +1352,10 @@ const servidor = createServer(async (req, res) => {
     responder(res, 404, { erro: 'Rota não encontrada.' });
   } catch (err) {
     const status = err && typeof err === 'object' && 'status' in err ? Number(err.status) : 500;
-    responder(res, status, { erro: err instanceof Error ? err.message : 'Falha no WhatsApp.' });
+    const mensagem = textoErro(err);
+    responder(res, status, {
+      erro: erroDePagina(err) ? 'O WhatsApp atualizou a tela. Tente enviar de novo.' : (mensagem || 'Falha no WhatsApp.'),
+    });
   }
 });
 

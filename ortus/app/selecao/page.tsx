@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { dados as tabelas, usuarioDaSessao } from '@/lib/local/consulta';
 import { salvarSessaoCache } from '@/lib/local/cliente';
 import { useRouter } from 'next/navigation';
 import { useClinica } from '@/app/context/ClinicaContext';
@@ -37,7 +38,7 @@ export default function SelecaoClinica() {
 
     async function carregar() {
         try {
-            const { data: { user } } = await supabase.auth.getUser();
+            const user = await usuarioDaSessao();
             if (!user) { router.push('/login'); return; }
             const { data: { session } } = await supabase.auth.getSession();
 
@@ -59,7 +60,7 @@ export default function SelecaoClinica() {
             setLoading(false);
         } catch (err) {
             console.error(err);
-            setLoading(false);
+            await fallbackCarregarDoCliente();
         }
     }
 
@@ -67,8 +68,7 @@ export default function SelecaoClinica() {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) { setLoading(false); return; }
 
-        const { data: prof } = await supabase
-            .from('profissionais')
+        const { data: prof } = await tabelas.from('profissionais')
             .select('id, is_super_admin, nome')
             .eq('user_id', session.user.id)
             .maybeSingle();
@@ -77,16 +77,15 @@ export default function SelecaoClinica() {
 
         let minhas: ClinicaOpcao[] = [];
         if (prof?.is_super_admin) {
-            const { data } = await supabase.from('clinicas').select('id, nome, endereco').order('nome');
+            const { data } = await tabelas.from('clinicas').select('id, nome, endereco').order('nome');
             minhas = (data || []) as ClinicaOpcao[];
         } else if (prof?.id) {
-            const { data: vinculos } = await supabase
-                .from('profissionais_clinicas')
+            const { data: vinculos } = await tabelas.from('profissionais_clinicas')
                 .select('clinica_id')
                 .eq('profissional_id', prof.id);
             const ids = Array.from(new Set((vinculos || []).map((v: { clinica_id: string | number }) => v.clinica_id))).filter((x) => x != null);
             if (ids.length > 0) {
-                const { data } = await supabase.from('clinicas').select('id, nome, endereco').in('id', ids).order('nome');
+                const { data } = await tabelas.from('clinicas').select('id, nome, endereco').in('id', ids).order('nome');
                 minhas = (data || []) as ClinicaOpcao[];
             }
         }

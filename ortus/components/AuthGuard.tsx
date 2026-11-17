@@ -1,7 +1,8 @@
 ﻿'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { lerSessaoCacheUI } from '@/lib/local/cliente';
+import { dados as tabelas } from '@/lib/local/consulta';
+import { lerSessaoCacheUI, modoDados, salvarSessaoCache } from '@/lib/local/cliente';
 import { verificarBackupAutomatico } from '@/lib/backup';
 import { useRouter, usePathname } from 'next/navigation';
 import { PatientSlideOverProvider } from '@/components/PatientSlideOver';
@@ -105,8 +106,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
         }
         return;
       }
-      const { data, error } = await supabase
-        .from('permissoes_modulos')
+      const { data, error } = await tabelas.from('permissoes_modulos')
         .select('modulo, pode_acessar')
         .eq('profissional_id', perfil.id)
         .eq('clinica_id', clinicId);
@@ -181,8 +181,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     setSession(sess);
     setAuthMarkerCookie();
 
-    const { data: prof, error } = await supabase
-      .from('profissionais')
+    const { data: prof, error } = await tabelas.from('profissionais')
       .select('*')
       .eq('user_id', sess.user.id)
       .maybeSingle();
@@ -243,6 +242,21 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const { data: sub } = supabase.auth.onAuthStateChange((event, sess) => {
+      if (sess?.access_token && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION')) {
+        const perfilAtual = perfilRef.current;
+        void (async () => {
+          if ((await modoDados()) !== 'local') return;
+          const cache = await lerSessaoCacheUI();
+          await salvarSessaoCache({
+            access_token: sess.access_token,
+            refresh_token: sess.refresh_token,
+            expires_at: sess.expires_at ?? undefined,
+            user: { id: sess.user.id, email: sess.user.email ?? null },
+            perfil: perfilAtual ?? cache?.perfil ?? null,
+            clinicas: cache?.clinicas ?? [],
+          });
+        })();
+      }
       if (event === 'SIGNED_OUT') {
         sessaoPronta.current = false;
         perfilRef.current = null;
@@ -284,8 +298,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
           .toISOString()
           .split('T')[0];
       try {
-          const { count, error } = await supabase
-              .from('tarefas')
+          const { count, error } = await tabelas.from('tarefas')
               .select('*', { count: 'exact', head: true })
               .in('clinica_id', clinicasIds as any)
               .neq('status', 'concluido')

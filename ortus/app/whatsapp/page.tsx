@@ -156,7 +156,7 @@ function WhatsappConteudo() {
           )}
           {conectado && sessao.agendador === false && (
             <p className="mx-auto mb-3 max-w-5xl rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800">
-              O serviço do WhatsApp está sem acesso ao banco, então automáticas e agendadas não saem. Confira NEXT_PUBLIC_SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY no .env.local da máquina que roda npm run whatsapp.
+              As mensagens automáticas e agendadas ficam guardadas e saem quando o WhatsApp estiver conectado.
             </p>
           )}
           {aba === 'automaticas' && <Automacoes clinicaId={clinicaId} clinicaNome={clinicaNome} />}
@@ -173,7 +173,7 @@ function Conexao({ sessao, onConectar }: { sessao: Sessao; onConectar: () => voi
     return (
       <PainelCentral
         titulo="Serviço ainda não configurado"
-        texto="O WhatsApp roda num processo separado, com o número da clínica. No .env.local, defina WHATSAPP_GATEWAY_SECRET e suba com npm run whatsapp. No servidor publicado, WHATSAPP_GATEWAY_URL precisa apontar para essa máquina."
+        texto="O WhatsApp desta clínica abre junto com o Ortus. Se o código não aparecer, feche o programa e abra de novo."
       />
     );
   }

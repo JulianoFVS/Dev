@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Loader2, Search } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { dados as tabelas } from '@/lib/local/consulta';
 import { listar, modoDados } from '@/lib/local/cliente';
 import { formatarTelefone } from '@/lib/whatsappTelefone';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
@@ -73,8 +74,7 @@ export default function BuscaPaciente({ clinicaId, onEscolher, ignorar = [], aut
         return;
       }
 
-      const { data } = await supabase
-        .from('pacientes')
+      const { data } = await tabelas.from('pacientes')
         .select('id, nome, telefone')
         .eq('clinica_id', clinicaId)
         .not('telefone', 'is', null)

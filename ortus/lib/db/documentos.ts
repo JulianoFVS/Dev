@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { dados as tabelas } from '@/lib/local/consulta';
 import { rowToDocumento, type DocumentoPaciente } from '@/lib/db/types';
 import { inserir, listar, modoDados, remover } from '@/lib/local/cliente';
 
@@ -38,8 +39,7 @@ export async function listarDocumentos(pacienteId: string): Promise<DocumentoPac
     return linhas.map(rowToDocumentoUI);
   }
 
-  const { data, error } = await supabase
-    .from('paciente_documentos')
+  const { data, error } = await tabelas.from('paciente_documentos')
     .select('*')
     .eq('paciente_id', pacienteId)
     .order('criado_em', { ascending: false });
@@ -72,8 +72,7 @@ export async function criarDocumento(
     return rowToDocumentoUI(salvo);
   }
 
-  const { data, error } = await supabase
-    .from('paciente_documentos')
+  const { data, error } = await tabelas.from('paciente_documentos')
     .insert(payload)
     .select('*')
     .single();
@@ -93,8 +92,7 @@ export async function excluirDocumento(id: string): Promise<{ storage_path: stri
     return { storage_path: (linhas[0]?.storage_path as string) || null };
   }
 
-  const { data, error } = await supabase
-    .from('paciente_documentos')
+  const { data, error } = await tabelas.from('paciente_documentos')
     .delete()
     .eq('id', id)
     .select('storage_path')

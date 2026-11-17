@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useRef, cloneElement, type ReactElement, type PointerEvent as ReactPointerEvent } from 'react';
 import { supabase } from '@/lib/supabase';
+import { dados as tabelas } from '@/lib/local/consulta';
 import { Search, Plus, LayoutGrid, List as ListIcon, Phone, ChevronRight, Filter, AlertCircle, Calendar, X, Smile, ArrowUpDown, Check } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -269,8 +270,7 @@ export default function Pacientes() {
       }
 
       // 2. Carregar Pacientes restritos às clínicas do usuário
-      let pacientesQuery = supabase
-          .from('pacientes')
+      let pacientesQuery = tabelas.from('pacientes')
           .select('*, agendamentos(data_hora, status), clinicas(nome), planos(nome, tipo), paciente_tratamentos(procedimento, status), paciente_anamneses(id), paciente_documentos(id)')
           .order('created_at', { ascending: false });
       if (idsPermitidos.length > 0) {

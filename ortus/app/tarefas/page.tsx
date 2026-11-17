@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
+import { dados as tabelas } from '@/lib/local/consulta';
 import { modoDados, listar, inserir, atualizar, remover } from '@/lib/local/cliente';
 import { clinicScope, readRouteCache, writeRouteCache } from '@/lib/routeListCache';
 import {
@@ -284,16 +285,16 @@ export default function Tarefas() {
         }
 
         const [tarefasRes, vinculosRes, pacsRes] = await Promise.all([
-            supabase.from('v_tarefas_completo').select('*').in('clinica_id', clinicasIds).order('data_limite', { ascending: true }),
-            supabase.from('profissionais_clinicas').select('profissional_id').in('clinica_id', clinicasIds),
-            supabase.from('pacientes').select('id, nome, telefone').in('clinica_id', clinicasIds).order('nome'),
+            tabelas.from('v_tarefas_completo').select('*').in('clinica_id', clinicasIds).order('data_limite', { ascending: true }),
+            tabelas.from('profissionais_clinicas').select('profissional_id').in('clinica_id', clinicasIds),
+            tabelas.from('pacientes').select('id, nome, telefone').in('clinica_id', clinicasIds).order('nome'),
         ]);
 
         if (gen !== fetchGen.current) return;
 
-        const profissionalIds = [...new Set((vinculosRes.data || []).map((v) => v.profissional_id))];
+        const profissionalIds = [...new Set((vinculosRes.data || []).map((v: { profissional_id?: string | number | null }) => v.profissional_id))];
         const { data: profsData } = profissionalIds.length > 0
-            ? await supabase.from('profissionais').select('id, nome').in('id', profissionalIds)
+            ? await tabelas.from('profissionais').select('id, nome').in('id', profissionalIds)
             : { data: [] as Profissional[] };
 
         if (gen !== fetchGen.current) return;
@@ -392,15 +393,14 @@ export default function Tarefas() {
         }
 
         if (tarefaEditando) {
-            const { error } = await supabase
-                .from('tarefas')
+            const { error } = await tabelas.from('tarefas')
                 .update(payload)
                 .eq('id', tarefaEditando.id);
             
             if (error) showAlert('Erro ao atualizar: ' + error.message, { type: 'error' });
             else showAlert('Tarefa atualizada!', { type: 'success' });
         } else {
-            const { error } = await supabase.from('tarefas').insert([payload]);
+            const { error } = await tabelas.from('tarefas').insert([payload]);
             if (error) showAlert('Erro ao criar: ' + error.message, { type: 'error' });
             else showAlert('Tarefa criada!', { type: 'success' });
         }
@@ -424,7 +424,7 @@ export default function Tarefas() {
             return;
         }
 
-        const { error } = await supabase.from('tarefas').delete().eq('id', id);
+        const { error } = await tabelas.from('tarefas').delete().eq('id', id);
         if (error) showAlert('Erro ao excluir: ' + error.message, { type: 'error' });
         else {
             showAlert('Tarefa excluída!', { type: 'success' });
@@ -453,7 +453,7 @@ export default function Tarefas() {
             return;
         }
 
-        const { error } = await supabase.from('tarefas').update({ status: novoStatus }).eq('id', id);
+        const { error } = await tabelas.from('tarefas').update({ status: novoStatus }).eq('id', id);
         if (error) {
             setTarefas(prev);
             showAlert('Erro ao mover: ' + error.message, { type: 'error' });

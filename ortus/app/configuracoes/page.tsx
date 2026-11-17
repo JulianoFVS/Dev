@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+import { dados as tabelas, usuarioDaSessao } from '@/lib/local/consulta';
 import { enviarArquivoClinica } from '@/lib/armazenamento';
 import { Building2, Users, Plus, Trash2, MapPin, Check, X, Loader2, Edit, UserPlus, Shield, User, FileText, Phone, Mail, Save, Lock, ClipboardList, HelpCircle, FileSignature, Tag, SlidersHorizontal, Database, Download, Upload, Bell, Palette, RotateCcw, AlertTriangle, Clock, DollarSign, MessageCircle, CreditCard, Eye, Search, Filter, LayoutGrid, List, ChevronDown, Camera } from 'lucide-react';
 import { carregarModelos, carregarModelosAsync, salvarModelos, salvarModelosAsync, novoIdModelo, novoIdPergunta, type ModeloAnamnese, type PerguntaAnamnese, type TipoPergunta } from '@/lib/anamnese';
@@ -449,7 +450,7 @@ export default function Configuracoes() {
   // ===== BACKUP =====
   async function exportarPacientes() {
       const ids = (clinicas || []).map((c: any) => c.id).filter(Boolean);
-      let query = supabase.from('pacientes').select('id, nome, cpf, rg, telefone, email, data_nascimento, sexo, endereco, created_at, clinicas(nome)').order('nome');
+      let query = tabelas.from('pacientes').select('id, nome, cpf, rg, telefone, email, data_nascimento, sexo, endereco, created_at, clinicas(nome)').order('nome');
       if (ids.length) query = query.or(`clinica_id.in.(${ids.join(',')}),clinica_id.is.null`);
       const { data, error } = await query;
       if (error) { showAlert('Não foi possível exportar: ' + error.message, { type: 'error' }); return; }
@@ -612,10 +613,9 @@ export default function Configuracoes() {
 
   async function carregarDados(opts?: { silent?: boolean }) {
       if (!opts?.silent) setLoading(true);
-      const { data: { user } } = await supabase.auth.getUser();
+      const user = await usuarioDaSessao();
       if (!user) { setPerfilCaller(null); setLoading(false); return; }
-      const { data: meu } = await supabase
-          .from('profissionais')
+      const { data: meu } = await tabelas.from('profissionais')
           .select('id, nivel_acesso, is_super_admin')
           .eq('user_id', user.id)
           .maybeSingle();
@@ -699,14 +699,13 @@ export default function Configuracoes() {
           let clinicaId: string | number | null = clinicaEditando?.id ?? null;
           let aviso: string | null = null;
           if (clinicaEditando?.id) {
-              const { error } = await supabase.from('clinicas').update(payload).eq('id', clinicaEditando.id);
+              const { error } = await tabelas.from('clinicas').update(payload).eq('id', clinicaEditando.id);
               if (error) throw error;
           } else {
               const { data: { session } } = await supabase.auth.getSession();
               if (!session) { showAlert('Sessão expirada. Faça login novamente.', { type: 'error' }); return; }
 
-              const { data: prof } = await supabase
-                  .from('profissionais')
+              const { data: prof } = await tabelas.from('profissionais')
                   .select('id, is_super_admin')
                   .eq('user_id', session.user.id)
                   .maybeSingle();
@@ -717,8 +716,7 @@ export default function Configuracoes() {
               }
 
               let redeId: any = null;
-              const { data: vinculos } = await supabase
-                  .from('profissionais_clinicas')
+              const { data: vinculos } = await tabelas.from('profissionais_clinicas')
                   .select('clinicas(rede_id)')
                   .eq('profissional_id', prof.id)
                   .limit(1);
@@ -732,16 +730,14 @@ export default function Configuracoes() {
               const insertPayload: any = { ...payload };
               if (redeId !== null && redeId !== undefined) insertPayload.rede_id = redeId;
 
-              const { data: novaC, error } = await supabase
-                  .from('clinicas')
+              const { data: novaC, error } = await tabelas.from('clinicas')
                   .insert([insertPayload])
                   .select('id')
                   .single();
               if (error || !novaC) throw error || new Error('Falha ao criar clínica');
               clinicaId = novaC.id;
 
-              const { error: vincErr } = await supabase
-                  .from('profissionais_clinicas')
+              const { error: vincErr } = await tabelas.from('profissionais_clinicas')
                   .insert([{ profissional_id: prof.id, clinica_id: novaC.id }]);
               if (vincErr) {
                   aviso = 'Clínica criada, mas não foi possível vincular você automaticamente. Vincule em Equipe.';
@@ -773,7 +769,7 @@ export default function Configuracoes() {
   async function excluirClinica(id: number) {
       if (!(await showConfirm('Tem certeza absoluta? Isso apagará a clínica e pode afetar dados vinculados.', { title: 'Excluir Clínica', type: 'error', confirmLabel: 'Excluir' }))) return;
       
-      const { error } = await supabase.from('clinicas').delete().eq('id', id);
+      const { error } = await tabelas.from('clinicas').delete().eq('id', id);
       
       if (error) {
           console.error(error);
@@ -838,7 +834,7 @@ export default function Configuracoes() {
           const filePath = `clinicas/${clinicaId}/logo-${Date.now()}.${fileExt}`;
           const publicUrl = await enviarArquivoClinica(filePath, file, { upsert: true, contentType: file.type || undefined });
           if (!publicUrl) throw new Error('Não foi possível publicar a logo.');
-          const { error } = await supabase.from('clinicas').update({ logo_url: publicUrl }).eq('id', clinicaId);
+          const { error } = await tabelas.from('clinicas').update({ logo_url: publicUrl }).eq('id', clinicaId);
           if (error) throw error;
           setClinicaForm((prev) => ({ ...prev, logo_url: publicUrl }));
       } finally {
@@ -921,7 +917,7 @@ export default function Configuracoes() {
       if (!editandoProf) return;
       if (!(await showConfirm('ATENÇÃO: Isso removerá o acesso deste usuário ao sistema. Continuar?', { title: 'Excluir Profissional', type: 'error', confirmLabel: 'Excluir' }))) return;
       
-      const { error } = await supabase.from('profissionais').delete().eq('id', profForm.id);
+      const { error } = await tabelas.from('profissionais').delete().eq('id', profForm.id);
       if (error) showAlert('Erro ao excluir: ' + error.message, { type: 'error' });
       else {
           setModalProf(false);
@@ -932,7 +928,7 @@ export default function Configuracoes() {
   // --- VÍNCULOS ---
   async function abrirVinculos(prof: any) {
       setProfSelecionado(prof);
-      const { data } = await supabase.from('profissionais_clinicas').select('clinica_id').eq('profissional_id', prof.id);
+      const { data } = await tabelas.from('profissionais_clinicas').select('clinica_id').eq('profissional_id', prof.id);
       if (data) setVinculosDoProf(data.map((v: any) => v.clinica_id));
       setModalVinculo(true);
   }
@@ -940,10 +936,10 @@ export default function Configuracoes() {
   async function toggleVinculo(clinicaId: number) {
       const jaTem = vinculosDoProf.includes(clinicaId);
       if (jaTem) {
-          await supabase.from('profissionais_clinicas').delete().eq('profissional_id', profSelecionado.id).eq('clinica_id', clinicaId);
+          await tabelas.from('profissionais_clinicas').delete().eq('profissional_id', profSelecionado.id).eq('clinica_id', clinicaId);
           setVinculosDoProf(prev => prev.filter(id => id !== clinicaId));
       } else {
-          await supabase.from('profissionais_clinicas').insert([{ profissional_id: profSelecionado.id, clinica_id: clinicaId }]);
+          await tabelas.from('profissionais_clinicas').insert([{ profissional_id: profSelecionado.id, clinica_id: clinicaId }]);
           setVinculosDoProf(prev => [...prev, clinicaId]);
       }
   }

@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { dados as tabelas } from '@/lib/local/consulta';
 import { listar, modoDados } from '@/lib/local/cliente';
 
 /**
@@ -6,7 +7,7 @@ import { listar, modoDados } from '@/lib/local/cliente';
  * estritamente filtrada pelo `auth.user.id` logado, via INNER JOIN
  * duplo (clinicas → profissionais_clinicas → profissionais).
  *
- * Use estes helpers em vez de `supabase.from('clinicas').select('*')`,
+ * Use estes helpers em vez de `tabelas.from('clinicas').select('*')`,
  * que vazaria clínicas de outras redes.
  */
 
@@ -136,8 +137,7 @@ async function buscarClinicasDoUsuario(
 
     // Estratégia em 3 etapas — compatível com as policies de RLS sem
     // depender de embeds aninhados.
-    const { data: prof, error: profErr } = await supabase
-        .from('profissionais')
+    const { data: prof, error: profErr } = await tabelas.from('profissionais')
         .select('id, is_super_admin')
         .eq('user_id', userId)
         .maybeSingle();
@@ -145,8 +145,7 @@ async function buscarClinicasDoUsuario(
 
     // Super admin → visão global por padrão (a menos que opte por vínculos)
     if (prof?.is_super_admin && !opts?.restrictSuperAdminToVinculos) {
-        const { data, error } = await supabase
-            .from('clinicas')
+        const { data, error } = await tabelas.from('clinicas')
             .select('id, nome, endereco, rede_id')
             .order('nome');
         logErro('clinicas.select (super admin)', error);
@@ -155,8 +154,7 @@ async function buscarClinicasDoUsuario(
 
     if (!prof?.id) return [];
 
-    const { data: vinculos, error: vincErr } = await supabase
-        .from('profissionais_clinicas')
+    const { data: vinculos, error: vincErr } = await tabelas.from('profissionais_clinicas')
         .select('clinica_id')
         .eq('profissional_id', prof.id);
     logErro('profissionais_clinicas.select', vincErr);
@@ -164,8 +162,7 @@ async function buscarClinicasDoUsuario(
     const ids = Array.from(new Set((vinculos || []).map((v: any) => v.clinica_id))).filter((x) => x !== null && x !== undefined);
     if (ids.length === 0) return [];
 
-    const { data, error } = await supabase
-        .from('clinicas')
+    const { data, error } = await tabelas.from('clinicas')
         .select('id, nome, endereco, rede_id')
         .in('id', ids as any)
         .order('nome');
@@ -214,8 +211,7 @@ export async function fetchUserEquipe(): Promise<ProfissionalEquipe[]> {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) return [];
 
-    const { data: prof } = await supabase
-        .from('profissionais')
+    const { data: prof } = await tabelas.from('profissionais')
         .select('id, is_super_admin')
         .eq('user_id', session.user.id)
         .maybeSingle();
@@ -224,27 +220,23 @@ export async function fetchUserEquipe(): Promise<ProfissionalEquipe[]> {
 
     // Super admin: visão global.
     if (prof.is_super_admin) {
-        const { data: todos } = await supabase
-            .from('profissionais')
+        const { data: todos } = await tabelas.from('profissionais')
             .select('id, nome, cargo, nivel_acesso, user_id, precisa_trocar_senha, telefone, foto_url, conselho, cro')
             .order('nome');
-        const { data: todosVinc } = await supabase
-            .from('profissionais_clinicas')
+        const { data: todosVinc } = await tabelas.from('profissionais_clinicas')
             .select('profissional_id, clinicas(id, nome)');
         return montarEquipe(todos || [], todosVinc || []);
     }
 
     // 1) clínicas do usuário
-    const { data: minhasClins } = await supabase
-        .from('profissionais_clinicas')
+    const { data: minhasClins } = await tabelas.from('profissionais_clinicas')
         .select('clinica_id')
         .eq('profissional_id', prof.id);
     const idsClin = Array.from(new Set((minhasClins || []).map((v: any) => v.clinica_id)));
     if (idsClin.length === 0) return [];
 
     // 2) todos os vínculos dessas clínicas (= colegas + clínicas em comum)
-    const { data: vinculos } = await supabase
-        .from('profissionais_clinicas')
+    const { data: vinculos } = await tabelas.from('profissionais_clinicas')
         .select('profissional_id, clinicas(id, nome)')
         .in('clinica_id', idsClin as any);
 
@@ -252,8 +244,7 @@ export async function fetchUserEquipe(): Promise<ProfissionalEquipe[]> {
     if (idsProf.length === 0) return [];
 
     // 3) dados dos profissionais
-    const { data: profs } = await supabase
-        .from('profissionais')
+    const { data: profs } = await tabelas.from('profissionais')
         .select('id, nome, cargo, nivel_acesso, user_id, precisa_trocar_senha, telefone, foto_url, conselho, cro')
         .in('id', idsProf as any)
         .order('nome');

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Loader2, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { dados as tabelas } from '@/lib/local/consulta';
 import { modoDados, listar, inserir, atualizar } from '@/lib/local/cliente';
 import CampoData from '@/components/ui/CampoData';
 import CampoHora from '@/components/ui/CampoHora';
@@ -75,8 +76,7 @@ export default function Agendadas({ clinicaId }: Props) {
       return;
     }
 
-    const { data: linhas, error } = await supabase
-      .from('whatsapp_agendadas')
+    const { data: linhas, error } = await tabelas.from('whatsapp_agendadas')
       .select('id, nome, telefone, texto, enviar_em, status, erro')
       .eq('clinica_id', clinicaId)
       .order('enviar_em', { ascending: false })
@@ -160,7 +160,7 @@ export default function Agendadas({ clinicaId }: Props) {
       return;
     }
 
-    const { error } = await supabase.from('whatsapp_agendadas').insert(
+    const { error } = await tabelas.from('whatsapp_agendadas').insert(
       destinos.map((d) => ({
         clinica_id: Number(clinicaId),
         paciente_id: d.paciente_id,
@@ -203,7 +203,7 @@ export default function Agendadas({ clinicaId }: Props) {
       return;
     }
 
-    await supabase.from('whatsapp_agendadas').update({ status: 'cancelada' }).eq('id', item.id).eq('status', 'pendente');
+    await tabelas.from('whatsapp_agendadas').update({ status: 'cancelada' }).eq('id', item.id).eq('status', 'pendente');
     void carregar();
   }
 

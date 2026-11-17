@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { dados as tabelas } from '@/lib/local/consulta';
 import { rowToAnamnese, type AnamnesePaciente } from '@/lib/db/types';
 import { atualizar, inserir, listar, modoDados, remover } from '@/lib/local/cliente';
 
@@ -15,8 +16,7 @@ export async function listarAnamneses(pacienteId: string): Promise<AnamnesePacie
     return linhas.map(rowToAnamnese);
   }
 
-  const { data, error } = await supabase
-    .from('paciente_anamneses')
+  const { data, error } = await tabelas.from('paciente_anamneses')
     .select('*')
     .eq('paciente_id', pacienteId)
     .order('data', { ascending: false, nullsFirst: false })
@@ -47,8 +47,7 @@ export async function criarAnamnese(
     return rowToAnamnese(salva);
   }
 
-  const { data, error } = await supabase
-    .from('paciente_anamneses')
+  const { data, error } = await tabelas.from('paciente_anamneses')
     .insert(payload)
     .select('*')
     .single();
@@ -78,8 +77,7 @@ export async function atualizarAnamnese(
     return rowToAnamnese(salva);
   }
 
-  const { data, error } = await supabase
-    .from('paciente_anamneses')
+  const { data, error } = await tabelas.from('paciente_anamneses')
     .update(payload)
     .eq('id', id)
     .select('*')
@@ -96,7 +94,7 @@ export async function excluirAnamnese(id: string): Promise<void> {
     return;
   }
 
-  const { error } = await supabase.from('paciente_anamneses').delete().eq('id', id);
+  const { error } = await tabelas.from('paciente_anamneses').delete().eq('id', id);
   if (error) throw error;
 }
 

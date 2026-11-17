@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { dados as tabelas } from '@/lib/local/consulta';
 import { modoDados, listar } from '@/lib/local/cliente';
 import { formatarTelefone } from '@/lib/whatsappTelefone';
 import { mensagemDeErro } from './api';
@@ -58,8 +59,7 @@ export default function Historico({ clinicaId }: Props) {
       return;
     }
 
-    const { data, error } = await supabase
-      .from('whatsapp_envios')
+    const { data, error } = await tabelas.from('whatsapp_envios')
       .select('id, tipo, nome, telefone, texto, status, erro, created_at')
       .eq('clinica_id', clinicaId)
       .order('created_at', { ascending: false })

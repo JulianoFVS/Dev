@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { dados as tabelas } from '@/lib/local/consulta';
 import { rowToEvolucao, type EvolucaoPaciente } from '@/lib/db/types';
 import { inserir, listar, modoDados, remover } from '@/lib/local/cliente';
 
@@ -15,8 +16,7 @@ export async function listarEvolucoes(pacienteId: string): Promise<EvolucaoPacie
     return linhas.map(rowToEvolucao);
   }
 
-  const { data, error } = await supabase
-    .from('paciente_evolucoes')
+  const { data, error } = await tabelas.from('paciente_evolucoes')
     .select('*')
     .eq('paciente_id', pacienteId)
     .order('data', { ascending: false, nullsFirst: false })
@@ -44,8 +44,7 @@ export async function criarEvolucao(
     return rowToEvolucao(salva);
   }
 
-  const { data, error } = await supabase
-    .from('paciente_evolucoes')
+  const { data, error } = await tabelas.from('paciente_evolucoes')
     .insert(payload)
     .select('*')
     .single();
@@ -61,6 +60,6 @@ export async function excluirEvolucao(id: string): Promise<void> {
     return;
   }
 
-  const { error } = await supabase.from('paciente_evolucoes').delete().eq('id', id);
+  const { error } = await tabelas.from('paciente_evolucoes').delete().eq('id', id);
   if (error) throw error;
 }

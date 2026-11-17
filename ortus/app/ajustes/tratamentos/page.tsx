@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useRef, useState, type ReactNode } from 
 import { createPortal } from 'react-dom';
 import { ArrowUpDown, CircleAlert, CircleHelp, CreditCard, MoreHorizontal, Pencil, Plus, User, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { dados as tabelas } from '@/lib/local/consulta';
 import { useClinica, getClinicLabel } from '@/app/context/ClinicaContext';
 import { clinicScope, readRouteCache, writeRouteCache } from '@/lib/routeListCache';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
@@ -272,10 +273,9 @@ export default function TratamentosPage() {
   async function carregar(id: number, ticket: number) {
     try {
       const [planosRes, espRes, trRes] = await Promise.all([
-        supabase.from('planos').select('id, nome, tipo, observacoes, ativo').eq('clinica_id', id).order('nome'),
-        supabase.from('especialidades').select('id, nome, ativo').eq('clinica_id', id).order('nome'),
-        supabase
-          .from('tratamentos_base')
+        tabelas.from('planos').select('id, nome, tipo, observacoes, ativo').eq('clinica_id', id).order('nome'),
+        tabelas.from('especialidades').select('id, nome, ativo').eq('clinica_id', id).order('nome'),
+        tabelas.from('tratamentos_base')
           .select('id, nome, especialidade_id, valor_sugerido, custo_padrao, codigo_tuss_padrao, aceita_faces, ativo')
           .eq('clinica_id', id)
           .order('nome'),
@@ -285,8 +285,7 @@ export default function TratamentosPage() {
       if (trRes.error) throw trRes.error;
       let lista = (planosRes.data || []) as Plano[];
       if (!lista.some((p) => p.tipo === 'particular')) {
-        const { data: criado, error } = await supabase
-          .from('planos')
+        const { data: criado, error } = await tabelas.from('planos')
           .insert({ clinica_id: id, nome: 'Particular', tipo: 'particular', ativo: true })
           .select('id, nome, tipo, observacoes, ativo')
           .single();
@@ -296,8 +295,7 @@ export default function TratamentosPage() {
       const ids = lista.map((p) => p.id);
       let linhas: Preco[] = [];
       if (ids.length) {
-        const { data, error } = await supabase
-          .from('planos_tratamentos')
+        const { data, error } = await tabelas.from('planos_tratamentos')
           .select('plano_id, tratamento_id, valor, custo, codigo_tuss, aceita_faces, ativo')
           .in('plano_id', ids);
         if (error) throw error;
@@ -371,11 +369,10 @@ export default function TratamentosPage() {
     setSalvando(true);
     try {
       if (editando) {
-        const { error } = await supabase.from('especialidades').update({ nome }).eq('id', editando.id);
+        const { error } = await tabelas.from('especialidades').update({ nome }).eq('id', editando.id);
         if (error) throw error;
       } else {
-        const { data, error } = await supabase
-          .from('especialidades')
+        const { data, error } = await tabelas.from('especialidades')
           .insert({ clinica_id: clinicaId, nome, ativo: true })
           .select('id, nome, ativo')
           .single();
@@ -410,10 +407,10 @@ export default function TratamentosPage() {
     if (espId === esp.id) setEspId(null);
     try {
       if (ids.length) {
-        const { error } = await supabase.from('tratamentos_base').delete().in('id', ids);
+        const { error } = await tabelas.from('tratamentos_base').delete().in('id', ids);
         if (error) throw error;
       }
-      const { error } = await supabase.from('especialidades').delete().eq('id', esp.id);
+      const { error } = await tabelas.from('especialidades').delete().eq('id', esp.id);
       if (error) throw error;
       showAlert('Especialidade excluída.', { type: 'success' });
     } catch (err) {
@@ -499,8 +496,7 @@ export default function TratamentosPage() {
       let id = editando?.id;
       if (ehParticular) {
         if (id) {
-          const { error } = await supabase
-            .from('tratamentos_base')
+          const { error } = await tabelas.from('tratamentos_base')
             .update({
               nome,
               especialidade_id: form.especialidadeId,
@@ -513,8 +509,7 @@ export default function TratamentosPage() {
             .eq('id', id);
           if (error) throw error;
         } else {
-          const { data, error } = await supabase
-            .from('tratamentos_base')
+          const { data, error } = await tabelas.from('tratamentos_base')
             .insert({
               clinica_id: clinicaId,
               nome,
@@ -538,8 +533,7 @@ export default function TratamentosPage() {
         const convenios = extras.filter((pid) => pid !== particular?.id);
         if (convenios.length) await gravarPrecos(editando.id, convenios, comercial);
         if (particular && extras.includes(particular.id)) {
-          const { error } = await supabase
-            .from('tratamentos_base')
+          const { error } = await tabelas.from('tratamentos_base')
             .update({
               valor_sugerido: valor,
               custo_padrao: custo,
@@ -585,7 +579,7 @@ export default function TratamentosPage() {
       aceita_faces: valores.aceita_faces,
       ativo: valores.ativo,
     }));
-    const { error } = await supabase.from('planos_tratamentos').upsert(rows, { onConflict: 'plano_id,tratamento_id' });
+    const { error } = await tabelas.from('planos_tratamentos').upsert(rows, { onConflict: 'plano_id,tratamento_id' });
     if (error) throw error;
     setPrecos((atual) => {
       const mapa = new Map(atual.map((p) => [`${p.plano_id}:${p.tratamento_id}`, p]));
@@ -615,7 +609,7 @@ export default function TratamentosPage() {
     const anteriorPr = precos;
     setTratamentos((atual) => atual.filter((t) => t.id !== item.id));
     setPrecos((atual) => atual.filter((p) => p.tratamento_id !== item.id));
-    const { error } = await supabase.from('tratamentos_base').delete().eq('id', item.id);
+    const { error } = await tabelas.from('tratamentos_base').delete().eq('id', item.id);
     if (error) {
       setTratamentos(anteriorTr);
       setPrecos(anteriorPr);
@@ -631,7 +625,7 @@ export default function TratamentosPage() {
     const anteriorPr = precos;
     if (ehParticular) {
       setTratamentos((atual) => atual.map((t) => (t.id === item.id ? { ...t, ativo: ligado } : t)));
-      const { error } = await supabase.from('tratamentos_base').update({ ativo: ligado }).eq('id', item.id);
+      const { error } = await tabelas.from('tratamentos_base').update({ ativo: ligado }).eq('id', item.id);
       if (error) {
         setTratamentos(anteriorTr);
         showAlert(mensagemErro(error, 'Não foi possível atualizar o tratamento.'), { type: 'error' });
@@ -703,7 +697,7 @@ export default function TratamentosPage() {
     if (planoModal !== 'novo') {
       if (planoModal.tipo === 'particular') return;
       setPlanos((atual) => atual.map((p) => (p.id === planoModal.id ? { ...p, nome, ativo: planoAtivo } : p)));
-      const { error } = await supabase.from('planos').update({ nome, ativo: planoAtivo }).eq('id', planoModal.id);
+      const { error } = await tabelas.from('planos').update({ nome, ativo: planoAtivo }).eq('id', planoModal.id);
       if (error) {
         setPlanos(anterior);
         showAlert(mensagemErro(error, 'Não foi possível salvar o plano.'), { type: 'error' });
@@ -715,8 +709,7 @@ export default function TratamentosPage() {
     }
     setSalvando(true);
     try {
-      const { data, error } = await supabase
-        .from('planos')
+      const { data, error } = await tabelas.from('planos')
         .insert({
           clinica_id: clinicaId,
           nome,
@@ -743,7 +736,7 @@ export default function TratamentosPage() {
           aceita_faces: t.aceita_faces,
           ativo: true,
         }));
-        const { error: precoErro } = await supabase.from('planos_tratamentos').upsert(rows, { onConflict: 'plano_id,tratamento_id' });
+        const { error: precoErro } = await tabelas.from('planos_tratamentos').upsert(rows, { onConflict: 'plano_id,tratamento_id' });
         if (precoErro) throw precoErro;
         novas = rows.map((row) => ({
           plano_id: row.plano_id,
@@ -782,7 +775,7 @@ export default function TratamentosPage() {
     setPlanos((atual) => atual.filter((p) => p.id !== plano.id));
     setPrecos((atual) => atual.filter((p) => p.plano_id !== plano.id));
     if (selecionadoId === plano.id) setSelecionadoId(particular?.id ?? null);
-    const { error } = await supabase.from('planos').delete().eq('id', plano.id);
+    const { error } = await tabelas.from('planos').delete().eq('id', plano.id);
     if (error) {
       setPlanos(anterior);
       setPrecos(anteriorPr);

@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { dados as tabelas } from '@/lib/local/consulta';
 
 /**
  * Convites de equipe entre redes.
@@ -191,8 +192,7 @@ export async function listarConvitesEquipe(
 
     if (!todas && ids.length === 0) return [];
 
-    const consultaBase = () => supabase
-        .from('convites_equipe')
+    const consultaBase = () => tabelas.from('convites_equipe')
         .select('*')
         .order('criado_em', { ascending: false })
         .limit(50);
@@ -200,8 +200,7 @@ export async function listarConvitesEquipe(
     try {
         if (!todas && ids.length > 0) {
             try {
-                const { data, error } = await supabase
-                    .from('convites_equipe')
+                const { data, error } = await tabelas.from('convites_equipe')
                     .select('*')
                     .overlaps('clinica_ids', ids)
                     .order('criado_em', { ascending: false })

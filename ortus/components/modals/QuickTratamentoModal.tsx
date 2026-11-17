@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { dados as tabelas } from '@/lib/local/consulta';
 import { Loader2, Plus, X } from 'lucide-react';
 import CustomSelect from '@/components/ui/CustomSelect';
 import Modal from '@/components/ui/Modal';
@@ -54,8 +55,7 @@ export default function QuickTratamentoModal({ open, onClose, clinicaId, variant
   async function carregarEspecialidades() {
     if (!clinicaId) return;
     setLoadingEsp(true);
-    const { data } = await supabase
-      .from('especialidades')
+    const { data } = await tabelas.from('especialidades')
       .select('id, nome')
       .eq('clinica_id', Number(clinicaId))
       .eq('ativo', true)
@@ -71,8 +71,7 @@ export default function QuickTratamentoModal({ open, onClose, clinicaId, variant
     if (espId) return espId;
 
     if (mostrarNovaEsp && novaEsp.trim()) {
-      const { data, error } = await supabase
-        .from('especialidades')
+      const { data, error } = await tabelas.from('especialidades')
         .insert({ clinica_id: Number(clinicaId), nome: novaEsp.trim() })
         .select('id')
         .single();
@@ -81,14 +80,12 @@ export default function QuickTratamentoModal({ open, onClose, clinicaId, variant
     }
 
     if (variant === 'quick') {
-      const { data, error } = await supabase
-        .from('especialidades')
+      const { data, error } = await tabelas.from('especialidades')
         .insert({ clinica_id: Number(clinicaId), nome: 'Geral' })
         .select('id')
         .single();
       if (error?.code === '23505') {
-        const { data: existente } = await supabase
-          .from('especialidades')
+        const { data: existente } = await tabelas.from('especialidades')
           .select('id')
           .eq('clinica_id', Number(clinicaId))
           .eq('nome', 'Geral')
@@ -141,8 +138,7 @@ export default function QuickTratamentoModal({ open, onClose, clinicaId, variant
         return;
       }
 
-      const { data, error } = await supabase
-        .from('tratamentos_base')
+      const { data, error } = await tabelas.from('tratamentos_base')
         .insert({
           clinica_id: Number(clinicaId),
           especialidade_id: especialidadeId,

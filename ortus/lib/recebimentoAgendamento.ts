@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { dados as tabelas } from '@/lib/local/consulta';
 import { carregarConfig, salvarConfig } from '@/lib/configClinica';
 import { CONFIG_KEYS } from '@/lib/configKeys';
 import { calcularValorLiquido, TAXAS_MAQUININHA_PADRAO, normalizarTaxasMaquininha, type TaxaMaquininha } from '@/lib/configDefaults';
@@ -56,8 +57,7 @@ export async function receberAgendamento(
       }
     : {};
 
-  const { error } = await supabase
-    .from('agendamentos')
+  const { error } = await tabelas.from('agendamentos')
     .update({
       status: 'concluido',
       data_pagamento: new Date().toISOString(),

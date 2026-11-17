@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import type { MouseEvent } from 'react';
 import { supabase } from '@/lib/supabase';
+import { dados as tabelas, usuarioDaSessao } from '@/lib/local/consulta';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { User, Phone, Edit, ArrowLeft, Save, Loader2, FileText, Clock, Trash2, Calendar, CalendarPlus, Pill, AlertTriangle, Stethoscope, X, Check, Building2, Printer, Smile, Plus, Eraser, CheckCircle, ClipboardList, FolderOpen, AlertCircle, Upload, Download, Image as ImageIcon, DollarSign, Settings, Sparkles, Camera, Bell, ShieldCheck, Zap, Link2, Copy, ChevronDown, LayoutGrid, List, ArrowUpDown, Search } from 'lucide-react';
 import Link from 'next/link';
@@ -653,7 +654,7 @@ export default function PacienteDetalhe() {
               if (ativo) setPlanos(form.plano_id ? [{ id: String(form.plano_id), nome: 'Convênio' }] : []);
               return;
           }
-          supabase.from('planos').select('id, nome, tipo').eq('clinica_id', form.clinica_id).eq('ativo', true).order('nome')
+          tabelas.from('planos').select('id, nome, tipo').eq('clinica_id', form.clinica_id).eq('ativo', true).order('nome')
               .then(({ data }) => { if (ativo) setPlanos(data || []); });
       })();
       return () => { ativo = false; };
@@ -675,7 +676,7 @@ export default function PacienteDetalhe() {
                   limite: 5,
               });
           } else {
-              const { data } = await supabase.from('pacientes').select('id, nome, cpf').in('cpf', variantesCpf(cpf)).limit(5);
+              const { data } = await tabelas.from('pacientes').select('id, nome, cpf').in('cpf', variantesCpf(cpf)).limit(5);
               encontrados = (data || []) as Array<{ id: string | number; nome?: string | null }>;
           }
           const outro = encontrados.find((p) => String(p.id) !== String(id));
@@ -701,7 +702,7 @@ export default function PacienteDetalhe() {
           if (modo === 'local') {
               await atualizar('pacientes', String(id), { foto_url: publicUrl });
           } else {
-              const { error: updErr } = await supabase.from('pacientes').update({ foto_url: publicUrl }).eq('id', id);
+              const { error: updErr } = await tabelas.from('pacientes').update({ foto_url: publicUrl }).eq('id', id);
               if (updErr) throw updErr;
           }
           setForm((atual: any) => ({ ...atual, foto_url: publicUrl }));
@@ -770,7 +771,7 @@ export default function PacienteDetalhe() {
           });
           return { data: linhas[0] ?? null };
       }
-      const { data } = await supabase.from('pacientes').select('*').eq('id', id).single();
+      const { data } = await tabelas.from('pacientes').select('*').eq('id', id).single();
       return { data: (data as Record<string, unknown> | null) ?? null };
   }
 
@@ -787,7 +788,7 @@ export default function PacienteDetalhe() {
               return nome ? { ...linha, profissionais: { nome } } : linha;
           });
       }
-      const { data } = await supabase.from('agendamentos').select('*, profissionais(nome)').eq('paciente_id', id).order('data_hora', { ascending: false });
+      const { data } = await tabelas.from('agendamentos').select('*, profissionais(nome)').eq('paciente_id', id).order('data_hora', { ascending: false });
       return (data || []) as Record<string, unknown>[];
   }
 
@@ -798,7 +799,7 @@ export default function PacienteDetalhe() {
               filtros: [{ col: 'paciente_id', op: 'eq', valor: String(id) }],
           });
       }
-      const { data } = await supabase.from('paciente_debitos').select('*').eq('paciente_id', id);
+      const { data } = await tabelas.from('paciente_debitos').select('*').eq('paciente_id', id);
       return (data || []) as Record<string, unknown>[];
   }
 
@@ -1074,7 +1075,7 @@ export default function PacienteDetalhe() {
                           setClinicas([{ id: data.clinica_id as string | number, nome: `Clínica ${String(data.clinica_id)}` }]);
                       }
                   } else {
-                      supabase.from('planos').select('id, nome').eq('clinica_id', data.clinica_id).eq('ativo', true).order('nome')
+                      tabelas.from('planos').select('id, nome').eq('clinica_id', data.clinica_id).eq('ativo', true).order('nome')
                           .then(({ data: planosData }) => { if (planosData) setPlanos(planosData); });
                       carregarConfig(data.clinica_id as number | string, 'modelos_documentos', 'ortus_modelos_documentos', []).then((d: any) => {
                           if (Array.isArray(d)) setModelosDocumentos(d);
@@ -1119,7 +1120,7 @@ export default function PacienteDetalhe() {
               const salvo = await atualizar('pacientes', String(id), payload);
               if (!salvo) throw new Error('Paciente não encontrado no banco local.');
           } else {
-              const { error } = await supabase.from('pacientes').update(payload).eq('id', id);
+              const { error } = await tabelas.from('pacientes').update(payload).eq('id', id);
               if (error) { await showAlert('Erro ao salvar: ' + error.message, { type: 'error' }); return; }
           }
           setFicha({ ...ficha, ...fichaAtualizada });
@@ -1197,7 +1198,7 @@ export default function PacienteDetalhe() {
               const salvo = await atualizar('pacientes', String(id), { ficha_medica: merged });
               if (!salvo) throw new Error('Paciente não encontrado no banco local.');
           } else {
-              const { error } = await supabase.from('pacientes').update({
+              const { error } = await tabelas.from('pacientes').update({
                   ficha_medica: merged,
               }).eq('id', id);
               if (error) throw error;
@@ -1303,10 +1304,10 @@ export default function PacienteDetalhe() {
           // Comissões vivem apenas na nuvem. Offline o tratamento é salvo localmente e sincronizado.
           const registrarComissao = modo !== 'local' || !semConexao();
           if (registrarComissao && tratSemAgenda.status === 'concluido' && form.clinica_id) {
-              const { data: { user } } = await supabase.auth.getUser();
+              const user = await usuarioDaSessao();
               let profId: string | number | null = null;
               if (user) {
-                  const { data: prof } = await supabase.from('profissionais').select('id').eq('user_id', user.id).maybeSingle();
+                  const { data: prof } = await tabelas.from('profissionais').select('id').eq('user_id', user.id).maybeSingle();
                   profId = prof?.id ?? null;
               }
               await registrarComissaoTratamentoFinalizado({
@@ -1362,11 +1363,11 @@ export default function PacienteDetalhe() {
                       const userId = session?.user?.id;
                       let profId: string | null = null;
                       if (userId) {
-                          const { data: prof } = await supabase.from('profissionais').select('id').eq('user_id', userId).maybeSingle();
+                          const { data: prof } = await tabelas.from('profissionais').select('id').eq('user_id', userId).maybeSingle();
                           profId = prof?.id || null;
                       }
                       if (profId) payload.profissional_id = profId;
-                      const { error: agErr } = await supabase.from('agendamentos').insert([payload]);
+                      const { error: agErr } = await tabelas.from('agendamentos').insert([payload]);
                       if (agErr) throw agErr;
                   }
                   agendado = true;
@@ -2325,8 +2326,8 @@ export default function PacienteDetalhe() {
               }
               await remover('pacientes', String(id));
           } else {
-              await supabase.from('agendamentos').delete().eq('paciente_id', id);
-              await supabase.from('pacientes').delete().eq('id', id);
+              await tabelas.from('agendamentos').delete().eq('paciente_id', id);
+              await tabelas.from('pacientes').delete().eq('id', id);
           }
           router.push('/pacientes');
       } catch (erro) {

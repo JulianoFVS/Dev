@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { dados as tabelas } from '@/lib/local/consulta';
 import { criarTratamento } from '@/lib/db/tratamentos';
 import { Calendar, CheckCircle, Clock, DollarSign, Loader2, Save, Smile, User } from 'lucide-react';
 import Switch from '@/components/ui/Switch';
@@ -37,8 +38,7 @@ export default function TreatmentForm({ paciente, onSuccess, onCancel }: Treatme
   useEffect(() => {
     let mounted = true;
     (async () => {
-      const { data, error: fetchError } = await supabase
-        .from('pacientes')
+      const { data, error: fetchError } = await tabelas.from('pacientes')
         .select('clinica_id')
         .eq('id', paciente.id)
         .single();
@@ -76,7 +76,7 @@ export default function TreatmentForm({ paciente, onSuccess, onCancel }: Treatme
 
     if (form.agendar && form.horario) {
       const dataHora = new Date(`${form.data}T${form.horario}:00`);
-      const { error: agErr } = await supabase.from('agendamentos').insert([{
+      const { error: agErr } = await tabelas.from('agendamentos').insert([{
         paciente_id: paciente.id,
         clinica_id: clinicaIdPaciente,
         data_hora: dataHora.toISOString(),

@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { dados as tabelas, usuarioDaSessao } from '@/lib/local/consulta';
 import { salvarSessaoCache } from '@/lib/local/cliente';
 import {
   User,
@@ -77,15 +78,14 @@ export default function Perfil() {
   }, []);
 
   async function carregar() {
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = await usuarioDaSessao();
     if (!user) {
       jaCarregou.current = true;
       setLoading(false);
       return;
     }
     setUserId(user.id);
-    const { data: prof } = await supabase
-      .from('profissionais')
+    const { data: prof } = await tabelas.from('profissionais')
       .select('id, nome, cargo, nivel_acesso, foto_url, created_at, precisa_trocar_senha')
       .eq('user_id', user.id)
       .maybeSingle();
@@ -125,8 +125,7 @@ export default function Perfil() {
       const foto = await prepararFotoPaciente(file);
       const publicUrl = await enviarAvatarPerfil(userId, foto);
 
-      const { error: updErr } = await supabase
-        .from('profissionais')
+      const { error: updErr } = await tabelas.from('profissionais')
         .update({ foto_url: publicUrl })
         .eq('user_id', userId);
       if (updErr) throw updErr;
@@ -154,7 +153,7 @@ export default function Perfil() {
       updates.cargo = form.cargo;
     }
 
-    await supabase.from('profissionais').update(updates).eq('user_id', userId);
+    await tabelas.from('profissionais').update(updates).eq('user_id', userId);
 
     if (form.novaSenha) {
       const { error } = await supabase.auth.updateUser({ password: form.novaSenha });
@@ -220,8 +219,7 @@ export default function Perfil() {
     }
     if (!userId) return;
     try {
-      const { error } = await supabase
-        .from('profissionais')
+      const { error } = await tabelas.from('profissionais')
         .update({
           exclusao_solicitada_em: new Date().toISOString(),
           ativo: false,

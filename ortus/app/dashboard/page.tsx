@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
+import { dados as tabelas, usuarioDaSessao } from '@/lib/local/consulta';
 import { clinicScope, readRouteCache, writeRouteCache } from '@/lib/routeListCache';
 import { useClinica } from '@/app/context/ClinicaContext';
 import { carregarConfig } from '@/lib/configClinica';
@@ -422,8 +423,7 @@ export default function Dashboard() {
     }
     let ativo = true;
     setCarregandoDia(true);
-    supabase
-      .from('agendamentos')
+    tabelas.from('agendamentos')
       .select(SELECT_AGENDA)
       .gte('data_hora', limitesDia(diaISO).inicio)
       .lte('data_hora', limitesDia(diaISO).fim)
@@ -444,8 +444,7 @@ export default function Dashboard() {
     const inicio = new Date(mesCursor.ano, mesCursor.mes, 1, 0, 0, 0, 0).toISOString();
     const fim = new Date(mesCursor.ano, mesCursor.mes + 1, 0, 23, 59, 59, 999).toISOString();
     let ativo = true;
-    supabase
-      .from('agendamentos')
+    tabelas.from('agendamentos')
       .select('data_hora')
       .gte('data_hora', inicio)
       .lte('data_hora', fim)
@@ -453,8 +452,8 @@ export default function Dashboard() {
       .neq('status', 'cancelado')
       .then(({ data }) => {
         if (!ativo) return;
-        const dias = new Set((data || []).map((item) => isoLocal(new Date(item.data_hora))));
-        setMarcados([...dias]);
+        const dias = new Set((data || []).map((item: { data_hora: string }) => isoLocal(new Date(item.data_hora))));
+        setMarcados([...dias] as string[]);
       });
     return () => {
       ativo = false;
@@ -469,8 +468,7 @@ export default function Dashboard() {
       return;
     }
     let ativo = true;
-    supabase
-      .from('v_tarefas_completo')
+    tabelas.from('v_tarefas_completo')
       .select('id, titulo, status, prioridade, data_limite, paciente_nome, responsavel_nome')
       .in('clinica_id', idsClinica)
       .neq('status', 'concluido')
@@ -504,15 +502,14 @@ export default function Dashboard() {
     window.addEventListener(PROFILE_PATCH_EVENT, aplicar);
     if (nomeUsuario) return () => window.removeEventListener(PROFILE_PATCH_EVENT, aplicar);
     let ativo = true;
-    void supabase.auth.getUser().then(async ({ data }) => {
-      if (!ativo) return;
-      const meta = data.user?.user_metadata?.nome as string | undefined;
+    void usuarioDaSessao().then(async (user) => {
+      if (!ativo || !user) return;
+      const meta = user.user_metadata?.nome as string | undefined;
       if (meta) {
         setNomeUsuario(meta);
         return;
       }
-      if (!data.user?.id) return;
-      const { data: prof } = await supabase.from('profissionais').select('nome').eq('user_id', data.user.id).maybeSingle();
+      const { data: prof } = await tabelas.from('profissionais').select('nome').eq('user_id', user.id).maybeSingle();
       if (ativo && prof?.nome) setNomeUsuario(prof.nome);
     });
     return () => {
@@ -524,7 +521,7 @@ export default function Dashboard() {
   async function concluirTarefa(id: string) {
     const anterior = tarefasDia;
     setTarefasDia((lista) => lista.filter((t) => t.id !== id));
-    const { error } = await supabase.from('tarefas').update({ status: 'concluido' }).eq('id', id);
+    const { error } = await tabelas.from('tarefas').update({ status: 'concluido' }).eq('id', id);
     if (error) {
       setTarefasDia(anterior);
       avisar('Não foi possível concluir a tarefa.');
@@ -563,15 +560,13 @@ export default function Dashboard() {
     const prefClinica = filtros[0];
 
     const [agendaRes, fiadosRes] = await Promise.all([
-      supabase
-        .from('agendamentos')
+      tabelas.from('agendamentos')
         .select(SELECT_AGENDA)
         .gte('data_hora', limitesDia(hoje).inicio)
         .lte('data_hora', limitesDia(hoje).fim)
         .in('clinica_id', filtros)
         .order('data_hora', { ascending: true }),
-      supabase
-        .from('agendamentos')
+      tabelas.from('agendamentos')
         .select('id, valor_final, data_hora, pacientes(id, nome)')
         .eq('status', 'fiado')
         .in('clinica_id', filtros)
@@ -668,15 +663,15 @@ export default function Dashboard() {
     });
 
     void Promise.all([
-      supabase.from('paciente_tratamentos').select('id, procedimento, status, observacoes').eq('paciente_id', pacienteId).order('criado_em', { ascending: false }).limit(6),
-      supabase.from('agendamentos').select('data_hora').eq('paciente_id', pacienteId).eq('status', 'concluido').order('data_hora', { ascending: false }).limit(1),
-      supabase.from('agendamentos').select('valor_final').eq('paciente_id', pacienteId).eq('status', 'fiado'),
-      supabase.from('pacientes').select('id, ficha_medica').eq('id', pacienteId).maybeSingle(),
+      tabelas.from('paciente_tratamentos').select('id, procedimento, status, observacoes').eq('paciente_id', pacienteId).order('criado_em', { ascending: false }).limit(6),
+      tabelas.from('agendamentos').select('data_hora').eq('paciente_id', pacienteId).eq('status', 'concluido').order('data_hora', { ascending: false }).limit(1),
+      tabelas.from('agendamentos').select('valor_final').eq('paciente_id', pacienteId).eq('status', 'fiado'),
+      tabelas.from('pacientes').select('id, ficha_medica').eq('id', pacienteId).maybeSingle(),
     ]).then(([{ data: trats }, { data: historico }, { data: debitos }, { data: fichaRow }]) => {
       if (id !== reqId.current) return;
       const nextTrats = (trats as Tratamento[]) || [];
       const nextVisita = historico?.[0]?.data_hora ? new Date(historico[0].data_hora).toLocaleDateString('pt-BR') : null;
-      const nextSaldo = (debitos || []).reduce((acc, item) => acc + (item.valor_final || 0), 0);
+      const nextSaldo = (debitos || []).reduce((acc: number, item: { valor_final?: number | null }) => acc + (item.valor_final || 0), 0);
       setTratamentos(nextTrats);
       setUltimaVisita(nextVisita);
       setSaldoAberto(nextSaldo);
@@ -703,8 +698,7 @@ export default function Dashboard() {
     const inicio = inicioDoPeriodo(alvo);
     const fim = new Date();
     fim.setHours(23, 59, 59, 999);
-    const { data } = await supabase
-      .from('agendamentos')
+    const { data } = await tabelas.from('agendamentos')
       .select('data_hora, status, valor_final')
       .gte('data_hora', inicio.toISOString())
       .lte('data_hora', fim.toISOString())
@@ -731,11 +725,11 @@ export default function Dashboard() {
         const ate = new Date(de);
         ate.setDate(de.getDate() + 6);
         const valor = lista
-          .filter((a) => {
+          .filter((a: { data_hora: string; status?: string | null }) => {
             const t = new Date(a.data_hora).getTime();
             return a.status === 'concluido' && t >= de.getTime() && t <= ate.getTime();
           })
-          .reduce((acc, a) => acc + (a.valor_final || 0), 0);
+          .reduce((acc: number, a: { valor_final?: number | null }) => acc + (a.valor_final || 0), 0);
         return { id: `sem-${i}`, rotulo: `${i + 1}ª`, valor };
       });
       setBarras(barrasMes);
@@ -759,7 +753,7 @@ export default function Dashboard() {
   async function concluirAtual() {
     if (!emAtendimento) return;
     setConcluindo(true);
-    await supabase.from('agendamentos').update({ status: 'concluido' }).eq('id', emAtendimento.id);
+    await tabelas.from('agendamentos').update({ status: 'concluido' }).eq('id', emAtendimento.id);
     await carregar({ silent: true });
     setConcluindo(false);
   }
@@ -781,17 +775,17 @@ export default function Dashboard() {
     if (!pacienteSelId) return;
     let ativo = true;
     Promise.all([
-      supabase.from('paciente_tratamentos').select('id, procedimento, status, observacoes').eq('paciente_id', pacienteSelId).order('criado_em', { ascending: false }).limit(4),
-      supabase.from('agendamentos').select('data_hora').eq('paciente_id', pacienteSelId).eq('status', 'concluido').order('data_hora', { ascending: false }).limit(1),
-      supabase.from('agendamentos').select('valor_final').eq('paciente_id', pacienteSelId).eq('status', 'fiado'),
-      supabase.from('pacientes').select('id, ficha_medica').eq('id', pacienteSelId).maybeSingle(),
+      tabelas.from('paciente_tratamentos').select('id, procedimento, status, observacoes').eq('paciente_id', pacienteSelId).order('criado_em', { ascending: false }).limit(4),
+      tabelas.from('agendamentos').select('data_hora').eq('paciente_id', pacienteSelId).eq('status', 'concluido').order('data_hora', { ascending: false }).limit(1),
+      tabelas.from('agendamentos').select('valor_final').eq('paciente_id', pacienteSelId).eq('status', 'fiado'),
+      tabelas.from('pacientes').select('id, ficha_medica').eq('id', pacienteSelId).maybeSingle(),
     ]).then(([{ data: trats }, { data: historico }, { data: debitos }, { data: fichaRow }]) => {
       if (!ativo) return;
       setDetalhe({
         pacienteId: pacienteSelId,
         tratamentos: (trats as Tratamento[]) || [],
         ultima: historico?.[0]?.data_hora ? new Date(historico[0].data_hora).toLocaleDateString('pt-BR') : null,
-        saldo: (debitos || []).reduce((acc, item) => acc + (item.valor_final || 0), 0),
+        saldo: (debitos || []).reduce((acc: number, item: { valor_final?: number | null }) => acc + (item.valor_final || 0), 0),
         ficha: fichaRow?.ficha_medica ?? null,
       });
     });
