@@ -17,7 +17,7 @@ só os donos podem criar.
 - **demonstração** = o build de produção no ar numa VPS, contra os mesmos
   serviços falsos, conferido pela internet (item 20).
 
-O trabalho está no branch `preparacao-lancamento`. Nenhum PR foi aberto.
+O trabalho está no branch `preparacao-lancamento`. Revisão no PR https://github.com/JulianoFVS/Dev/pull/35 (do fork `nanpluz/Dev`).
 
 ---
 
