@@ -492,12 +492,18 @@ export default function Configuracoes() {
   async function importarTudo(e: any) {
       const file = e.target.files?.[0];
       if (!file) return;
+      if (!/\.json$/i.test(file.name) || file.size > 2 * 1024 * 1024) {
+          e.target.value = '';
+          showAlert('Envie o arquivo .json do backup do Ortus (até 2 MB).', { type: 'warning' });
+          return;
+      }
       const ok = await showConfirm('Isso irá sobrescrever todas as configurações locais (preferências, categorias, modelos). Continuar?', { title: 'Importar Backup', type: 'warning', confirmLabel: 'Importar' });
       if (!ok) { e.target.value=''; return; }
       const reader = new FileReader();
       reader.onload = () => {
           try {
               const obj = JSON.parse(reader.result as string);
+              if (!obj || typeof obj !== 'object' || Array.isArray(obj)) throw new Error('o conteúdo não é um backup do Ortus.');
               const cidB = clinicas[0]?.id || '0';
               if (obj.preferencias) { setPrefs(obj.preferencias); salvarConfig(cidB, 'preferencias', obj.preferencias); }
               if (obj.categorias_financeiro) {

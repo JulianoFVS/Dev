@@ -10,7 +10,8 @@ import {
   tipoSeguroParaServir,
   urlProxyPublica,
 } from '@/lib/caminhosArquivo';
-import { apagarDoR2, lerDoR2, r2Configurado, tamanhoNoR2, urlDeEnvio, urlPublicaR2 } from '@/lib/r2';
+import { apagarDoR2, inicioNoR2, lerDoR2, r2Configurado, tamanhoNoR2, urlDeEnvio, urlPublicaR2 } from '@/lib/r2';
+import { BYTES_INSPECAO, conteudoConfere, extensaoConfere, tipoLimpo } from '@/lib/assinaturaArquivo';
 
 type Admin = ReturnType<typeof createSupabaseAdmin>;
 type Profissional = { id: number; is_super_admin: boolean | null };
@@ -20,6 +21,9 @@ type Recusa = { erro: string; status: number };
 const MB = 1024 * 1024;
 /** 9,5 GB decimais. O R2 grátis corta em 10 GB; este teto fica abaixo disso. */
 const TETO_PROJETO = 9_500_000_000;
+/** Volume que cada pessoa pode enviar: folgado para o dia a dia, curto para abuso. */
+export const LIMITE_USUARIO_DIA = 500 * MB;
+export const LIMITE_USUARIO_MES = 2 * 1024 * MB;
 
 export async function exigirProfissional(req: Request): Promise<{ negado: NextResponse } | Sessao> {
   const authHeader = req.headers.get('authorization') || '';
@@ -135,7 +139,23 @@ function validarArquivo(caminho: string, tamanho: number, contentType: string): 
     return { erro: `Arquivo grande demais. O limite para este tipo é ${formatar(regra.maximo)}.`, status: 413 };
   }
   if (!regra.tipos.has(contentType)) return { erro: 'Tipo de arquivo não permitido.', status: 415 };
+  if (!extensaoConfere(caminho, contentType)) return { erro: 'A extensão do arquivo não corresponde ao tipo.', status: 415 };
   return null;
+}
+
+/** Lê o começo do objeto no R2 e confere tipo gravado, extensão e assinatura dos bytes. */
+async function conteudoNoR2Confere(caminho: string) {
+  const regra = regraDoCaminho(caminho);
+  if (!regra) return false;
+  const lido = await inicioNoR2(caminho, BYTES_INSPECAO);
+  if (!lido) return false;
+  const tipo = tipoLimpo(lido.contentType);
+  return regra.tipos.has(tipo) && extensaoConfere(caminho, tipo) && conteudoConfere(lido.inicio, tipo);
+}
+
+async function descartar(admin: Admin, caminho: string) {
+  await apagarDoR2(caminho).catch(() => undefined);
+  await admin.from('armazenamento_objetos').delete().eq('caminho', caminho);
 }
 
 async function reservar(sessao: Sessao, caminho: string, clinicaId: number | null, tamanho: number): Promise<Recusa | null> {
@@ -146,10 +166,18 @@ async function reservar(sessao: Sessao, caminho: string, clinicaId: number | nul
     p_usuario: sessao.userId,
     p_teto: TETO_PROJETO,
     p_registrar: r2Configurado(),
+    p_limite_dia: LIMITE_USUARIO_DIA,
+    p_limite_mes: LIMITE_USUARIO_MES,
   });
   if (error) throw new Error(error.message);
   if (data === 'ok') return null;
   if (data === 'ritmo') return { erro: 'Muitos envios em pouco tempo. Espere alguns minutos e tente de novo.', status: 429 };
+  if (data === 'usuario_dia') {
+    return { erro: `Você chegou no limite de envios de hoje (${formatar(LIMITE_USUARIO_DIA)} em 24 horas). Tente de novo amanhã.`, status: 429 };
+  }
+  if (data === 'usuario_mes') {
+    return { erro: `Você chegou no limite de envios do mês (${formatar(LIMITE_USUARIO_MES)} em 30 dias). Fale com o suporte se precisar de mais.`, status: 429 };
+  }
   if (data === 'mes') return { erro: 'A conta chegou no limite mensal de envios. Fale com o suporte.', status: 429 };
   if (data === 'clinica' && clinicaId != null) {
     const uso = await usoDaClinica(sessao.admin, clinicaId);
@@ -181,9 +209,8 @@ async function assentarPendentes(admin: Admin) {
     const real = await tamanhoNoR2(item.caminho);
     if (real <= 0) {
       await admin.from('armazenamento_objetos').delete().eq('caminho', item.caminho).eq('confirmado', false);
-    } else if (real > Number(item.bytes)) {
-      await apagarDoR2(item.caminho);
-      await admin.from('armazenamento_objetos').delete().eq('caminho', item.caminho);
+    } else if (real > Number(item.bytes) || !(await conteudoNoR2Confere(item.caminho))) {
+      await descartar(admin, item.caminho);
     } else {
       await admin.from('armazenamento_objetos')
         .update({ bytes: real, confirmado: true })
@@ -208,11 +235,24 @@ export async function listarUso(req: Request) {
     ids = (data || []).map((v) => Number(v.clinica_id));
   }
   try {
-    const [clinicas, total] = await Promise.all([
+    const [clinicas, total, envios] = await Promise.all([
       Promise.all(ids.map((id) => usoDaClinica(quem.admin, id))),
       usoDoProjeto(quem.admin),
+      quem.admin.rpc('armazenamento_envios_usuario', { p_usuario: quem.userId }),
     ]);
-    return NextResponse.json({ clinicas, total, teto: TETO_PROJETO });
+    if (envios.error) throw new Error(envios.error.message);
+    const linha = (Array.isArray(envios.data) ? envios.data[0] : envios.data) as { dia?: number; mes?: number } | null;
+    return NextResponse.json({
+      clinicas,
+      total,
+      teto: TETO_PROJETO,
+      usuario: {
+        dia: Number(linha?.dia || 0),
+        mes: Number(linha?.mes || 0),
+        limiteDia: LIMITE_USUARIO_DIA,
+        limiteMes: LIMITE_USUARIO_MES,
+      },
+    });
   } catch (err) {
     return falha(err, 'Falha ao medir o armazenamento.');
   }
@@ -295,9 +335,19 @@ async function confirmar(sessao: Sessao, body: Corpo) {
   if (real <= 0) return NextResponse.json({ erro: 'O envio não chegou ao armazenamento.' }, { status: 400 });
 
   if (real > Number(reserva.bytes) || real > regra.maximo) {
-    await apagarDoR2(caminho).catch(() => undefined);
-    await sessao.admin.from('armazenamento_objetos').delete().eq('caminho', caminho);
+    await descartar(sessao.admin, caminho);
     return NextResponse.json({ erro: 'O arquivo enviado é maior que o permitido.' }, { status: 413 });
+  }
+
+  let confere = false;
+  try {
+    confere = await conteudoNoR2Confere(caminho);
+  } catch (err) {
+    return falha(err, 'Falha ao conferir o arquivo.');
+  }
+  if (!confere) {
+    await descartar(sessao.admin, caminho);
+    return NextResponse.json({ erro: 'O conteúdo do arquivo não corresponde ao tipo informado.' }, { status: 415 });
   }
 
   const { error } = await sessao.admin
@@ -359,9 +409,10 @@ async function lerBytes(admin: Admin, caminho: string): Promise<Recusa | Lido> {
   if (r2Configurado()) {
     const { data: registro } = await admin
       .from('armazenamento_objetos')
-      .select('caminho')
+      .select('caminho, confirmado')
       .eq('caminho', caminho)
       .maybeSingle();
+    if (registro && !registro.confirmado) return { erro: 'Arquivo indisponível.', status: 404 };
     if (registro) {
       try {
         const arquivo = await lerDoR2(caminho);

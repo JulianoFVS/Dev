@@ -23,6 +23,7 @@ import { validarPaciente, isMenorDeIdade } from '@/lib/pacienteValidation';
 import { cpfValido, mascaraCep, mascaraCpf, mascaraNumero, mascaraTelefone, variantesCpf } from '@/lib/mascaras';
 import { prepararFotoPaciente } from '@/lib/prepararFotoPaciente';
 import { apagarArquivosClinica, baixarArquivoClinica, enviarArquivoClinica, extrairCaminhoArquivo } from '@/lib/armazenamento';
+import { tipoPorExtensao } from '@/lib/assinaturaArquivo';
 import CampoData from '@/components/ui/CampoData';
 import HofPreviewRosto from '@/components/clinico/HofPreviewRosto';
 import { carregarConfig } from '@/lib/configClinica';
@@ -2022,7 +2023,7 @@ export default function PacienteDetalhe() {
           const ext = file.name.split('.').pop() || 'bin';
           const timestamp = Date.now();
           let blob: Blob = file;
-          let contentType = file.type || 'application/octet-stream';
+          let contentType = tipoPorExtensao(file.name) || file.type;
           let finalExt = ext;
 
           if (isImg) {

@@ -92,6 +92,22 @@ export async function lerDoR2(caminho: string) {
   }
 }
 
+/** Só os primeiros bytes e o tipo gravado, para conferir a assinatura sem baixar tudo. */
+export async function inicioNoR2(caminho: string, bytes: number) {
+  try {
+    const obj = await clienteR2().send(new GetObjectCommand({
+      Bucket: bucketDe(caminho),
+      Key: caminho,
+      Range: `bytes=0-${bytes - 1}`,
+    }));
+    const inicio = await obj.Body?.transformToByteArray();
+    return { inicio: inicio || new Uint8Array(), contentType: obj.ContentType || '' };
+  } catch (err) {
+    if (objetoAusente(err)) return null;
+    throw err;
+  }
+}
+
 export async function apagarDoR2(caminho: string) {
   try {
     await clienteR2().send(new DeleteObjectCommand({ Bucket: bucketDe(caminho), Key: caminho }));

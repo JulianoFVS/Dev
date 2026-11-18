@@ -12,6 +12,7 @@ import {
   urlProxyPublica,
 } from '@/lib/caminhosArquivo';
 import { consultarLocal, PASTA_ARQUIVOS } from '@/lib/local/ponte';
+import { conteudoConfere, extensaoConfere } from '@/lib/assinaturaArquivo';
 import { exigirSessaoLocal } from '@/lib/local/rota';
 
 const MB = 1024 * 1024;
@@ -254,6 +255,7 @@ function validar(caminho: string, tamanho: number, contentType: string): Recusa 
   if (!Number.isInteger(tamanho) || tamanho <= 0) return { erro: 'Arquivo vazio.', status: 400 };
   if (tamanho > regra.maximo) return { erro: 'Arquivo grande demais.', status: 413 };
   if (!regra.tipos.has(contentType)) return { erro: 'Tipo de arquivo não permitido.', status: 415 };
+  if (!extensaoConfere(caminho, contentType)) return { erro: 'A extensão do arquivo não corresponde ao tipo.', status: 415 };
   return null;
 }
 
@@ -305,9 +307,16 @@ export async function gravarPrivadoDesktop(req: Request) {
   if ('resposta' in quem) return quem.resposta;
   const caminho = new URL(req.url).searchParams.get('caminho') || '';
   const contentType = String(req.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+  const regra = regraDoCaminho(caminho);
+  const declarado = Number(req.headers.get('content-length') || 0);
+  if (!regra) return NextResponse.json({ erro: 'Caminho inválido.' }, { status: 400 });
+  if (declarado > regra.maximo) return NextResponse.json({ erro: 'Arquivo grande demais.' }, { status: 413 });
   const bytes = new Uint8Array(await req.arrayBuffer());
   const invalido = validar(caminho, bytes.byteLength, contentType);
   if (invalido) return negar(invalido);
+  if (!conteudoConfere(bytes, contentType)) {
+    return NextResponse.json({ erro: 'O conteúdo do arquivo não corresponde ao tipo informado.' }, { status: 415 });
+  }
   const acesso = await autorizar(quem.prof, quem.userId, caminho);
   if ('erro' in acesso) return negar(acesso);
   const cheio = await estouraria(acesso.clinicaId, bytes.byteLength);

@@ -120,14 +120,18 @@ try {
     SELECT bucket_id, name, COALESCE((metadata->>'size')::bigint, 0) AS bytes,
            COALESCE(metadata->>'mimetype', 'application/octet-stream') AS tipo
     FROM storage.objects
-    WHERE bucket_id IN ('arquivos_ortus', 'avatars')
+    WHERE bucket_id IN ('arquivos_ortus', 'avatars', 'arquivos')
     ORDER BY bucket_id, name
   `);
 
   let copiados = 0;
   let pulados = 0;
   for (const item of objetos.rows) {
-    const chave = item.bucket_id === 'avatars' ? `avatares/${item.name}` : item.name;
+    const chave = item.bucket_id === 'avatars'
+      ? `avatares/${item.name}`
+      : item.bucket_id === 'arquivos'
+        ? `legado/arquivos/${item.name}`
+        : item.name;
     const bucket = publico(chave) ? bucketPublico : bucketPrivado;
     const tamanho = Number(item.bytes) || 0;
     if (tamanho > 0 && await jaEstaNoR2(bucket, chave, tamanho)) {
@@ -143,26 +147,27 @@ try {
       copiados += 1;
     }
 
+    if (item.bucket_id === 'arquivos') continue;
     if (item.bucket_id === 'arquivos_ortus' && item.name.startsWith('pacientes/')) {
       const paciente = item.name.split('/')[1];
       await db.query(`
-        INSERT INTO armazenamento_objetos (caminho, clinica_id, bytes)
-        SELECT $1, clinica_id, $2 FROM pacientes WHERE id::text = $3
-        ON CONFLICT (caminho) DO UPDATE SET bytes = EXCLUDED.bytes, atualizado_em = now()
+        INSERT INTO armazenamento_objetos (caminho, clinica_id, bytes, confirmado)
+        SELECT $1, clinica_id, $2, TRUE FROM pacientes WHERE id::text = $3
+        ON CONFLICT (caminho) DO UPDATE SET bytes = EXCLUDED.bytes, confirmado = TRUE, atualizado_em = now()
       `, [chave, tamanho || 0, paciente]);
     } else if (item.bucket_id === 'avatars') {
       await db.query(`
-        INSERT INTO armazenamento_objetos (caminho, clinica_id, bytes)
-        VALUES ($1, NULL, $2)
-        ON CONFLICT (caminho) DO UPDATE SET bytes = EXCLUDED.bytes, atualizado_em = now()
+        INSERT INTO armazenamento_objetos (caminho, clinica_id, bytes, confirmado)
+        VALUES ($1, NULL, $2, TRUE)
+        ON CONFLICT (caminho) DO UPDATE SET bytes = EXCLUDED.bytes, confirmado = TRUE, atualizado_em = now()
       `, [chave, tamanho || 0]);
     } else if (item.bucket_id === 'arquivos_ortus' && item.name.startsWith('clinicas/')) {
       const clinica = Number(item.name.split('/')[1]);
       if (Number.isInteger(clinica)) {
         await db.query(`
-          INSERT INTO armazenamento_objetos (caminho, clinica_id, bytes)
-          VALUES ($1, $2, $3)
-          ON CONFLICT (caminho) DO UPDATE SET bytes = EXCLUDED.bytes, atualizado_em = now()
+          INSERT INTO armazenamento_objetos (caminho, clinica_id, bytes, confirmado)
+          VALUES ($1, $2, $3, TRUE)
+          ON CONFLICT (caminho) DO UPDATE SET bytes = EXCLUDED.bytes, confirmado = TRUE, atualizado_em = now()
         `, [chave, clinica, tamanho || 0]);
       }
     }

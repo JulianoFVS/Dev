@@ -6,7 +6,8 @@ export const BUCKET_ARQUIVOS = 'arquivos_ortus';
 export const EVENTO_ARMAZENAMENTO = 'ortus:armazenamento';
 
 export type UsoArmazenamento = { clinicaId: string; nome: string; usado: number; limite: number };
-export type ResumoArmazenamento = { clinicas: UsoArmazenamento[]; total: number; teto: number };
+export type EnviosUsuario = { dia: number; mes: number; limiteDia: number; limiteMes: number };
+export type ResumoArmazenamento = { clinicas: UsoArmazenamento[]; total: number; teto: number; usuario: EnviosUsuario | null };
 
 async function cabecalhos() {
   const { data: { session } } = await supabase.auth.getSession();
@@ -142,11 +143,20 @@ export async function carregarUsoArmazenamento(clinicaId?: string | null): Promi
   const resposta = await fetch(`/api/armazenamento${consulta}`, { headers: await cabecalhos(), cache: 'no-store' });
   const dados = await resposta.json().catch(() => ({}));
   if (!resposta.ok) throw new Error((dados as { erro?: string }).erro || 'Não foi possível medir o armazenamento.');
-  const corpo = dados as { clinicas?: UsoArmazenamento[]; total?: number; teto?: number };
+  const corpo = dados as { clinicas?: UsoArmazenamento[]; total?: number; teto?: number; usuario?: Partial<EnviosUsuario> };
+  const usuario = corpo.usuario && Number(corpo.usuario.limiteDia) > 0
+    ? {
+      dia: Number(corpo.usuario.dia) || 0,
+      mes: Number(corpo.usuario.mes) || 0,
+      limiteDia: Number(corpo.usuario.limiteDia),
+      limiteMes: Number(corpo.usuario.limiteMes) || 0,
+    }
+    : null;
   return {
     clinicas: Array.isArray(corpo.clinicas) ? corpo.clinicas : [],
     total: Number(corpo.total) || 0,
     teto: Number(corpo.teto) || 9_500_000_000,
+    usuario,
   };
 }
 

@@ -22,6 +22,7 @@ import Modal from '@/components/ui/Modal';
 import { carregarTemplatesComunicacao, montarMensagemTemplate } from '@/lib/comunicacao';
 import type { TemplateComunicacao } from '@/lib/configDefaults';
 import { formatarTelefone } from '@/lib/whatsappTelefone';
+import { tipoVerificavel } from '@/lib/assinaturaArquivo';
 import BuscaPaciente from './BuscaPaciente';
 import {
   chamarWhatsapp,
@@ -336,6 +337,10 @@ export default function Conversas({ clinicaId, clinicaNome, rascunho, onRascunho
     if (!escolhido) return;
     if (escolhido.size > ARQUIVO_MAXIMO) {
       setErro('Arquivo grande demais (máximo 3 MB).');
+      return;
+    }
+    if (!tipoVerificavel(escolhido.type)) {
+      setErro('Envie imagem, PDF, Word, Excel, áudio ou vídeo.');
       return;
     }
     setErro('');

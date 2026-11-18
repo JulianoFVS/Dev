@@ -428,6 +428,15 @@ function ArmazenamentoSecao({ clinicaId }: { clinicaId: string | null }) {
               </div>
             );
           })}
+          {resumo?.usuario && (() => {
+            const { dia, mes, limiteDia, limiteMes } = resumo.usuario;
+            const alerta = dia >= limiteDia * 0.8 || (limiteMes > 0 && mes >= limiteMes * 0.8);
+            return (
+              <p className={`text-xs ${alerta ? 'text-amber-700' : 'text-neutral-500'}`}>
+                Seus envios: {formatarBytes(dia)} de {formatarBytes(limiteDia)} hoje · {formatarBytes(mes)} de {formatarBytes(limiteMes)} em 30 dias.
+              </p>
+            );
+          })()}
           {resumo && (
             <p className="text-xs text-neutral-500">
               Conta inteira: {formatarBytesDecimais(resumo.total)} de {formatarBytesDecimais(resumo.teto)}. O envio para ao chegar nesse teto.

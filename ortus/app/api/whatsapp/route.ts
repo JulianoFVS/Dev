@@ -3,6 +3,7 @@ import { createSupabaseAdmin } from '@/lib/supabaseAdmin';
 import { chamarWhatsappGateway, whatsappGatewayConfigurado } from '@/lib/whatsappGateway';
 import { chaveTelefone } from '@/lib/whatsappTelefone';
 import { consultarLocal, desktopAtivo, lerSessaoLocal } from '@/lib/local/ponte';
+import { conteudoConfere, inicioDoBase64, tipoLimpo, tipoVerificavel } from '@/lib/assinaturaArquivo';
 
 type Admin = ReturnType<typeof createSupabaseAdmin>;
 type PacienteResumo = { id: string; nome: string };
@@ -203,10 +204,17 @@ export async function POST(req: Request) {
   }
   if (body.acao === 'enviar') {
     const arquivo = body.arquivo && typeof body.arquivo.data === 'string' && typeof body.arquivo.mimetype === 'string'
-      ? { mimetype: body.arquivo.mimetype, data: body.arquivo.data, nome: body.arquivo.nome || undefined }
+      ? {
+        mimetype: tipoLimpo(body.arquivo.mimetype),
+        data: body.arquivo.data,
+        nome: typeof body.arquivo.nome === 'string' ? body.arquivo.nome.replace(/[^\w.\- ]/g, '_').slice(0, 120) : undefined,
+      }
       : null;
     if (arquivo && arquivo.data.length > ARQUIVO_MAXIMO_BASE64) {
       return NextResponse.json({ erro: 'Arquivo grande demais (máximo 3 MB).' }, { status: 413 });
+    }
+    if (arquivo && (!tipoVerificavel(arquivo.mimetype) || !conteudoConfere(inicioDoBase64(arquivo.data), arquivo.mimetype))) {
+      return NextResponse.json({ erro: 'Tipo de arquivo não permitido ou conteúdo diferente do tipo informado.' }, { status: 415 });
     }
     return responder(await chamarWhatsappGateway(`${base}/enviar`, {
       method: 'POST',

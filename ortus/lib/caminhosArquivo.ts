@@ -18,7 +18,6 @@ const DOCUMENTOS = new Set([
   'application/msword',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   'text/plain',
-  'application/octet-stream',
 ]);
 
 export function caminhoSeguro(caminho: string) {
