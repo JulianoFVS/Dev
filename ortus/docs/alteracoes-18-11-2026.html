@@ -158,10 +158,14 @@ details[open]>summary .chev{transform:rotate(-135deg);margin-top:-2px}
 .passos li{counter-increment:p;position:relative;padding:2px 0 14px 42px;min-height:30px}
 .passos li::before{content:counter(p);position:absolute;left:0;top:0;width:28px;height:28px;border-radius:50%;background:var(--text);color:var(--bg);font-size:.875rem;font-weight:700;line-height:28px;text-align:center}
 .contas{list-style:none;margin:10px 0 0;padding:0;border:1px solid var(--border);border-radius:12px;background:var(--surface)}
-.contas li{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:2px 14px;padding:10px 14px;border-top:1px solid var(--border)}
+.contas li{display:block;padding:10px 14px;border-top:1px solid var(--border)}
 .contas li:first-child{border-top:0}
-.contas code{background:none;padding:0;font-size:.875rem}
-.contas span{color:var(--text-2);font-size:.9rem}
+.contas code{display:block;background:none;padding:0;font-size:.875rem}
+.contas span{display:block;color:var(--text-2);font-size:.9rem}
+@media (min-width:560px){
+  .contas li{display:flex;justify-content:space-between;align-items:baseline;gap:14px}
+  .contas code,.contas span{display:inline}
+}
 .demo-nota{font-size:.925rem;color:var(--text-2);margin-top:12px}
 
 /* Rodapé */
@@ -257,7 +261,7 @@ footer .hash{font-size:.78rem}
       <h4>O que mudou</h4>
       <ul>
         <li><b>Mercado Pago (Checkout Pro)</b>, atrás de uma interface em <code>lib/pagamentos/</code>. A pessoa paga na página do Mercado Pago, por Pix ou cartão. O Ortus não recebe nem guarda número de cartão nem CVV. O pagamento falso de <code>app/checkout</code> saiu.</li>
-        <li><b>Preço no servidor.</b> Catálogo <code>planos_saas</code>: Básico R$ 97, Profissional R$ 197, Clínica R$ 297. O valor que vem do navegador é ignorado. O banco confere valor e moeda de cada pagamento. Sem o provedor configurado, a página não oferece “Assinar” e mostra o contato do suporte.</li>
+        <li><b>Preço no servidor.</b> Catálogo <code>planos_saas</code>: Básico R$&nbsp;97, Profissional R$&nbsp;197, Clínica R$&nbsp;297. O valor que vem do navegador é ignorado. O banco confere valor e moeda de cada pagamento. Sem o provedor configurado, a página não oferece “Assinar” e mostra o contato do suporte.</li>
         <li><b>Webhook assinado</b> (<code>/api/pagamentos/webhook</code>). Confere a assinatura (HMAC), relê o pagamento na API do Mercado Pago e só então aplica, numa transação. Aviso sem assinatura válida recebe 401.</li>
         <li><b>A conta nasce sozinha.</b> Pagamento aprovado → login com senha aleatória que ninguém vê → rede com cobrança automática, clínica matriz, administrador, vínculo e a 1ª fatura paga, numa transação → e-mail com o link para confirmar o e-mail e criar a senha. A página de retorno e a rotina diária também consultam o provedor, então a conta nasce mesmo se o webhook se perder.</li>
         <li><b>Estados à vista:</b> recusado (com o motivo em português), pendente, pago, estornado e contestado. Aparecem na página de retorno, na tela Assinatura e no painel.</li>
@@ -319,9 +323,9 @@ footer .hash{font-size:.78rem}
       <table class="planos">
         <thead><tr><th scope="col">Plano</th><th scope="col">Profissionais</th><th scope="col">Unidades</th></tr></thead>
         <tbody>
-          <tr><th scope="row">Básico<small>R$ 97</small></th><td>1</td><td>1</td></tr>
-          <tr><th scope="row">Profissional<small>R$ 197</small></th><td>até 3</td><td>1</td></tr>
-          <tr><th scope="row">Clínica<small>R$ 297</small></th><td>sem limite</td><td>várias</td></tr>
+          <tr><th scope="row">Básico<small>R$&nbsp;97</small></th><td>1</td><td>1</td></tr>
+          <tr><th scope="row">Profissional<small>R$&nbsp;197</small></th><td>até 3</td><td>1</td></tr>
+          <tr><th scope="row">Clínica<small>R$&nbsp;297</small></th><td>sem limite</td><td>várias</td></tr>
           <tr><th scope="row">Combinados à mão<small>essencial, rede, enterprise; e rede sem plano</small></th><td>sem limite</td><td>sem limite</td></tr>
         </tbody>
       </table>
@@ -447,8 +451,8 @@ footer .hash{font-size:.78rem}
         <li><b>Mídia pública mínima.</b> <code>/api/public/midia</code> serve só a logo da clínica e a foto do profissional, no formato exato. O que não está registrado responde 404.</li>
         <li><b>Logs sem dado clínico nem segredo.</b> <code>lib/registro.ts</code> limpa JWT, chaves, e-mail, CPF, CNPJ, telefone, UUID e URL de banco antes de gravar. As rotas devolvem frase fixa.</li>
         <li><b>Cache por clínica, limpo no logout</b> (<code>lib/sessao.ts</code>). Os modelos de anamnese não passam mais de um usuário para o próximo pelo navegador.</li>
-        <li><b>Envio de arquivos.</b> O fluxo preparar → PUT → confirmar foi mantido. Os bytes mágicos são conferidos. Arquivo não confirmado responde 404. O backup de configuração só aceita <code>.json</code> de até 2 MB; a importação confere cada seção e parou de apagar as taxas do Financeiro.</li>
-        <li><b>Cotas mantidas:</b> por clínica, 500 MB por pessoa em 24 h, 2 GB em 30 dias e teto de 9,5 GB da conta. Há um único medidor no Perfil, e a linha “conta inteira” só aparece para os donos.</li>
+        <li><b>Envio de arquivos.</b> O fluxo preparar → PUT → confirmar foi mantido. Os bytes mágicos são conferidos. Arquivo não confirmado responde 404. O backup de configuração só aceita <code>.json</code> de até 2&nbsp;MB; a importação confere cada seção e parou de apagar as taxas do Financeiro.</li>
+        <li><b>Cotas mantidas:</b> por clínica, 500&nbsp;MB por pessoa em 24 h, 2&nbsp;GB em 30 dias e teto de 9,5&nbsp;GB da conta. Há um único medidor no Perfil, e a linha “conta inteira” só aparece para os donos.</li>
         <li>O envio direto ao bucket, sem passar pela cota, foi fechado no banco (<code>20261125</code>).</li>
         <li><b>Mídia órfã.</b> <code>scripts/limpar-orfaos.mjs</code> (<code>npm run db:orfaos</code>) acha arquivo de paciente que não existe mais e arquivo da pasta <code>legado/</code> sem referência. Por padrão só simula; apaga com <code>--apagar --projeto=&lt;ref&gt;</code>.</li>
         <li><b>Fotos antigas.</b> <code>scripts/mover-fotos-pacientes.mjs</code> move as fotos que ainda estão no bucket público. Por padrão só simula.</li>
@@ -526,18 +530,18 @@ footer .hash{font-size:.78rem}
     </summary>
     <div class="corpo">
       <h4>O que mudou</h4>
-      <p><b>A regra.</b> No celular não se encolhe a tela do computador: decide-se como a pessoa usa aquela área no telefone. Alvo de toque de 40 a 44 px. Título sem repetir a clínica. A barra flutuante tem espaço reservado. No computador, muda o mínimo.</p>
+      <p><b>A regra.</b> No celular não se encolhe a tela do computador: decide-se como a pessoa usa aquela área no telefone. Alvo de toque de 40 a 44&nbsp;px. Título sem repetir a clínica. A barra flutuante tem espaço reservado. No computador, muda o mínimo.</p>
       <dl class="telas">
         <dt>Agenda</dt><dd>Abre em Dia, com a faixa da semana. Filtros atrás de um botão, com um ponto quando estão ativos. Semana, Lista e Profissionais viram listas. Lembretes começam fechados. Modal em uma coluna, com Salvar visível.</dd>
         <dt>Ficha do paciente</dt><dd>Rola inteira, com as abas presas no topo e o nome inteiro no cabeçalho. Débitos, tratamentos, histórico, anamneses e documentos em cartões. O odontograma rola de lado na própria caixa. 8 modais com cabeçalho e ações fixos.</dd>
-        <dt>Dashboard e Pacientes</dt><dd>Dias do calendário de 40 px. Busca presa no topo, filtros em folha, linha inteira tocável. Novo paciente em tela cheia, com rodapé fixo.</dd>
+        <dt>Dashboard e Pacientes</dt><dd>Dias do calendário de 40&nbsp;px. Busca presa no topo, filtros em folha, linha inteira tocável. Novo paciente em tela cheia, com rodapé fixo.</dd>
         <dt>Financeiro</dt><dd>Seletor de mês junto dos indicadores. Concluídos, Em aberto e Cancelados em abas. Cartões com a descrição inteira e a ação escrita.</dd>
         <dt>Relatórios</dt><dd>As tabelas viram itens de duas linhas.</dd>
         <dt>Laboratório (próteses)</dt><dd>Cada etapa vira um bloco sem rolagem própria. O cartão tem Avançar e Mudar status.</dd>
         <dt>Tarefas, Equipe e Tratamentos</dt><dd>Abas de status com lista única. A tabela vira lista tocável.</dd>
-        <dt>Configurações, Mensagens e Perfil</dt><dd>A página rola inteira, abas de 44 px, listas viram cartões, popups com miolo rolável e rodapé fixo.</dd>
-        <dt>Assinatura, checkout, acesso e senha</dt><dd>Uma coluna, o Pagar alcançável e botões de 44 px.</dd>
-        <dt>WhatsApp e Ajuda</dt><dd>Abas de 40 px, conversa em tela cheia com Voltar, QR na largura, artigo com índice em gaveta.</dd>
+        <dt>Configurações, Mensagens e Perfil</dt><dd>A página rola inteira, abas de 44&nbsp;px, listas viram cartões, popups com miolo rolável e rodapé fixo.</dd>
+        <dt>Assinatura, checkout, acesso e senha</dt><dd>Uma coluna, o Pagar alcançável e botões de 44&nbsp;px.</dd>
+        <dt>WhatsApp e Ajuda</dt><dd>Abas de 40&nbsp;px, conversa em tela cheia com Voltar, QR na largura, artigo com índice em gaveta.</dd>
         <dt>Painel SaaS</dt><dd>Já era responsivo. As abas novas seguem o mesmo padrão.</dd>
         <dt>Componentes compartilhados</dt><dd>Modal, menus, seletor, calendário, chave, etiquetas, alerta e botões de contato, corrigidos na fonte.</dd>
       </dl>
@@ -552,15 +556,15 @@ footer .hash{font-size:.78rem}
         <li><b>Relatórios:</b> a data aparecia um dia antes.</li>
         <li><b>Laboratório:</b> sem as provas marcáveis no popup, nenhum pedido novo chegava a Entregue.</li>
         <li><b>Tarefas, Tratamentos, Laboratório e busca:</b> falha de rede zerava a lista e o cache. Tarefa do dia ficava “atrasada” depois das 21 h. A busca só via os 500 primeiros pacientes e só achava telefone com a máscara exata.</li>
-        <li><b>Painel SaaS:</b> as abas Assinaturas e Relatos não escondiam o bloco de Redes a partir de 768 px. Faturas estornadas e contestadas sumiam dos totais e filtros. Cancelar ou conferir com erro apagava o texto digitado.</li>
+        <li><b>Painel SaaS:</b> as abas Assinaturas e Relatos não escondiam o bloco de Redes a partir de 768&nbsp;px. Faturas estornadas e contestadas sumiam dos totais e filtros. Cancelar ou conferir com erro apagava o texto digitado.</li>
       </ul>
 
       <h4><span class="dot ok" aria-hidden="true"></span>Como foi provado</h4>
       <ul>
         <li>Cada correção foi provada com o código real rodando em teste (antes falhava, depois passa) e com typecheck.</li>
         <li><b>Páginas: 67 de 67.</b> Cada rota abre; as públicas sem login, as protegidas pedem login.</li>
-        <li><b>No navegador</b>, no ambiente local, em computador e celular de 360 a 375 px. Assinatura a 360×640, em atraso e em modo de consulta: o Pagar aparece sem rolar, acima da barra de navegação. Painel SaaS a 1024 px: o bloco de Redes some na aba Assinaturas e volta na aba Redes. Editar clínica abre com os dados reais. O popup novo “Registrar recebimento” cabe no celular.</li>
-        <li><b>Varredura de 18 telas a 375 px:</b> nenhuma com rolagem lateral. Em rodadas anteriores também foram percorridas a ficha do paciente, o popup de agendamento, Equipe, WhatsApp e checkout.</li>
+        <li><b>No navegador</b>, no ambiente local, em computador e celular de 360 a 375&nbsp;px. Assinatura a 360×640, em atraso e em modo de consulta: o Pagar aparece sem rolar, acima da barra de navegação. Painel SaaS a 1024&nbsp;px: o bloco de Redes some na aba Assinaturas e volta na aba Redes. Editar clínica abre com os dados reais. O popup novo “Registrar recebimento” cabe no celular.</li>
+        <li><b>Varredura de 18 telas a 375&nbsp;px:</b> nenhuma com rolagem lateral. Em rodadas anteriores também foram percorridas a ficha do paciente, o popup de agendamento, Equipe, WhatsApp e checkout.</li>
         <li>A conferência no navegador foi feita pelo texto da página, por medidas com script e por capturas pontuais.</li>
       </ul>
 
@@ -688,7 +692,7 @@ footer .hash{font-size:.78rem}
         <li>Componentes e arquivos de <code>lib/</code> sem nenhum import. E o cadastro de profissionais escondido em Configurações (cerca de 190 linhas): nenhum botão abria os modais, e a equipe é gerida em <code>/ajustes/equipe</code>.</li>
         <li>24 exports sem referência, 60 imports e cerca de 20 funções e constantes locais nunca lidos, e o cache <code>ortus_super_admin</code>, gravado e nunca lido.</li>
         <li>Scripts que <b>sobrescreviam</b> telas com versões antigas, e scripts avulsos fora do <code>package.json</code> e dos docs. Um deles recriava um super-admin com e-mail fixo.</li>
-        <li>Arquivos públicos sem referência, como <code>public/arcada.glb</code> (3,6 MB), o PDF de protótipo e o <code>dev-seed.html</code>, que ficavam servidos em público.</li>
+        <li>Arquivos públicos sem referência, como <code>public/arcada.glb</code> (3,6&nbsp;MB), o PDF de protótipo e o <code>dev-seed.html</code>, que ficavam servidos em público.</li>
         <li>A exceção de <code>/mediapipe</code>, <code>.task</code> e <code>.wasm</code> no proxy e no <code>next.config.ts</code>. Não existe MediaPipe no projeto.</li>
         <li><b>Telas de experimento barradas.</b> Em produção, o <code>proxy.ts</code> responde 404 a qualquer rota que comece com <code>/teste</code>, <code>/experimento</code>, <code>/lab</code>, <code>/playground</code> ou <code>/demo</code>, mesmo que alguém recrie a pasta.</li>
         <li><b>Ficou de propósito:</b> os rascunhos da LGPD sem botão (exportar meus dados, pedir exclusão, estados de consentimento); funções da ponte do desktop sem chamador, porque o desktop ficou fora desta limpeza; a pasta <code>docs/</code>; e a dependência <code>svg-path-bbox</code>, porque tirá-la exige regravar o <code>package-lock.json</code>.</li>
@@ -742,7 +746,7 @@ footer .hash{font-size:.78rem}
     <div class="corpo">
       <h4>O que mudou</h4>
       <ul>
-        <li><b>Ajuda.</b> Manual escrito a partir do código de cada tela: 18 assuntos com passos, listas e avisos. Já cobre assinatura (modo de consulta), convite pelo link do e-mail, comissões, Mensagens e o limite de 10 MB. A busca acha por título e por conteúdo, sem acento e sem caixa.</li>
+        <li><b>Ajuda.</b> Manual escrito a partir do código de cada tela: 18 assuntos com passos, listas e avisos. Já cobre assinatura (modo de consulta), convite pelo link do e-mail, comissões, Mensagens e o limite de 10&nbsp;MB. A busca acha por título e por conteúdo, sem acento e sem caixa.</li>
         <li><b>Sem vídeo de exemplo.</b> A lista de tutoriais está vazia, com aviso e atalho para o guia. Não há id de vídeo no código.</li>
         <li><b>Bugs que o manual descrevia, corrigidos:</b> a comissão de “Débito recebido” nunca era lançada; a de “Tratamento finalizado” duplicava a cada salvamento; o gatilho “Orçamento aprovado” aparecia e não fazia nada; Mensagens exigia um módulo que só o “acesso completo” tinha; salvar configuração sem ser administrador dizia “salvo” e não gravava.</li>
         <li><b>Contato com o suporte.</b> Cartão na Ajuda com os dois números de WhatsApp do suporte. Com o WhatsApp da clínica conectado, tocar no número abre a conversa “Suporte Ortus” dentro do Ortus. Desconectado, sem serviço, fora do ar ou sem acesso às conversas, a tela diz qual é o caso e mostra os números com botão de copiar. Com o WhatsApp desligado (<code>NEXT_PUBLIC_WHATSAPP_ATIVO=0</code>), mostra os números para chamar pelo celular. Sem as variáveis, diz que o contato não foi configurado; nenhum número é inventado. Não há chat interno.</li>
@@ -753,7 +757,7 @@ footer .hash{font-size:.78rem}
       <h4><span class="dot ok" aria-hidden="true"></span>Como foi provado</h4>
       <ul>
         <li><b>Relatos:</b> suíte do banco (grupo “Relatos ao suporte”) e a rota contra o banco local com Resend falsa: aceite, 401, 400, 429 no sexto envio e Resend fora do ar. Typecheck.</li>
-        <li>A Ajuda entrou na varredura de 18 telas a 375 px, sem rolagem lateral.</li>
+        <li>A Ajuda entrou na varredura de 18 telas a 375&nbsp;px, sem rolagem lateral.</li>
       </ul>
 
       <div class="dep">
@@ -813,31 +817,31 @@ footer .hash{font-size:.78rem}
   <h2 id="depende-t">O que depende de vocês</h2>
   <p class="intro">A lista única do relatório, em um lugar só.</p>
   <ol class="checklist">
-    <li><b>Ambiente do servidor</b> (<code>.env.local</code>) com as variáveis do <code>README.md</code>: Supabase, <code>NEXT_PUBLIC_APP_URL</code>, <code>CRON_SECRET</code>, Resend, Mercado Pago, suporte, R2 e WhatsApp. Sem ele, nada foi verificado em produção.</li>
-    <li><b>Migrations</b> <code>20261120</code> a <code>20261128</code>, na ordem do checklist de <code>docs/SEGURANCA.md</code>. Depois, <code>npm test</code> e <code>npm run db:audit</code> no projeto real.</li>
-    <li><b>Resend</b>: conta, domínio verificado (SPF/DKIM), chaves e o SMTP do Supabase apontado para a Resend.</li>
-    <li><b>Mercado Pago</b>: conta PJ, Checkout Pro, credenciais, webhook com a assinatura secreta e um teste completo em homologação.</li>
-    <li><b>Suporte</b>: os dois números de WhatsApp.</li>
-    <li><b>Oracle</b>: conta, VM, domínio e DNS (guia em <code>docs/ORACLE.md</code>), ou manter a Vercel com os crons.</li>
-    <li><b>Desktop</b>: certificado de assinatura de código, ou Azure Trusted Signing.</li>
-    <li><b>Depois do deploy</b>: <code>mover-fotos-pacientes</code> (lista, depois <code>--aplicar</code>), <code>npm run db:orfaos</code> e, só com o R2 conferido, a remoção dos originais do Supabase.</li>
-    <li><b>Limpeza do banco</b>: rodar <code>npm run db:clean</code> (só inventário), conferir e confirmar. Só então a limpeza com as três travas.</li>
-    <li><b>Monitor externo</b> em <code>/api/saude</code>, e conferir o backup do Supabase.</li>
-    <li><b>Dependência sem uso</b>: <code>npm uninstall svg-path-bbox</code> numa máquina com o toolset C++. No servidor do site, a instalação é <code>npm ci --ignore-scripts --include=dev</code>.</li>
-    <li><b>Supabase Auth</b> (do tema Segurança): conferir no painel o cadastro público desligado, a confirmação na troca de e-mail, a política de senha e a duração da sessão.</li>
+    <li><b>Ambiente do servidor</b> <code>.env.local</code> ou o ambiente do servidor, com as variáveis do <code>README.md</code>: Supabase, <code>NEXT_PUBLIC_APP_URL</code>, <code>CRON_SECRET</code>, Resend, Mercado Pago, suporte, R2 e WhatsApp. Sem ele, nada foi verificado em produção.</li>
+    <li><b>Migrations</b> Aplicar de <code>20261120</code> a <code>20261128</code>, na ordem do checklist de <code>docs/SEGURANCA.md</code>. Depois, <code>npm test</code> e <code>npm run db:audit</code> no projeto real.</li>
+    <li><b>Resend</b> Conta, domínio verificado (SPF/DKIM), chaves e o SMTP do Supabase apontado para a Resend.</li>
+    <li><b>Mercado Pago</b> Conta PJ, Checkout Pro, credenciais, webhook com a assinatura secreta e um teste completo em homologação.</li>
+    <li><b>Suporte</b> Os dois números de WhatsApp.</li>
+    <li><b>Oracle</b> Conta, VM, domínio e DNS (guia em <code>docs/ORACLE.md</code>), ou manter a Vercel com os crons.</li>
+    <li><b>Desktop</b> Certificado de assinatura de código, ou Azure Trusted Signing.</li>
+    <li><b>Depois do deploy</b> <code>mover-fotos-pacientes</code> (lista, depois <code>--aplicar</code>), <code>npm run db:orfaos</code> e, só com o R2 conferido, a remoção dos originais do Supabase.</li>
+    <li><b>Limpeza do banco</b> Rodar <code>npm run db:clean</code> (só inventário), conferir e confirmar. Só então a limpeza com as três travas.</li>
+    <li><b>Monitor externo e backup</b> Um monitor externo em <code>/api/saude</code>, e conferir o backup do Supabase.</li>
+    <li><b>Dependência sem uso</b> <code>npm uninstall svg-path-bbox</code> numa máquina com o toolset C++. No servidor do site, a instalação é <code>npm ci --ignore-scripts --include=dev</code>.</li>
+    <li><b>Supabase Auth</b> Do tema Segurança: conferir no painel o cadastro público desligado, a confirmação na troca de e-mail, a política de senha e a duração da sessão.</li>
   </ol>
 </section>
 
 <section id="decisoes" aria-labelledby="decisoes-t">
   <h2 id="decisoes-t">Decisões para vocês</h2>
   <ul class="decisoes">
-    <li><b>Limites dos planos, já aplicados.</b> Antes da migration, confiram no painel o plano de cada rede que já existe. Rede que alguém marcou à mão como Básico ou Profissional passa a ter limite (quem já está continua). As outras (“essencial”, o padrão) seguem sem limite. “Financeiro completo”, “Anamnese personalizada” e “Gestão avançada” continuam só texto da vitrine.</li>
-    <li><b>Régua e preços.</b> 7 dias de tolerância e modo de consulta no 8º; prazo extra de até 60 dias. Confirmar também os preços (R$ 97, R$ 197 e R$ 297) e o texto dos Termos sobre cobrança e cancelamento.</li>
-    <li><b>Permissão de módulo na RLS e prazo de guarda das compras não pagas.</b> Veja os temas Segurança e LGPD.</li>
-    <li><b>Agenda e “Todas as clínicas”.</b> Na visão Profissionais, quem não é administrador consegue marcar na coluna de outro profissional (pode ser o uso da recepção hoje). Em “Todas as clínicas”, quem tem clínica própria e é convidado em outra é tratado como administrador também nessa outra. No Laboratório, “Todas as clínicas” pede uma clínica.</li>
-    <li><b>Modo de consulta.</b> A resposta de anamnese que o paciente envia por um link gerado antes do bloqueio é aceita, porque o dado é do paciente. As cores dos quadros do Laboratório só o administrador grava.</li>
-    <li><b>Taxas dos lançamentos (<code>lancamentos_meta</code>).</b> Ficam num JSON único por clínica. As telas agora releem antes de gravar e nunca gravam por cima numa falha de leitura. Mas duas gravações exatamente ao mesmo tempo ainda podem perder uma. A solução de vez é uma migration (gravar por lançamento, ou mesclar no banco), e fica para depois do lançamento.</li>
-    <li><b>Pasta <code>docs/</code>.</b> PDFs, guias de mudanças e mockups HTML: é documentação histórica, não código. Fica ou sai, a decisão é de vocês.</li>
+    <li><b>Limites dos planos, já aplicados</b> Antes da migration, confiram no painel o plano de cada rede que já existe. Rede que alguém marcou à mão como Básico ou Profissional passa a ter limite (quem já está continua). As outras (“essencial”, o padrão) seguem sem limite. “Financeiro completo”, “Anamnese personalizada” e “Gestão avançada” continuam só texto da vitrine.</li>
+    <li><b>Régua e preços</b> 7 dias de tolerância e modo de consulta no 8º; prazo extra de até 60 dias. Confirmar também os preços (R$&nbsp;97, R$&nbsp;197 e R$&nbsp;297) e o texto dos Termos sobre cobrança e cancelamento.</li>
+    <li><b>Permissão de módulo na RLS e prazo de guarda das compras não pagas</b> Veja os temas Segurança e LGPD.</li>
+    <li><b>Agenda e “Todas as clínicas”</b> Na visão Profissionais, quem não é administrador consegue marcar na coluna de outro profissional (pode ser o uso da recepção hoje). Em “Todas as clínicas”, quem tem clínica própria e é convidado em outra é tratado como administrador também nessa outra. No Laboratório, “Todas as clínicas” pede uma clínica.</li>
+    <li><b>Modo de consulta</b> A resposta de anamnese que o paciente envia por um link gerado antes do bloqueio é aceita, porque o dado é do paciente. As cores dos quadros do Laboratório só o administrador grava.</li>
+    <li><b>Taxas dos lançamentos (<code>lancamentos_meta</code>)</b> Ficam num JSON único por clínica. As telas agora releem antes de gravar e nunca gravam por cima numa falha de leitura. Mas duas gravações exatamente ao mesmo tempo ainda podem perder uma. A solução de vez é uma migration (gravar por lançamento, ou mesclar no banco), e fica para depois do lançamento.</li>
+    <li><b>Pasta <code>docs/</code></b> PDFs, guias de mudanças e mockups HTML: é documentação histórica, não código. Fica ou sai, a decisão é de vocês.</li>
   </ul>
 </section>
 

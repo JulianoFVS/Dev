@@ -34,7 +34,7 @@ Regras centrais:
 | Grants | `anon` não tem `SELECT/INSERT/UPDATE/DELETE` em nenhuma tabela, sequência ou função do domínio | `20261114_seguranca_total.sql` |
 | Storage | Os três buckets são privados; leitura só por caminho autorizado ou pelo proxy do Ortus | idem |
 | APIs (`/api/*`) | Verificam o JWT do Supabase no servidor (`auth.getUser`) e revalidam o perfil com service role | `lib/chamadorApi.ts`, `lib/armazenamentoServidor.ts` |
-| Middleware | Bloqueia rotas protegidas sem sessão e aplica o módulo do RBAC | `middleware.ts` |
+| Proxy (antigo middleware) | Bloqueia rotas protegidas sem sessão e aplica o módulo do RBAC | `proxy.ts` (Next 16) |
 | Cabeçalhos | `nosniff`, `SAMEORIGIN`, `Referrer-Policy`, HSTS, `Permissions-Policy` | `next.config.ts` |
 | Auditoria | Ações do painel SaaS gravam antes/depois em `audit_log` | `20261114_saas_auditoria.sql` |
 
@@ -64,7 +64,7 @@ Auditoria completa em 14/11/2026 (`node scripts/audit-db.mjs` + inspeção de
 | 8 | `especialidades` com policy `TO public` lendo tudo | catálogo de outras clínicas | policy por clínica |
 | 9 | `configuracoes_clinica` escrita por qualquer membro | membro comum alterava configurações | escrita só para admin da clínica |
 | 10 | `/api/lembretes/processar` aberta quando `CRON_SECRET` não existia | qualquer um disparava SMS/e-mail pagos | exige `CRON_SECRET` sempre (falha fechada) |
-| 11 | `/api/comunicacao/status` pública | revelava integrações ativas | exige super admin |
+| 11 | `/api/comunicacao/status` pública | revelava integrações ativas | exigiu super admin; em 18/11/2026 a rota saiu (sem chamador; o estado das integrações fica no painel SaaS) |
 | 12 | `v_tarefas_completo` sem `security_invoker` | vazamento entre tenants pela view | `security_invoker=true` + grants |
 | 13 | Tabelas de controle (`armazenamento_*`) com grant para logados | tentativa de escrita em contadores | acesso só por service role |
 | 14 | `profissionais.INSERT` aberto | criação de perfis fora do fluxo | só super admin / service role |
@@ -202,8 +202,14 @@ vai em `resources/config.json`.
 - Os três processos escutam **somente em 127.0.0.1**, em portas escolhidas em
   runtime (nada fixo, nada exposto na rede da clínica).
 - A janela fala só com o Next local. O Next fala com o WhatsApp local. A API
-  de dados (SQLite) aceita requisições **sem cabeçalho `Origin`** — ou seja,
-  navegador não alcança; só os processos locais.
+  de dados (SQLite) só aceita requisição **sem cabeçalho `Origin`**, com o
+  `Host` local e o segredo dela: navegador não alcança, só os processos locais
+  (`desktop/lib/dbApi.cjs`).
+- O Next local só atende a janela do Ortus: cada requisição prova a origem
+  com o `Host` local, `Origin`/`Sec-Fetch-Site` do próprio aplicativo e o
+  segredo desta execução, que o processo principal injeta
+  (`desktop/lib/origemLocal.cjs`). Outro site aberto na máquina, outro
+  programa e DNS rebinding ficam de fora.
 - Next ⇄ API de dados e Next ⇄ WhatsApp usam segredos de 32 bytes gerados na
   instalação e guardados em `userData/segredos.json` (fora do .exe). Eles nunca
   chegam ao renderer.
