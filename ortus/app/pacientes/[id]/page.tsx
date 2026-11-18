@@ -562,6 +562,9 @@ export default function PacienteDetalhe() {
   const marcacoesPendentes = useMemo(() => marcacoesOdonto.filter((m) => m.precisaTratamento), [marcacoesOdonto]);
   const [mostrar3D, setMostrar3D] = useState(false);
   const [odontoLargura, setOdontoLargura] = useState(0);
+  // Altura livre para a arcada no desktop (a aba ocupa a tela inteira e não rola): da caixa até o fim da aba,
+  // menos o espaço reservado à lista de marcações. 0 = sem limite (telas menores rolam a página).
+  const [odontoAlturaLivre, setOdontoAlturaLivre] = useState(0);
   const odontoObserverRef = useRef<ResizeObserver | null>(null);
   const odontoCaixaRef = useRef<HTMLDivElement | null>(null);
   const medirOdonto = useCallback((el: HTMLDivElement | null) => {
@@ -569,8 +572,18 @@ export default function PacienteDetalhe() {
     odontoObserverRef.current?.disconnect();
     odontoObserverRef.current = null;
     if (!el) return;
-    const observer = new ResizeObserver(([entrada]) => setOdontoLargura(entrada.contentRect.width));
+    const raiz = el.closest<HTMLElement>('[data-odonto-raiz]');
+    const medir = () => {
+      const estilo = getComputedStyle(el);
+      setOdontoLargura(el.clientWidth - parseFloat(estilo.paddingLeft) - parseFloat(estilo.paddingRight));
+      if (!raiz || !window.matchMedia('(min-width: 1024px)').matches) { setOdontoAlturaLivre(0); return; }
+      const RESERVA_LISTA = 150;
+      const livre = raiz.getBoundingClientRect().bottom - el.getBoundingClientRect().top - parseFloat(estilo.paddingTop) - parseFloat(estilo.paddingBottom) - RESERVA_LISTA;
+      setOdontoAlturaLivre(Math.max(0, Math.round(livre)));
+    };
+    const observer = new ResizeObserver(medir);
     observer.observe(el);
+    if (raiz) observer.observe(raiz);
     odontoObserverRef.current = observer;
   }, []);
 
@@ -3189,7 +3202,7 @@ export default function PacienteDetalhe() {
                 )}
 
                 {abaAtiva === 'odontograma' && (
-                    <div className="flex flex-col px-3 pb-4 pt-3 sm:px-5 sm:pt-4 lg:h-full lg:min-h-0 lg:overflow-hidden">
+                    <div data-odonto-raiz className="flex flex-col px-3 pb-4 pt-3 sm:px-5 sm:pt-4 lg:h-full lg:min-h-0 lg:overflow-hidden">
                         <div className="mb-3 grid shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 sm:flex sm:flex-wrap">
                             <h3 className="text-base font-semibold text-neutral-900">Odontograma</h3>
                             <SegmentedControl
@@ -3231,43 +3244,49 @@ export default function PacienteDetalhe() {
                                 </div>
                             ) : (
                             <>
-                            {/* Ferramentas em faixa própria, fora da caixa da arcada: rolar os dentes de lado não leva as ações junto. */}
-                            <div className="-mx-3 mb-2 flex shrink-0 items-center gap-1.5 overflow-x-auto px-3 [scrollbar-width:none] sm:mx-0 sm:px-0 [&::-webkit-scrollbar]:hidden">
-                                <div className="w-32 shrink-0 sm:w-36">
-                                    <CustomSelect
-                                        value={tipoArcada}
-                                        onChange={(v) => setTipoArcada(v as 'permanente' | 'leite')}
-                                        options={[{ value: 'permanente', label: 'Permanentes' }, { value: 'leite', label: 'De leite' }]}
-                                        size="xs"
-                                        triggerClassName="max-sm:h-10"
-                                    />
+                            {/* Ferramentas em faixa própria, fora da caixa da arcada, todas à vista sem rolar de lado.
+                                Celular: arcada + Vista 3D numa linha e as 8 ferramentas em grade 4×2. Do sm em diante, uma faixa que quebra se precisar. */}
+                            <div className="mb-2 flex shrink-0 flex-col gap-1.5 sm:flex-row sm:flex-wrap sm:items-center">
+                                <div className="flex items-center gap-1.5 sm:contents">
+                                    <div className="min-w-0 flex-1 sm:w-36 sm:flex-none sm:shrink-0">
+                                        <CustomSelect
+                                            value={tipoArcada}
+                                            onChange={(v) => setTipoArcada(v as 'permanente' | 'leite')}
+                                            options={[{ value: 'permanente', label: 'Permanentes' }, { value: 'leite', label: 'De leite' }]}
+                                            size="xs"
+                                            triggerClassName="max-sm:h-10"
+                                        />
+                                    </div>
+                                    {!mostrar3D && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setMostrar3D(true)}
+                                            className="inline-flex h-10 shrink-0 items-center rounded-md border border-neutral-200 bg-white px-3 text-xs font-medium text-neutral-700 hover:bg-neutral-50 sm:order-last sm:h-8 sm:px-2.5"
+                                        >
+                                            Vista 3D
+                                        </button>
+                                    )}
                                 </div>
-                                {TOOLS.map(t => (
-                                    <button
-                                        key={t.key}
-                                        type="button"
-                                        aria-pressed={ferramenta === t.key}
-                                        onClick={() => setFerramenta(t.key)}
-                                        className={`inline-flex h-10 shrink-0 items-center gap-1.5 rounded-md border px-3 text-xs font-medium sm:h-8 sm:px-2.5 ${ferramenta === t.key ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50'}`}
-                                    >
-                                        <span className="h-2 w-2 rounded-full" style={{ background: t.color, boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.12)' }} />
-                                        {t.label}
-                                    </button>
-                                ))}
-                                {!mostrar3D && (
-                                    <button
-                                        type="button"
-                                        onClick={() => setMostrar3D(true)}
-                                        className="inline-flex h-10 shrink-0 items-center rounded-md border border-neutral-200 bg-white px-3 text-xs font-medium text-neutral-700 hover:bg-neutral-50 sm:h-8 sm:px-2.5"
-                                    >
-                                        Vista 3D
-                                    </button>
-                                )}
+                                <div className="grid grid-cols-4 gap-1.5 sm:contents">
+                                    {TOOLS.map(t => (
+                                        <button
+                                            key={t.key}
+                                            type="button"
+                                            aria-pressed={ferramenta === t.key}
+                                            onClick={() => setFerramenta(t.key)}
+                                            className={`inline-flex h-10 min-w-0 items-center justify-center gap-1 rounded-md border px-1 text-[11px] font-medium tracking-tight sm:h-8 sm:tracking-normal sm:shrink-0 sm:justify-start sm:gap-1.5 sm:px-2.5 sm:text-xs ${ferramenta === t.key ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50'}`}
+                                        >
+                                            <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: t.color, boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.12)' }} />
+                                            <span className="truncate">{t.label}</span>
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
 
                             <div className={`shrink-0 ${mostrar3D ? 'grid grid-cols-1 items-stretch gap-2 lg:min-h-0 lg:flex-1 lg:shrink lg:grid-cols-[minmax(0,7fr)_minmax(0,3fr)] lg:overflow-hidden' : ''}`}>
-                            {/* Tela de toque: a arcada fica em tamanho real e rola de lado só dentro desta caixa (precisão do toque antes de caber).
-                                Sem justify-center nesse modo, senão a metade esquerda ficaria fora do alcance da rolagem; o mx-auto do filho centra quando sobra espaço. */}
+                            {/* A arcada se ajusta à caixa: inteira (2 fileiras) quando os dentes ficam com tamanho bom de usar,
+                                senão um quadrante por fileira (4 fileiras de 8). Só em tela muito estreita sobra rolar de lado, dentro desta caixa.
+                                Sem justify-center quando rola, senão a metade esquerda ficaria fora do alcance; o mx-auto do filho centra. */}
                             <div ref={medirOdonto} className={`flex min-h-0 min-w-0 rounded-xl border border-neutral-200 bg-white px-1 py-2 sm:py-3 ${telaToque ? 'overflow-x-auto overflow-y-hidden overscroll-x-contain' : 'items-center justify-center overflow-hidden'}`}>
                                 {(() => {
                                     const isEsq = visaoOdonto === 'esquematica';
@@ -3275,10 +3294,21 @@ export default function PacienteDetalhe() {
                                     const larguraDente = 56;
                                     const larguraQuadrante = quad.sup[0].length * larguraDente;
                                     const larguraArcada = larguraQuadrante * 2 + 20;
+                                    // Alturas em tamanho real (zoom 1): imagem lateral + quadrado oclusal + número, por fileira.
+                                    const alturaFileira = (isEsq ? 0 : IMG_H + 4) + (telaToque ? 56 : 48) + 20;
+                                    const alturaArcada = alturaFileira * 2 + 25;
+                                    const alturaQuadrantes = alturaFileira * 4 + 2 * 20 + 25;
                                     const disponivel = Math.max(0, odontoLargura - 8);
-                                    const zoomArcada = disponivel ? Math.min(0.92, disponivel / larguraArcada) : 0.72;
-                                    const porQuadrante = !telaToque && disponivel > 0 && zoomArcada < 0.6;
-                                    const zoom = telaToque ? 1 : porQuadrante ? Math.min(1, disponivel / larguraQuadrante) : zoomArcada;
+                                    // Desktop: pode crescer um pouco além do tamanho real, até a altura livre. As imagens são pequenas, então o teto é baixo.
+                                    const ZOOM_MAX = telaToque ? 1 : 1.15;
+                                    const tetoAltura = (altura: number) => (odontoAlturaLivre > 0 ? odontoAlturaLivre / altura : Infinity);
+                                    const zoomInteira = disponivel ? Math.min(ZOOM_MAX, disponivel / larguraArcada, tetoAltura(alturaArcada)) : 0.72;
+                                    const zoomQuadrante = disponivel ? Math.min(ZOOM_MAX, disponivel / larguraQuadrante, tetoAltura(alturaQuadrantes)) : 0.72;
+                                    // Toque pede alvo maior: abaixo de 0,7 a arcada inteira vira quadrantes; abaixo de 0,62 os quadrantes rolam de lado.
+                                    const MIN_INTEIRA = telaToque ? 0.7 : 0.6;
+                                    const MIN_QUADRANTE = 0.62;
+                                    const porQuadrante = disponivel > 0 && zoomInteira < MIN_INTEIRA && zoomQuadrante > zoomInteira;
+                                    const zoom = porQuadrante ? Math.max(zoomQuadrante, telaToque ? MIN_QUADRANTE : 0) : zoomInteira;
                                     const dentes = (lista: number[], isUpper: boolean) => lista.map(n => <Tooth key={n} num={n} isUpper={isUpper} esquematico={isEsq} toque={telaToque} state={odontograma[n] || { faces: {}, cond: 'normal' }} ferramenta={ferramenta} onApply={(f) => aplicarFerramenta(n, f)} />);
                                     const alinharSup = isEsq ? 'items-center' : 'items-end';
                                     const alinharInf = isEsq ? 'items-center' : 'items-start';
@@ -3313,8 +3343,8 @@ export default function PacienteDetalhe() {
                                     );
                                 })()}
                             </div>
-                            {/* 112 = dois quadrantes de dentes de 56px; 20 = a linha média. */}
-                            {telaToque && odontoLargura > 0 && odontoLargura < (tipoArcada === 'permanente' ? QUAD_PERM : QUAD_LEITE).sup[0].length * 112 + 20 && (
+                            {/* Só rola de lado quando nem um quadrante (dentes de 56px no zoom mínimo de 0,62) cabe na caixa. */}
+                            {telaToque && odontoLargura > 0 && odontoLargura - 8 < (tipoArcada === 'permanente' ? QUAD_PERM : QUAD_LEITE).sup[0].length * 56 * 0.62 && (
                                 <p className="mt-1.5 text-[11px] text-neutral-400">Arraste para o lado para ver os outros dentes.</p>
                             )}
 
