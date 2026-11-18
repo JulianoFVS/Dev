@@ -4,10 +4,9 @@ import type { MouseEvent } from 'react';
 import { supabase } from '@/lib/supabase';
 import { dados as tabelas, usuarioDaSessao } from '@/lib/local/consulta';
 import { useParams, useSearchParams } from 'next/navigation';
-import { User, Edit, ArrowLeft, Save, Loader2, FileText, Clock, Trash2, Calendar, CalendarPlus, X, Check, Printer, Smile, Plus, Eraser, CheckCircle, ClipboardList, FolderOpen, Upload, Download, DollarSign, Settings, Sparkles, Camera, ShieldCheck, Zap, Link2, Copy, ChevronDown, LayoutGrid, List, ArrowUpDown, Search, AlertTriangle } from 'lucide-react';
+import { User, Edit, ArrowLeft, Save, Loader2, FileText, Clock, Trash2, Calendar, CalendarPlus, X, Check, Printer, Smile, Plus, Eraser, CheckCircle, ClipboardList, FolderOpen, Upload, Download, DollarSign, Settings, Sparkles, Camera, ShieldCheck, Zap, Link2, Copy, ChevronDown, ChevronLeft, ChevronRight, LayoutGrid, List, ArrowUpDown, Search, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
 import { carregarModelos, carregarModelosAsync, formatarRespostaAnamnese, respostaInicial, type ModeloAnamnese, type RespostaAnamnese, type RespostaSimNaoTexto } from '@/lib/anamnese';
-// teeth-data lib no longer needed — using PNG images from /assets/dentes/
 import { fetchUserClinicas } from '@/lib/clinicScoped';
 import { useClinica } from '@/app/context/ClinicaContext';
 import { registrarAudit } from '@/lib/auditLog';
@@ -287,7 +286,9 @@ function getOcclusalZones() {
 
 const OCC_ZONES = getOcclusalZones();
 
-const STROKE = '#475569';        // slate-600 (cor do traço)
+// Traço do quadrado das faces: contorno médio e divisões claras, para as cores das marcações aparecerem mais que a grade.
+const STROKE = '#94a3b8';        // slate-400 (contorno)
+const LINHA_FACE = '#cbd5e1';    // slate-300 (divisões internas)
 
 const IMG_W = 52;
 const IMG_H = 76;
@@ -352,9 +353,9 @@ function ToothOcclusal({ num, state, ferramenta, onApply, amplo }: { num: number
   const [hoverFace, setHoverFace] = useState<Face | null>(null);
   const cond = state.cond;
   const isAusente = cond === 'ausente';
-  const isCoroa = cond === 'coroa';
   const tool = TOOLS.find(t => t.key === ferramenta);
   const previewColor = tool?.tipo === 'face' ? tool.color : null;
+  const corContorno = cond === 'coroa' ? '#f59e0b' : cond === 'implante' ? '#0ea5e9' : STROKE;
 
   const o = OCC_BOX.outer;
   const i = OCC_BOX.inner;
@@ -362,9 +363,8 @@ function ToothOcclusal({ num, state, ferramenta, onApply, amplo }: { num: number
   return (
     <div className="relative">
       {/* Tela de toque: recorta a margem do desenho, e o quadrado passa de 26px para 47px sem alargar o dente. */}
-      <svg viewBox={amplo ? '11 11 38 38' : '0 0 60 60'} width={amplo ? 56 : 48} height={amplo ? 56 : 48} className={`${isAusente ? 'opacity-25' : ''} block`}>
-        {/* Quadrado externo */}
-        <rect x={o.x} y={o.y} width={o.w} height={o.h} rx="3" ry="3" fill="transparent" stroke={isCoroa ? '#f59e0b' : STROKE} strokeWidth="1" strokeLinejoin="round"/>
+      <svg viewBox={amplo ? '11 11 38 38' : '0 0 60 60'} width={amplo ? 56 : 48} height={amplo ? 56 : 48} className={`${isAusente ? 'opacity-40' : ''} block`}>
+        <rect x={o.x} y={o.y} width={o.w} height={o.h} rx="4" ry="4" fill="#ffffff"/>
 
         {/* 5 zonas clicáveis (4 trapézios + quadrado central) */}
         {(['V','D','L','M','O'] as Face[]).map(f => {
@@ -372,7 +372,7 @@ function ToothOcclusal({ num, state, ferramenta, onApply, amplo }: { num: number
           const baseFill = status ? FACE_COLORS[status] : 'transparent';
           const isHover = hoverFace === f;
           const fill = isHover && previewColor ? previewColor : baseFill;
-          const opacity = (baseFill === 'transparent' && !isHover) ? 0 : 0.85;
+          const opacity = (baseFill === 'transparent' && !isHover) ? 0 : isHover && !status ? 0.45 : 0.92;
           return (
             <path key={f} d={OCC_ZONES[f]} fill={fill} fillOpacity={opacity}
               onClick={(e) => { e.stopPropagation(); onApply(f); }}
@@ -382,44 +382,250 @@ function ToothOcclusal({ num, state, ferramenta, onApply, amplo }: { num: number
           );
         })}
 
-        {/* Linhas do X (diagonais dos cantos externos para os cantos internos) */}
-        <g stroke={STROKE} strokeWidth="0.8" fill="none" strokeLinecap="round" style={{pointerEvents:'none'}}>
+        {/* Divisões: X dos cantos até o quadrado central */}
+        <g stroke={LINHA_FACE} strokeWidth="0.8" fill="none" strokeLinecap="round" style={{pointerEvents:'none'}}>
           <line x1={o.x} y1={o.y} x2={i.x} y2={i.y}/>
           <line x1={o.x + o.w} y1={o.y} x2={i.x + i.w} y2={i.y}/>
           <line x1={o.x + o.w} y1={o.y + o.h} x2={i.x + i.w} y2={i.y + i.h}/>
           <line x1={o.x} y1={o.y + o.h} x2={i.x} y2={i.y + i.h}/>
+          <rect x={i.x} y={i.y} width={i.w} height={i.h} rx="1"/>
         </g>
 
-        {/* Quadrado central (Oclusal) */}
-        <rect x={i.x} y={i.y} width={i.w} height={i.h} fill="none" stroke={STROKE} strokeWidth="0.8" style={{pointerEvents:'none'}}/>
+        {/* Contorno por cima das cores: coroa em âmbar, implante em azul, ausente tracejado. */}
+        <rect x={o.x} y={o.y} width={o.w} height={o.h} rx="4" ry="4" fill="none" stroke={corContorno}
+          strokeWidth={cond === 'coroa' || cond === 'implante' ? 1.8 : 1} strokeDasharray={isAusente ? '3 2' : undefined} style={{pointerEvents:'none'}}/>
 
-        {cond === 'extracao' && <g stroke="#dc2626" strokeWidth="2.5" strokeLinecap="round" style={{pointerEvents:'none'}}><line x1={o.x+1} y1={o.y+1} x2={o.x+o.w-1} y2={o.y+o.h-1}/><line x1={o.x+o.w-1} y1={o.y+1} x2={o.x+1} y2={o.y+o.h-1}/></g>}
+        {cond === 'extracao' && <g stroke="#dc2626" strokeWidth="2.5" strokeLinecap="round" style={{pointerEvents:'none'}}><line x1={o.x+2} y1={o.y+2} x2={o.x+o.w-2} y2={o.y+o.h-2}/><line x1={o.x+o.w-2} y1={o.y+2} x2={o.x+2} y2={o.y+o.h-2}/></g>}
       </svg>
       {hoverFace && (
         <div className="pointer-events-none absolute -top-8 left-1/2 z-20 -translate-x-1/2 whitespace-nowrap rounded-md bg-neutral-900 px-2 py-0.5 text-[11px] font-medium text-white">
-          #{num} · {FACE_LABELS[hoverFace]}
+          #{num} · {nomeDaFace(hoverFace, num)}
         </div>
       )}
     </div>
   );
 }
 
-function Tooth({ num, state, ferramenta, onApply, isUpper, esquematico, toque }: { num: number; state: ToothState; ferramenta: string; onApply: (face: Face | null) => void; isUpper: boolean; esquematico?: boolean; toque?: boolean }) {
+/** Número do dente; em destaque quando o dente tem alguma marcação, para achar rápido o que já foi anotado. */
+function NumeroDente({ num, marcado }: { num: number; marcado: boolean }) {
   return (
-    <div className="flex flex-col items-center select-none w-[56px] shrink-0">
-      {isUpper ? (
-        <>
-          {!esquematico && <><ToothLateral num={num} state={state} isUpper={true}/><div className="h-1"/></>}
-          <ToothOcclusal num={num} state={state} ferramenta={ferramenta} onApply={(f) => onApply(f)} amplo={toque}/>
-          <div className="mt-1 text-[11px] font-semibold tabular-nums text-neutral-600">{num}</div>
-        </>
-      ) : (
-        <>
-          <div className="mb-1 text-[11px] font-semibold tabular-nums text-neutral-600">{num}</div>
-          <ToothOcclusal num={num} state={state} ferramenta={ferramenta} onApply={(f) => onApply(f)} amplo={toque}/>
-          {!esquematico && <><div className="h-1"/><ToothLateral num={num} state={state} isUpper={false}/></>}
-        </>
-      )}
+    <div className={`rounded-full px-1.5 text-[11px] font-semibold leading-[18px] tabular-nums ${marcado ? 'bg-neutral-900 text-white' : 'text-neutral-500'}`}>
+      {num}
+    </div>
+  );
+}
+
+function Tooth({ num, state, ferramenta, onApply, isUpper, esquematico, toque, aoTocar }: { num: number; state: ToothState; ferramenta: string; onApply: (face: Face | null) => void; isUpper: boolean; esquematico?: boolean; toque?: boolean; aoTocar?: () => void }) {
+  const marcado = state.cond !== 'normal' || Object.keys(state.faces).length > 0;
+  const lateral = !esquematico && <ToothLateral num={num} state={state} isUpper={isUpper} />;
+  const conteudo = isUpper ? (
+    <>
+      {lateral && <>{lateral}<div className="h-1"/></>}
+      <ToothOcclusal num={num} state={state} ferramenta={ferramenta} onApply={(f) => onApply(f)} amplo/>
+      <div className="mt-1"><NumeroDente num={num} marcado={marcado} /></div>
+    </>
+  ) : (
+    <>
+      <div className="mb-1"><NumeroDente num={num} marcado={marcado} /></div>
+      <ToothOcclusal num={num} state={state} ferramenta={ferramenta} onApply={(f) => onApply(f)} amplo/>
+      {lateral && <><div className="h-1"/>{lateral}</>}
+    </>
+  );
+  // Celular: o dente inteiro é o alvo do toque e abre o painel do dente; as faces pequenas não recebem toque.
+  if (aoTocar) {
+    return (
+      <button
+        type="button"
+        onClick={aoTocar}
+        aria-label={`Dente ${num}, ${nomeDoDente(num)}`}
+        className="flex w-[56px] shrink-0 select-none flex-col items-center rounded-lg py-0.5 transition-colors active:bg-neutral-100 [&_path]:pointer-events-none"
+      >
+        {conteudo}
+      </button>
+    );
+  }
+  return <div className="flex flex-col items-center select-none w-[56px] shrink-0">{conteudo}</div>;
+}
+
+const NOMES_PERMANENTE = ['', 'incisivo central', 'incisivo lateral', 'canino', '1º pré-molar', '2º pré-molar', '1º molar', '2º molar', '3º molar'];
+const NOMES_DECIDUO = ['', 'incisivo central', 'incisivo lateral', 'canino', '1º molar', '2º molar'];
+
+/** Nome do dente pela numeração FDI (ex.: 16 → "1º molar superior direito"). */
+function nomeDoDente(num: number): string {
+  const quadrante = Math.floor(num / 10);
+  const posicao = num % 10;
+  const deciduo = quadrante >= 5;
+  const q = deciduo ? quadrante - 4 : quadrante;
+  const nome = (deciduo ? NOMES_DECIDUO : NOMES_PERMANENTE)[posicao] || 'dente';
+  const arcada = q === 1 || q === 2 ? 'superior' : 'inferior';
+  const lado = q === 1 || q === 4 ? 'direito' : 'esquerdo';
+  return `${nome} ${arcada} ${lado}${deciduo ? ' (de leite)' : ''}`;
+}
+
+/** Nome da face no dente certo: palatal em cima, lingual embaixo; incisal nos dentes da frente. */
+function nomeDaFace(face: Face, num: number): string {
+  const superior = [1, 2, 5, 6].includes(Math.floor(num / 10));
+  if (face === 'L') return superior ? 'Palatal' : 'Lingual';
+  if (face === 'O') return num % 10 <= 3 ? 'Incisal' : 'Oclusal';
+  return FACE_LABELS[face];
+}
+
+const FERRAMENTAS_FACE = ODONTO_TOOLS.filter((t) => t.tipo === 'face');
+const FERRAMENTAS_DENTE = ODONTO_TOOLS.filter((t) => t.tipo === 'cond');
+// Centro de cada zona no desenho de 60×60, para a letra da face.
+const CENTRO_FACE: Record<Face, [number, number]> = { V: [30, 18.6], D: [41.4, 30], L: [30, 41.4], M: [18.6, 30], O: [30, 30] };
+
+/**
+ * Painel do dente (celular). Mesma lógica do desktop — escolhe a ferramenta, toca na face —, só que com o dente
+ * grande: faces de dedo, nome de cada face, condições do dente inteiro e setas para seguir para o próximo dente.
+ */
+function PainelDente({ num, sequencia, state, ferramenta, onFerramenta, onFace, onTodasFaces, onCondicao, onLimpar, onTratar, onTrocar, onFechar }: {
+  num: number; sequencia: number[]; state: ToothState; ferramenta: string;
+  onFerramenta: (key: string) => void; onFace: (face: Face) => void; onTodasFaces: () => void; onCondicao: (key: string) => void;
+  onLimpar: () => void; onTratar: () => void; onTrocar: (num: number) => void; onFechar: () => void;
+}) {
+  const indice = sequencia.indexOf(num);
+  const anterior = indice > 0 ? sequencia[indice - 1] : null;
+  const proximo = indice >= 0 && indice < sequencia.length - 1 ? sequencia[indice + 1] : null;
+  const ferramentaFace = FERRAMENTAS_FACE.find((t) => t.key === ferramenta) ?? FERRAMENTAS_FACE[1];
+  const o = OCC_BOX.outer;
+  const i = OCC_BOX.inner;
+  const cond = state.cond;
+  const facesMarcadas = (['V', 'M', 'O', 'D', 'L'] as Face[]).filter((f) => state.faces[f]);
+  const temMarcacao = facesMarcadas.length > 0 || cond !== 'normal';
+  const [ultimaFace, setUltimaFace] = useState<Face | null>(null);
+  useEffect(() => setUltimaFace(null), [num]);
+
+  const setaClasse = 'inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-neutral-200 text-neutral-700 disabled:opacity-30';
+  return (
+    <div className="flex min-h-0 flex-col overflow-y-auto overscroll-contain bg-white px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3">
+      <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-neutral-200" aria-hidden />
+      <div className="flex items-center gap-2">
+        <button type="button" className={setaClasse} disabled={anterior === null} onClick={() => anterior !== null && onTrocar(anterior)} aria-label={anterior !== null ? `Dente anterior, ${anterior}` : 'Sem dente anterior'}>
+          <ChevronLeft size={18} />
+        </button>
+        <div className="min-w-0 flex-1 text-center">
+          <div className="text-base font-semibold tabular-nums text-neutral-900">Dente {num}</div>
+          <div className="truncate text-xs text-neutral-500">{nomeDoDente(num)}</div>
+        </div>
+        <button type="button" className={setaClasse} disabled={proximo === null} onClick={() => proximo !== null && onTrocar(proximo)} aria-label={proximo !== null ? `Próximo dente, ${proximo}` : 'Sem próximo dente'}>
+          <ChevronRight size={18} />
+        </button>
+        <button type="button" onClick={onFechar} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-neutral-400 hover:bg-neutral-100" aria-label="Fechar">
+          <X size={18} />
+        </button>
+      </div>
+
+      {/* Dente grande: cada face com o nome por perto. Vestibular em cima, como na arcada. */}
+      <div className="mt-3 flex items-center justify-center gap-3">
+        <div className="relative flex h-[clamp(96px,20dvh,136px)] w-[52px] shrink-0 items-center justify-center">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={toothPngSrc(num)} alt="" draggable={false} className="h-full w-full select-none object-contain mix-blend-multiply" style={{ opacity: cond === 'ausente' ? 0.3 : cond === 'extracao' ? 0.5 : 1, filter: cond === 'ausente' ? 'grayscale(1)' : undefined }} />
+        </div>
+        <div className="grid shrink-0 grid-cols-[1.25rem_auto_1.25rem] grid-rows-[1.25rem_auto_1.25rem] items-center justify-items-center text-[11px] font-medium text-neutral-500">
+          <span className="col-start-2 row-start-1">{nomeDaFace('V', num)}</span>
+          <span className="col-start-1 row-start-2 [writing-mode:vertical-rl] rotate-180">{nomeDaFace('M', num)}</span>
+          <svg viewBox="11 11 38 38" className={`col-start-2 row-start-2 block size-[clamp(120px,24dvh,168px)] touch-manipulation ${cond === 'ausente' ? 'opacity-40' : ''}`}>
+            <rect x={o.x} y={o.y} width={o.w} height={o.h} rx="2.5" ry="2.5" fill="white" />
+            {(['V', 'D', 'L', 'M', 'O'] as Face[]).map((f) => {
+              const status = state.faces[f];
+              return (
+                <path key={f} d={OCC_ZONES[f]} fill={status ? FACE_COLORS[status] : 'transparent'} fillOpacity={status ? 0.9 : 1}
+                  onClick={() => { onFace(f); setUltimaFace(f); }}
+                  className="cursor-pointer active:opacity-70" aria-label={nomeDaFace(f, num)} role="button" />
+              );
+            })}
+            <g stroke={LINHA_FACE} strokeWidth="0.45" fill="none" strokeLinecap="round" pointerEvents="none">
+              <line x1={o.x} y1={o.y} x2={i.x} y2={i.y} />
+              <line x1={o.x + o.w} y1={o.y} x2={i.x + i.w} y2={i.y} />
+              <line x1={o.x + o.w} y1={o.y + o.h} x2={i.x + i.w} y2={i.y + i.h} />
+              <line x1={o.x} y1={o.y + o.h} x2={i.x} y2={i.y + i.h} />
+              <rect x={i.x} y={i.y} width={i.w} height={i.h} rx="0.6" />
+            </g>
+            <rect x={o.x} y={o.y} width={o.w} height={o.h} rx="2.5" ry="2.5" fill="none" pointerEvents="none"
+              stroke={cond === 'coroa' ? '#f59e0b' : cond === 'implante' ? '#0ea5e9' : STROKE} strokeWidth={cond === 'coroa' || cond === 'implante' ? 1.1 : 0.6}
+              strokeDasharray={cond === 'ausente' ? '1.6 1' : undefined} />
+            {(['V', 'D', 'L', 'M', 'O'] as Face[]).map((f) => {
+              const status = state.faces[f];
+              return (
+                <text key={f} x={CENTRO_FACE[f][0]} y={CENTRO_FACE[f][1]} textAnchor="middle" dominantBaseline="central" fontSize="3.6" fontWeight="600"
+                  fill={status && status !== 'higido' ? '#fff' : '#94a3b8'} pointerEvents="none">
+                  {f === 'O' && num % 10 <= 3 ? 'I' : f === 'L' && [1, 2, 5, 6].includes(Math.floor(num / 10)) ? 'P' : f}
+                </text>
+              );
+            })}
+            {cond === 'extracao' && (
+              <g stroke="#dc2626" strokeWidth="1.4" strokeLinecap="round" pointerEvents="none">
+                <line x1={o.x + 1} y1={o.y + 1} x2={o.x + o.w - 1} y2={o.y + o.h - 1} />
+                <line x1={o.x + o.w - 1} y1={o.y + 1} x2={o.x + 1} y2={o.y + o.h - 1} />
+              </g>
+            )}
+          </svg>
+          <span className="col-start-3 row-start-2 [writing-mode:vertical-rl]">{nomeDaFace('D', num)}</span>
+          <span className="col-start-2 row-start-3">{nomeDaFace('L', num)}</span>
+        </div>
+      </div>
+
+      {/* O que está marcado neste dente (e o retorno do último toque). */}
+      <div className="mt-2 flex min-h-[1.75rem] flex-wrap items-center justify-center gap-1.5" aria-live="polite">
+        {!temMarcacao && <span className="text-xs text-neutral-400">{ultimaFace ? `${nomeDaFace(ultimaFace, num)} limpa.` : 'Sem marcação. Toque numa face para marcar.'}</span>}
+        {cond !== 'normal' && (
+          <span className="rounded-md bg-neutral-900 px-2 py-0.5 text-xs font-medium text-white">{ODONTO_TOOLS.find((t) => t.key === cond)?.label}</span>
+        )}
+        {facesMarcadas.map((f) => (
+          <span key={f} className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium ${ultimaFace === f ? 'bg-neutral-200 text-neutral-900' : 'bg-neutral-100 text-neutral-700'}`}>
+            <span className="h-2 w-2 rounded-full" style={{ background: FACE_COLORS[state.faces[f]!], boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.12)' }} />
+            {nomeDaFace(f, num)}
+          </span>
+        ))}
+      </div>
+
+      <div className="mt-3 flex items-baseline justify-between">
+        <span className="text-xs font-semibold text-neutral-900">Marcar nas faces</span>
+        <button type="button" onClick={onTodasFaces} className="-mr-2 px-2 py-1 text-xs font-medium text-neutral-600 underline-offset-2 hover:underline">
+          {ferramentaFace.key === 'higido' ? 'Limpar todas as faces' : `${ferramentaFace.label} em todas`}
+        </button>
+      </div>
+      <div className="mt-1.5 grid grid-cols-4 gap-1.5">
+        {FERRAMENTAS_FACE.map((t) => (
+          // Cor como faixa embaixo (não bolinha ao lado): sobra largura para "Restauração" inteiro em 320px.
+          <button key={t.key} type="button" aria-pressed={ferramentaFace.key === t.key} onClick={() => onFerramenta(t.key)}
+            className={`inline-flex h-10 min-w-0 items-center justify-center overflow-hidden rounded-md border px-0.5 text-[11px] font-medium tracking-tight ${ferramentaFace.key === t.key ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-200 bg-white text-neutral-700'}`}
+            style={{ boxShadow: `inset 0 -3px 0 ${t.key === 'higido' ? '#e5e5e5' : t.color}` }}>
+            <span className="truncate">{t.label}</span>
+          </button>
+        ))}
+      </div>
+
+      <div className="mt-3 text-xs font-semibold text-neutral-900">Dente inteiro</div>
+      <div className="mt-1.5 grid grid-cols-4 gap-1.5">
+        {FERRAMENTAS_DENTE.map((t) => {
+          const ativo = cond === t.key;
+          return (
+            <button key={t.key} type="button" aria-pressed={ativo} onClick={() => onCondicao(t.key)}
+              className={`inline-flex h-10 min-w-0 items-center justify-center gap-0.5 overflow-hidden rounded-md border px-0.5 text-[11px] font-medium tracking-tight ${ativo ? 'text-white' : 'border-neutral-200 bg-white text-neutral-700'}`}
+              style={ativo ? { background: t.color, borderColor: t.color } : { boxShadow: `inset 0 -3px 0 ${t.color}` }}>
+              {ativo && <Check size={12} className="shrink-0" />}
+              <span className="truncate">{t.label}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="mt-4 grid grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)] gap-2">
+        <button type="button" onClick={onLimpar} disabled={!temMarcacao} aria-label={`Limpar dente ${num}`}
+          className="inline-flex h-11 w-11 items-center justify-center rounded-lg border border-neutral-200 text-neutral-600 disabled:opacity-30">
+          <Eraser size={16} />
+        </button>
+        <button type="button" onClick={onTratar} disabled={!temMarcacao}
+          className="inline-flex h-11 items-center justify-center gap-1.5 rounded-lg border border-neutral-200 text-sm font-medium text-neutral-800 disabled:opacity-40">
+          <Plus size={14} /> Tratar
+        </button>
+        <button type="button" onClick={proximo !== null ? () => onTrocar(proximo) : onFechar}
+          className="inline-flex h-11 items-center justify-center gap-1 rounded-lg bg-neutral-900 text-sm font-medium text-white">
+          {proximo !== null ? <>Próximo <ChevronRight size={15} /></> : 'Concluir'}
+        </button>
+      </div>
     </div>
   );
 }
@@ -498,6 +704,18 @@ export default function PacienteDetalhe() {
       return () => consulta.removeEventListener('change', aplicar);
   }, []);
 
+  // Celular (abaixo de 640px): as faces na arcada ficam pequenas para o dedo; tocar no dente abre o painel do dente.
+  const [telaCelular, setTelaCelular] = useState(false);
+  useEffect(() => {
+      const consulta = window.matchMedia('(max-width: 639px)');
+      const aplicar = () => setTelaCelular(consulta.matches);
+      aplicar();
+      consulta.addEventListener('change', aplicar);
+      return () => consulta.removeEventListener('change', aplicar);
+  }, []);
+  const [denteAberto, setDenteAberto] = useState<number | null>(null);
+  useEffect(() => { if (!telaCelular) setDenteAberto(null); }, [telaCelular]);
+
   const previewsDocumento = useRef<string[]>([]);
   const odontogramaFromServer = useRef(true);
   const fichaFromServer = useRef(true);
@@ -548,6 +766,7 @@ export default function PacienteDetalhe() {
   const applyOdontogramTool = useOdontogramStore((s) => s.applyTool);
   const resetOdontogramTooth = useOdontogramStore((s) => s.resetTooth);
   const resetOdontogramAll = useOdontogramStore((s) => s.resetAll);
+  const setOdontogramToothStatus = useOdontogramStore((s) => s.setToothStatus);
   const normalizeOdontogramStorage = useOdontogramStore((s) => s.normalizeStorage);
   const odontograma = useMemo(() => selectLegacyOdontogram(teeth), [teeth]);
   const [tratamentos, setTratamentos] = useState<any[]>([]);
@@ -1302,6 +1521,17 @@ export default function PacienteDetalhe() {
 
   function limparDente(numDente: number) {
       resetOdontogramTooth(numDente);
+  }
+
+  /** Celular: abre o painel do dente. As faces pedem uma ferramenta de face; se a ativa for de dente inteiro, volta para Cárie. */
+  function abrirDente(numDente: number) {
+      if (ODONTO_TOOLS.find((t) => t.key === ferramenta)?.tipo !== 'face') setFerramenta('carie');
+      setDenteAberto(numDente);
+  }
+
+  function alternarCondicaoDente(numDente: number, condicao: string) {
+      const atual = odontograma[numDente]?.cond ?? 'normal';
+      setOdontogramToothStatus(numDente, (atual === condicao ? 'normal' : condicao) as OdontoToothStatus);
   }
 
   async function salvarOdontograma() {
@@ -3267,7 +3497,9 @@ export default function PacienteDetalhe() {
                                         </button>
                                     )}
                                 </div>
-                                <div className="grid grid-cols-4 gap-1.5 sm:contents">
+                                {/* No celular as ferramentas ficam no painel do dente, junto das faces. */}
+                                <p className="text-xs text-neutral-500 sm:hidden">Toque num dente para marcar.</p>
+                                <div className="hidden sm:contents">
                                     {TOOLS.map(t => (
                                         <button
                                             key={t.key}
@@ -3295,7 +3527,7 @@ export default function PacienteDetalhe() {
                                     const larguraQuadrante = quad.sup[0].length * larguraDente;
                                     const larguraArcada = larguraQuadrante * 2 + 20;
                                     // Alturas em tamanho real (zoom 1): imagem lateral + quadrado oclusal + número, por fileira.
-                                    const alturaFileira = (isEsq ? 0 : IMG_H + 4) + (telaToque ? 56 : 48) + 20;
+                                    const alturaFileira = (isEsq ? 0 : IMG_H + 4) + 56 + 20;
                                     const alturaArcada = alturaFileira * 2 + 25;
                                     const alturaQuadrantes = alturaFileira * 4 + 2 * 20 + 25;
                                     const disponivel = Math.max(0, odontoLargura - 8);
@@ -3309,7 +3541,7 @@ export default function PacienteDetalhe() {
                                     const MIN_QUADRANTE = 0.62;
                                     const porQuadrante = disponivel > 0 && zoomInteira < MIN_INTEIRA && zoomQuadrante > zoomInteira;
                                     const zoom = porQuadrante ? Math.max(zoomQuadrante, telaToque ? MIN_QUADRANTE : 0) : zoomInteira;
-                                    const dentes = (lista: number[], isUpper: boolean) => lista.map(n => <Tooth key={n} num={n} isUpper={isUpper} esquematico={isEsq} toque={telaToque} state={odontograma[n] || { faces: {}, cond: 'normal' }} ferramenta={ferramenta} onApply={(f) => aplicarFerramenta(n, f)} />);
+                                    const dentes = (lista: number[], isUpper: boolean) => lista.map(n => <Tooth key={n} num={n} isUpper={isUpper} esquematico={isEsq} toque={telaToque} state={odontograma[n] || { faces: {}, cond: 'normal' }} ferramenta={ferramenta} onApply={(f) => aplicarFerramenta(n, f)} aoTocar={telaCelular ? () => abrirDente(n) : undefined} />);
                                     const alinharSup = isEsq ? 'items-center' : 'items-end';
                                     const alinharInf = isEsq ? 'items-center' : 'items-start';
                                     return (
@@ -3347,6 +3579,32 @@ export default function PacienteDetalhe() {
                             {telaToque && odontoLargura > 0 && odontoLargura - 8 < (tipoArcada === 'permanente' ? QUAD_PERM : QUAD_LEITE).sup[0].length * 56 * 0.62 && (
                                 <p className="mt-1.5 text-[11px] text-neutral-400">Arraste para o lado para ver os outros dentes.</p>
                             )}
+
+                            {/* Celular: painel do dente. Acima da barra de navegação do app (z-110). */}
+                            <Modal open={telaCelular && denteAberto !== null} onClose={() => setDenteAberto(null)} zIndex={120} maxWidth="md" hideCloseButton
+                                className="!p-0 sm:!p-4" panelClassName="rounded-t-2xl sm:rounded-2xl shadow-xl [:where(&)]:max-h-[95dvh]">
+                                {denteAberto !== null && (() => {
+                                    const quad = tipoArcada === 'permanente' ? QUAD_PERM : QUAD_LEITE;
+                                    const sequencia = [...quad.sup[0], ...quad.sup[1], ...quad.inf[0], ...quad.inf[1]];
+                                    const n = denteAberto;
+                                    return (
+                                        <PainelDente
+                                            num={n}
+                                            sequencia={sequencia}
+                                            state={odontograma[n] || { faces: {}, cond: 'normal' }}
+                                            ferramenta={ferramenta}
+                                            onFerramenta={setFerramenta}
+                                            onFace={(f) => aplicarFerramenta(n, f)}
+                                            onTodasFaces={() => aplicarFerramenta(n, null)}
+                                            onCondicao={(c) => alternarCondicaoDente(n, c)}
+                                            onLimpar={() => limparDente(n)}
+                                            onTratar={() => { setDenteAberto(null); abrirNovoTratamento([n]); }}
+                                            onTrocar={setDenteAberto}
+                                            onFechar={() => setDenteAberto(null)}
+                                        />
+                                    );
+                                })()}
+                            </Modal>
 
                             {mostrar3D && (
                                 <div className="flex h-[22rem] min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border border-neutral-200 bg-[#f8f8f6] p-2 lg:h-auto">
