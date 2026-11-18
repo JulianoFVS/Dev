@@ -89,6 +89,9 @@ const TABELAS = {
       clinica_id: 'inteiro',
       created_at: 'data',
       permissao: 'texto',
+      // Vínculo criado por convite (migration 20261121_seguranca_reforco): a
+      // pessoa nunca é administradora nessa clínica. Quem decide é o servidor.
+      convidado: 'bool',
       updated_at: 'data',
     },
   },

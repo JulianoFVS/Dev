@@ -9,16 +9,6 @@ export type ModuleName =
   | 'loja'
   | 'marketing';
 
-export interface PermissaoModulo {
-  id: string;
-  profissional_id: number;
-  clinica_id: number;
-  modulo: ModuleName;
-  pode_acessar: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
 export type CommissionTrigger =
   | 'tratamento_finalizado'
   | 'debito_recebido'

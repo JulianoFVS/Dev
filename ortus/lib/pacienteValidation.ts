@@ -51,12 +51,3 @@ export function validarPaciente(dados: PacienteFormData): string | null {
   return null;
 }
 
-export function abrirWhatsappPaciente(telefone?: string | null, mensagem?: string) {
-  const numero = telefone?.replace(/\D/g, '');
-  if (!numero) return false;
-  const url = mensagem
-    ? `https://wa.me/55${numero}?text=${encodeURIComponent(mensagem)}`
-    : `https://wa.me/55${numero}`;
-  window.open(url, '_blank');
-  return true;
-}

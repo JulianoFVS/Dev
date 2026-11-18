@@ -1,5 +1,6 @@
 import { dados as tabelas } from '@/lib/local/consulta';
 import { supabase } from './supabase';
+import { fraseDeErro } from '@/lib/fraseDeErro';
 
 const KEY_ULTIMO = 'ortus_ultimo_backup_check';
 const HORAS_12_MS = 12 * 60 * 60 * 1000;
@@ -47,8 +48,8 @@ export async function baixarBackupComoJson(id: number) {
         a.click();
         URL.revokeObjectURL(a.href);
         return true;
-    } catch (e: any) {
-        alert('Erro ao baixar: ' + e.message);
+    } catch (e: unknown) {
+        alert(fraseDeErro(e, 'Não foi possível baixar o backup agora. Tente de novo.'));
         return false;
     }
 }
@@ -65,11 +66,13 @@ export async function restaurarBackup(id: number) {
 
 export async function excluirBackup(id: number) {
     try {
-        const { error } = await tabelas.from('backups').delete().eq('id', id);
+        // Confere que a linha saiu: a RLS barra sem erro e a tela diria "excluído".
+        const { data, error } = await tabelas.from('backups').delete().eq('id', id).select('id');
         if (error) throw error;
+        if (!Array.isArray(data) || data.length === 0) throw Object.assign(new Error('Este backup não foi excluído (já não existe ou é de acesso restrito).'), { code: 'P0001' });
         return true;
-    } catch (e: any) {
-        alert('Erro ao excluir: ' + e.message);
+    } catch (e: unknown) {
+        alert(fraseDeErro(e, 'Não foi possível excluir o backup agora. Tente de novo.'));
         return false;
     }
 }

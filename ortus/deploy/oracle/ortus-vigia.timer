@@ -1,0 +1,17 @@
+# Ortus — quando o vigia roda.
+# A cada 15 minutos (nos minutos 00, 15, 30 e 45) e 3 minutos depois do boot.
+#
+# Ligar:  sudo systemctl enable --now ortus-vigia.timer
+# Ver:    systemctl list-timers 'ortus-*' --no-pager
+
+[Unit]
+Description=Ortus - agenda do vigia (a cada 15 minutos)
+
+[Timer]
+OnCalendar=*:0/15
+OnBootSec=3min
+AccuracySec=30s
+Unit=ortus-vigia.service
+
+[Install]
+WantedBy=timers.target

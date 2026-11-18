@@ -1,87 +1,61 @@
 import { NextResponse } from 'next/server';
-import { createSupabaseAdmin } from '@/lib/supabaseAdmin';
 import { gerarTokenAnamnese, hashTokenAnamnese } from '@/lib/anamneseLinks';
+import { identificarChamador, temAcessoAClinica } from '@/lib/chamadorApi';
+import { escritaBarrada } from '@/lib/escritaLiberada';
+import { ERRO_INTERNO, registrarFalha } from '@/lib/registro';
+import { origemDoApp } from '@/lib/origemApp';
 
 const LINK_VALIDADE_HORAS = 72;
 
 export async function POST(req: Request) {
   try {
-    const authHeader = req.headers.get('authorization') || '';
-    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
-    if (!token) {
-      return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
-    }
-
-    const admin = createSupabaseAdmin();
-    const { data: caller, error: callerErr } = await admin.auth.getUser(token);
-    if (callerErr || !caller?.user) {
-      return NextResponse.json({ error: 'Sessão inválida.' }, { status: 401 });
-    }
+    const chamador = await identificarChamador(req);
+    if (!chamador) return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
 
     const body = await req.json().catch(() => ({}));
-    const { paciente_id, modelo_id, clinica_id } = body as {
-      paciente_id?: string | number;
-      modelo_id?: string;
-      clinica_id?: string | number | null;
-    };
-
+    const { paciente_id, modelo_id } = body as { paciente_id?: string | number; modelo_id?: string };
     if (!paciente_id || !modelo_id) {
       return NextResponse.json({ error: 'paciente_id e modelo_id são obrigatórios.' }, { status: 400 });
     }
 
-    const { data: paciente, error: pacErr } = await admin
+    const { data: paciente, error: pacErr } = await chamador.admin
       .from('pacientes')
       .select('id, clinica_id')
       .eq('id', paciente_id)
       .maybeSingle();
 
-    if (pacErr || !paciente) {
+    // A clínica do link é a do PACIENTE, lida no banco. Antes o corpo podia
+    // informar outra clínica: quem trabalhava na clínica A passava o próprio
+    // id e gerava link (e lia o nome) de um paciente da clínica B.
+    // Paciente inexistente e paciente de outra clínica respondem igual, para
+    // não confirmar a quem pergunta que aquele id existe.
+    const clinicaDoPaciente = paciente?.clinica_id ?? null;
+    if (pacErr || !paciente || clinicaDoPaciente == null || !(await temAcessoAClinica(chamador, clinicaDoPaciente))) {
       return NextResponse.json({ error: 'Paciente não encontrado.' }, { status: 404 });
     }
 
-    const clinicaAlvo = clinica_id ?? paciente.clinica_id;
-    if (clinicaAlvo) {
-      const { data: prof } = await admin
-        .from('profissionais')
-        .select('id, is_super_admin')
-        .eq('user_id', caller.user.id)
-        .maybeSingle();
-
-      if (!prof?.is_super_admin) {
-        const { data: vinculo } = await admin
-          .from('profissionais_clinicas')
-          .select('clinica_id')
-          .eq('profissional_id', prof?.id)
-          .eq('clinica_id', clinicaAlvo)
-          .maybeSingle();
-
-        if (!vinculo) {
-          return NextResponse.json({ error: 'Sem permissão para esta clínica.' }, { status: 403 });
-        }
-      }
-    }
+    // anamnese_links é barrada pelo gatilho do modo de consulta, mas a chave de serviço passa por ele.
+    const barrada = await escritaBarrada(chamador.admin, clinicaDoPaciente);
+    if (barrada) return barrada;
 
     const plainToken = gerarTokenAnamnese();
-    const tokenHash = hashTokenAnamnese(plainToken);
     const expiresAt = new Date(Date.now() + LINK_VALIDADE_HORAS * 60 * 60 * 1000).toISOString();
 
-    const { error: insertErr } = await admin.from('anamnese_links').insert({
-      paciente_id,
-      clinica_id: clinicaAlvo ?? null,
-      modelo_id,
-      token_hash: tokenHash,
+    const { error: insertErr } = await chamador.admin.from('anamnese_links').insert({
+      paciente_id: paciente.id,
+      clinica_id: clinicaDoPaciente,
+      modelo_id: String(modelo_id).slice(0, 80),
+      token_hash: hashTokenAnamnese(plainToken),
       expires_at: expiresAt,
     });
-
     if (insertErr) {
-      return NextResponse.json({ error: insertErr.message }, { status: 500 });
+      await registrarFalha({ origem: 'api/anamnese/gerar-link', clinicaId: clinicaDoPaciente }, insertErr);
+      return NextResponse.json({ error: ERRO_INTERNO }, { status: 500 });
     }
 
-    const origin = req.headers.get('origin') || process.env.NEXT_PUBLIC_APP_URL || '';
-    const url = `${origin}/anamnese/${plainToken}`;
-
-    return NextResponse.json({ url, expires_at: expiresAt });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message || 'Erro interno.' }, { status: 500 });
+    return NextResponse.json({ url: `${origemDoApp(req)}/anamnese/${plainToken}`, expires_at: expiresAt });
+  } catch (err) {
+    await registrarFalha({ origem: 'api/anamnese/gerar-link' }, err);
+    return NextResponse.json({ error: ERRO_INTERNO }, { status: 500 });
   }
 }

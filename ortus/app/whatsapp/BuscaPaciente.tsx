@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Loader2, Search } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
 import { dados as tabelas } from '@/lib/local/consulta';
 import { listar, modoDados } from '@/lib/local/cliente';
 import { formatarTelefone } from '@/lib/whatsappTelefone';
@@ -101,6 +100,7 @@ export default function BuscaPaciente({ clinicaId, onEscolher, ignorar = [], aut
           value={termo}
           onChange={(e) => setTermo(e.target.value)}
           autoFocus={autoFocus}
+          aria-label="Buscar paciente pelo nome"
           placeholder="Buscar paciente pelo nome"
           className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-neutral-400"
         />
@@ -117,9 +117,10 @@ export default function BuscaPaciente({ clinicaId, onEscolher, ignorar = [], aut
                 onEscolher(paciente);
                 setTermo('');
               }}
-              className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left hover:bg-neutral-50"
+              className="flex min-h-10 w-full items-center justify-between gap-3 px-3 py-2.5 text-left hover:bg-neutral-50 active:bg-neutral-100"
             >
-              <span className="truncate text-sm text-neutral-900">{paciente.nome}</span>
+              {/* No celular o nome quebra em vez de cortar. */}
+              <span className="min-w-0 break-words text-sm text-neutral-900 sm:truncate">{paciente.nome}</span>
               <span className="shrink-0 text-xs text-neutral-400">{formatarTelefone(paciente.telefone)}</span>
             </button>
           ))}

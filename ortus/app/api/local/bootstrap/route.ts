@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
-import { bootstrapLocal, desktopAtivo } from '@/lib/local/ponte';
-import { exigirSessaoLocal } from '@/lib/local/rota';
+import { bootstrapLocal } from '@/lib/local/ponte';
+import { exigirJanelaLocal, exigirSessaoLocal, falhaLocal } from '@/lib/local/rota';
+import { ERRO_INTERNO } from '@/lib/registro';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -17,15 +18,17 @@ export async function POST(req: Request) {
 
   try {
     const resultado = await bootstrapLocal();
-    return NextResponse.json(resultado, { status: resultado.ok ? 200 : 409 });
+    if (resultado.ok) return NextResponse.json(resultado);
+    // O motivo vindo do sincronizador pode ser a resposta crua da nuvem (fica no log do programa).
+    const motivo = resultado.motivo === 'sem-sessao' ? 'sem-sessao' : 'falha';
+    return NextResponse.json({ ok: false, motivo, erro: ERRO_INTERNO }, { status: 409 });
   } catch (err) {
-    return NextResponse.json({ erro: err instanceof Error ? err.message : 'Falha ao baixar o backup.' }, { status: 500 });
+    return falhaLocal('api/local/bootstrap', err);
   }
 }
 
-export async function GET() {
-  if (!desktopAtivo()) {
-    return NextResponse.json({ erro: 'Recurso do aplicativo desktop.' }, { status: 404 });
-  }
+export async function GET(req: Request) {
+  const fora = exigirJanelaLocal(req);
+  if (fora) return fora;
   return NextResponse.json({ bemVindo: true });
 }

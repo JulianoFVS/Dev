@@ -97,7 +97,7 @@ export function CustomAlertProvider({ children }: { children: ReactNode }) {
               <button
                 type="button"
                 onClick={() => dismiss(dialog.id, false)}
-                className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-100"
+                className="absolute right-3 top-3 inline-flex h-10 w-10 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-100 sm:h-8 sm:w-8"
                 aria-label="Fechar"
               >
                 <X size={16} />
@@ -121,7 +121,7 @@ export function CustomAlertProvider({ children }: { children: ReactNode }) {
                     <button
                       type="button"
                       onClick={() => dismiss(dialog.id, false)}
-                      className="h-9 rounded-md px-3 text-sm font-medium text-neutral-500 hover:bg-neutral-50"
+                      className="h-10 rounded-md px-3 text-sm font-medium text-neutral-500 hover:bg-neutral-50 sm:h-9"
                     >
                       {cfg.cancelLabel || 'Cancelar'}
                     </button>
@@ -129,7 +129,7 @@ export function CustomAlertProvider({ children }: { children: ReactNode }) {
                       type="button"
                       autoFocus
                       onClick={() => dismiss(dialog.id, true)}
-                      className="h-9 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800"
+                      className="h-10 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 sm:h-9"
                     >
                       {cfg.confirmLabel || 'Confirmar'}
                     </button>
@@ -139,7 +139,7 @@ export function CustomAlertProvider({ children }: { children: ReactNode }) {
                     type="button"
                     autoFocus
                     onClick={() => dismiss(dialog.id, true)}
-                    className="h-9 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800"
+                    className="h-10 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 sm:h-9"
                   >
                     OK
                   </button>

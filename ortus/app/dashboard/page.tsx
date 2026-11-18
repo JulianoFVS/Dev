@@ -3,7 +3,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Link from 'next/link';
-import { supabase } from '@/lib/supabase';
 import { dados as tabelas, usuarioDaSessao } from '@/lib/local/consulta';
 import { clinicScope, readRouteCache, writeRouteCache } from '@/lib/routeListCache';
 import { useClinica } from '@/app/context/ClinicaContext';
@@ -26,6 +25,7 @@ import {
   Settings,
 } from 'lucide-react';
 import { useInboxCounts } from '@/hooks/useInboxCounts';
+import { useFotoPaciente } from '@/hooks/useFotoPaciente';
 import PillMeter from '@/components/bento/PillMeter';
 import Aviso from '@/components/ui/Aviso';
 import BentoClinicSwitcher from '@/components/dashboard/BentoClinicSwitcher';
@@ -35,6 +35,8 @@ function DicaBotao({ texto, children }: { texto: string; children: ReactNode }) 
   const ancora = useRef<HTMLSpanElement>(null);
   const [caixa, setCaixa] = useState<{ top: number; left: number; abaixo: boolean } | null>(null);
   function mostrar() {
+    // Em tela de toque o navegador simula o "mouse em cima" depois do toque e a dica ficava presa na tela.
+    if (!window.matchMedia('(hover: hover)').matches) return;
     const rect = ancora.current?.getBoundingClientRect();
     if (!rect) return;
     const abaixo = rect.top < 48;
@@ -251,10 +253,12 @@ function linhasDaTaxa(grupo: string, lista: TaxaMaquininha[]): LinhaTaxa[] {
     }));
 }
 
-function FotoPaciente({ nome, url, claro = false, grande = false }: { nome?: string | null; url?: string | null; claro?: boolean; grande?: boolean }) {
+function FotoPaciente({ pacienteId, nome, url, claro = false, grande = false }: { pacienteId?: string | null; nome?: string | null; url?: string | null; claro?: boolean; grande?: boolean }) {
+  // A foto é privada: vem pela rota autenticada, nunca direto de `foto_url`.
+  const foto = useFotoPaciente(pacienteId, url);
   return (
     <span className={`flex shrink-0 items-center justify-center overflow-hidden rounded-full font-semibold ${grande ? 'h-12 w-12 text-sm' : 'h-8 w-8 text-[10px]'} ${claro ? 'bg-neutral-100 text-neutral-500 lg:bg-white/10 lg:text-white' : 'bg-neutral-100 text-neutral-500'}`}>
-      {url ? <img src={url} alt="" className="h-full w-full object-cover" /> : iniciais(nome)}
+      {foto ? <img src={foto} alt="" className="h-full w-full object-cover" /> : iniciais(nome)}
     </span>
   );
 }
@@ -781,7 +785,6 @@ export default function Dashboard() {
     ? null
     : listaDia.find((item) => item.id === selId) || listaDia.find((item) => item.id === padraoId) || listaDia[0] || null;
   const pacienteSel = selecionado?.pacientes;
-  const anosSel = idade(pacienteSel?.data_nascimento);
   const pacienteSelId = pacienteSel?.id || '';
 
   useEffect(() => {
@@ -929,6 +932,7 @@ export default function Dashboard() {
           <div className="relative z-[1] flex items-center gap-3">
             {(emAtendimento || proximoAgendamento) && (
               <FotoPaciente
+                pacienteId={(emAtendimento ? pacienteCurso : proximoAgendamento?.pacientes)?.id}
                 nome={(emAtendimento ? pacienteCurso : proximoAgendamento?.pacientes)?.nome}
                 url={(emAtendimento ? pacienteCurso : proximoAgendamento?.pacientes)?.foto_url}
                 claro
@@ -939,8 +943,9 @@ export default function Dashboard() {
               {emAtendimento ? (
                 <>
                   <p className="text-sm text-neutral-500 lg:text-neutral-300">Em atendimento · {hora(emAtendimento.data_hora)}</p>
-                  <h2 className="mt-1 truncate text-xl font-semibold text-neutral-900 lg:text-white">{pacienteCurso?.nome || 'Paciente'}</h2>
-                  <p className="mt-0.5 truncate text-sm text-neutral-500 lg:text-neutral-300">
+                  {/* Celular: nome e procedimento quebram a linha em vez de cortar com reticências. */}
+                  <h2 className="mt-1 break-words text-xl font-semibold text-neutral-900 lg:truncate lg:text-white">{pacienteCurso?.nome || 'Paciente'}</h2>
+                  <p className="mt-0.5 break-words text-sm text-neutral-500 lg:truncate lg:text-neutral-300">
                     {emAtendimento.procedimento || 'Consulta'}
                     {anosCurso != null ? ` · ${anosCurso} anos` : ''}
                   </p>
@@ -948,7 +953,7 @@ export default function Dashboard() {
               ) : (
                 <>
                   <p className="text-sm text-neutral-500 lg:text-neutral-300">Nenhum atendimento agora</p>
-                  <h2 className="mt-1 truncate text-xl font-semibold text-neutral-900 lg:text-white">
+                  <h2 className="mt-1 break-words text-xl font-semibold text-neutral-900 lg:truncate lg:text-white">
                     {proximoAgendamento?.pacientes?.nome || 'Nenhum paciente em curso'}
                   </h2>
                   <p className="mt-0.5 text-sm text-neutral-500 lg:text-neutral-300">
@@ -967,7 +972,7 @@ export default function Dashboard() {
                   type="button"
                   onClick={concluirAtual}
                   disabled={concluindo}
-                  className="inline-flex h-9 items-center gap-1.5 rounded-full bg-neutral-900 px-4 text-sm font-medium text-white lg:bg-white lg:text-neutral-900 disabled:opacity-60"
+                  className="inline-flex h-11 items-center gap-1.5 rounded-full bg-neutral-900 px-5 text-sm font-medium text-white lg:h-9 lg:bg-white lg:px-4 lg:text-neutral-900 disabled:opacity-60"
                 >
                   {concluindo ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}
                   Concluir
@@ -975,14 +980,14 @@ export default function Dashboard() {
                 <button
                   type="button"
                   onClick={() => openPatient(pacienteCurso?.id)}
-                  className="inline-flex h-9 items-center gap-1.5 rounded-full border border-neutral-200 px-4 text-sm font-medium text-neutral-900 lg:border-white/25 lg:text-white"
+                  className="inline-flex h-11 items-center gap-1.5 rounded-full border border-neutral-200 px-5 text-sm font-medium text-neutral-900 lg:h-9 lg:border-white/25 lg:px-4 lg:text-white"
                 >
                   <FileText size={15} />
                   Ficha
                 </button>
               </>
             ) : (
-              <Link href="/agenda" className="inline-flex h-9 items-center rounded-full bg-neutral-900 px-4 text-sm font-medium text-white lg:bg-white lg:text-neutral-900">
+              <Link href="/agenda" className="inline-flex h-11 items-center rounded-full bg-neutral-900 px-5 text-sm font-medium text-white lg:h-9 lg:bg-white lg:px-4 lg:text-neutral-900">
                 Ver agenda
               </Link>
             )}
@@ -992,11 +997,11 @@ export default function Dashboard() {
 
         <aside className="order-3 flex flex-col lg:col-start-2 lg:row-span-3 lg:row-start-1 lg:min-h-0">
           <div className="flex items-center justify-between gap-1">
-            <button type="button" aria-label="Mês anterior" onClick={() => mudarMes(-1)} className="flex h-8 w-8 items-center justify-center rounded-full text-neutral-500 hover:bg-white">
+            <button type="button" aria-label="Mês anterior" onClick={() => mudarMes(-1)} className="alvo-toque flex h-10 w-10 items-center justify-center rounded-full text-neutral-500 hover:bg-white lg:h-8 lg:w-8">
               <ChevronLeft size={16} />
             </button>
-            <span className="rounded-full bg-neutral-100 px-3 py-1 text-xs font-medium capitalize text-neutral-900">{rotuloMes}</span>
-            <button type="button" aria-label="Próximo mês" onClick={() => mudarMes(1)} className="flex h-8 w-8 items-center justify-center rounded-full text-neutral-500 hover:bg-white">
+            <span className="inline-block rounded-full bg-neutral-100 px-3 py-1 text-xs font-medium text-neutral-900 first-letter:uppercase">{rotuloMes}</span>
+            <button type="button" aria-label="Próximo mês" onClick={() => mudarMes(1)} className="alvo-toque flex h-10 w-10 items-center justify-center rounded-full text-neutral-500 hover:bg-white lg:h-8 lg:w-8">
               <ChevronRight size={16} />
             </button>
           </div>
@@ -1005,7 +1010,8 @@ export default function Dashboard() {
               <span key={dia}>{dia}</span>
             ))}
           </div>
-          <div className="mt-1 grid grid-cols-7 gap-y-0.5">
+          {/* Celular: o dia tem 40px e as linhas ficam a 44px uma da outra, para o toque não cair no dia vizinho. */}
+          <div className="mt-1 grid grid-cols-7 gap-y-1 lg:gap-y-0.5">
             {celulas.map((dia, indice) => {
               if (!dia) return <span key={`vazio-${indice}`} />;
               const iso = isoLocal(new Date(mesCursor.ano, mesCursor.mes, dia));
@@ -1017,12 +1023,13 @@ export default function Dashboard() {
                   key={iso}
                   type="button"
                   onClick={() => escolherDia(iso)}
-                  className={`relative mx-auto flex h-7 w-7 items-center justify-center rounded-full text-xs ${
+                  aria-pressed={ehSel}
+                  className={`alvo-toque relative mx-auto flex h-10 w-10 items-center justify-center rounded-full text-sm lg:h-7 lg:w-7 lg:text-xs ${
                     ehHoje ? 'bg-neutral-900 font-semibold text-white' : ehSel ? 'bg-neutral-200 font-medium text-neutral-900' : 'text-neutral-700 hover:bg-white'
                   }`}
                 >
                   {dia}
-                  {temConsulta && !ehHoje && <span className="absolute bottom-0.5 h-1 w-1 rounded-full bg-neutral-400" />}
+                  {temConsulta && !ehHoje && <span className="absolute bottom-1.5 h-1 w-1 rounded-full bg-neutral-400 lg:bottom-0.5" />}
                 </button>
               );
             })}
@@ -1031,7 +1038,7 @@ export default function Dashboard() {
             <button
               type="button"
               onClick={() => setModalAgenda(true)}
-              className="inline-flex h-9 min-w-0 flex-1 items-center justify-center rounded-full bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800"
+              className="inline-flex h-11 min-w-0 flex-1 items-center justify-center rounded-full bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 lg:h-9"
             >
               Novo agendamento
             </button>
@@ -1040,24 +1047,30 @@ export default function Dashboard() {
                 type="button"
                 aria-label="Atualizar"
                 onClick={() => carregar({ silent: true })}
-                className="flex h-9 w-9 items-center justify-center rounded-full border border-black/10 bg-white text-neutral-600 hover:bg-neutral-50"
+                className="flex h-11 w-11 items-center justify-center rounded-full border border-black/10 bg-white text-neutral-600 hover:bg-neutral-50 lg:h-9 lg:w-9"
               >
                 <RefreshCw size={15} />
               </button>
             </DicaBotao>
           </div>
-          <div className="mt-3 flex items-baseline justify-between gap-2">
-            <p className="text-sm font-semibold capitalize text-neutral-900">{rotuloLinha}</p>
-            <p className="text-xs text-neutral-500">
+          {/* Celular: "Hoje" vira um botão de 40px; no computador continua sendo o link de texto. */}
+          <div className="mt-3 flex items-center justify-between gap-2 lg:items-baseline">
+            <p className="text-sm font-semibold text-neutral-900 first-letter:uppercase">{rotuloLinha}</p>
+            <p className="flex items-center text-xs text-neutral-500 lg:block">
               {diaISO !== hojeISO && (
-                <button type="button" onClick={() => escolherDia(hojeISO)} className="mr-2 font-medium text-neutral-500 hover:text-neutral-900">
+                <button
+                  type="button"
+                  onClick={() => escolherDia(hojeISO)}
+                  className="mr-2 inline-flex h-10 items-center rounded-full border border-black/10 bg-white px-4 text-sm font-medium text-neutral-700 hover:text-neutral-900 lg:h-auto lg:border-0 lg:bg-transparent lg:px-0 lg:text-xs lg:text-neutral-500"
+                >
                   Hoje
                 </button>
               )}
               Linha do dia
             </p>
           </div>
-          <div className="mt-2 flex min-h-0 flex-1 flex-col max-lg:max-h-[28rem]">
+          {/* Celular: a lista do dia cresce com a página. Com altura máxima ela virava uma rolagem dentro da outra e espremia o cartão aberto. */}
+          <div className="mt-2 flex min-h-0 flex-1 flex-col">
             {carregandoDia ? (
               <div className="space-y-2">
                 <div className="h-12 animate-pulse rounded-xl bg-white" />
@@ -1066,7 +1079,7 @@ export default function Dashboard() {
             ) : listaDia.length === 0 ? (
               <p className="rounded-xl bg-white px-3 py-3 text-sm text-neutral-400">Nenhuma consulta neste dia.</p>
             ) : (
-              <ul ref={listaRef} className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto lg:overscroll-contain">
+              <ul ref={listaRef} className="flex min-h-0 flex-1 flex-col gap-2 lg:overflow-y-auto lg:overscroll-contain">
                 {listaDia.map((ag) => {
                   const aberto = selecionado?.id === ag.id;
                   const ehAtual = emAtendimento?.id === ag.id;
@@ -1086,10 +1099,10 @@ export default function Dashboard() {
                       <div className={`flex min-h-0 flex-col rounded-xl bg-white ${aberto ? 'h-full shadow-sm ring-1 ring-black/5' : ''}`}>
                         <button type="button" onClick={() => alternarPaciente(ag.id)} className="flex w-full shrink-0 items-center gap-2.5 px-3 py-2 text-left">
                           <span className="w-11 shrink-0 text-sm font-semibold tabular-nums text-neutral-900">{hora(ag.data_hora)}</span>
-                          <FotoPaciente nome={paciente?.nome} url={paciente?.foto_url} />
+                          <FotoPaciente pacienteId={paciente?.id} nome={paciente?.nome} url={paciente?.foto_url} />
                           <span className="min-w-0 flex-1">
-                            <span className={`block truncate text-sm text-neutral-900 ${aberto ? 'font-semibold' : 'font-medium'}`}>{paciente?.nome || 'Consulta'}</span>
-                            <span className="block truncate text-xs text-neutral-500">
+                            <span className={`block break-words text-sm text-neutral-900 lg:truncate ${aberto ? 'font-semibold' : 'font-medium'}`}>{paciente?.nome || 'Consulta'}</span>
+                            <span className="block break-words text-xs text-neutral-500 lg:truncate">
                               {aberto
                                 ? `${contexto}${anosPaciente != null ? ` · ${anosPaciente} anos` : ''} · ${planoNome(paciente?.planos)}`
                                 : ag.procedimento || 'Consulta'}
@@ -1113,7 +1126,7 @@ export default function Dashboard() {
                                 <div className="grid grid-cols-2 gap-2">
                                   <div>
                                     <dt className="text-neutral-400">Telefone</dt>
-                                    <dd className="truncate text-neutral-800">{paciente?.telefone || '—'}</dd>
+                                    <dd className="break-words text-neutral-800 lg:truncate">{paciente?.telefone || '—'}</dd>
                                   </div>
                                   <div>
                                     <dt className="text-neutral-400">Valor</dt>
@@ -1143,12 +1156,13 @@ export default function Dashboard() {
                                   </div>
                                 ) : null}
                               </dl>
-                              <div className="mt-auto flex flex-wrap gap-1.5 pt-3">
+                              {/* Celular: os botões dividem a largura do cartão e têm 44px de altura. */}
+                              <div className="mt-auto flex flex-wrap gap-2 pt-3 lg:gap-1.5">
                                 {paciente?.id && (
                                   <button
                                     type="button"
                                     onClick={() => openPatient(paciente.id)}
-                                    className="inline-flex h-8 items-center gap-1 rounded-full border border-black/10 px-3 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+                                    className="inline-flex h-11 flex-1 items-center justify-center gap-1 rounded-full border border-black/10 px-3 text-sm font-medium text-neutral-700 hover:bg-neutral-50 lg:h-8 lg:flex-none lg:text-xs"
                                   >
                                     <FileText size={12} />
                                     Ficha
@@ -1159,7 +1173,7 @@ export default function Dashboard() {
                                     href={zap}
                                     target="_blank"
                                     rel="noreferrer"
-                                    className="inline-flex h-8 items-center rounded-full border border-black/10 px-3 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+                                    className="inline-flex h-11 flex-1 items-center justify-center rounded-full border border-black/10 px-3 text-sm font-medium text-neutral-700 hover:bg-neutral-50 lg:h-8 lg:flex-none lg:text-xs"
                                   >
                                     WhatsApp
                                   </a>
@@ -1167,7 +1181,7 @@ export default function Dashboard() {
                                 {detalheAtual && detalheAtual.saldo > 0 && paciente?.id && (
                                   <Link
                                     href={`/pacientes/${paciente.id}`}
-                                    className="inline-flex h-8 items-center rounded-full bg-neutral-900 px-3 text-xs font-medium text-white"
+                                    className="inline-flex h-11 flex-1 items-center justify-center rounded-full bg-neutral-900 px-3 text-sm font-medium text-white lg:h-8 lg:flex-none lg:text-xs"
                                   >
                                     Receber
                                   </Link>
@@ -1185,7 +1199,7 @@ export default function Dashboard() {
           </div>
           <Link
             href="/agenda"
-            className="mt-2 inline-flex h-9 shrink-0 items-center justify-center rounded-full bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800"
+            className="mt-2 inline-flex h-11 shrink-0 items-center justify-center rounded-full bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 lg:h-9"
           >
             Ver agenda
           </Link>
@@ -1215,15 +1229,17 @@ export default function Dashboard() {
               </div>
             </section>
 
-            <section className={`${card} flex min-h-[14rem] flex-col p-4 lg:min-h-0 lg:flex-1`}>
+            <section className={`${card} flex flex-col p-4 sm:min-h-[14rem] lg:min-h-0 lg:flex-1`}>
               <div className="flex shrink-0 items-center justify-between gap-2">
                 <h2 className="text-base font-semibold text-neutral-900">Tarefas</h2>
-                <Link href="/tarefas" className="text-xs font-medium text-neutral-500 hover:text-neutral-900">
+                {/* Celular: a margem negativa dá 40px de toque ao link sem aumentar o cabeçalho; "relative" o mantém
+                    por cima da legenda logo abaixo, que senão ficaria com os 8px de baixo. */}
+                <Link href="/tarefas" className="relative -my-2 -mr-2 inline-flex h-10 items-center px-2 text-xs font-medium text-neutral-500 hover:text-neutral-900 lg:m-0 lg:h-auto lg:px-0">
                   Ver todas
                 </Link>
               </div>
               <p className="shrink-0 text-xs text-neutral-500">Hoje e próximas a vencer</p>
-              <ul className="mt-2 min-h-0 flex-1 space-y-1 overflow-y-auto lg:overscroll-contain">
+              <ul className="mt-2 min-h-0 flex-1 space-y-1 lg:overflow-y-auto lg:overscroll-contain">
                 {tarefasCarregando ? (
                   <li className="space-y-2">
                     <div className="h-10 animate-pulse rounded-xl bg-neutral-100" />
@@ -1242,19 +1258,20 @@ export default function Dashboard() {
                         ? 'Hoje'
                         : new Date(`${dia}T12:00:00`).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
                     return (
-                      <li key={tarefa.id} className="flex items-start gap-2 rounded-xl px-1.5 py-1.5 hover:bg-neutral-50">
+                      // Celular: linha de 44px, com o círculo de concluir e o título como alvos inteiros.
+                      <li key={tarefa.id} className="flex items-center gap-2 rounded-xl px-1.5 hover:bg-neutral-50 lg:items-start lg:py-1.5">
                         <button
                           type="button"
                           aria-label={`Concluir ${tarefa.titulo}`}
                           onClick={() => concluirTarefa(tarefa.id)}
-                          className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-neutral-300 text-transparent hover:border-neutral-900 hover:text-neutral-900"
+                          className="alvo-toque flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-neutral-300 text-transparent hover:border-neutral-900 hover:text-neutral-900 lg:mt-0.5 lg:h-4 lg:w-4"
                         >
                           <Check size={10} />
                         </button>
-                        <Link href="/tarefas" className="min-w-0 flex-1">
-                          <p className="truncate text-sm text-neutral-900">{tarefa.titulo}</p>
+                        <Link href="/tarefas" className="flex min-h-[44px] min-w-0 flex-1 flex-col justify-center py-1 lg:block lg:min-h-0 lg:py-0">
+                          <p className="break-words text-sm text-neutral-900 lg:truncate">{tarefa.titulo}</p>
                           {(tarefa.paciente_nome || tarefa.responsavel_nome) && (
-                            <p className="truncate text-xs text-neutral-500">{tarefa.paciente_nome || tarefa.responsavel_nome}</p>
+                            <p className="break-words text-xs text-neutral-500 lg:truncate">{tarefa.paciente_nome || tarefa.responsavel_nome}</p>
                           )}
                         </Link>
                         <span
@@ -1273,9 +1290,10 @@ export default function Dashboard() {
           </div>
 
           <div className="flex flex-col gap-2.5 lg:min-h-0 lg:gap-3">
-            <section className={`${card} flex min-h-[20rem] flex-col overflow-hidden p-4 lg:min-h-0 lg:flex-[1.6]`}>
+            <section className={`${card} flex flex-col overflow-hidden p-4 sm:min-h-[20rem] lg:min-h-0 lg:flex-[1.6]`}>
               <h2 className="shrink-0 text-base font-semibold text-neutral-900">Calculadora de taxas</h2>
-              <div className="mt-2 grid shrink-0 grid-cols-2 items-end gap-2">
+              {/* Celular: um campo por linha; lado a lado o nome da taxa escolhida ficava cortado. */}
+              <div className="mt-2 grid shrink-0 grid-cols-1 items-end gap-2 lg:grid-cols-2">
                 <div>
                   <label className={rotulo}>Valor</label>
                   <div className="relative">
@@ -1300,13 +1318,15 @@ export default function Dashboard() {
                   />
                 </div>
               </div>
-              <div className="mt-2 grid shrink-0 grid-cols-[minmax(0,1fr)_4.75rem_5.25rem_5.25rem] gap-1.5 border-b border-black/5 px-1 pb-1 text-[11px] font-medium text-neutral-400">
+              {/* Celular: quatro colunas não cabem em 375px (a forma sobrava com 53px). Cada forma vira duas linhas:
+                  nome e quanto você recebe em cima; parcela e quanto cobrar embaixo. */}
+              <div className="mt-2 grid shrink-0 grid-cols-[minmax(0,1fr)_auto] gap-1.5 border-b border-black/5 px-1 pb-1 text-[11px] font-medium text-neutral-400 lg:grid-cols-[minmax(0,1fr)_4.75rem_5.25rem_5.25rem]">
                 <span>Forma</span>
-                <span className="text-right">Parcela</span>
+                <span className="hidden text-right lg:block">Parcela</span>
                 <span className="text-right">Você recebe</span>
-                <span className="text-right">Cobrar</span>
+                <span className="hidden text-right lg:block">Cobrar</span>
               </div>
-              <ul className="min-h-0 flex-1 overflow-y-auto lg:overscroll-contain">
+              <ul className="min-h-0 flex-1 lg:overflow-y-auto lg:overscroll-contain">
                 {formasCalc.length === 0 ? (
                   <li className="px-1 py-2 text-sm text-neutral-400">Cadastre as taxas em Configurações.</li>
                 ) : (
@@ -1314,14 +1334,24 @@ export default function Dashboard() {
                     const recebe = valorCalc * (1 - taxa.taxa / 100);
                     const cobrar = taxa.taxa < 100 ? valorCalc / (1 - taxa.taxa / 100) : valorCalc;
                     return (
-                      <li key={taxa.id} className="grid grid-cols-[minmax(0,1fr)_4.75rem_5.25rem_5.25rem] items-center gap-1.5 border-b border-black/[0.03] px-1 py-1.5 text-xs tabular-nums">
-                        <span className="min-w-0 truncate text-neutral-800">
+                      <li key={taxa.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-3 gap-y-0.5 border-b border-black/[0.03] px-1 py-2 text-xs tabular-nums lg:grid-cols-[minmax(0,1fr)_4.75rem_5.25rem_5.25rem] lg:items-center lg:gap-1.5 lg:py-1.5">
+                        <span className="min-w-0 break-words text-sm text-neutral-800 lg:truncate lg:text-xs">
                           {taxa.nome}
                           <span className="text-neutral-400"> · {taxa.taxa.toLocaleString('pt-BR')}%</span>
                         </span>
-                        <span className="text-right text-neutral-500">{taxa.parcelas > 1 ? moeda(valorCalc / taxa.parcelas) : '—'}</span>
-                        <span className="text-right font-medium text-neutral-900">{moeda(recebe)}</span>
-                        <span className="text-right text-neutral-500">{moeda(cobrar)}</span>
+                        <span className={`col-start-1 row-start-2 text-neutral-500 lg:col-start-auto lg:row-start-auto lg:text-right ${taxa.parcelas > 1 ? '' : 'max-lg:hidden'}`}>
+                          {taxa.parcelas > 1 ? (
+                            <>
+                              <span className="lg:hidden">Parcela de </span>
+                              {moeda(valorCalc / taxa.parcelas)}
+                            </>
+                          ) : '—'}
+                        </span>
+                        <span className="col-start-2 row-start-1 text-right text-sm font-semibold text-neutral-900 lg:col-start-auto lg:row-start-auto lg:text-xs lg:font-medium">{moeda(recebe)}</span>
+                        <span className="col-start-2 row-start-2 text-right text-neutral-500 lg:col-start-auto lg:row-start-auto">
+                          <span className="lg:hidden">Cobrar </span>
+                          {moeda(cobrar)}
+                        </span>
                       </li>
                     );
                   })

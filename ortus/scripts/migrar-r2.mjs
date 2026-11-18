@@ -40,7 +40,7 @@ const s3 = new S3Client({
 function publico(caminho) {
   if (caminho.startsWith('avatares/')) return true;
   if (/^clinicas\/\d+\//.test(caminho)) return true;
-  return /^pacientes\/[0-9a-f-]{36}\/avatar\.[a-z0-9]+$/i.test(caminho);
+  return false; // foto de paciente é privada (lib/caminhosArquivo.ts): só avatares/ e clinicas/ vão para o bucket público
 }
 
 function urlNova(caminho) {

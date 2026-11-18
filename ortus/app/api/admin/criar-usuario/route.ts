@@ -1,180 +1,171 @@
-import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 import { buildPresetAccessMap, presetIdFromCargo } from '@/lib/permissionPresets';
 import type { ModuleName } from '@/lib/types/permissions';
 import { MODULES } from '@/lib/modules';
+import { clinicasQueAdministra, ehSuperAdmin, identificarChamador } from '@/lib/chamadorApi';
+import { ERRO_INTERNO, registrarFalha } from '@/lib/registro';
+import { enviarEmail } from '@/lib/email';
+import { emailAcessoCriado } from '@/lib/emailModelos';
+import { origemParaEmail } from '@/lib/origemApp';
 
 /**
- * API de Administração — Criar Funcionário (Temporary Password Flow)
+ * API de Administração — Criar Funcionário (senha temporária)
  *
- * - Usa SERVICE_ROLE_KEY para criar o usuário no Supabase Auth sem afetar a
+ * - Usa a service role para criar o usuário no Supabase Auth sem mexer na
  *   sessão do administrador que está logado no navegador.
- * - Gera uma senha temporária aleatória e a retorna no payload para que o
- *   admin a comunique pessoalmente ao funcionário.
- * - Marca `precisa_trocar_senha = true` no `profissionais` para forçar
- *   o fluxo de primeiro acesso (/primeiro-acesso) no primeiro login.
- * - Antes de criar, valida que o usuário chamador é admin e que TODAS as
- *   clínicas alvo pertencem à rede dele (isolamento Multi-Tenant).
+ * - Gera uma senha temporária e a devolve UMA vez, para o administrador
+ *   entregar pessoalmente. `precisa_trocar_senha = true` força a troca no
+ *   primeiro acesso (/primeiro-acesso).
+ * - Só cria em clínicas que o chamador ADMINISTRA: nível `admin` e vínculo
+ *   que não veio de convite. Quem foi convidado para uma clínica de outra
+ *   rede trabalha nela, mas não contrata gente em nome dela.
  */
 
-function gerarSenhaTemporaria(tamanho = 8): string {
-    // Evita caracteres ambíguos (0/O, 1/I/l) para facilitar a digitação manual.
+function gerarSenhaTemporaria(tamanho = 10): string {
+    // Sem caracteres ambíguos (0/O, 1/I/l), para facilitar a digitação manual.
     const alfabeto = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+    const buf = new Uint32Array(tamanho);
+    globalThis.crypto.getRandomValues(buf);
     let out = '';
-    const cripto = globalThis.crypto;
-    if (cripto && 'getRandomValues' in cripto) {
-        const buf = new Uint32Array(tamanho);
-        cripto.getRandomValues(buf);
-        for (let i = 0; i < tamanho; i++) out += alfabeto[buf[i] % alfabeto.length];
-    } else {
-        for (let i = 0; i < tamanho; i++) out += alfabeto[Math.floor(Math.random() * alfabeto.length)];
-    }
+    for (let i = 0; i < tamanho; i++) out += alfabeto[buf[i] % alfabeto.length];
     return out;
 }
 
 export async function POST(req: Request) {
     try {
-        const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-        const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-        const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+        const chamador = await identificarChamador(req);
+        if (!chamador) return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
+        const supabaseAdmin = chamador.admin;
 
-        if (!url || !serviceKey || !anonKey) {
-            return NextResponse.json({ error: 'Variáveis de ambiente do Supabase ausentes.' }, { status: 500 });
-        }
-
-        const supabaseAdmin = createClient(url, serviceKey, {
-            auth: { autoRefreshToken: false, persistSession: false },
-        });
-
-        // ---- 1. Autenticação do chamador (admin) ----
-        const authHeader = req.headers.get('authorization') || '';
-        const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
-        if (!token) {
-            return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
-        }
-
-        const { data: caller, error: callerErr } = await supabaseAdmin.auth.getUser(token);
-        if (callerErr || !caller?.user) {
-            return NextResponse.json({ error: 'Sessão inválida.' }, { status: 401 });
-        }
-
-        const { data: perfilCaller, error: perfilErr } = await supabaseAdmin
-            .from('profissionais')
-            .select('id, nivel_acesso, is_super_admin')
-            .eq('user_id', caller.user.id)
-            .single();
-
-        if (perfilErr || !perfilCaller) {
-            return NextResponse.json({ error: 'Perfil profissional do solicitante não encontrado.' }, { status: 403 });
-        }
-        if (perfilCaller.nivel_acesso !== 'admin' && !perfilCaller.is_super_admin) {
-            return NextResponse.json({ error: 'Apenas administradores podem criar funcionários.' }, { status: 403 });
-        }
-
-        // ---- 2. Parsing do payload ----
         const body = await req.json().catch(() => ({}));
-        const { email, nome, cargo, clinicas } = body as {
-            email?: string; nome?: string; cargo?: string; clinicas?: Array<string | number>;
-        };
+        const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : '';
+        const nome = typeof body?.nome === 'string' ? body.nome.trim().slice(0, 120) : '';
+        const cargo = typeof body?.cargo === 'string' ? body.cargo.trim().slice(0, 80) : '';
+        const clinicas: unknown = body?.clinicas;
 
-        if (!email || !nome) {
-            return NextResponse.json({ error: 'Nome e e-mail são obrigatórios.' }, { status: 400 });
+        if (!nome || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+            return NextResponse.json({ error: 'Nome e e-mail válido são obrigatórios.' }, { status: 400 });
         }
         if (!Array.isArray(clinicas) || clinicas.length === 0) {
             return NextResponse.json({ error: 'Selecione pelo menos uma unidade de acesso.' }, { status: 400 });
         }
-
-        // ---- 3. Validação Multi-Tenant: só clínicas que o admin enxerga ----
-        const { data: vinculosAdmin } = await supabaseAdmin
-            .from('profissionais_clinicas')
-            .select('clinica_id')
-            .eq('profissional_id', perfilCaller.id);
-
-        const idsPermitidos = new Set((vinculosAdmin || []).map((v: any) => String(v.clinica_id)));
-        const idsPedidos = clinicas.map((c) => String(c));
-        const fora = idsPedidos.filter((id) => !idsPermitidos.has(id));
-        if (fora.length > 0 && !perfilCaller.is_super_admin) {
-            return NextResponse.json(
-                { error: 'Você não tem permissão para vincular este usuário a clínicas fora da sua rede.' },
-                { status: 403 },
-            );
+        const idsPedidos = [...new Set(clinicas.map((c) => String(c)))];
+        if (idsPedidos.some((id) => !/^\d{1,12}$/.test(id))) {
+            return NextResponse.json({ error: 'Unidade inválida.' }, { status: 400 });
         }
 
-        // ---- 4. Cria o usuário no Auth com senha temporária ----
-        const senhaTemporaria = gerarSenhaTemporaria(8);
+        if (!ehSuperAdmin(chamador)) {
+            const administradas = await clinicasQueAdministra(chamador);
+            if (administradas.size === 0) {
+                return NextResponse.json({ error: 'Apenas administradores podem criar funcionários.' }, { status: 403 });
+            }
+            if (idsPedidos.some((id) => !administradas.has(id))) {
+                return NextResponse.json(
+                    { error: 'Você só pode cadastrar funcionários nas clínicas que administra.' },
+                    { status: 403 },
+                );
+            }
+        }
+
+        // Limite do plano antes de criar o login: com a equipe completa, nada é criado e o
+        // administrador recebe a frase do plano (o banco confere de novo no vínculo).
+        const { data: unidades } = await supabaseAdmin.from('clinicas').select('rede_id').in('id', idsPedidos.map(Number));
+        for (const rede of [...new Set((unidades || []).map((u) => u.rede_id).filter(Boolean))]) {
+            const { data: uso } = await supabaseAdmin.rpc('plano_uso_rede', { p_rede: rede });
+            const u = uso as { plano_nome?: string | null; limite_profissionais?: number | null; profissionais?: number } | null;
+            if (u?.limite_profissionais && (u.profissionais ?? 0) >= u.limite_profissionais) {
+                const { data: frase } = await supabaseAdmin.rpc('plano_frase_profissionais', { p_plano: u.plano_nome ?? null, p_limite: u.limite_profissionais });
+                return NextResponse.json({ error: String(frase || 'A equipe já está completa no plano desta clínica.') }, { status: 409 });
+            }
+        }
+
+        const senhaTemporaria = gerarSenhaTemporaria();
         const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
             email,
             password: senhaTemporaria,
             email_confirm: true,
             user_metadata: { nome, cargo },
         });
-
         if (authError || !authData?.user) {
-            return NextResponse.json({ error: authError?.message || 'Falha ao criar usuário.' }, { status: 400 });
+            const jaExiste = /already|registered|exists/i.test(authError?.message || '');
+            return NextResponse.json(
+                { error: jaExiste ? 'Já existe uma conta com este e-mail. Use o convite de equipe.' : 'Não foi possível criar o acesso.' },
+                { status: jaExiste ? 409 : 400 },
+            );
         }
 
-        // ---- 5. Insere o profissional com flag de troca de senha ----
         const { data: profData, error: profError } = await supabaseAdmin
             .from('profissionais')
-            .insert([{
-                user_id: authData.user.id,
-                nome,
-                cargo: cargo || null,
-                nivel_acesso: 'comum',
-                precisa_trocar_senha: true,
-            }])
-            .select()
+            .insert([{ user_id: authData.user.id, nome, cargo: cargo || null, nivel_acesso: 'comum', precisa_trocar_senha: true }])
+            .select('id')
             .single();
-
         if (profError || !profData) {
-            // Rollback do Auth para não deixar conta órfã.
+            // Desfaz o login para não sobrar conta sem perfil.
             await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
-            return NextResponse.json({ error: profError?.message || 'Falha ao salvar profissional.' }, { status: 500 });
+            await registrarFalha({ origem: 'api/admin/criar-usuario', extra: { etapa: 'perfil' } }, profError);
+            return NextResponse.json({ error: ERRO_INTERNO }, { status: 500 });
         }
 
-        // ---- 6. Vínculos com clínicas ----
-        const vinculos = idsPedidos.map((clinica_id) => ({
-            profissional_id: profData.id,
-            clinica_id,
-        }));
-        const { error: vincErr } = await supabaseAdmin.from('profissionais_clinicas').insert(vinculos);
+        const { error: vincErr } = await supabaseAdmin
+            .from('profissionais_clinicas')
+            .insert(idsPedidos.map((clinica_id) => ({ profissional_id: profData.id, clinica_id: Number(clinica_id) })));
         if (vincErr) {
-            // Não derruba o usuário se o vínculo falhar — apenas retorna aviso.
-            return NextResponse.json({
-                success: true,
-                warning: 'Usuário criado, mas houve erro ao vincular clínicas: ' + vincErr.message,
-                email,
-                senha_temporaria: senhaTemporaria,
-                profissional_id: profData.id,
-            });
+            // Sem vínculo a pessoa entraria num sistema vazio. Desfaz tudo.
+            await supabaseAdmin.from('profissionais').delete().eq('id', profData.id);
+            await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
+            // Limite do plano (outro cadastro ocupou a última vaga no meio do caminho): a frase do banco é para pessoas.
+            if (vincErr.code === 'P0001' && /^O plano /.test(vincErr.message || '')) {
+                return NextResponse.json({ error: vincErr.message }, { status: 409 });
+            }
+            await registrarFalha({ origem: 'api/admin/criar-usuario', extra: { etapa: 'vinculo' } }, vincErr);
+            return NextResponse.json({ error: ERRO_INTERNO }, { status: 500 });
         }
 
-        // ---- 7. Permissões granulares padrão por cargo ----
+        // Módulos padrão do cargo. Se falhar, a pessoa entra sem módulos e o
+        // administrador ajusta em Equipe — o aviso volta na resposta.
         const presetMap = buildPresetAccessMap(presetIdFromCargo(cargo));
-        const permissoesPayload = idsPedidos.flatMap((clinica_id) =>
-            MODULES.map((modulo) => ({
-                profissional_id: profData.id,
-                clinica_id: Number(clinica_id),
-                modulo: modulo.id as ModuleName,
-                pode_acessar: presetMap[modulo.id],
-            })),
-        );
         const { error: permErr } = await supabaseAdmin
             .from('permissoes_modulos')
-            .upsert(permissoesPayload, { onConflict: 'profissional_id,clinica_id,modulo' });
-        if (permErr) {
-            console.warn('[criar-usuario] permissões padrão:', permErr.message);
-        }
+            .upsert(
+                idsPedidos.flatMap((clinica_id) =>
+                    MODULES.map((modulo) => ({
+                        profissional_id: profData.id,
+                        clinica_id: Number(clinica_id),
+                        modulo: modulo.id as ModuleName,
+                        pode_acessar: presetMap[modulo.id],
+                    })),
+                ),
+                { onConflict: 'profissional_id,clinica_id,modulo' },
+            );
+        if (permErr) await registrarFalha({ origem: 'api/admin/criar-usuario', extra: { etapa: 'permissoes' } }, permErr);
+
+        // Aviso para a pessoa: a conta existe e quem entrega a senha é o administrador.
+        // A senha temporária nunca vai por e-mail.
+        const { data: clinicasCriadas } = await supabaseAdmin.from('clinicas').select('nome').in('id', idsPedidos.map(Number));
+        const aviso = await enviarEmail({
+            para: email,
+            ...emailAcessoCriado({
+                nome,
+                clinicas: (clinicasCriadas || []).map((c) => String(c.nome || '')).filter(Boolean),
+                administradorNome: chamador.prof.nome,
+                origem: origemParaEmail(),
+            }),
+            categoria: 'acesso_criado',
+        });
+        if (!aviso.ok) await registrarFalha({ origem: 'api/admin/criar-usuario', extra: { etapa: 'email' } }, new Error(aviso.erro));
 
         return NextResponse.json({
             success: true,
+            email_enviado: aviso.ok,
+            ...(aviso.ok ? {} : { email_erro: aviso.erro }),
+            ...(permErr ? { warning: 'Acesso criado, mas as permissões padrão não foram gravadas. Ajuste em Equipe.' } : {}),
             email,
             senha_temporaria: senhaTemporaria,
             profissional_id: profData.id,
             user_id: authData.user.id,
         });
-    } catch (err: any) {
-        console.error('Erro em /api/admin/criar-usuario:', err);
-        return NextResponse.json({ error: err?.message || 'Erro interno.' }, { status: 500 });
+    } catch (err) {
+        await registrarFalha({ origem: 'api/admin/criar-usuario' }, err);
+        return NextResponse.json({ error: ERRO_INTERNO }, { status: 500 });
     }
 }

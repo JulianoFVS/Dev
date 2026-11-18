@@ -124,15 +124,18 @@ export default function Modal({
         style={{ backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)' }}
         onClick={closeOnBackdrop ? onClose : undefined}
       />
+      {/* A altura máxima padrão vai em :where(), sem especificidade. No CSS gerado o Tailwind põe as
+          alturas máximas de valor livre em ordem alfabética (a de 90vh vinha depois da de 85vh e vencia);
+          assim, a que a tela passa em panelClassName sempre vale. dvh segue a barra do navegador do celular. */}
       <div
-        className={`relative w-full ${MAX_WIDTH[maxWidth]} max-h-[90vh] overflow-hidden flex flex-col ${saindo ? 'animate-out fade-out slide-out-to-bottom-2 duration-150' : 'animate-in fade-in slide-in-from-bottom-2 duration-200'} ${panelClassName}`}
+        className={`relative w-full ${MAX_WIDTH[maxWidth]} [:where(&)]:max-h-[90dvh] overflow-hidden flex flex-col ${saindo ? 'animate-out fade-out slide-out-to-bottom-2 duration-150' : 'animate-in fade-in slide-in-from-bottom-2 duration-200'} ${panelClassName}`}
         onClick={(e) => e.stopPropagation()}
       >
         {!hideCloseButton && (
           <button
             type="button"
             onClick={onClose}
-            className="absolute top-3 right-3 z-10 p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-slate-100 transition-colors"
+            className="absolute right-3 top-3 z-10 inline-flex h-10 w-10 items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-neutral-100 sm:h-8 sm:w-8"
             aria-label="Fechar modal"
           >
             <X size={20} />

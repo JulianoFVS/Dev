@@ -1,193 +1,209 @@
 'use client';
 import { useEffect, useState, type FormEvent } from 'react';
+import { useRouter } from 'next/navigation';
+import { AlertTriangle, Check, Eye, EyeOff, Loader2, ShieldCheck } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { dados as tabelas } from '@/lib/local/consulta';
 import { gravarVerificadorSenha } from '@/lib/local/cliente';
-import { useRouter } from 'next/navigation';
-import { Lock, Loader2, ShieldCheck, Eye, EyeOff, Check, AlertTriangle } from 'lucide-react';
+import { fraseDoErroDeSenha, sessaoDaSenhaPerdida, validarSenhaNova, type ErroDeSenha } from '@/lib/senhaNova';
 
 /**
  * Tela obrigatória de primeiro acesso.
  *
- * Acessada quando `profissionais.precisa_trocar_senha = true`. O usuário não
- * consegue navegar pelo sistema enquanto não trocar a senha temporária.
+ * Acessada quando `profissionais.precisa_trocar_senha = true` (funcionário com
+ * senha temporária ou quem acabou de assinar e chegou pelo link do e-mail).
+ * Ninguém navega pelo sistema antes de escolher a própria senha e aceitar os
+ * termos. A tela abre na hora; a sessão e o perfil são conferidos em seguida.
  */
+
+const BOTAO = 'inline-flex h-11 w-full items-center justify-center gap-2 rounded-md bg-neutral-900 px-4 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-60';
+const ROTULO = 'mb-1.5 block text-xs font-medium text-neutral-500';
+const CAMPO = 'h-10 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm text-neutral-900 outline-none placeholder:text-neutral-400 focus:border-neutral-400';
+
 export default function PrimeiroAcesso() {
-    const router = useRouter();
-    const [carregando, setCarregando] = useState(true);
-    const [salvando, setSalvando] = useState(false);
-    const [nome, setNome] = useState<string>('');
-    const [novaSenha, setNovaSenha] = useState('');
-    const [confirmar, setConfirmar] = useState('');
-    const [mostrar, setMostrar] = useState(false);
-    const [erro, setErro] = useState<string | null>(null);
-    const [aceitouTermos, setAceitouTermos] = useState(false);
+  const router = useRouter();
+  const [salvando, setSalvando] = useState(false);
+  const [nome, setNome] = useState('');
+  const [novaSenha, setNovaSenha] = useState('');
+  const [confirmar, setConfirmar] = useState('');
+  const [mostrar, setMostrar] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+  const [aceitouTermos, setAceitouTermos] = useState(false);
 
-    useEffect(() => {
-        (async () => {
-            const { data: { session } } = await supabase.auth.getSession();
-            if (!session) {
-                router.replace('/login');
-                return;
-            }
-            const { data: prof } = await tabelas.from('profissionais')
-                .select('nome, precisa_trocar_senha')
-                .eq('user_id', session.user.id)
-                .single();
+  useEffect(() => {
+    let vivo = true;
+    (async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!vivo) return;
+      if (!session) {
+        router.replace('/login');
+        return;
+      }
+      const { data: prof } = await tabelas.from('profissionais')
+        .select('nome, precisa_trocar_senha')
+        .eq('user_id', session.user.id)
+        .maybeSingle();
+      if (!vivo) return;
+      // Senha já escolhida: segue o fluxo normal.
+      if (prof && !prof.precisa_trocar_senha) {
+        router.replace('/dashboard');
+        return;
+      }
+      setNome(prof?.nome || '');
+    })();
+    return () => {
+      vivo = false;
+    };
+  }, [router]);
 
-            // Se a flag for false, manda para o fluxo normal.
-            if (!prof?.precisa_trocar_senha) {
-                router.replace('/dashboard');
-                return;
-            }
-            setNome(prof?.nome || '');
-            setCarregando(false);
-        })();
-    }, [router]);
+  async function salvar(e: FormEvent) {
+    e.preventDefault();
+    if (salvando) return;
+    setErro(null);
+    const errSenha = validarSenhaNova(novaSenha);
+    if (errSenha) { setErro(errSenha); return; }
+    if (novaSenha !== confirmar) { setErro('As senhas não coincidem.'); return; }
+    if (!aceitouTermos) { setErro('Para entrar, aceite os Termos de Uso e a Política de Privacidade.'); return; }
 
-    function validarSenha(s: string): string | null {
-        if (s.length < 8) return 'A senha deve ter pelo menos 8 caracteres.';
-        if (!/[A-Za-z]/.test(s) || !/[0-9]/.test(s)) return 'Use letras e números na nova senha.';
-        return null;
-    }
-
-    async function salvar(e: FormEvent) {
-        e.preventDefault();
-        setErro(null);
-        const errSenha = validarSenha(novaSenha);
-        if (errSenha) { setErro(errSenha); return; }
-        if (novaSenha !== confirmar) { setErro('As senhas não coincidem.'); return; }
-        if (!aceitouTermos) { setErro('Você precisa aceitar os termos para acessar o sistema.'); return; }
-
-        setSalvando(true);
-        try {
-            const { error: upErr } = await supabase.auth.updateUser({ password: novaSenha });
-            if (upErr) throw upErr;
-            await gravarVerificadorSenha(novaSenha);
-
-            const { data: { user } } = await supabase.auth.getUser();
-            if (user) {
-                const { error: flagErr } = await tabelas.from('profissionais')
-                    .update({ precisa_trocar_senha: false })
-                    .eq('user_id', user.id);
-                if (flagErr) console.warn('Falha ao limpar flag:', flagErr);
-            }
-
-            // Decide destino: se 1 clínica → dashboard; se múltiplas → seleção.
-            const { data: { user: u2 } } = await supabase.auth.getUser();
-            let destino = '/selecao';
-            if (u2) {
-                const { data: prof } = await tabelas.from('profissionais').select('id').eq('user_id', u2.id).single();
-                if (prof?.id) {
-                    const { data: vinculos } = await tabelas.from('profissionais_clinicas').select('clinica_id').eq('profissional_id', prof.id);
-                    if (vinculos?.length === 1) {
-                        localStorage.setItem('ortus_clinica_id', String(vinculos[0].clinica_id));
-                        destino = '/dashboard';
-                    }
-                }
-            }
-            router.replace(destino);
-        } catch (err: any) {
-            setErro(err?.message || 'Não foi possível alterar a senha.');
-            setSalvando(false);
+    setSalvando(true);
+    try {
+      const { error: upErr } = await supabase.auth
+        .updateUser({ password: novaSenha })
+        .catch(() => ({ error: { name: 'AuthUnknownError' } as ErroDeSenha }));
+      // "same_password" numa segunda tentativa: a senha já ficou gravada na primeira e o que
+      // faltou foi concluir o primeiro acesso. Segue para isso.
+      if (upErr && (upErr as ErroDeSenha)?.code !== 'same_password') {
+        if (sessaoDaSenhaPerdida(upErr as ErroDeSenha)) {
+          setErro('Sua sessão terminou. Abra de novo o link do e-mail ou entre com a senha temporária.');
+        } else {
+          setErro(fraseDoErroDeSenha(upErr as ErroDeSenha));
         }
+        setSalvando(false);
+        return;
+      }
+      await gravarVerificadorSenha(novaSenha).catch(() => undefined);
+
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setErro('Sua sessão terminou. Abra de novo o link do e-mail ou entre com a senha temporária.');
+        setSalvando(false);
+        return;
+      }
+      const { error: flagErr } = await tabelas.from('profissionais')
+        .update({ precisa_trocar_senha: false })
+        .eq('user_id', user.id);
+      if (flagErr) {
+        // Sem isso a casca traria a pessoa de volta para cá: avisa e deixa tentar de novo.
+        setErro('A senha foi salva, mas não deu para concluir o primeiro acesso. Toque em Salvar de novo.');
+        setSalvando(false);
+        return;
+      }
+
+      // Uma clínica: direto para o painel. Várias: escolher a unidade.
+      let destino = '/selecao';
+      const { data: prof } = await tabelas.from('profissionais').select('id').eq('user_id', user.id).maybeSingle();
+      if (prof?.id) {
+        const { data: vinculos } = await tabelas.from('profissionais_clinicas').select('clinica_id').eq('profissional_id', prof.id);
+        if (vinculos?.length === 1) {
+          localStorage.setItem('ortus_clinica_id', String(vinculos[0].clinica_id));
+          destino = '/dashboard';
+        }
+      }
+      router.replace(destino);
+    } catch {
+      setErro('Não foi possível concluir agora. Confira a internet e tente de novo.');
+      setSalvando(false);
     }
+  }
 
-    if (carregando) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-slate-50 text-blue-600">
-                <Loader2 size={32} className="animate-spin"/>
+  return (
+    <div className="flex h-dvh items-center justify-center overflow-y-auto bg-[#f3f4f1] px-4 py-6 font-poppins text-neutral-900">
+      <main className="w-full max-w-md rounded-2xl border border-neutral-200 bg-white p-5 md:p-6">
+        <span className="flex h-11 w-11 items-center justify-center rounded-full bg-neutral-100 text-neutral-700">
+          <ShieldCheck size={22} aria-hidden />
+        </span>
+        <h1 className="mt-4 text-2xl font-semibold tracking-tight text-neutral-900">Defina sua nova senha</h1>
+        <p className="mt-2 text-sm leading-relaxed text-neutral-600">
+          {nome ? <>Olá, <span className="font-medium text-neutral-900">{nome.split(' ')[0]}</span>! </> : null}
+          Escolha a senha que você vai usar para entrar. Use pelo menos 8 caracteres, com letras e números.
+        </p>
+
+        {erro && (
+          <div role="alert" className="mt-4 flex items-start gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            <AlertTriangle size={16} className="mt-0.5 shrink-0" aria-hidden />
+            <span>{erro}</span>
+          </div>
+        )}
+
+        <form onSubmit={salvar} className="mt-5 space-y-4">
+          <div>
+            <label htmlFor="nova-senha" className={ROTULO}>
+              Nova senha <span className="text-red-500">*</span>
+            </label>
+            <div className="relative">
+              <input
+                id="nova-senha"
+                type={mostrar ? 'text' : 'password'}
+                autoComplete="new-password"
+                value={novaSenha}
+                onChange={(e) => setNovaSenha(e.target.value)}
+                className={`${CAMPO} pr-11`}
+                placeholder="Mínimo 8 caracteres com letras e números"
+                required
+                autoFocus
+              />
+              <button
+                type="button"
+                onClick={() => setMostrar((v) => !v)}
+                className="absolute inset-y-0 right-0 flex w-10 items-center justify-center rounded-r-md text-neutral-400 hover:text-neutral-700"
+                tabIndex={-1}
+                aria-label={mostrar ? 'Ocultar senha' : 'Mostrar senha'}
+              >
+                {mostrar ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
             </div>
-        );
-    }
+          </div>
 
-    return (
-        <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 relative overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-br from-blue-100/40 to-slate-50 z-0"></div>
-            <div className="bg-white w-full max-w-md p-10 rounded-3xl shadow-2xl shadow-blue-900/10 border border-white relative z-10">
-                <div className="flex flex-col items-center mb-8">
-                    <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-blue-200 mb-4">
-                        <ShieldCheck size={28}/>
-                    </div>
-                    <h1 className="text-2xl font-extrabold text-slate-800">Defina sua nova senha</h1>
-                    <p className="text-sm text-slate-500 text-center mt-2">
-                        {nome ? <>Olá, <span className="font-bold text-slate-700">{nome.split(' ')[0]}</span>! </> : null}
-                        Por segurança, troque a senha temporária antes de continuar.
-                    </p>
-                </div>
+          <div>
+            <label htmlFor="confirmar-senha" className={ROTULO}>
+              Confirmar senha <span className="text-red-500">*</span>
+            </label>
+            <input
+              id="confirmar-senha"
+              type={mostrar ? 'text' : 'password'}
+              autoComplete="new-password"
+              value={confirmar}
+              onChange={(e) => setConfirmar(e.target.value)}
+              className={CAMPO}
+              placeholder="Repita a nova senha"
+              required
+            />
+          </div>
 
-                {erro && (
-                    <div className="bg-red-50 border border-red-200 text-red-700 text-xs font-bold px-3 py-2 rounded-lg flex items-center gap-2 mb-4">
-                        <AlertTriangle size={14}/> {erro}
-                    </div>
-                )}
+          <label className="flex min-h-10 cursor-pointer items-start gap-3">
+            <input
+              type="checkbox"
+              checked={aceitouTermos}
+              onChange={(e) => setAceitouTermos(e.target.checked)}
+              className="mt-0.5 h-4 w-4 shrink-0 rounded border-neutral-300 accent-neutral-900 focus:ring-neutral-400"
+            />
+            <span className="text-sm leading-relaxed text-neutral-600">
+              Eu li e concordo com os{' '}
+              <a href="/termos" target="_blank" rel="noopener noreferrer" className="font-medium text-neutral-900 underline underline-offset-2">Termos de Uso</a>{' '}e a{' '}
+              <a href="/privacidade" target="_blank" rel="noopener noreferrer" className="font-medium text-neutral-900 underline underline-offset-2">Política de Privacidade</a>.
+            </span>
+          </label>
 
-                <form onSubmit={salvar} className="space-y-4">
-                    <div>
-                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">Nova senha</label>
-                        <div className="relative mt-1">
-                            <Lock className="absolute left-4 top-3.5 text-slate-300" size={20}/>
-                            <input
-                                type={mostrar ? 'text' : 'password'}
-                                value={novaSenha}
-                                onChange={(e) => setNovaSenha(e.target.value)}
-                                className="w-full pl-12 pr-12 py-3.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all font-medium text-slate-700"
-                                placeholder="Mínimo 8 caracteres com letras e números"
-                                required
-                                autoFocus
-                            />
-                            <button type="button" onClick={() => setMostrar(!mostrar)} className="absolute right-4 top-3.5 text-slate-300 hover:text-blue-500" tabIndex={-1}>
-                                {mostrar ? <EyeOff size={20}/> : <Eye size={20}/>}
-                            </button>
-                        </div>
-                    </div>
+          <button type="submit" disabled={salvando} className={BOTAO}>
+            {salvando ? <Loader2 size={16} className="animate-spin" aria-hidden /> : <Check size={16} aria-hidden />}
+            {salvando ? 'Salvando…' : 'Salvar nova senha'}
+          </button>
+        </form>
 
-                    <div>
-                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">Confirmar senha</label>
-                        <div className="relative mt-1">
-                            <Lock className="absolute left-4 top-3.5 text-slate-300" size={20}/>
-                            <input
-                                type={mostrar ? 'text' : 'password'}
-                                value={confirmar}
-                                onChange={(e) => setConfirmar(e.target.value)}
-                                className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all font-medium text-slate-700"
-                                placeholder="Repita a nova senha"
-                                required
-                            />
-                        </div>
-                    </div>
-
-                    <label className="flex items-start gap-3 cursor-pointer group mt-2">
-                        <input
-                            type="checkbox"
-                            checked={aceitouTermos}
-                            onChange={(e) => setAceitouTermos(e.target.checked)}
-                            className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 accent-blue-600"
-                        />
-                        <span className="text-xs text-slate-500 leading-relaxed">
-                            Eu li e concordo com os{' '}
-                            <a href="/termos" target="_blank" className="text-blue-600 font-bold hover:underline">Termos de Uso</a>{' '}e a{' '}
-                            <a href="/privacidade" target="_blank" className="text-blue-600 font-bold hover:underline">Política de Privacidade</a>.
-                        </span>
-                    </label>
-                    {!aceitouTermos && erro?.includes('termos') && (
-                        <p className="text-[11px] text-red-500 font-bold ml-7">Você precisa aceitar os termos para acessar o sistema.</p>
-                    )}
-
-                    <button
-                        type="submit"
-                        disabled={salvando}
-                        className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white font-bold py-4 rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all shadow-lg shadow-blue-200 active:scale-[0.98] flex justify-center items-center gap-2 mt-2 disabled:opacity-60"
-                    >
-                        {salvando ? <Loader2 className="animate-spin" size={18}/> : <Check size={18}/>}
-                        Salvar nova senha
-                    </button>
-                </form>
-
-                <p className="text-[10px] text-center text-slate-400 mt-6 font-medium">
-                    Você não conseguirá acessar o sistema enquanto não definir uma senha pessoal.
-                </p>
-            </div>
-        </div>
-    );
+        <p className="mt-5 text-xs leading-relaxed text-neutral-500">
+          Enquanto a senha não for definida, o sistema não abre.
+        </p>
+      </main>
+    </div>
+  );
 }

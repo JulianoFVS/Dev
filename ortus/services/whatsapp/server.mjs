@@ -1,6 +1,6 @@
 import { createServer } from 'node:http';
 import { createRequire } from 'node:module';
-import { timingSafeEqual } from 'node:crypto';
+import { createHash, timingSafeEqual } from 'node:crypto';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -21,9 +21,16 @@ const AGENDADOR_ATIVO = repositorio.agendadorAtivo;
 
 const PASTA_SESSAO = process.env.WHATSAPP_DATA_DIR || path.join(RAIZ, '.wwebjs_auth');
 const SEGREDO = process.env.WHATSAPP_GATEWAY_SECRET || '';
-// Railway, Render e afins informam a porta em PORT e exigem ouvir em todas as interfaces.
-const PORTA = Number(process.env.WHATSAPP_GATEWAY_PORT || process.env.PORT || 3920);
-const HOST = process.env.WHATSAPP_GATEWAY_HOST || (process.env.PORT ? '0.0.0.0' : '127.0.0.1');
+// O serviço escuta só nesta máquina. Sair do loopback pede duas variáveis de
+// propósito (WHATSAPP_GATEWAY_HOST e WHATSAPP_GATEWAY_EXPOSE=1): fora dele, o
+// segredo é a única barreira entre a rede e as conversas da clínica.
+const LOOPBACK = new Set(['127.0.0.1', 'localhost', '::1']);
+const HOST_PEDIDO = (process.env.WHATSAPP_GATEWAY_HOST || '').trim();
+const EXPOSTO = process.env.WHATSAPP_GATEWAY_EXPOSE === '1' && Boolean(HOST_PEDIDO) && !LOOPBACK.has(HOST_PEDIDO);
+const HOST = EXPOSTO || LOOPBACK.has(HOST_PEDIDO) ? HOST_PEDIDO : '127.0.0.1';
+// PORT é a porta que Railway, Render e afins entregam ao contêiner. Só vale no
+// modo exposto: numa VM, PORT costuma ser a porta do site.
+const PORTA = Number(process.env.WHATSAPP_GATEWAY_PORT || (EXPOSTO ? process.env.PORT : '') || 3920);
 // O sandbox do editor aponta o cache do Puppeteer para um Chrome incompleto.
 if ((process.env.PUPPETEER_CACHE_DIR || '').includes('cursor-sandbox-cache')) {
   delete process.env.PUPPETEER_CACHE_DIR;
@@ -35,6 +42,9 @@ const CHROME = CHROME_EXPLICITO && !CHROME_EXPLICITO.includes('cursor-sandbox-ca
 const FUSO = 'America/Sao_Paulo';
 const CORPO_MAXIMO = 64_000;
 const CORPO_MAXIMO_MIDIA = 6_000_000;
+// Cada sessão é um Chromium aberto. O teto protege a máquina, e com ela o
+// WhatsApp das outras clínicas, de pedidos em excesso.
+const MAX_SESSOES = limiteDeSessoes();
 
 if (!SEGREDO) {
   console.error('Defina WHATSAPP_GATEWAY_SECRET (no .env.local ou nas variáveis do servidor) antes de subir o WhatsApp.');
@@ -69,23 +79,40 @@ function carregarEnvLocal() {
   }
 }
 
+// `publica` marca a frase escrita para a tela. Erro de biblioteca (navegador,
+// banco) nunca sai do processo: fica no log e a resposta leva um aviso fixo.
+// Frase nova para a tela entra também em FRASES_DO_SERVICO, em
+// lib/whatsappGateway.ts; fora daquela lista o site mostra um aviso genérico.
 function erroHttp(status, mensagem) {
-  return Object.assign(new Error(mensagem), { status });
+  return Object.assign(new Error(mensagem), { status, publica: true });
 }
 
 function espera(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function clinicaValida(id) {
-  return /^[a-zA-Z0-9_-]{1,64}$/.test(id);
+/**
+ * Chave da sessão: só o id canônico da clínica passa. '012' e '12' são a mesma
+ * linha no banco, mas seriam duas sessões aqui, cada uma com o próprio
+ * navegador. Até 12 dígitos o Number é exato.
+ */
+function chaveDaClinica(id) {
+  const texto = String(id ?? '');
+  return /^[1-9]\d{0,11}$/.test(texto) ? String(Number(texto)) : null;
 }
 
+function limiteDeSessoes() {
+  const valor = Number(process.env.WHATSAPP_MAX_SESSOES);
+  return Number.isInteger(valor) && valor > 0 ? valor : 20;
+}
+
+const RESUMO_DO_SEGREDO = createHash('sha256').update(SEGREDO).digest();
+
+// Compara os resumos, que têm sempre o mesmo tamanho: nem o comprimento do
+// segredo aparece no tempo de resposta.
 function segredoOk(recebido) {
-  const a = Buffer.from(String(recebido || ''));
-  const b = Buffer.from(SEGREDO);
-  if (a.length !== b.length) return false;
-  return timingSafeEqual(a, b);
+  const resumo = createHash('sha256').update(String(recebido || '')).digest();
+  return timingSafeEqual(resumo, RESUMO_DO_SEGREDO);
 }
 
 function digitosTelefone(telefone) {
@@ -173,7 +200,8 @@ function criarSessao(clinicaId) {
     try {
       sessao.qr = await QRCode.toDataURL(qr, { margin: 1, width: 280 });
     } catch (err) {
-      sessao.erro = err instanceof Error ? err.message : 'Falha ao gerar o QR.';
+      sessao.erro = 'Não foi possível gerar o QR. Tente de novo.';
+      console.error(`[${clinicaId}] QR não gerado: ${paraLog(err)}`);
     }
   });
 
@@ -189,7 +217,7 @@ function criarSessao(clinicaId) {
     sessao.erro = null;
     if (numero) sessao.numero = numero;
     if (nome) sessao.nome = nome;
-    console.log(`[${clinicaId}] conectado como ${sessao.numero}`);
+    console.log(`[${clinicaId}] conectado (número com final ${String(sessao.numero || '').slice(-4) || 'desconhecido'})`);
   }
 
   client.on('ready', () => {
@@ -224,8 +252,9 @@ function criarSessao(clinicaId) {
   console.log(`[${clinicaId}] abrindo navegador`);
   client.initialize().catch((err) => {
     sessao.status = 'falha';
-    sessao.erro = err instanceof Error ? err.message : 'Falha ao abrir o WhatsApp.';
-    console.error(`[${clinicaId}] ${sessao.erro}`);
+    // A mensagem do navegador traz caminho da máquina e nome de processo: fica só no log.
+    sessao.erro = 'Não foi possível abrir o WhatsApp. Tente de novo; se continuar, avise o suporte.';
+    console.error(`[${clinicaId}] navegador não abriu: ${paraLog(err)}`);
   });
 
   // O WhatsApp às vezes termina a sincronização antes do evento ready.
@@ -275,8 +304,20 @@ function textoErro(err) {
   return err instanceof Error ? err.message : String(err);
 }
 
+/** Erro para o log: uma linha, sem número de telefone (o id da conversa é o telefone do paciente). */
+function paraLog(err) {
+  return textoErro(err).replace(/\s+/g, ' ').replace(/\d{8,}/g, '[número]').slice(0, 400);
+}
+
 function erroDePagina(err) {
   return /detached Frame|Execution context was destroyed|Session closed|Target closed|Protocol error|Cannot find context|main frame too early/i.test(textoErro(err));
+}
+
+/** O que pode sair do processo (resposta HTTP ou coluna `erro` do banco): frase nossa ou o aviso padrão. */
+function fraseParaTela(err, padrao) {
+  if (err && typeof err === 'object' && err.publica === true && typeof err.message === 'string') return err.message;
+  if (erroDePagina(err)) return 'O WhatsApp atualizou a tela. Tente enviar de novo.';
+  return padrao;
 }
 
 async function paginaViva(page) {
@@ -314,7 +355,7 @@ async function religarPaginaAgora(sessao, forcar) {
     const pronta = await pagina.evaluate(() => typeof window.WWebJS !== 'undefined' && typeof window.WWebJS.getChat === 'function');
     if (!pronta) await client.inject();
   } catch (err) {
-    console.error(`[${sessao.clinicaId}] página:`, textoErro(err));
+    console.error(`[${sessao.clinicaId}] página:`, paraLog(err));
     return false;
   }
   await garantirOuvintes(sessao);
@@ -582,7 +623,7 @@ function persistirMensagem(sessao, dados) {
   sessao.gravacao = sessao.gravacao
     .then(() => repositorio.salvarMensagem(sessao.clinicaId, dados))
     .catch((err) => {
-      console.error(`[${sessao.clinicaId}] mensagem não gravada:`, err instanceof Error ? err.message : err);
+      console.error(`[${sessao.clinicaId}] mensagem não gravada:`, paraLog(err));
     });
 }
 
@@ -610,6 +651,22 @@ function iniciar(clinicaId) {
   return resumo(sessao);
 }
 
+/**
+ * Pedido de conexão vindo do site. Clínica que o banco não conhece não ganha
+ * navegador, e nenhuma clínica nova passa do teto de sessões.
+ */
+async function abrirSessao(clinicaId) {
+  if (!sessoes.has(clinicaId) && (await repositorio.clinicaExiste(clinicaId)) === false) {
+    throw erroHttp(404, 'Clínica não encontrada.');
+  }
+  // Conferido depois da consulta ao banco: dois pedidos ao mesmo tempo não passam juntos do teto.
+  if (!sessoes.has(clinicaId) && sessoes.size >= MAX_SESSOES) {
+    console.warn(`[${clinicaId}] sessão recusada: ${sessoes.size} de ${MAX_SESSOES} em uso (WHATSAPP_MAX_SESSOES)`);
+    throw erroHttp(503, 'Este servidor chegou ao limite de clínicas com o WhatsApp ligado. Avise o suporte.');
+  }
+  return iniciar(clinicaId);
+}
+
 async function encerrar(clinicaId) {
   const sessao = sessoes.get(clinicaId);
   sessoes.delete(clinicaId);
@@ -621,12 +678,35 @@ async function encerrar(clinicaId) {
   return resumo(undefined);
 }
 
-function restaurarSessoesSalvas() {
+async function restaurarSessoesSalvas() {
   if (!existsSync(PASTA_SESSAO)) return;
   for (const entrada of readdirSync(PASTA_SESSAO, { withFileTypes: true })) {
     if (!entrada.isDirectory() || !entrada.name.startsWith('session-')) continue;
-    const clinicaId = entrada.name.slice('session-'.length);
-    if (!clinicaValida(clinicaId)) continue;
+    const nome = entrada.name.slice('session-'.length);
+    const clinicaId = chaveDaClinica(nome);
+    // `session-012` nasceu de um id fora do padrão e pode estar pareada com
+    // outro celular: não abre navegador. Quem cuida do servidor apaga a pasta.
+    if (clinicaId !== nome) {
+      console.warn(`[${entrada.name}] pasta ignorada: o nome não é o id de uma clínica`);
+      continue;
+    }
+    let existe = null;
+    try {
+      existe = await repositorio.clinicaExiste(clinicaId);
+    } catch (err) {
+      // Banco fora do ar na partida: restaura assim mesmo, para uma falha de rede não desconectar a clínica.
+      console.warn(`[${clinicaId}] clínica não conferida no banco: ${paraLog(err)}`);
+    }
+    if (existe === false) {
+      console.warn(`[${clinicaId}] sessão salva ignorada: a clínica não existe no banco`);
+      continue;
+    }
+    // Depois da consulta: um pedido do site pode ter aberto sessões enquanto o banco respondia.
+    if (sessoes.has(clinicaId)) continue;
+    if (sessoes.size >= MAX_SESSOES) {
+      console.warn(`[${clinicaId}] sessão salva não restaurada: limite de ${MAX_SESSOES} sessões (WHATSAPP_MAX_SESSOES)`);
+      continue;
+    }
     console.log(`[${clinicaId}] restaurando sessão salva`);
     iniciar(clinicaId);
   }
@@ -836,7 +916,7 @@ async function listarMensagens(clinicaId, sessao, chatId, marcarLida) {
       for (const msg of msgs) guardarMensagem(sessao, msg);
       if (marcarLida) await sessao.client.sendSeen(id).catch(() => {});
     } catch (err) {
-      console.error(`[${clinicaId}] histórico:`, err instanceof Error ? err.message : err);
+      console.error(`[${clinicaId}] histórico:`, paraLog(err));
     }
   }
   if (marcarLida) {
@@ -1057,7 +1137,9 @@ async function dispararAutomacao(sessao, clinicaId, chave, tipo, paciente, texto
     await repositorio.concluirEnvio(reserva.id, null);
     return true;
   } catch (err) {
-    await repositorio.concluirEnvio(reserva.id, err instanceof Error ? err.message : 'Falha ao enviar.');
+    // A coluna `erro` aparece no Histórico da tela: só frase nossa entra nela.
+    console.error(`[${clinicaId}] ${tipo} não enviado: ${paraLog(err)}`);
+    await repositorio.concluirEnvio(reserva.id, fraseParaTela(err, 'Não foi possível enviar.'));
     return false;
   }
 }
@@ -1076,7 +1158,8 @@ async function processarAgendadas(sessao, clinicaId, clinica) {
       await enviarAutomatico(sessao, item.telefone, texto);
       await repositorio.concluirAgendada(item.id, null);
     } catch (err) {
-      await repositorio.concluirAgendada(item.id, err instanceof Error ? err.message : 'Falha ao enviar.');
+      console.error(`[${clinicaId}] agendada não enviada: ${paraLog(err)}`);
+      await repositorio.concluirAgendada(item.id, fraseParaTela(err, 'Não foi possível enviar.'));
     }
   }
 }
@@ -1221,6 +1304,18 @@ async function automacaoRetorno(sessao, clinicaId, clinica, cfg) {
 }
 
 async function processarClinica(clinicaId, sessao) {
+  // Clínica em modo de consulta (assinatura bloqueada, suspensa ou cancelada): nenhuma mensagem
+  // automática sai em nome dela, como nos lembretes do site (lib/lembretesServidor.ts). Se a
+  // conferência falhar, a clínica fica de fora só nesta rodada.
+  let liberada = false;
+  try {
+    liberada = await repositorio.aceitaEscrita(clinicaId);
+  } catch (err) {
+    console.error(`[${clinicaId}] assinatura:`, paraLog(err));
+    return;
+  }
+  if (liberada !== true) return;
+
   const [dadosClinica, cfg] = await Promise.all([
     repositorio.clinica(clinicaId),
     repositorio.configAutomacoes(clinicaId),
@@ -1240,7 +1335,7 @@ async function processarClinica(clinicaId, sessao) {
     try {
       await etapa(sessao, clinicaId, clinica, cfg);
     } catch (err) {
-      console.error(`[${clinicaId}] ${etapa.name}:`, err instanceof Error ? err.message : err);
+      console.error(`[${clinicaId}] ${etapa.name}:`, paraLog(err));
     }
   }
 }
@@ -1256,7 +1351,7 @@ async function rodarAgendador() {
       try {
         await processarClinica(clinicaId, sessao);
       } catch (err) {
-        console.error(`[${clinicaId}] agendador:`, err instanceof Error ? err.message : err);
+        console.error(`[${clinicaId}] agendador:`, paraLog(err));
       }
     }
   } finally {
@@ -1302,9 +1397,22 @@ function responder(res, status, dados) {
   res.end(corpo);
 }
 
+let ultimoErroHttp = { linha: '', em: 0 };
+
+/** A tela repete a mesma consulta a cada poucos segundos: a mesma linha entra no log uma vez por minuto. */
+function registrarErroHttp(linha) {
+  const agora = Date.now();
+  if (linha === ultimoErroHttp.linha && agora - ultimoErroHttp.em < 60_000) return;
+  ultimoErroHttp = { linha, em: agora };
+  console.error(linha);
+}
+
 const servidor = createServer(async (req, res) => {
   try {
-    const url = new URL(req.url || '/', `http://${HOST}`);
+    // A base só serve para separar caminho e consulta; o endereço de escuta pode ser IPv6.
+    const url = new URL(req.url || '/', 'http://localhost');
+    // Única rota sem segredo: diz só que o processo está de pé. Nada de sessão,
+    // telefone, conversa ou QR passa por aqui.
     if (req.method === 'GET' && url.pathname === '/saude') {
       responder(res, 200, { ok: true });
       return;
@@ -1315,15 +1423,15 @@ const servidor = createServer(async (req, res) => {
     }
 
     const partes = url.pathname.split('/').filter(Boolean);
-    if (partes[0] !== 'sessoes' || !clinicaValida(partes[1] || '')) {
+    const clinicaId = partes[0] === 'sessoes' ? chaveDaClinica(partes[1]) : null;
+    if (!clinicaId) {
       responder(res, 404, { erro: 'Rota não encontrada.' });
       return;
     }
-    const clinicaId = partes[1];
     const acao = partes[2] || '';
     const sessao = sessoes.get(clinicaId);
 
-    if (req.method === 'POST' && acao === 'iniciar') return responder(res, 200, iniciar(clinicaId));
+    if (req.method === 'POST' && acao === 'iniciar') return responder(res, 200, await abrirSessao(clinicaId));
     if (req.method === 'GET' && !acao) return responder(res, 200, resumo(sessao));
     if (req.method === 'DELETE' && !acao) return responder(res, 200, await encerrar(clinicaId));
 
@@ -1351,21 +1459,37 @@ const servidor = createServer(async (req, res) => {
 
     responder(res, 404, { erro: 'Rota não encontrada.' });
   } catch (err) {
-    const status = err && typeof err === 'object' && 'status' in err ? Number(err.status) : 500;
-    const mensagem = textoErro(err);
-    responder(res, status, {
-      erro: erroDePagina(err) ? 'O WhatsApp atualizou a tela. Tente enviar de novo.' : (mensagem || 'Falha no WhatsApp.'),
-    });
+    const informado = err && typeof err === 'object' && 'status' in err ? Number(err.status) : 500;
+    const status = Number.isInteger(informado) && informado >= 400 && informado <= 599 ? informado : 500;
+    const publica = Boolean(err && typeof err === 'object' && err.publica === true);
+    // O caminho vai para o log sem a consulta: nela viajam telefone e id de conversa.
+    if (!publica && !erroDePagina(err)) {
+      registrarErroHttp(`${req.method} ${String(req.url || '').split('?')[0]}: ${paraLog(err)}`);
+    }
+    responder(res, status, { erro: fraseParaTela(err, 'Falha no WhatsApp.') });
   }
 });
 
 servidor.listen(PORTA, HOST, () => {
-  console.log(`WhatsApp Ortus em http://${HOST}:${PORTA}`);
+  console.log(`WhatsApp Ortus em http://${HOST.includes(':') ? `[${HOST}]` : HOST}:${PORTA}`);
+  if (EXPOSTO) {
+    console.warn(`ATENÇÃO: o serviço do WhatsApp escuta em ${HOST}, fora de 127.0.0.1 (WHATSAPP_GATEWAY_EXPOSE=1). Só o segredo protege as conversas: publique esta porta apenas em rede interna ou atrás de TLS.`);
+    if (SEGREDO.length < 32) {
+      console.warn('ATENÇÃO: o segredo tem menos de 32 caracteres. Fora de 127.0.0.1, gere um maior (openssl rand -hex 32).');
+    }
+  } else if (HOST_PEDIDO && HOST_PEDIDO !== HOST) {
+    console.warn(`WHATSAPP_GATEWAY_HOST=${HOST_PEDIDO} foi ignorado: o serviço escuta só em 127.0.0.1. Para sair do loopback, defina também WHATSAPP_GATEWAY_EXPOSE=1.`);
+  }
+  if (!EXPOSTO && process.env.PORT && !process.env.WHATSAPP_GATEWAY_PORT) {
+    console.warn('PORT foi ignorado: fora do modo exposto a porta vem de WHATSAPP_GATEWAY_PORT (padrão 3920).');
+  }
   if (AGENDADOR_ATIVO) {
     void repositorio.verificar().catch((err) => {
-      console.warn(`Banco ${repositorio.modalidade === 'local' ? 'local' : 'da nuvem'} indisponível:`, err instanceof Error ? err.message : err);
+      console.warn(`Banco ${repositorio.modalidade === 'local' ? 'local' : 'da nuvem'} indisponível:`, paraLog(err));
     });
   }
-  restaurarSessoesSalvas();
+  void restaurarSessoesSalvas().catch((err) => {
+    console.error('Sessões salvas não restauradas:', paraLog(err));
+  });
   setInterval(() => { void rodarAgendador(); }, 60_000);
 });

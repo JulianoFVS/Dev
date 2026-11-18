@@ -9,6 +9,8 @@ export type ClinicRecord = {
   endereco?: string | null;
   rede_id?: string | null;
   redes?: { id: string; nome: string } | { id: string; nome: string }[] | null;
+  /** true = entrou nesta clínica por convite de outra rede; nunca é administrador aqui. */
+  convidado?: boolean;
 };
 
 type ActiveClinic =
@@ -20,6 +22,8 @@ type ClinicaContextType = {
   clinics: ClinicRecord[];          // unidades permitidas para o usuário logado
   activeClinic: ActiveClinic | null; // unidade selecionada (ou 'all' para visão consolidada)
   activeClinicId: string | 'all' | null; // valor escalar pronto para queries
+  /** O usuário é convidado na clínica ativa (em "todas": é convidado em todas). */
+  convidadoAqui: boolean;
   setActiveClinicById: (id: string | 'all') => void;
   refreshClinics: () => Promise<void>;
   // Aliases mantidos por compat com código legado
@@ -121,10 +125,18 @@ export function ClinicaProvider({ children }: { children: ReactNode }) {
         lista = (data || []) as ClinicRecord[];
       } else if (prof?.id) {
         // 2) clinica_ids vinculados a esse profissional
-        const { data: vinculos, error: vincErr } = await tabelas.from('profissionais_clinicas')
-          .select('clinica_id')
+        // `convidado` existe a partir da migration 20261121_seguranca_reforco.
+        // Sem a coluna a consulta falha e cai na forma antiga (ninguém convidado).
+        let { data: vinculos, error: vincErr }: { data: any[] | null; error: any } = await tabelas.from('profissionais_clinicas')
+          .select('clinica_id, convidado')
           .eq('profissional_id', prof.id);
+        if (vincErr) {
+          ({ data: vinculos, error: vincErr } = await tabelas.from('profissionais_clinicas')
+            .select('clinica_id')
+            .eq('profissional_id', prof.id));
+        }
         logErro('profissionais_clinicas.select', vincErr);
+        const convidadoEm = new Set((vinculos || []).filter((v: any) => v.convidado === true).map((v: any) => String(v.clinica_id)));
 
         const ids = Array.from(new Set((vinculos || []).map((v: any) => v.clinica_id))).filter((x) => x !== null && x !== undefined);
 
@@ -135,7 +147,7 @@ export function ClinicaProvider({ children }: { children: ReactNode }) {
             .in('id', ids as any)
             .order('nome');
           logErro('clinicas.select (in ids)', clErr);
-          lista = (clins || []) as ClinicRecord[];
+          lista = ((clins || []) as ClinicRecord[]).map((c) => ({ ...c, convidado: convidadoEm.has(String(c.id)) }));
         }
       }
 
@@ -205,18 +217,24 @@ export function ClinicaProvider({ children }: { children: ReactNode }) {
     return found ? (found as ActiveClinic) : null;
   }, [activeId, clinics]);
 
+  const convidadoAqui = useMemo(() => {
+    if (activeId === 'all') return clinics.length > 0 && clinics.every((c) => c.convidado === true);
+    return clinics.find((c) => String(c.id) === String(activeId))?.convidado === true;
+  }, [activeId, clinics]);
+
   const value = useMemo<ClinicaContextType>(() => ({
     loading,
     clinics,
     activeClinic,
     activeClinicId: activeId,
+    convidadoAqui,
     setActiveClinicById,
     refreshClinics: loadClinics,
     // Aliases legacy
     selectedClinicaId: (activeId ?? 'all') as string | 'all',
     setSelectedClinicaId: setActiveClinicById,
     clinicaNome: activeClinic?.nome || 'Todas as Clínicas',
-  }), [loading, clinics, activeClinic, activeId, setActiveClinicById, loadClinics]);
+  }), [loading, clinics, activeClinic, activeId, convidadoAqui, setActiveClinicById, loadClinics]);
 
   return <ClinicaContext.Provider value={value}>{children}</ClinicaContext.Provider>;
 }
@@ -226,9 +244,6 @@ export function useClinica() {
   if (!ctx) throw new Error('useClinica deve ser usado dentro de um ClinicaProvider');
   return ctx;
 }
-
-// Alias semântico em inglês para novos códigos
-export const useClinic = useClinica;
 
 export function getClinicLabel(clinic?: ClinicRecord | ActiveClinic | null) {
   if (!clinic) return 'Sem unidade';

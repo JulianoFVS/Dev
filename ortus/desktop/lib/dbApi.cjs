@@ -4,6 +4,7 @@ const http = require('node:http');
 const crypto = require('node:crypto');
 const { timingSafeEqual } = require('node:crypto');
 const { TABELAS, ORDEM_SYNC } = require('./esquema.cjs');
+const { hostLocalValido } = require('./origemLocal.cjs');
 const log = require('./log.cjs');
 
 /**
@@ -81,6 +82,12 @@ function criarApiDados(ctx) {
       // Navegador nunca fala com esta API: quem chama é o Next/WhatsApp locais.
       if (req.headers.origin) {
         responder(res, 403, { erro: 'Origem não permitida.' });
+        return;
+      }
+      // DNS rebinding: uma página externa chegaria aqui com o nome do domínio
+      // dela no `Host`. Os processos locais sempre usam 127.0.0.1:<porta>.
+      if (!hostLocalValido(req.headers.host, servidor.address()?.port)) {
+        responder(res, 403, { erro: 'Endereço não permitido.' });
         return;
       }
 
@@ -192,8 +199,14 @@ function criarApiDados(ctx) {
 
   return {
     servidor,
-    ouvir: (porta) => new Promise((resolve) => {
-      servidor.listen(porta, '127.0.0.1', () => resolve(servidor.address().port));
+    // Sempre em 127.0.0.1. `porta` 0 deixa o sistema escolher uma livre.
+    ouvir: (porta) => new Promise((resolve, reject) => {
+      servidor.once('error', reject);
+      servidor.listen(porta, '127.0.0.1', () => {
+        servidor.off('error', reject);
+        servidor.on('error', (err) => log.erro('api-dados: erro do servidor', err));
+        resolve(servidor.address().port);
+      });
     }),
     fechar: () => new Promise((resolve) => {
       servidor.close(() => resolve());

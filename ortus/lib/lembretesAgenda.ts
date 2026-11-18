@@ -1,4 +1,3 @@
-import { supabase } from '@/lib/supabase';
 import { dados as tabelas } from '@/lib/local/consulta';
 
 import { carregarConfig, salvarConfig } from '@/lib/configClinica';
@@ -241,13 +240,11 @@ export async function marcarLembreteEnviado(
 
   );
 
+  // Cópia legada em configuração (só o administrador grava): falhar aqui não desfaz o lembrete registrado acima.
   await salvarConfig(clinicaId, CONFIG_KEYS.lembretes_enviados, {
-
     ...legado,
-
     [String(agendamentoId)]: new Date().toISOString(),
-
-  });
+  }).catch(() => undefined);
 
 }
 
@@ -415,16 +412,6 @@ export function ctxLembreteAgendamento(ag: LembreteAgendamento) {
 
 
 
-export async function montarMensagemLembrete24h(clinicaId: string | number, ag: LembreteAgendamento): Promise<string> {
-
-  const ctx = ctxLembreteAgendamento(ag);
-
-  const { mensagem } = await montarMensagemEvento(clinicaId, 'lembrete', 'whatsapp', ctx);
-
-  return mensagem;
-
-}
-
 
 
 export async function montarLembreteCanal(
@@ -444,16 +431,6 @@ export async function montarLembreteCanal(
 }
 
 
-
-export function urlWhatsappLembrete(telefone: string | null | undefined, mensagem: string): string | null {
-
-  const numero = telefone?.replace(/\D/g, '');
-
-  if (!numero) return null;
-
-  return `https://wa.me/55${numero}?text=${encodeURIComponent(mensagem)}`;
-
-}
 
 
 

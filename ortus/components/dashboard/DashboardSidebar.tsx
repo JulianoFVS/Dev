@@ -17,6 +17,7 @@ import {
   CircleHelp,
   ShieldAlert,
   ShieldCheck,
+  CreditCard,
   MessageCircle,
   Smile,
   User,
@@ -32,6 +33,8 @@ export type DashboardSidebarNavOptions = {
   showEquipe?: boolean;
   showTratamentosBase?: boolean;
   showPainelSaas?: boolean;
+  /** Assinatura do Ortus: só para quem administra a clínica. */
+  showAssinatura?: boolean;
   tarefasBadge?: number;
   profilePhotoUrl?: string | null;
   profileName?: string | null;
@@ -150,6 +153,7 @@ export default function DashboardSidebar({
   showEquipe = true,
   showTratamentosBase = true,
   showPainelSaas = false,
+  showAssinatura = false,
   tarefasBadge = 0,
   profilePhotoUrl: profilePhotoUrlProp = null,
   profileName: profileNameProp = null,
@@ -253,6 +257,9 @@ export default function DashboardSidebar({
       <div className={`mt-auto flex shrink-0 flex-col gap-1.5 pt-4 ${collapsed ? 'items-center px-2' : 'px-2.5'}`}>
         {showPainelSaas && (
           <NavItem href="/super-admin" label="Painel SaaS" Icon={ShieldAlert} collapsed={collapsed} />
+        )}
+        {showAssinatura && (
+          <NavItem href="/assinatura" label="Assinatura" Icon={CreditCard} collapsed={collapsed} />
         )}
         {showPainelSaas && (
           <div className={`h-px bg-white/10 ${collapsed ? 'my-0.5 w-7' : 'mx-1 my-0.5'}`} role="presentation" />

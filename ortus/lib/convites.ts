@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { dados as tabelas } from '@/lib/local/consulta';
+import { fraseDeErro } from '@/lib/fraseDeErro';
 
 /**
  * Convites de equipe entre redes.
@@ -120,8 +121,14 @@ export function conviteErroSemConta(error: unknown): boolean {
 }
 
 export function mensagemErroConvite(error: unknown, fallback = 'Não foi possível concluir a operação com convites.'): string {
-    const mensagem = normalizarErro(error).message;
-    return mensagem && mensagem !== 'Não foi possível conectar ao servidor. Tente novamente.' ? mensagem : fallback;
+    const normalizado = normalizarErro(error);
+    const mensagem = normalizado.message;
+    if (!mensagem || mensagem === 'Não foi possível conectar ao servidor. Tente novamente.') return fallback;
+    // As regras do convite chegam escritas para pessoas; texto técnico (sessão, rede, Postgres) não vai para a tela.
+    if (/jwt|token|fetch|network|load failed|violates|constraint|syntax|permission denied|row-level security|duplicate key|null value|does not exist/i.test(mensagem)) {
+        return fraseDeErro({ message: mensagem, code: normalizado.code }, fallback);
+    }
+    return mensagem;
 }
 
 export async function enviarConviteEquipe(params: EnviarConviteParams): Promise<ConviteEnviado> {
@@ -131,6 +138,29 @@ export async function enviarConviteEquipe(params: EnviarConviteParams): Promise<
         p_cargo: params.cargo ?? null,
         p_mensagem: params.mensagem ?? null,
     });
+}
+
+export type AvisoPorEmail = { enviado: boolean; erro?: string };
+
+/**
+ * Pede ao servidor o e-mail do convite ('convite') ou do aceite ('aceito').
+ * Nunca lança: o convite já está gravado e vale em Mensagens mesmo sem e-mail.
+ * `enviado: false` vem com o motivo (Resend recusou, não configurada, sem rede).
+ */
+export async function avisarConvitePorEmail(conviteId: number, evento: 'convite' | 'aceito'): Promise<AvisoPorEmail> {
+    try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const resposta = await fetch('/api/convites/notificar', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token || ''}` },
+            body: JSON.stringify({ conviteId, evento }),
+        });
+        const dados = (await resposta.json().catch(() => ({}))) as { enviado?: boolean; erro?: string; error?: string };
+        if (dados.enviado === true) return { enviado: true };
+        return { enviado: false, erro: dados.erro || dados.error || 'O servidor não confirmou o envio.' };
+    } catch {
+        return { enviado: false, erro: 'Sem conexão com o servidor.' };
+    }
 }
 
 export async function responderConviteEquipe(id: number, aceitar: boolean): Promise<ConviteRespondido> {

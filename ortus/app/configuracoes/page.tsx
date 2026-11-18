@@ -1,14 +1,14 @@
 'use client';
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { dados as tabelas, usuarioDaSessao } from '@/lib/local/consulta';
 import { enviarArquivoClinica } from '@/lib/armazenamento';
-import { Building2, Users, Plus, Trash2, MapPin, Check, X, Loader2, Edit, UserPlus, Shield, User, FileText, Phone, Mail, Save, Lock, ClipboardList, HelpCircle, FileSignature, Tag, SlidersHorizontal, Database, Download, Upload, Bell, Palette, RotateCcw, AlertTriangle, Clock, DollarSign, MessageCircle, CreditCard, Eye, Search, Filter, LayoutGrid, List, ChevronDown, Camera } from 'lucide-react';
-import { carregarModelos, carregarModelosAsync, salvarModelos, salvarModelosAsync, novoIdModelo, novoIdPergunta, type ModeloAnamnese, type PerguntaAnamnese, type TipoPergunta } from '@/lib/anamnese';
+import { Building2, Plus, Trash2, Check, X, Loader2, Edit, Save, ClipboardList, HelpCircle, FileSignature, Tag, SlidersHorizontal, Database, Download, RotateCcw, AlertTriangle, MessageCircle, CreditCard, Search, LayoutGrid, List, ChevronDown, ChevronRight, Camera, Copy } from 'lucide-react';
+import { salvarModelosAsync, novoIdModelo, novoIdPergunta, MODELOS_PADRAO, type ModeloAnamnese, type PerguntaAnamnese, type TipoPergunta } from '@/lib/anamnese';
 import { listarBackups, criarBackupAgora, baixarBackupComoJson, excluirBackup as deletarBackupServer, restaurarBackup } from '@/lib/backup';
 import { fetchUserClinicas } from '@/lib/clinicScoped';
-import { carregarConfig, salvarConfig } from '@/lib/configClinica';
+import { carregarConfigComErro, salvarConfig, mensagemErroConfig } from '@/lib/configClinica';
 import {
   CATEGORIAS_FINANCEIRAS_PADRAO,
   TEMPLATES_COMUNICACAO_PADRAO,
@@ -23,6 +23,7 @@ import {
 import CustomSelect from '@/components/ui/CustomSelect';
 import SegmentedControl from '@/components/ui/SegmentedControl';
 import Switch from '@/components/ui/Switch';
+import MenuPontos from '@/components/ui/MenuPontos';
 import DocumentoVariavelEditor, { type DocumentoVariavelEditorHandle } from '@/components/forms/DocumentoVariavelEditor';
 import Modal from '@/components/ui/Modal';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
@@ -31,7 +32,7 @@ import { applyTheme, THEME_OPTIONS, type ThemeId } from '@/lib/themePresets';
 import { FUSO_HORARIO_OPTIONS, UF_OPTIONS } from '@/lib/formOptions';
 import { useClinica, getClinicLabel } from '@/app/context/ClinicaContext';
 import { baixarTabelaTratamentos } from '@/lib/exportarTratamentos';
-import { bentoPrimaryBtn, bentoGhostBtn, bentoInput, bentoChip, bentoChipOutline, bentoToggleTrackOn, bentoToggleTrackOff, bentoModalPanel } from '@/lib/bentoUi';
+import { readProfileSession } from '@/lib/profileSession';
 
 const cardShell = 'rounded-xl bg-white';
 
@@ -45,9 +46,10 @@ const CONFIG_NAVS = [
   { key: 'comunicacao', label: 'Comunicação', icon: MessageCircle },
   { key: 'backup', label: 'Backup', icon: Database },
 ];
-const sectionPad = 'flex h-full min-h-0 flex-col overflow-hidden p-3';
-const campoLabel = 'mb-1 block text-xs font-medium text-neutral-500';
-const campoInput = 'h-9 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-900 outline-none focus:border-neutral-900';
+// Abaixo de lg a página rola inteira; a seção só ganha altura fixa e rolagem interna no computador.
+const sectionPad = 'flex flex-col p-3 lg:h-full lg:min-h-0 lg:overflow-hidden';
+const campoLabel = 'mb-1.5 block text-xs font-medium text-neutral-500 sm:mb-1';
+const campoInput = 'h-10 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-900 outline-none focus:border-neutral-900 disabled:cursor-not-allowed disabled:text-neutral-500 sm:h-9';
 const campoModal = 'box-border h-10 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm text-neutral-900 outline-none placeholder:text-neutral-400 focus:border-neutral-900';
 const labelModal = 'mb-1.5 block text-xs font-medium text-neutral-500';
 const CORES_CATEGORIA = ['#171717', '#3b82f6', '#0ea5e9', '#10b981', '#84cc16', '#eab308', '#f59e0b', '#ef4444', '#ec4899', '#8b5cf6', '#64748b', '#c8f053'];
@@ -103,18 +105,248 @@ function bootClinicasFromStorage(): any[] {
   }
 }
 
+const botaoPontos = 'flex h-10 w-10 items-center justify-center rounded-full text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900';
+// Ação solta ao lado do cartão no celular (excluir, duplicar): 40px de toque.
+const botaoCartao = 'flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-neutral-400 active:bg-neutral-100 active:text-neutral-900';
+
+/**
+ * Cartão das listas no celular: tocar abre o item para editar; o que sobra (excluir, duplicar, ligar)
+ * fica em botões próprios à direita. Não usa menu de três pontos porque, perto do fim da tela,
+ * ele abre por baixo da barra flutuante de navegação.
+ */
+function CartaoCelular({ onAbrir, acoes, apagado = false, children }: {
+  /** Sem `onAbrir` o cartão só mostra: a pessoa não pode alterar o item. */
+  onAbrir?: () => void;
+  acoes?: ReactNode;
+  apagado?: boolean;
+  children: ReactNode;
+}) {
+  const miolo = `flex min-h-[56px] min-w-0 flex-1 items-center gap-3 rounded-l-xl px-3 py-2.5 text-left ${apagado ? 'opacity-50' : ''}`;
+  return (
+    <div className="flex items-stretch rounded-xl border border-neutral-200 bg-white">
+      {onAbrir ? (
+        <button type="button" onClick={onAbrir} className={`${miolo} active:bg-neutral-50`}>
+          {children}
+          <ChevronRight size={16} className="ml-auto shrink-0 text-neutral-300" aria-hidden />
+        </button>
+      ) : (
+        <div className={miolo}>{children}</div>
+      )}
+      {acoes ? <div className="flex shrink-0 items-center pr-1">{acoes}</div> : null}
+    </div>
+  );
+}
+
+// Chaves de configuracoes_clinica que esta tela lê e grava, sempre da clínica ativa.
+type SecaoConfig = 'preferencias' | 'categorias_financeiro' | 'modelos_documentos' | 'templates_comunicacao' | 'taxas_maquininha' | 'anamnese_modelos';
+type EstadoCarga = 'carregando' | 'pronto' | 'erro';
+const CARGA_INICIAL: Record<SecaoConfig, EstadoCarga> = {
+  preferencias: 'carregando',
+  categorias_financeiro: 'carregando',
+  modelos_documentos: 'carregando',
+  templates_comunicacao: 'carregando',
+  taxas_maquininha: 'carregando',
+  anamnese_modelos: 'carregando',
+};
+const SECAO_DA_ABA: Record<string, SecaoConfig> = {
+  geral: 'preferencias',
+  anamnese: 'anamnese_modelos',
+  documentos: 'modelos_documentos',
+  categorias: 'categorias_financeiro',
+  taxas: 'taxas_maquininha',
+  comunicacao: 'templates_comunicacao',
+};
+const NOME_DA_SECAO: Record<SecaoConfig, string> = {
+  preferencias: 'preferências',
+  categorias_financeiro: 'categorias financeiras',
+  modelos_documentos: 'modelos de documentos',
+  templates_comunicacao: 'modelos de mensagem',
+  taxas_maquininha: 'taxas',
+  anamnese_modelos: 'modelos de anamnese',
+};
+
+// O formulário parte da linha do banco, nunca do item da lista da casca (que só traz id, nome e rede):
+// montado da lista, o Salvar apagava e-mail, telefone, CNPJ, logo, horários e fuso.
+const COLUNAS_FORM_CLINICA = 'id, nome, cnpj, responsavel_nome, email, telefone, horario_inicio, horario_fim, fuso_horario, emitir_notas_em_nome, logo_url, cep, rua, numero, complemento, bairro, cidade, uf';
+const ERRO_SEM_PERMISSAO_CLINICA = 'Você não pode alterar esta clínica.';
+
+/** Data local para o nome do arquivo: em UTC, depois das 21h já seria o dia seguinte. */
+function dataDoArquivo(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/**
+ * Texto de erro que pode ir para a tela: o modo de consulta e as regras escritas para pessoas
+ * (gatilhos do banco, avisos do armazenamento do Ortus). Texto técnico do banco, da rede ou do
+ * armazenamento (em inglês, com nome de tabela ou de regra) vira a frase da própria tela.
+ */
+function fraseDoErro(err: unknown, padrao: string): string {
+  const { message, code } = (err && typeof err === 'object' ? err : {}) as { message?: unknown; code?: unknown };
+  const texto = typeof message === 'string' ? message.trim() : '';
+  if (code === 'PT402' || /^Assinatura suspensa/i.test(texto)) return texto || padrao;
+  if (err instanceof TypeError || /failed to fetch|network ?error|load failed|fetch failed/i.test(texto)) return 'Sem conexão com o servidor. Confira a internet e tente de novo.';
+  if (/jwt|refresh token/i.test(texto)) return 'Sua sessão expirou. Entre de novo para continuar.';
+  const tecnico = !texto || /violates|constraint|syntax|row-level|permission denied|duplicate key|null value|relation|column|policy|[{}"]|\b(the|is|not|of|too|was|has|invalid)\b/i.test(texto);
+  if (!tecnico) return texto;
+  return code === '42501' ? 'Você não tem permissão para fazer isso nesta clínica.' : padrao;
+}
+
+// ===== IMPORTAÇÃO DE CONFIGURAÇÕES =====
+// O arquivo é conferido inteiro antes de gravar: configuração fora do formato, uma vez gravada na
+// clínica, derruba esta tela e o Financeiro. Por isso é tudo ou nada.
+const TAMANHO_MAX_IMPORTACAO = 2 * 1024 * 1024;
+
+type Registro = Record<string, unknown>;
+
+type ConfigImportada = {
+  preferencias?: typeof PREFS_PADRAO;
+  categorias_financeiro?: CategoriaFinanceira[];
+  templates_comunicacao?: TemplateComunicacao[];
+  taxas_maquininha?: TaxaMaquininha[];
+  modelos_anamnese?: ModeloAnamnese[];
+  modelos_documentos?: ModeloDocumento[];
+};
+
+function ehRegistro(v: unknown): v is Registro {
+  return typeof v === 'object' && v !== null && !Array.isArray(v);
+}
+
+/** Lê a lista inteira ou nada: um item fora do formato invalida a seção. */
+function lerLista<T>(v: unknown, lerItem: (item: unknown) => T | null): T[] | null {
+  if (!Array.isArray(v)) return null;
+  const itens: T[] = [];
+  for (const bruto of v) {
+    const item = lerItem(bruto);
+    if (item === null) return null;
+    itens.push(item);
+  }
+  return itens;
+}
+
+/** Só entram as chaves que a tela conhece e com o tipo do padrão; o que faltar fica no padrão. */
+function lerChaves<T extends Record<string, string | number | boolean>>(origem: Registro, padrao: T): T {
+  const saida: Record<string, string | number | boolean> = { ...padrao };
+  for (const chave of Object.keys(padrao)) {
+    const valor = origem[chave];
+    if (typeof valor === typeof padrao[chave]) saida[chave] = valor as string | number | boolean;
+  }
+  return saida as T;
+}
+
+function lerPreferencias(v: unknown): typeof PREFS_PADRAO | null {
+  if (!ehRegistro(v)) return null;
+  const dias = v.dias_atendimento ?? {};
+  if (!ehRegistro(dias)) return null;
+  const { dias_atendimento: diasPadrao, ...simplesPadrao } = PREFS_PADRAO;
+  return { ...lerChaves(v, simplesPadrao), dias_atendimento: lerChaves(dias, diasPadrao) };
+}
+
+function lerCategoria(v: unknown): CategoriaFinanceira | null {
+  if (!ehRegistro(v)) return null;
+  const { id, nome, tipo, cor, ativo } = v;
+  if (typeof id !== 'string' || !id || typeof nome !== 'string' || !nome.trim()) return null;
+  if (tipo !== 'receita' && tipo !== 'despesa') return null;
+  return { id, nome: nome.trim(), tipo, cor: typeof cor === 'string' && /^#[0-9a-f]{6}$/i.test(cor) ? cor : '#64748b', ativo: ativo !== false };
+}
+
+function lerTemplate(v: unknown): TemplateComunicacao | null {
+  if (!ehRegistro(v)) return null;
+  const { id, canal, nome, assunto, corpo, ativo } = v;
+  if (typeof id !== 'string' || !id || typeof nome !== 'string' || typeof corpo !== 'string') return null;
+  if (canal !== 'whatsapp' && canal !== 'email' && canal !== 'sms') return null;
+  return { id, canal, nome, ...(typeof assunto === 'string' ? { assunto } : {}), corpo, ativo: ativo !== false };
+}
+
+function lerTaxa(v: unknown): TaxaMaquininha | null {
+  if (!ehRegistro(v)) return null;
+  const { id, nome, bandeira, tipo, parcela, taxa_percentual: taxa, prazo_recebimento_dias: prazo, ativo } = v;
+  if (typeof id !== 'string' || !id || typeof nome !== 'string' || typeof bandeira !== 'string') return null;
+  if (tipo !== 'debito' && tipo !== 'credito_vista' && tipo !== 'credito_parcelado' && tipo !== 'pix') return null;
+  if (typeof taxa !== 'number' || taxa < 0 || taxa > 100 || typeof prazo !== 'number' || prazo < 0) return null;
+  if (parcela != null && (typeof parcela !== 'number' || parcela < 1)) return null;
+  return { id, nome, bandeira, tipo, ...(typeof parcela === 'number' ? { parcela } : {}), taxa_percentual: taxa, prazo_recebimento_dias: prazo, ativo: ativo !== false };
+}
+
+function lerPergunta(v: unknown): PerguntaAnamnese | null {
+  if (!ehRegistro(v)) return null;
+  const { id, label, tipo, opcoes } = v;
+  if (typeof id !== 'string' || !id || typeof label !== 'string') return null;
+  if (tipo !== 'texto' && tipo !== 'sim_nao' && tipo !== 'sim_nao_texto' && tipo !== 'multipla') return null;
+  if (opcoes == null) return { id, label, tipo };
+  const lista = lerLista(opcoes, (opcao) => (typeof opcao === 'string' ? opcao : null));
+  return lista ? { id, label, tipo, opcoes: lista } : null;
+}
+
+function lerModeloAnamnese(v: unknown): ModeloAnamnese | null {
+  if (!ehRegistro(v)) return null;
+  const { id, nome, descricao, padrao } = v;
+  if (typeof id !== 'string' || !id || typeof nome !== 'string' || !nome.trim()) return null;
+  const perguntas = lerLista(v.perguntas, lerPergunta);
+  if (!perguntas || perguntas.length === 0) return null;
+  return { id, nome, ...(typeof descricao === 'string' ? { descricao } : {}), perguntas, ...(padrao === true ? { padrao: true } : {}) };
+}
+
+function lerModeloDocumento(v: unknown): ModeloDocumento | null {
+  if (!ehRegistro(v)) return null;
+  const { id, tipo, nome, conteudo } = v;
+  if (typeof id !== 'string' || !id || typeof nome !== 'string' || typeof conteudo !== 'string') return null;
+  if (tipo !== 'contrato' && tipo !== 'receita' && tipo !== 'atestado' && tipo !== 'outro') return null;
+  return { id, tipo, nome, conteudo };
+}
+
+function lerConfigImportada(conteudo: unknown): { config: ConfigImportada; partes: string[] } | { erro: string } {
+  if (!ehRegistro(conteudo)) return { erro: 'O conteúdo precisa ser um objeto de configurações do Ortus, não uma lista nem um valor solto.' };
+  const config: ConfigImportada = {};
+  const partes: string[] = [];
+  const foraDoFormato = (parte: string) => ({ erro: `A parte de ${parte} do arquivo não está no formato do Ortus.` });
+
+  if (conteudo.preferencias !== undefined) {
+    const lido = lerPreferencias(conteudo.preferencias);
+    if (!lido) return foraDoFormato('preferências');
+    config.preferencias = lido;
+    partes.push('preferências');
+  }
+  if (conteudo.categorias_financeiro !== undefined) {
+    const lido = lerLista(conteudo.categorias_financeiro, lerCategoria);
+    if (!lido) return foraDoFormato('categorias financeiras');
+    if (lido.length) { config.categorias_financeiro = lido; partes.push('categorias financeiras'); }
+  }
+  if (conteudo.templates_comunicacao !== undefined) {
+    const lido = lerLista(conteudo.templates_comunicacao, lerTemplate);
+    if (!lido) return foraDoFormato('modelos de mensagem');
+    if (lido.length) { config.templates_comunicacao = lido; partes.push('modelos de mensagem'); }
+  }
+  if (conteudo.taxas_maquininha !== undefined) {
+    const lido = lerLista(conteudo.taxas_maquininha, lerTaxa);
+    if (!lido) return foraDoFormato('taxas');
+    if (lido.length) { config.taxas_maquininha = lido; partes.push('taxas'); }
+  }
+  if (conteudo.modelos_anamnese !== undefined) {
+    const lido = lerLista(conteudo.modelos_anamnese, lerModeloAnamnese);
+    if (!lido) return foraDoFormato('modelos de anamnese');
+    if (lido.length) { config.modelos_anamnese = lido; partes.push('modelos de anamnese'); }
+  }
+  if (conteudo.modelos_documentos !== undefined) {
+    const lido = lerLista(conteudo.modelos_documentos, lerModeloDocumento);
+    if (!lido) return foraDoFormato('modelos de documentos');
+    if (lido.length) { config.modelos_documentos = lido; partes.push('modelos de documentos'); }
+  }
+  if (partes.length === 0) return { erro: 'O arquivo não traz nenhuma configuração do Ortus.' };
+  return { config, partes };
+}
+
 export default function Configuracoes() {
   const router = useRouter();
-  const { clinics: ctxClinics, loading: clinicLoading, activeClinic } = useClinica();
+  const { clinics: ctxClinics, loading: clinicLoading, activeClinic, convidadoAqui, refreshClinics } = useClinica();
+  // Tudo nesta tela (cargas, gravações, prévia, importação) é da clínica ativa. Em "Todas as clínicas" não há uma só.
+  const clinicaAtivaId = activeClinic && activeClinic.id !== 'all' ? String(activeClinic.id) : null;
   const jaCarregou = useRef(bootClinicasFromStorage().length > 0);
   const [abaAtiva, setAbaAtiva] = useState('geral');
   const [loading, setLoading] = useState(() => bootClinicasFromStorage().length === 0);
   const { showAlert, showConfirm } = useCustomAlert();
-  // Gate de acesso: só admin de tenant ou super admin podem entrar.
-  const [perfilCaller, setPerfilCaller] = useState<any>(null);
 
   const [clinicas, setClinicas] = useState<any[]>(() => bootClinicasFromStorage());
-  const [profissionais, setProfissionais] = useState<any[]>([]);
   
   // MODAL CLÍNICA (criação e edição completas)
   const [modalClinicaCompleto, setModalClinicaCompleto] = useState(false);
@@ -129,23 +361,11 @@ export default function Configuracoes() {
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [logoArquivo, setLogoArquivo] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState('');
-
-  // MODAL PROFISSIONAL
-  const [modalProf, setModalProf] = useState(false);
-  const [salvandoProf, setSalvandoProf] = useState(false);
-  
-  const [profForm, setProfForm] = useState({ 
-      id: '', user_id: '', nome: '', cargo: 'Dentista', nivel_acesso: 'comum', 
-      email: '', senha: '', 
-      cpf: '', cro: '', telefone: '', foto_url: '',
-      conselho: 'CRO', uf: '', sexo: '', endereco: '' 
-  });
-  const [editandoProf, setEditandoProf] = useState(false);
-
-  // MODAL VINCULOS
-  const [modalVinculo, setModalVinculo] = useState(false);
-  const [profSelecionado, setProfSelecionado] = useState<any>(null);
-  const [vinculosDoProf, setVinculosDoProf] = useState<number[]>([]);
+  const [carregandoClinica, setCarregandoClinica] = useState(false);
+  const pedidoClinica = useRef(0);
+  // O ref trava o segundo toque antes de o estado chegar à tela: dois toques gravavam duas clínicas.
+  const [salvandoClinica, setSalvandoClinica] = useState(false);
+  const salvandoClinicaRef = useRef(false);
 
   // ANAMNESE
   const [modelos, setModelos] = useState<ModeloAnamnese[]>([]);
@@ -186,6 +406,35 @@ export default function Configuracoes() {
   const [modalRestaurar, setModalRestaurar] = useState<any>(null);
   const [confirmacaoTexto, setConfirmacaoTexto] = useState('');
   const [restaurando, setRestaurando] = useState(false);
+  // Só o dono da plataforma cria, restaura e apaga backups; o banco recusa os demais.
+  // null = ainda não confirmado no banco. O cache só serve para negar cedo, nunca para liberar.
+  const [donoPlataforma, setDonoPlataforma] = useState<boolean | null>(() => (readProfileSession()?.is_super_admin === false ? false : null));
+  const donoConferido = useRef(false);
+  const [abaTaxas, setAbaTaxas] = useState<'pix' | 'visa' | 'elo'>('pix');
+  const navRef = useRef<HTMLElement>(null);
+
+  // PERMISSÃO E CARGA
+  // Nível de acesso: vem do perfil guardado e é confirmado no banco (null = ainda não se sabe).
+  const [nivelAdmin, setNivelAdmin] = useState<boolean | null>(() => {
+      const nivel = readProfileSession()?.nivel_acesso;
+      return nivel ? nivel === 'admin' : null;
+  });
+  // Mesma regra do banco (user_is_clinic_admin): dono da plataforma, ou administrador com vínculo
+  // próprio (não convidado) na unidade ativa. O banco é quem barra de verdade; isto só alinha a tela.
+  const podeEditar = !!clinicaAtivaId && (donoPlataforma === true || (nivelAdmin === true && !convidadoAqui));
+  const somenteLeitura = !podeEditar;
+  const podeEditarRef = useRef(podeEditar);
+  podeEditarRef.current = podeEditar;
+  // Cada seção só aceita gravação depois que o banco devolveu o valor da clínica ativa: antes disso
+  // a tela tem o padrão, e gravar o objeto inteiro apagava a configuração da clínica.
+  const [carga, setCarga] = useState<Record<SecaoConfig, EstadoCarga>>(CARGA_INICIAL);
+  // Unidade dona dos valores na tela: resposta que chega depois de trocar de unidade é descartada.
+  const clinicaDaTela = useRef<string | null>(null);
+  // Por seção: número da última gravação pedida e o último valor que o banco confirmou (para desfazer).
+  const gravacoes = useRef<Partial<Record<SecaoConfig, { pedida: number; confirmada: number; valor: unknown }>>>({});
+  const avisoGravacaoAberto = useRef(false);
+  const [salvandoPopup, setSalvandoPopup] = useState(false);
+  const [dadosClinicaAtiva, setDadosClinicaAtiva] = useState<{ nome?: string | null; cnpj?: string | null; telefone?: string | null; rua?: string | null; numero?: string | null; cidade?: string | null } | null>(null);
 
   useEffect(() => {
       if (typeof window !== 'undefined') {
@@ -195,40 +444,110 @@ export default function Configuracoes() {
               router.replace('/ajustes/equipe');
               return;
           }
-          if (aba) setAbaAtiva(aba);
+          // Aba desconhecida no endereço deixava o painel em branco.
+          if (aba && CONFIG_NAVS.some((secao) => secao.key === aba)) setAbaAtiva(aba);
       }
       if (clinicLoading) return;
       carregarDados({ silent: ctxClinics.length > 0 || bootClinicasFromStorage().length > 0 });
-      setModelos(carregarModelos());
-      recarregarBackups();
   }, [router, clinicLoading, ctxClinics.length]);
+
+  // A lista de backups só existe para o dono: para os demais o banco devolve vazio.
+  useEffect(() => {
+      if (donoPlataforma) recarregarBackups();
+  }, [donoPlataforma]);
+
+  // No celular a faixa de abas rola para o lado: traz a aba ativa para dentro dela sem mexer na rolagem da página.
+  useEffect(() => {
+      const nav = navRef.current;
+      const botao = nav?.querySelector<HTMLElement>('[data-ativa="true"]');
+      if (!nav || !botao) return;
+      const alvo = nav.scrollLeft + botao.getBoundingClientRect().left - nav.getBoundingClientRect().left - (nav.clientWidth - botao.offsetWidth) / 2;
+      nav.scrollTo({ left: Math.max(0, alvo), behavior: 'smooth' });
+  }, [abaAtiva, loading]);
 
   useEffect(() => {
       if (ctxClinics.length > 0) setClinicas(ctxClinics);
   }, [ctxClinics]);
 
-  // Carregar configs do Supabase após clinicas carregarem
+  // Configurações da clínica ativa, só do banco (o localStorage pode ser de outra pessoa ou unidade).
+  // Recarrega ao trocar de unidade; até a resposta, a seção fica em "carregando" e não aceita gravação.
   useEffect(() => {
-      if (clinicas.length === 0) return;
-      const cid = clinicas[0]?.id || '0';
-      carregarConfig(cid, 'preferencias', 'ortus_preferencias', PREFS_PADRAO).then(p => setPrefs({ ...PREFS_PADRAO, ...(p || {}) }));
-      carregarConfig(cid, 'categorias_financeiro', 'ortus_categorias_financeiro', CATEGORIAS_FINANCEIRAS_PADRAO).then(c => setCatsFin(normalizarCategoriasFinanceiras(c)));
-      carregarConfig(cid, 'modelos_documentos', 'ortus_modelos_documentos', DOCS_PADRAO).then(d => setDocs(d && d.length ? d : DOCS_PADRAO));
-      carregarConfig(cid, 'templates_comunicacao', 'ortus_templates_comunicacao', TEMPLATES_COMUNICACAO_PADRAO).then(t => setTemplatesComunicacao(Array.isArray(t) && t.length ? t : TEMPLATES_COMUNICACAO_PADRAO));
-      const cidTaxas = activeClinic && activeClinic.id !== 'all' ? activeClinic.id : cid;
-      carregarConfig(cidTaxas, 'taxas_maquininha', 'ortus_taxas_maquininha', TAXAS_MAQUININHA_PADRAO).then(t => {
+      clinicaDaTela.current = clinicaAtivaId;
+      setCarga(CARGA_INICIAL);
+      setModelos([]);
+      setDadosClinicaAtiva(null);
+      if (!clinicaAtivaId) return;
+      const cid = clinicaAtivaId;
+      let vigente = true;
+      const carregar = <T,>(secao: SecaoConfig, padrao: T, aplicar: (valor: T) => unknown) => {
+          carregarConfigComErro<T>(cid, secao, padrao)
+              .then((bruto) => {
+                  if (!vigente) return;
+                  const valor = aplicar(bruto);
+                  const pedida = gravacoes.current[secao]?.pedida ?? 0;
+                  gravacoes.current[secao] = { pedida, confirmada: pedida, valor };
+                  setCarga((atual) => ({ ...atual, [secao]: 'pronto' }));
+              })
+              .catch(() => { if (vigente) setCarga((atual) => ({ ...atual, [secao]: 'erro' })); });
+      };
+      carregar('preferencias', PREFS_PADRAO, (p) => { const v = { ...PREFS_PADRAO, ...(p || {}) }; setPrefs(v); return v; });
+      carregar<unknown>('categorias_financeiro', CATEGORIAS_FINANCEIRAS_PADRAO, (c) => { const v = normalizarCategoriasFinanceiras(c); setCatsFin(v); return v; });
+      carregar<ModeloDocumento[]>('modelos_documentos', DOCS_PADRAO, (d) => { const v = Array.isArray(d) && d.length ? d : DOCS_PADRAO; setDocs(v); return v; });
+      carregar<TemplateComunicacao[]>('templates_comunicacao', TEMPLATES_COMUNICACAO_PADRAO, (t) => { const v = Array.isArray(t) && t.length ? t : TEMPLATES_COMUNICACAO_PADRAO; setTemplatesComunicacao(v); return v; });
+      carregar<unknown>('taxas_maquininha', TAXAS_MAQUININHA_PADRAO, (t) => {
           const norm = normalizarTaxasMaquininha(t);
           setTaxasMaquininha(norm);
-          if (JSON.stringify(t) !== JSON.stringify(norm)) salvarConfig(cidTaxas, 'taxas_maquininha', norm);
+          // Formato antigo vira o atual no banco em segundo plano, e só para quem administra a unidade.
+          if (JSON.stringify(t) !== JSON.stringify(norm) && podeEditarRef.current) salvarConfig(cid, 'taxas_maquininha', norm).catch(() => {});
+          return norm;
       });
-      carregarModelosAsync(cid).then(setModelos);
-  }, [clinicas, activeClinic]);
+      carregar<ModeloAnamnese[]>('anamnese_modelos', MODELOS_PADRAO, (m) => { const v = Array.isArray(m) && m.length ? m : MODELOS_PADRAO; setModelos(v); return v; });
+      // Dados da unidade para a prévia dos documentos.
+      tabelas.from('clinicas').select('nome, cnpj, telefone, rua, numero, cidade').eq('id', cid).maybeSingle()
+          .then(({ data }) => { if (vigente && data) setDadosClinicaAtiva(data); }, () => {});
+      return () => { vigente = false; };
+  }, [clinicaAtivaId]);
 
-  async function persistirModelosAnamnese(novos: ModeloAnamnese[]) {
-      setModelos(novos);
-      const cid = clinicas[0]?.id;
-      if (cid) await salvarModelosAsync(cid, novos);
-      else salvarModelos(novos);
+  /** Por que a seção não aceita gravação agora; null quando aceita. */
+  function bloqueioDeGravacao(secao: SecaoConfig): string | null {
+      if (!clinicaAtivaId) return 'Escolha no seletor uma unidade própria para alterar as configurações.';
+      if (!podeEditar) return 'Você não pode alterar as configurações desta unidade. Para alterar, escolha uma unidade própria no seletor.';
+      if (carga[secao] === 'carregando') return 'Espere as configurações desta unidade carregarem para alterar.';
+      if (carga[secao] === 'erro') return 'As configurações desta unidade não carregaram. Recarregue a página antes de alterar.';
+      return null;
+  }
+
+  /**
+   * Grava uma seção na clínica ativa e lança a frase do erro. Otimista (interruptor, campo que grava a
+   * cada tecla): a tela muda na hora e volta ao último valor confirmado se o banco recusar. Sem
+   * otimismo (popup, exclusão, importação): a tela só muda depois que o banco aceitou.
+   */
+  async function gravarSecao<T>(secao: SecaoConfig, valor: T, aplicar: (v: T) => void, otimista = false): Promise<void> {
+      const bloqueio = bloqueioDeGravacao(secao);
+      if (bloqueio) throw new Error(bloqueio);
+      const cid = clinicaAtivaId as string;
+      const g = gravacoes.current[secao] ?? (gravacoes.current[secao] = { pedida: 0, confirmada: 0, valor });
+      const numero = ++g.pedida;
+      if (otimista) aplicar(valor);
+      try {
+          if (secao === 'anamnese_modelos') await salvarModelosAsync(cid, valor as ModeloAnamnese[]);
+          else await salvarConfig(cid, secao, valor);
+      } catch (err) {
+          // Só a gravação mais recente desfaz a tela: uma resposta atrasada não apaga o que veio depois.
+          if (otimista && clinicaDaTela.current === cid && numero === g.pedida) aplicar(g.valor as T);
+          throw new Error(mensagemErroConfig(err));
+      }
+      if (clinicaDaTela.current !== cid) return;
+      if (numero > g.confirmada) { g.confirmada = numero; g.valor = valor; }
+      if (!otimista) aplicar(valor);
+  }
+
+  // Falha sem popup aberto (interruptor, campo, exclusão): um aviso por vez, mesmo com várias respostas seguidas.
+  function avisarFalhaGravacao(err: unknown) {
+      if (avisoGravacaoAberto.current) return;
+      avisoGravacaoAberto.current = true;
+      void showAlert(err instanceof Error ? err.message : mensagemErroConfig(err), { type: 'error' })
+          .finally(() => { avisoGravacaoAberto.current = false; });
   }
 
   async function recarregarBackups() {
@@ -236,12 +555,39 @@ export default function Configuracoes() {
       setBackups(list);
   }
 
+  async function conferirDonoPlataforma(userId: string) {
+      let dono: boolean | null = null;
+      try {
+          const { data, error } = await tabelas.from('profissionais')
+              .select('is_super_admin, nivel_acesso')
+              .eq('user_id', userId)
+              .maybeSingle();
+          if (!error) {
+              dono = data?.is_super_admin === true;
+              setNivelAdmin(data?.nivel_acesso === 'admin');
+          }
+      } catch {
+          dono = null;
+      }
+      if (dono === null) {
+          // Sem resposta do banco vale o lado seguro (a aba não oferece nada) e a próxima carga tenta de novo.
+          donoConferido.current = false;
+          setDonoPlataforma((atual) => atual ?? false);
+          return;
+      }
+      setDonoPlataforma(dono);
+  }
+
   async function backupAgoraManual() {
       setCriandoBackup(true);
       const r = await criarBackupAgora('manual', 'Backup manual via interface');
       setCriandoBackup(false);
       if (r.ok) { showAlert('Backup criado com sucesso!', { type: 'success' }); recarregarBackups(); }
-      else showAlert('Falha: ' + r.erro + '\n\nVerifique se o SQL de criação da tabela e função foi executado no Supabase.', { type: 'error' });
+      else {
+          // O texto do banco fica no console para o suporte; a tela mostra a frase fixa.
+          console.error('[backup] criar:', r.erro);
+          showAlert(fraseDoErro({ message: r.erro }, 'Não foi possível criar o backup. Tente de novo em instantes.'), { type: 'error' });
+      }
   }
 
   async function excluirBackupItem(id: number) {
@@ -255,9 +601,12 @@ export default function Configuracoes() {
       setConfirmacaoTexto('');
   }
 
+  // O teclado do celular costuma deixar um espaço depois da palavra; a caixa continua valendo.
+  const restauracaoLiberada = confirmacaoTexto.trim() === 'RESTAURAR';
+
   async function confirmarRestauracao() {
-      if (!modalRestaurar) return;
-      if (confirmacaoTexto !== 'RESTAURAR') return;
+      if (!modalRestaurar || !donoPlataforma) return;
+      if (!restauracaoLiberada) return;
       setRestaurando(true);
       const r = await restaurarBackup(modalRestaurar.id);
       setRestaurando(false);
@@ -266,18 +615,19 @@ export default function Configuracoes() {
           setModalRestaurar(null);
           window.location.reload();
       } else {
-          await showAlert('Falha ao restaurar:\n\n' + r.erro + '\n\nVerifique se a função restaurar_backup foi criada no Supabase.', { type: 'error', title: 'Erro' });
+          console.error('[backup] restaurar:', r.erro);
+          await showAlert(fraseDoErro({ message: r.erro }, 'Não foi possível restaurar o backup. Tente de novo em instantes.'), { type: 'error', title: 'Erro' });
       }
   }
 
   // ===== PREFERÊNCIAS =====
-  function atualizarPref(k: string, v: any) { const p = { ...prefs, [k]: v }; setPrefs(p); const cid = clinicas[0]?.id || '0'; salvarConfig(cid, 'preferencias', p); }
+  // Grava a cada mudança, como antes; se o banco recusar, a tela (e a cor do tema) volta ao que estava salvo.
+  function aplicarPrefs(p: typeof PREFS_PADRAO) { setPrefs(p); applyTheme(p.cor_tema as ThemeId); }
+  function atualizarPref(k: string, v: any) { void gravarSecao('preferencias', { ...prefs, [k]: v }, aplicarPrefs, true).catch(avisarFalhaGravacao); }
   function toggleDia(d: string) { const dias = { ...prefs.dias_atendimento, [d]: !prefs.dias_atendimento[d] }; atualizarPref('dias_atendimento', dias); }
 
-  function persistirCategorias(lista: CategoriaFinanceira[]) {
-      setCatsFin(lista);
-      const cid = clinicas[0]?.id || '0';
-      salvarConfig(cid, 'categorias_financeiro', lista);
+  function persistirCategorias(lista: CategoriaFinanceira[], otimista = false) {
+      return gravarSecao('categorias_financeiro', lista, setCatsFin, otimista);
   }
 
   function abrirNovaCatFin() {
@@ -292,7 +642,8 @@ export default function Configuracoes() {
       setModalCatFin(true);
   }
 
-  function salvarCatFinModal() {
+  async function salvarCatFinModal() {
+      if (salvandoPopup) return;
       if (!catFinEdit?.nome.trim()) {
           showAlert('Informe o nome da categoria.', { type: 'warning' });
           return;
@@ -307,9 +658,18 @@ export default function Configuracoes() {
       const novos = idx >= 0
           ? catsFin.map(c => c.id === catFinEdit.id ? catFinEdit : c)
           : [...catsFin, catFinEdit];
-      persistirCategorias(novos.sort((a, b) => a.nome.localeCompare(b.nome)));
-      setModalCatFin(false);
-      setCatFinEdit(null);
+      // Fecha e avisa só depois que o banco aceitou; na recusa o popup fica aberto com o que foi digitado.
+      setSalvandoPopup(true);
+      try {
+          await persistirCategorias(novos.sort((a, b) => a.nome.localeCompare(b.nome)));
+          setModalCatFin(false);
+          setCatFinEdit(null);
+          showAlert('Categoria salva.', { type: 'success' });
+      } catch (err) {
+          showAlert(err instanceof Error ? err.message : mensagemErroConfig(err), { type: 'error' });
+      } finally {
+          setSalvandoPopup(false);
+      }
   }
 
   const catsFinFiltradas = useMemo(() => {
@@ -318,55 +678,28 @@ export default function Configuracoes() {
       return catsFin.filter(c => c.nome.toLowerCase().includes(q) || c.tipo.includes(q));
   }, [catsFin, buscaCatFin]);
 
-  const totalModelosAnamnese = modelos.length;
-  const totalDocs = docs.length;
-  const totalCatsAtivas = useMemo(() => catsFin.filter(c => c.ativo).length, [catsFin]);
   const totalBackups = backups.length;
   const kpiLoading = loading && !jaCarregou.current;
 
-
-  const taxasPorBandeira = useMemo(() => {
-      const map = new Map<string, TaxaMaquininha[]>();
-      taxasMaquininha.forEach(t => {
-          if (!map.has(t.bandeira)) map.set(t.bandeira, []);
-          map.get(t.bandeira)!.push(t);
-      });
-      map.forEach(list => {
-          list.sort((a, b) => {
-              const ordemTipo = (x: TaxaMaquininha) => {
-                  if (x.tipo === 'pix') return 0;
-                  if (x.tipo === 'debito') return 1;
-                  if (x.tipo === 'credito_vista') return 2;
-                  return 3;
-              };
-              const diff = ordemTipo(a) - ordemTipo(b);
-              if (diff !== 0) return diff;
-              return (a.parcela ?? 0) - (b.parcela ?? 0);
-          });
-      });
-      return Array.from(map.entries());
-  }, [taxasMaquininha]);
 
   async function removerCatFin(id: string) {
       const cat = catsFin.find(c => c.id === id);
       if (!cat) return;
       if (!(await showConfirm(`Excluir categoria "${cat.nome}"?`, { title: 'Excluir', type: 'error', confirmLabel: 'Excluir' }))) return;
-      persistirCategorias(catsFin.filter(x => x.id !== id));
+      await persistirCategorias(catsFin.filter(x => x.id !== id)).catch(avisarFalhaGravacao);
   }
 
   function toggleCatFinAtiva(id: string) {
-      persistirCategorias(catsFin.map(c => c.id === id ? { ...c, ativo: !c.ativo } : c));
+      void persistirCategorias(catsFin.map(c => c.id === id ? { ...c, ativo: !c.ativo } : c), true).catch(avisarFalhaGravacao);
   }
 
   function salvarTemplatesComunicacao(lista: TemplateComunicacao[]) {
-      setTemplatesComunicacao(lista);
-      salvarConfig(clinicas[0]?.id || '0', 'templates_comunicacao', lista);
+      return gravarSecao('templates_comunicacao', lista, setTemplatesComunicacao);
   }
 
+  // Taxas gravam a cada tecla, como antes; se o banco recusar, voltam ao que estava salvo.
   function salvarTaxas(lista: TaxaMaquininha[]) {
-      setTaxasMaquininha(lista);
-      const cidTaxas = activeClinic && activeClinic.id !== 'all' ? activeClinic.id : (clinicas[0]?.id || '0');
-      salvarConfig(cidTaxas, 'taxas_maquininha', lista);
+      void gravarSecao('taxas_maquininha', lista, setTaxasMaquininha, true).catch(avisarFalhaGravacao);
   }
 
   function abrirNovoTemplateCom() {
@@ -379,7 +712,8 @@ export default function Configuracoes() {
       setModalTemplateCom(true);
   }
 
-  function salvarTemplateComEdit() {
+  async function salvarTemplateComEdit() {
+      if (salvandoPopup) return;
       if (!templateComEdit?.nome.trim() || !templateComEdit.corpo.trim()) {
           showAlert('Preencha nome e mensagem.', { type: 'warning' });
           return;
@@ -388,18 +722,22 @@ export default function Configuracoes() {
       const novos = idx >= 0
           ? templatesComunicacao.map((t, i) => i === idx ? templateComEdit : t)
           : [...templatesComunicacao, templateComEdit];
-      salvarTemplatesComunicacao(novos);
-      setModalTemplateCom(false);
-      setTemplateComEdit(null);
+      setSalvandoPopup(true);
+      try {
+          await salvarTemplatesComunicacao(novos);
+          setModalTemplateCom(false);
+          setTemplateComEdit(null);
+          showAlert('Template salvo.', { type: 'success' });
+      } catch (err) {
+          showAlert(err instanceof Error ? err.message : mensagemErroConfig(err), { type: 'error' });
+      } finally {
+          setSalvandoPopup(false);
+      }
   }
 
   async function excluirTemplateCom(id: string) {
       if (!(await showConfirm('Excluir este template?', { title: 'Excluir', type: 'warning' }))) return;
-      salvarTemplatesComunicacao(templatesComunicacao.filter(t => t.id !== id));
-  }
-
-  function atualizarTaxa(id: string, campo: keyof TaxaMaquininha, valor: string | number | boolean) {
-      salvarTaxas(taxasMaquininha.map(t => t.id === id ? { ...t, [campo]: valor } : t));
+      await salvarTemplatesComunicacao(templatesComunicacao.filter(t => t.id !== id)).catch(avisarFalhaGravacao);
   }
 
   // ===== MODELOS DE DOCUMENTOS =====
@@ -408,18 +746,25 @@ export default function Configuracoes() {
       setModalDoc(true);
   }
   function abrirEditarDoc(d: ModeloDocumento) { setDocEdit({ ...d }); setModalDoc(true); }
-  function salvarDocEdit() {
-      if (!docEdit) return;
+  async function salvarDocEdit() {
+      if (!docEdit || salvandoPopup) return;
       if (!docEdit.nome.trim() || !docEdit.conteudo.trim()) { showAlert('Preencha nome e conteúdo.', { type: 'warning' }); return; }
       const idx = docs.findIndex(d => d.id === docEdit.id);
       const novos = idx >= 0 ? docs.map((d,i) => i === idx ? docEdit : d) : [...docs, docEdit];
-      setDocs(novos); const cidD = clinicas[0]?.id || '0'; salvarConfig(cidD, 'modelos_documentos', novos);
-      setModalDoc(false); setDocEdit(null);
+      setSalvandoPopup(true);
+      try {
+          await gravarSecao('modelos_documentos', novos, setDocs);
+          setModalDoc(false); setDocEdit(null);
+          showAlert('Modelo salvo.', { type: 'success' });
+      } catch (err) {
+          showAlert(err instanceof Error ? err.message : mensagemErroConfig(err), { type: 'error' });
+      } finally {
+          setSalvandoPopup(false);
+      }
   }
   async function excluirDoc(id: string) {
       if (!(await showConfirm('Excluir este modelo de documento?', { title: 'Excluir', type: 'error', confirmLabel: 'Excluir' }))) return;
-      const novos = docs.filter(d => d.id !== id);
-      setDocs(novos); const cidD2 = clinicas[0]?.id || '0'; salvarConfig(cidD2, 'modelos_documentos', novos);
+      await gravarSecao('modelos_documentos', docs.filter(d => d.id !== id), setDocs).catch(avisarFalhaGravacao);
   }
 
   function inserirVariavelDoc(chave: string) {
@@ -441,10 +786,11 @@ export default function Configuracoes() {
           paciente_telefone: '(11) 99999-0000',
           paciente_email: 'maria@email.com',
           paciente_endereco: 'Rua Exemplo, 100 — Centro',
-          clinica_nome: clinicas[0]?.nome,
-          clinica_cnpj: clinicas[0]?.cnpj,
-          clinica_telefone: clinicas[0]?.telefone,
-          clinica_endereco: [clinicas[0]?.rua, clinicas[0]?.numero, clinicas[0]?.cidade].filter(Boolean).join(', '),
+          // A prévia é da clínica ativa (antes era a primeira por nome, às vezes de outra rede).
+          clinica_nome: dadosClinicaAtiva?.nome || (clinicaAtivaId ? activeClinic?.nome : undefined),
+          clinica_cnpj: dadosClinicaAtiva?.cnpj || undefined,
+          clinica_telefone: dadosClinicaAtiva?.telefone || undefined,
+          clinica_endereco: [dadosClinicaAtiva?.rua, dadosClinicaAtiva?.numero, dadosClinicaAtiva?.cidade].filter(Boolean).join(', '),
       }),
   ) : '';
 
@@ -454,7 +800,7 @@ export default function Configuracoes() {
       let query = tabelas.from('pacientes').select('id, nome, cpf, rg, telefone, email, data_nascimento, sexo, endereco, created_at, clinicas(nome)').order('nome');
       if (ids.length) query = query.or(`clinica_id.in.(${ids.join(',')}),clinica_id.is.null`);
       const { data, error } = await query;
-      if (error) { showAlert('Não foi possível exportar: ' + error.message, { type: 'error' }); return; }
+      if (error) { showAlert(fraseDoErro(error, 'Não foi possível exportar os pacientes. Confira a internet e tente de novo.'), { type: 'error' }); return; }
       if (!data?.length) { showAlert('Nenhum paciente para exportar.', { type: 'warning' }); return; }
       const esc = (val: any) => `"${String(val ?? '').replace(/"/g, '""').replace(/\r?\n/g, ' ')}"`;
       const headers = ['Nome', 'CPF', 'RG', 'Telefone', 'E-mail', 'Nascimento', 'Sexo', 'Endereço', 'Clínica', 'Cadastrado em'];
@@ -466,11 +812,16 @@ export default function Configuracoes() {
       const csv = '\uFEFF' + headers.map(esc).join(',') + '\n' + rows.join('\n');
       const a = document.createElement('a');
       a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
-      a.download = `pacientes_${new Date().toISOString().split('T')[0]}.csv`;
+      a.download = `pacientes_${dataDoArquivo()}.csv`;
       a.click();
   }
 
   function exportarTudo() {
+      // Exporta o que a clínica ativa tem no banco: antes da carga a tela só teria o padrão.
+      if (!clinicaAtivaId) { showAlert('Escolha no seletor a unidade cujas configurações você quer exportar.', { type: 'warning' }); return; }
+      const secoes = Object.keys(CARGA_INICIAL) as SecaoConfig[];
+      if (secoes.some((s) => carga[s] === 'carregando')) { showAlert('Espere as configurações desta unidade carregarem para exportar.', { type: 'warning' }); return; }
+      if (secoes.some((s) => carga[s] === 'erro')) { showAlert('As configurações desta unidade não carregaram. Recarregue a página antes de exportar.', { type: 'error' }); return; }
       const tudo = {
           versao: 1,
           exportado_em: new Date().toISOString(),
@@ -480,51 +831,66 @@ export default function Configuracoes() {
           taxas_maquininha: taxasMaquininha,
           modelos_anamnese: modelos,
           modelos_documentos: docs,
-          lancamentos_meta: {},
       };
       const blob = new Blob([JSON.stringify(tudo, null, 2)], { type: 'application/json' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = `ortus_backup_${new Date().toISOString().split('T')[0]}.json`;
+      a.download = `ortus_configuracoes_${dataDoArquivo()}.json`;
       a.click();
   }
 
-  async function importarTudo(e: any) {
-      const file = e.target.files?.[0];
-      if (!file) return;
-      if (!/\.json$/i.test(file.name) || file.size > 2 * 1024 * 1024) {
-          e.target.value = '';
-          showAlert('Envie o arquivo .json do backup do Ortus (até 2 MB).', { type: 'warning' });
-          return;
+  async function importarTudo(e: React.ChangeEvent<HTMLInputElement>) {
+      const arquivo = e.target.files?.[0];
+      // Limpa o campo antes de qualquer espera: o mesmo arquivo pode ser escolhido de novo depois de uma recusa.
+      e.target.value = '';
+      if (!arquivo) return;
+      const recusar = (motivo: string) => showAlert(`${motivo}\n\nNada foi alterado.`, { type: 'warning', title: 'Arquivo recusado' });
+
+      if (!/\.json$/i.test(arquivo.name)) return recusar('Só é aceito o arquivo .json gerado em "Exportar configurações".');
+      if (arquivo.size > TAMANHO_MAX_IMPORTACAO) return recusar('O arquivo passa de 2 MB.');
+      // Grava só na clínica ativa, e só quem a administra.
+      if (!clinicaAtivaId || !podeEditar) return recusar(bloqueioDeGravacao('preferencias') || 'Você não pode alterar as configurações desta unidade.');
+
+      let conteudo: unknown;
+      try {
+          conteudo = JSON.parse(await arquivo.text());
+      } catch {
+          return recusar('O arquivo não é um JSON válido.');
       }
-      const ok = await showConfirm('Isso irá sobrescrever todas as configurações locais (preferências, categorias, modelos). Continuar?', { title: 'Importar Backup', type: 'warning', confirmLabel: 'Importar' });
-      if (!ok) { e.target.value=''; return; }
-      const reader = new FileReader();
-      reader.onload = () => {
-          try {
-              const obj = JSON.parse(reader.result as string);
-              if (!obj || typeof obj !== 'object' || Array.isArray(obj)) throw new Error('o conteúdo não é um backup do Ortus.');
-              const cidB = clinicas[0]?.id || '0';
-              if (obj.preferencias) { setPrefs(obj.preferencias); salvarConfig(cidB, 'preferencias', obj.preferencias); }
-              if (obj.categorias_financeiro) {
-                  const norm = normalizarCategoriasFinanceiras(obj.categorias_financeiro);
-                  setCatsFin(norm);
-                  salvarConfig(cidB, 'categorias_financeiro', norm);
-              }
-              if (obj.templates_comunicacao) { setTemplatesComunicacao(obj.templates_comunicacao); salvarConfig(cidB, 'templates_comunicacao', obj.templates_comunicacao); }
-              if (obj.taxas_maquininha) {
-                  const norm = normalizarTaxasMaquininha(obj.taxas_maquininha);
-                  setTaxasMaquininha(norm);
-                  salvarConfig(cidB, 'taxas_maquininha', norm);
-              }
-              if (obj.modelos_anamnese) { setModelos(obj.modelos_anamnese); salvarModelos(obj.modelos_anamnese); }
-              if (obj.modelos_documentos) { setDocs(obj.modelos_documentos); salvarConfig(cidB, 'modelos_documentos', obj.modelos_documentos); }
-              if (obj.lancamentos_meta) { salvarConfig(cidB, 'lancamentos_meta', obj.lancamentos_meta); }
-              showAlert('Backup importado com sucesso!', { type: 'success' });
-          } catch (err: any) { showAlert('Arquivo inválido: ' + err.message, { type: 'error' }); }
-      };
-      reader.readAsText(file);
-      e.target.value='';
+      const lido = lerConfigImportada(conteudo);
+      if ('erro' in lido) return recusar(lido.erro);
+
+      const { config, partes } = lido;
+      // "lancamentos_meta" (taxas e cancelamentos já lançados no Financeiro) não é configuração:
+      // a importação nunca grava essa chave, mesmo que um arquivo antigo a traga.
+      const tarefas: { secao: SecaoConfig; gravar: () => Promise<void> }[] = [];
+      if (config.preferencias) { const v = config.preferencias; tarefas.push({ secao: 'preferencias', gravar: () => gravarSecao('preferencias', v, setPrefs) }); }
+      if (config.categorias_financeiro) { const v = normalizarCategoriasFinanceiras(config.categorias_financeiro); tarefas.push({ secao: 'categorias_financeiro', gravar: () => gravarSecao('categorias_financeiro', v, setCatsFin) }); }
+      if (config.templates_comunicacao) { const v = config.templates_comunicacao; tarefas.push({ secao: 'templates_comunicacao', gravar: () => gravarSecao('templates_comunicacao', v, setTemplatesComunicacao) }); }
+      if (config.taxas_maquininha) { const v = normalizarTaxasMaquininha(config.taxas_maquininha); tarefas.push({ secao: 'taxas_maquininha', gravar: () => gravarSecao('taxas_maquininha', v, setTaxasMaquininha) }); }
+      if (config.modelos_documentos) { const v = config.modelos_documentos; tarefas.push({ secao: 'modelos_documentos', gravar: () => gravarSecao('modelos_documentos', v, setDocs) }); }
+      if (config.modelos_anamnese) { const v = config.modelos_anamnese; tarefas.push({ secao: 'anamnese_modelos', gravar: () => gravarSecao('anamnese_modelos', v, setModelos) }); }
+      // Parte ainda carregando (ou que não carregou) não recebe nada: recusa antes de gravar qualquer coisa.
+      const bloqueio = tarefas.map((t) => bloqueioDeGravacao(t.secao)).find(Boolean);
+      if (bloqueio) return recusar(bloqueio);
+
+      const ok = await showConfirm(
+          `O arquivo traz: ${partes.join(', ')}.\n\nO que ${activeClinic?.nome ? `"${activeClinic.nome}"` : 'esta unidade'} tem hoje nessas partes será substituído. Continuar?`,
+          { title: 'Importar configurações', type: 'warning', confirmLabel: 'Importar' },
+      );
+      if (!ok) return;
+
+      const resultados = await Promise.allSettled(tarefas.map((t) => t.gravar()));
+      const falhas = tarefas.filter((_, i) => resultados[i].status === 'rejected');
+      if (falhas.length === 0) { showAlert('Configurações importadas.', { type: 'success' }); return; }
+      const importadas = tarefas.filter((_, i) => resultados[i].status === 'fulfilled');
+      const recusa = resultados.find((r): r is PromiseRejectedResult => r.status === 'rejected')?.reason;
+      showAlert(
+          `${importadas.length ? `Importado: ${importadas.map((t) => NOME_DA_SECAO[t.secao]).join(', ')}.\n` : ''}`
+          + `Não foi importado: ${falhas.map((t) => NOME_DA_SECAO[t.secao]).join(', ')}.\n\n`
+          + (recusa instanceof Error ? recusa.message : mensagemErroConfig(recusa)),
+          { type: importadas.length ? 'warning' : 'error', title: importadas.length ? 'Importação incompleta' : 'Nada foi importado' },
+      );
   }
 
   // ----- ANAMNESE: helpers -----
@@ -562,23 +928,32 @@ export default function Configuracoes() {
       setModeloEdit({ ...modeloEdit, perguntas: modeloEdit.perguntas.filter((_, i) => i !== idx) });
   }
   async function salvarModelo() {
-      if (!modeloEdit) return;
+      if (!modeloEdit || salvandoPopup) return;
       if (!modeloEdit.nome.trim()) { showAlert('Informe o nome do modelo.', { type: 'warning' }); return; }
       const perguntasValidas = modeloEdit.perguntas.filter(p => p.label.trim());
       if (perguntasValidas.length === 0) { showAlert('Adicione pelo menos uma pergunta.', { type: 'warning' }); return; }
       const limpo = { ...modeloEdit, perguntas: perguntasValidas, padrao: false };
       const existe = modelos.findIndex(m => m.id === limpo.id);
       const novos = existe >= 0 ? modelos.map((m, i) => i === existe ? limpo : m) : [...modelos, limpo];
-      await persistirModelosAnamnese(novos);
-      setModalModelo(false);
-      setModeloEdit(null);
+      // A lista atrás do popup só muda depois que o banco aceitou; na recusa o popup fica com o aviso.
+      setSalvandoPopup(true);
+      try {
+          await gravarSecao('anamnese_modelos', novos, setModelos);
+          setModalModelo(false);
+          setModeloEdit(null);
+          showAlert('Modelo salvo.', { type: 'success' });
+      } catch (err) {
+          showAlert(err instanceof Error ? err.message : mensagemErroConfig(err), { type: 'error' });
+      } finally {
+          setSalvandoPopup(false);
+      }
   }
   async function excluirModelo(id: string) {
       const m = modelos.find(x => x.id === id);
       if (m?.padrao) { showAlert('Modelos padrão não podem ser excluídos.', { type: 'warning' }); return; }
       if (!(await showConfirm('Excluir este modelo?', { title: 'Excluir', type: 'error', confirmLabel: 'Excluir' }))) return;
       const novos = modelos.filter(x => x.id !== id);
-      await persistirModelosAnamnese(novos);
+      await gravarSecao('anamnese_modelos', novos, setModelos).catch(avisarFalhaGravacao);
   }
   async function duplicarModelo(m: ModeloAnamnese) {
       const copia: ModeloAnamnese = {
@@ -589,7 +964,7 @@ export default function Configuracoes() {
           perguntas: m.perguntas.map(p => ({ ...p, id: novoIdPergunta() })),
       };
       const novos = [...modelos, copia];
-      await persistirModelosAnamnese(novos);
+      await gravarSecao('anamnese_modelos', novos, setModelos).catch(avisarFalhaGravacao);
   }
 
   // Buscar endereço ViaCEP para clínica
@@ -621,12 +996,13 @@ export default function Configuracoes() {
   async function carregarDados(opts?: { silent?: boolean }) {
       if (!opts?.silent) setLoading(true);
       const user = await usuarioDaSessao();
-      if (!user) { setPerfilCaller(null); setLoading(false); return; }
-      const { data: meu } = await tabelas.from('profissionais')
-          .select('id, nivel_acesso, is_super_admin')
-          .eq('user_id', user.id)
-          .maybeSingle();
-      setPerfilCaller(meu);
+      if (!user) { setDonoPlataforma((atual) => atual ?? false); setLoading(false); return; }
+
+      // Uma leitura por visita basta, e sem segurar a tela: só a aba de backups depende dela.
+      if (!donoConferido.current) {
+          donoConferido.current = true;
+          void conferirDonoPlataforma(user.id);
+      }
 
       if (ctxClinics.length > 0) {
           setClinicas(ctxClinics);
@@ -634,7 +1010,6 @@ export default function Configuracoes() {
           const c = await fetchUserClinicas();
           setClinicas(c || []);
       }
-      setProfissionais([]);
       jaCarregou.current = true;
       setLoading(false);
   }
@@ -667,15 +1042,34 @@ export default function Configuracoes() {
   }
 
   function abrirNovaClinica() {
+      pedidoClinica.current += 1;
+      setCarregandoClinica(false);
       setClinicaEditando(null);
       setClinicaForm({ ...CLINICA_FORM_VAZIO });
       limparLogoLocal();
       setModalClinicaCompleto(true);
   }
 
+  // Fechar invalida a leitura da linha que ainda esteja a caminho. Durante a gravação o popup não fecha:
+  // a resposta dela fecharia o popup de outra clínica aberta em seguida.
+  function fecharModalClinica() {
+      if (salvandoClinicaRef.current) return;
+      pedidoClinica.current += 1;
+      setCarregandoClinica(false);
+      setModalClinicaCompleto(false);
+      setClinicaEditando(null);
+      limparLogoLocal();
+  }
+
+  // Mesma regra do banco para editar e excluir a clínica (user_is_clinic_admin).
+  function podeAlterarClinica(c: { convidado?: boolean }) {
+      return donoPlataforma === true || (nivelAdmin === true && c.convidado !== true);
+  }
+
   // --- CLÍNICAS ---
   // Cria ou atualiza clínica com formulário completo
   async function salvarClinicaCompleta() {
+      if (salvandoClinicaRef.current || carregandoClinica) return;
       const erro = validarClinicaForm();
       if (erro) {
           showAlert(erro, { type: 'warning' });
@@ -702,12 +1096,21 @@ export default function Configuracoes() {
           uf: clinicaForm.uf || null
       };
 
+      const editandoId: string | number | null = clinicaEditando?.id ?? null;
+      salvandoClinicaRef.current = true;
+      setSalvandoClinica(true);
       try {
-          let clinicaId: string | number | null = clinicaEditando?.id ?? null;
+          let clinicaId: string | number | null = editandoId;
           let aviso: string | null = null;
-          if (clinicaEditando?.id) {
-              const { error } = await tabelas.from('clinicas').update(payload).eq('id', clinicaEditando.id);
+          if (editandoId) {
+              // Sem o select, a recusa da RLS voltava sem erro e sem linhas, e a tela dizia "atualizada".
+              const { data: alteradas, error } = await tabelas.from('clinicas').update(payload).eq('id', editandoId).select('id');
               if (error) throw error;
+              if (!alteradas?.length) { showAlert(ERRO_SEM_PERMISSAO_CLINICA, { type: 'error' }); return; }
+              // A prévia dos documentos usa estes dados da unidade ativa.
+              if (String(editandoId) === clinicaAtivaId) {
+                  setDadosClinicaAtiva({ nome: payload.nome, cnpj: payload.cnpj, telefone: payload.telefone, rua: payload.rua, numero: payload.numero, cidade: payload.cidade });
+              }
           } else {
               const { data: { session } } = await supabase.auth.getSession();
               if (!session) { showAlert('Sessão expirada. Faça login novamente.', { type: 'error' }); return; }
@@ -722,12 +1125,14 @@ export default function Configuracoes() {
                   return;
               }
 
+              // A rede vem de um vínculo próprio: o de convidado é de outra rede, e lá o banco recusa a clínica nova.
               let redeId: any = null;
+              const proprias = new Set(ctxClinics.filter((c) => c.convidado !== true).map((c) => String(c.id)));
               const { data: vinculos } = await tabelas.from('profissionais_clinicas')
-                  .select('clinicas(rede_id)')
-                  .eq('profissional_id', prof.id)
-                  .limit(1);
-              redeId = (vinculos?.[0] as any)?.clinicas?.rede_id ?? null;
+                  .select('clinica_id, clinicas(rede_id)')
+                  .eq('profissional_id', prof.id);
+              const vinculo = (vinculos || []).find((v: any) => proprias.has(String(v.clinica_id))) ?? vinculos?.[0];
+              redeId = (vinculo as any)?.clinicas?.rede_id ?? null;
 
               if (!redeId && !prof.is_super_admin) {
                   showAlert('Sua conta não está vinculada a nenhuma rede. Contate o suporte.', { type: 'error' });
@@ -755,65 +1160,89 @@ export default function Configuracoes() {
           if (clinicaId && logoArquivo) {
               try {
                   await publicarLogo(clinicaId, logoArquivo);
-              } catch (err: any) {
-                  const falhaLogo = 'A clínica foi salva, mas a logo não foi enviada: ' + (err?.message || err);
+              } catch (err) {
+                  const falhaLogo = 'A clínica foi salva, mas a logo não foi enviada. ' + fraseDoErro(err, 'Tente enviar de novo pela edição da clínica.');
                   aviso = aviso ? `${aviso}\n${falhaLogo}` : falhaLogo;
               }
           }
 
-          showAlert(aviso || (clinicaEditando?.id ? 'Clínica atualizada com sucesso!' : 'Clínica cadastrada com sucesso!'), {
+          // A lista e o seletor de unidades vêm da casca: fecha só depois de ela recarregar.
+          await refreshClinics().catch(() => {});
+          salvandoClinicaRef.current = false;
+          fecharModalClinica();
+          showAlert(aviso || (editandoId ? 'Clínica atualizada com sucesso!' : 'Clínica cadastrada com sucesso!'), {
               type: aviso ? 'warning' : 'success',
           });
-
-          setModalClinicaCompleto(false);
-          setClinicaEditando(null);
-          limparLogoLocal();
-          carregarDados({ silent: true });
-      } catch (e: any) {
-          showAlert('Erro ao salvar: ' + (e?.message || e), { type: 'error' });
+      } catch (e) {
+          showAlert(fraseDoErro(e, editandoId ? 'Não foi possível salvar a clínica. Confira a internet e tente de novo.' : 'Não foi possível cadastrar a clínica. Confira a internet e tente de novo.'), { type: 'error' });
+      } finally {
+          salvandoClinicaRef.current = false;
+          setSalvandoClinica(false);
       }
   }
 
   async function excluirClinica(id: number) {
       if (!(await showConfirm('Tem certeza absoluta? Isso apagará a clínica e pode afetar dados vinculados.', { title: 'Excluir Clínica', type: 'error', confirmLabel: 'Excluir' }))) return;
-      
-      const { error } = await tabelas.from('clinicas').delete().eq('id', id);
-      
-      if (error) {
-          console.error(error);
-          showAlert('Não foi possível excluir: ' + error.message + '\nDica: Verifique se existem pacientes ou vínculos dependentes desta clínica.', { type: 'error' });
-      } else {
-          showAlert('Clínica excluída com sucesso!', { type: 'success' });
-          carregarDados({ silent: true });
+
+      try {
+          const { data: apagadas, error } = await tabelas.from('clinicas').delete().eq('id', id).select('id');
+          if (error) throw error;
+          // Recusa da RLS volta sem erro e sem linhas: antes aparecia "excluída" com a clínica intacta.
+          if (!apagadas?.length) { showAlert(ERRO_SEM_PERMISSAO_CLINICA, { type: 'error' }); return; }
+      } catch (e) {
+          console.error(e);
+          showAlert(fraseDoErro(e, 'Não foi possível excluir a clínica. Confira se ainda há pacientes ou vínculos ligados a ela.'), { type: 'error' });
+          return;
       }
+      await refreshClinics().catch(() => {});
+      setClinicas((atual) => atual.filter((c) => String(c.id) !== String(id)));
+      showAlert('Clínica excluída com sucesso!', { type: 'success' });
   }
 
-  // Abrir modal de edição completa da clínica
-  function abrirEdicaoClinica(c: any) {
+  // Abre o popup na hora, carregando, e só preenche com a linha completa do banco.
+  async function abrirEdicaoClinica(c: any) {
+      const pedido = ++pedidoClinica.current;
       setClinicaEditando(c);
-      setClinicaForm({
-          id: c.id,
-          nome: c.nome || '',
-          cnpj: c.cnpj || '',
-          responsavel_nome: c.responsavel_nome || '',
-          email: c.email || '',
-          telefone: c.telefone || '',
-          horario_inicio: c.horario_inicio || '08:00',
-          horario_fim: c.horario_fim || '18:00',
-          fuso_horario: c.fuso_horario || 'America/Sao_Paulo',
-          emitir_notas_em_nome: c.emitir_notas_em_nome || 'clinica',
-          logo_url: c.logo_url || '',
-          cep: c.cep || '',
-          rua: c.rua || '',
-          numero: c.numero || '',
-          complemento: c.complemento || '',
-          bairro: c.bairro || '',
-          cidade: c.cidade || '',
-          uf: c.uf || ''
-      });
+      setClinicaForm({ ...CLINICA_FORM_VAZIO, id: c.id, nome: c.nome || '' });
       limparLogoLocal();
-      setLogoPreview(c.logo_url || '');
+      setCarregandoClinica(true);
       setModalClinicaCompleto(true);
+      let linha: any = null;
+      try {
+          const { data, error } = await tabelas.from('clinicas').select(COLUNAS_FORM_CLINICA).eq('id', c.id).maybeSingle();
+          if (!error) linha = data;
+      } catch {
+          linha = null;
+      }
+      // Popup fechado, ou outra clínica aberta, enquanto a leitura vinha.
+      if (pedido !== pedidoClinica.current) return;
+      setCarregandoClinica(false);
+      if (!linha) {
+          fecharModalClinica();
+          showAlert('Não foi possível abrir os dados desta clínica. Confira a internet e tente de novo.', { type: 'error' });
+          return;
+      }
+      setClinicaForm({
+          id: linha.id,
+          nome: linha.nome || '',
+          cnpj: linha.cnpj || '',
+          responsavel_nome: linha.responsavel_nome || '',
+          email: linha.email || '',
+          telefone: linha.telefone || '',
+          horario_inicio: linha.horario_inicio || '08:00',
+          horario_fim: linha.horario_fim || '18:00',
+          fuso_horario: linha.fuso_horario || 'America/Sao_Paulo',
+          emitir_notas_em_nome: linha.emitir_notas_em_nome || 'clinica',
+          logo_url: linha.logo_url || '',
+          cep: linha.cep || '',
+          rua: linha.rua || '',
+          numero: linha.numero || '',
+          complemento: linha.complemento || '',
+          bairro: linha.bairro || '',
+          cidade: linha.cidade || '',
+          uf: linha.uf || ''
+      });
+      setLogoPreview(linha.logo_url || '');
   }
 
   function escolherLogo(e: React.ChangeEvent<HTMLInputElement>) {
@@ -842,113 +1271,12 @@ export default function Configuracoes() {
           const filePath = `clinicas/${clinicaId}/logo-${Date.now()}.${fileExt}`;
           const publicUrl = await enviarArquivoClinica(filePath, file, { upsert: true, contentType: file.type || undefined });
           if (!publicUrl) throw new Error('Não foi possível publicar a logo.');
-          const { error } = await tabelas.from('clinicas').update({ logo_url: publicUrl }).eq('id', clinicaId);
+          const { data: alteradas, error } = await tabelas.from('clinicas').update({ logo_url: publicUrl }).eq('id', clinicaId).select('id');
           if (error) throw error;
+          if (!alteradas?.length) throw new Error('A logo foi enviada, mas o banco não deixou ligá-la à clínica.');
           setClinicaForm((prev) => ({ ...prev, logo_url: publicUrl }));
       } finally {
           setUploadingLogo(false);
-      }
-  }
-
-  // --- PROFISSIONAIS ---
-  function abrirNovoProf() {
-      setProfForm({ 
-          id: '', user_id: '', nome: '', cargo: 'Dentista', nivel_acesso: 'comum', 
-          email: '', senha: '', 
-          cpf: '', cro: '', telefone: '', foto_url: '',
-          conselho: 'CRO', uf: '', sexo: '', endereco: ''
-      });
-      setEditandoProf(false);
-      setModalProf(true);
-  }
-
-  function abrirEditarProf(p: any) {
-      setProfForm({ 
-          id: p.id, user_id: p.user_id, nome: p.nome, 
-          cargo: p.cargo || 'Dentista', nivel_acesso: p.nivel_acesso || 'comum', 
-          email: '', senha: '', 
-          cpf: p.cpf || '', cro: p.cro || '', telefone: p.telefone || '', foto_url: p.foto_url || '',
-          conselho: p.conselho || 'CRO', uf: p.uf || '', sexo: p.sexo || '', endereco: p.endereco || ''
-      });
-      setEditandoProf(true);
-      setModalProf(true);
-  }
-
-  async function salvarProfissional() {
-      if (!profForm.nome) { await showAlert('Nome é obrigatório', { type: 'warning' }); return; }
-      if (!editandoProf && (!profForm.email || !profForm.senha)) { await showAlert('Email e Senha são obrigatórios para novos usuários.', { type: 'warning' }); return; }
-
-      setSalvandoProf(true);
-
-      const dados = {
-          id: profForm.id,
-          user_id: profForm.user_id,
-          email: profForm.email,
-          password: profForm.senha,
-          nome: profForm.nome,
-          cargo: profForm.cargo,
-          nivel_acesso: profForm.nivel_acesso,
-          cpf: profForm.cpf,
-          cro: profForm.cro,
-          telefone: profForm.telefone,
-          foto_url: profForm.foto_url,
-          conselho: profForm.conselho,
-          uf: profForm.uf,
-          sexo: profForm.sexo,
-          endereco: profForm.endereco
-      };
-
-      try {
-          const url = editandoProf ? '/api/editar-usuario' : '/api/criar-usuario';
-          const { data: { session } } = await supabase.auth.getSession();
-          const res = await fetch(url, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token || ''}` },
-              body: JSON.stringify(dados)
-          });
-
-          const json = await res.json();
-          if (!res.ok) throw new Error(json.error);
-
-          setModalProf(false);
-          carregarDados({ silent: true });
-          showAlert(editandoProf ? 'Dados atualizados!' : 'Profissional cadastrado com acesso ao sistema!', { type: 'success' });
-
-      } catch (err: any) {
-          showAlert('Erro: ' + err.message, { type: 'error' });
-      } finally {
-          setSalvandoProf(false);
-      }
-  }
-
-  async function excluirProfissional() {
-      if (!editandoProf) return;
-      if (!(await showConfirm('ATENÇÃO: Isso removerá o acesso deste usuário ao sistema. Continuar?', { title: 'Excluir Profissional', type: 'error', confirmLabel: 'Excluir' }))) return;
-      
-      const { error } = await tabelas.from('profissionais').delete().eq('id', profForm.id);
-      if (error) showAlert('Erro ao excluir: ' + error.message, { type: 'error' });
-      else {
-          setModalProf(false);
-          carregarDados({ silent: true });
-      }
-  }
-
-  // --- VÍNCULOS ---
-  async function abrirVinculos(prof: any) {
-      setProfSelecionado(prof);
-      const { data } = await tabelas.from('profissionais_clinicas').select('clinica_id').eq('profissional_id', prof.id);
-      if (data) setVinculosDoProf(data.map((v: any) => v.clinica_id));
-      setModalVinculo(true);
-  }
-
-  async function toggleVinculo(clinicaId: number) {
-      const jaTem = vinculosDoProf.includes(clinicaId);
-      if (jaTem) {
-          await tabelas.from('profissionais_clinicas').delete().eq('profissional_id', profSelecionado.id).eq('clinica_id', clinicaId);
-          setVinculosDoProf(prev => prev.filter(id => id !== clinicaId));
-      } else {
-          await tabelas.from('profissionais_clinicas').insert([{ profissional_id: profSelecionado.id, clinica_id: clinicaId }]);
-          setVinculosDoProf(prev => [...prev, clinicaId]);
       }
   }
 
@@ -964,14 +1292,49 @@ export default function Configuracoes() {
     }
   }
 
+  // Unidade específica em que a pessoa é convidada ou não é administradora: mostra, mas não deixa alterar.
+  const avisoSomenteLeitura = clinicaAtivaId && !podeEditar && (convidadoAqui || (nivelAdmin === false && donoPlataforma !== true))
+      ? 'Só leitura: você não administra esta unidade. Para alterar, escolha uma unidade própria no seletor.'
+      : null;
+
+  /** Toma o lugar do conteúdo da aba: sem unidade escolhida, carregando, ou com a leitura falha. */
+  function bloqueioDaSecao(secao: SecaoConfig): ReactNode {
+      if (!clinicaAtivaId) {
+          return (
+              <div className={sectionPad}>
+                  <div className="rounded-xl border border-dashed border-neutral-200 px-4 py-8 text-center text-sm text-neutral-500">Escolha no seletor uma unidade própria para ver e alterar estas configurações.</div>
+              </div>
+          );
+      }
+      if (carga[secao] === 'carregando') {
+          return (
+              <div className={`${sectionPad} gap-2`} aria-busy="true">
+                  {[0, 1, 2].map((i) => <div key={i} className="h-12 animate-pulse rounded-xl bg-neutral-50" />)}
+              </div>
+          );
+      }
+      if (carga[secao] === 'erro') {
+          return (
+              <div className={sectionPad}>
+                  <div className="rounded-xl border border-neutral-200 bg-[#f8f8f6] px-4 py-4 text-sm text-neutral-700">Não foi possível carregar esta configuração. Confira a internet e recarregue a página. Nada foi alterado.</div>
+              </div>
+          );
+      }
+      return null;
+  }
+
   return (
     <>
-    <div className="flex h-full min-h-0 flex-col overflow-hidden px-3 py-3 font-poppins">
+    {/* Abaixo de lg a página rola inteira (quem rola é a casca); a altura fixa com rolagem por dentro fica só no computador. */}
+    <div className="flex shrink-0 flex-col px-3 py-3 font-poppins lg:h-full lg:min-h-0 lg:shrink lg:overflow-hidden">
       <div className="mb-3 shrink-0">
         <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 md:text-[2rem]">
           Configurações
-          <span className="text-neutral-400"> · {activeClinic ? getClinicLabel(activeClinic) : 'Rede'}</span>
+          <span className="hidden text-neutral-400 md:inline"> · {activeClinic ? getClinicLabel(activeClinic) : 'Rede'}</span>
         </h1>
+        {avisoSomenteLeitura && SECAO_DA_ABA[abaAtiva] && (
+          <p className="mt-2 rounded-md border border-neutral-200 bg-[#f8f8f6] px-3 py-2 text-sm text-neutral-700">{avisoSomenteLeitura}</p>
+        )}
       </div>
 
       {kpiLoading && clinicas.length === 0 ? (
@@ -981,8 +1344,8 @@ export default function Configuracoes() {
           <div className="h-32 animate-pulse rounded-2xl bg-neutral-50" />
         </div>
       ) : (
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white lg:flex-row">
-          <nav aria-label="Seções de configuração" className="flex shrink-0 gap-1 overflow-x-auto border-b border-black/10 px-2 py-2 lg:w-56 lg:flex-col lg:overflow-visible lg:border-b-0 lg:border-r">
+        <div className="flex flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white lg:min-h-0 lg:flex-1 lg:flex-row">
+          <nav ref={navRef} aria-label="Seções de configuração" className="flex shrink-0 gap-1 overflow-x-auto overscroll-x-contain border-b border-black/10 px-2 py-2 lg:w-56 lg:flex-col lg:overflow-visible lg:border-b-0 lg:border-r">
             {CONFIG_NAVS.map((section) => {
               const Icon = section.icon;
               const active = abaAtiva === section.key;
@@ -991,8 +1354,10 @@ export default function Configuracoes() {
                 <button
                   key={section.key}
                   type="button"
+                  data-ativa={active}
+                  aria-current={active ? 'true' : undefined}
                   onClick={() => setAbaAtiva(section.key)}
-                  className={`flex shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-left text-sm leading-snug lg:w-full lg:gap-2.5 lg:py-2.5 ${active ? 'bg-neutral-900 font-medium text-white' : 'font-medium text-neutral-600 hover:bg-[#f3f4f1]'}`}
+                  className={`flex min-h-[44px] shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-left text-sm leading-snug lg:min-h-0 lg:w-full lg:gap-2.5 lg:py-2.5 ${active ? 'bg-neutral-900 font-medium text-white' : 'font-medium text-neutral-600 hover:bg-[#f3f4f1]'}`}
                 >
                   <Icon size={16} className="shrink-0" />
                   <span className="whitespace-nowrap lg:min-w-0 lg:flex-1 lg:whitespace-normal">{section.label}</span>
@@ -1003,18 +1368,39 @@ export default function Configuracoes() {
               );
             })}
           </nav>
-          <div className="min-h-0 min-w-0 flex-1 overflow-y-auto lg:overflow-hidden">
+          <div className="min-w-0 lg:min-h-0 lg:flex-1 lg:overflow-hidden">
             {/* ABA CLÍNICAS */}
             {abaAtiva === 'clinicas' && (
                 <section className={sectionPad}>
                         <div className="mb-2 flex shrink-0 items-center justify-between gap-3">
-                            <div>
+                            <div className="min-w-0">
                               <h3 className="text-base font-semibold text-neutral-900">Unidades</h3>
                               <p className="text-xs text-neutral-500">Endereço, horário e dados fiscais</p>
                             </div>
-                            <button type="button" onClick={abrirNovaClinica} className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800"><Plus size={14}/> Nova clínica</button>
+                            {(donoPlataforma === true || nivelAdmin === true) && (
+                                <button type="button" onClick={abrirNovaClinica} className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 sm:h-9"><Plus size={14}/> Nova clínica</button>
+                            )}
                         </div>
-                        <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto">
+                        {/* Celular: o cartão inteiro abre a edição; excluir é um botão à parte e sempre pede confirmação.
+                            Clínica que a pessoa não administra (convidada, ou sem ser administradora) só aparece. */}
+                        <div className="space-y-2 md:hidden">
+                            {clinicas.map(c => (
+                                <CartaoCelular
+                                    key={c.id}
+                                    onAbrir={podeAlterarClinica(c) ? () => { void abrirEdicaoClinica(c); } : undefined}
+                                    acoes={podeAlterarClinica(c) ? <button type="button" aria-label={`Excluir ${c.nome}`} onClick={() => { void excluirClinica(c.id); }} className={botaoCartao}><Trash2 size={16}/></button> : undefined}
+                                >
+                                    <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-md border border-neutral-200 bg-[#f3f4f1] text-neutral-700">
+                                        {c.logo_url ? <img src={c.logo_url} className="h-full w-full object-cover" alt=""/> : <Building2 size={16}/>}
+                                    </span>
+                                    <span className="min-w-0">
+                                        <span className="block break-words text-sm font-medium text-neutral-900">{c.nome}</span>
+                                        {c.cnpj && <span className="block text-xs text-neutral-500">{c.cnpj}</span>}
+                                    </span>
+                                </CartaoCelular>
+                            ))}
+                        </div>
+                        <div className="hidden space-y-1.5 md:block lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
                             {clinicas.map(c => (
                                 <div key={c.id} className="flex items-center justify-between rounded-xl border border-neutral-200 bg-white px-3 py-2">
                                     <div className="flex min-w-0 items-center gap-3">
@@ -1026,10 +1412,12 @@ export default function Configuracoes() {
                                             {c.cnpj && <span className="text-xs text-neutral-500">{c.cnpj}</span>}
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-1">
-                                        <button onClick={() => abrirEdicaoClinica(c)} className="p-2 text-neutral-400 hover:text-neutral-700 hover:bg-white rounded-lg transition-all" title="Editar"><Edit size={18}/></button>
-                                        <button onClick={() => excluirClinica(c.id)} className="p-2 text-neutral-400 hover:text-red-500 hover:bg-white rounded-lg transition-all" title="Excluir"><Trash2 size={18}/></button>
-                                    </div>
+                                    {podeAlterarClinica(c) && (
+                                        <div className="flex items-center gap-1">
+                                            <button type="button" aria-label={`Editar ${c.nome}`} onClick={() => { void abrirEdicaoClinica(c); }} className="p-2 text-neutral-400 hover:text-neutral-700 hover:bg-white rounded-lg transition-all" title="Editar"><Edit size={18}/></button>
+                                            <button type="button" aria-label={`Excluir ${c.nome}`} onClick={() => { void excluirClinica(c.id); }} className="p-2 text-neutral-400 hover:text-red-500 hover:bg-white rounded-lg transition-all" title="Excluir"><Trash2 size={18}/></button>
+                                        </div>
+                                    )}
                                 </div>
                             ))}
                         </div>
@@ -1037,17 +1425,42 @@ export default function Configuracoes() {
             )}
 
             {/* ABA ANAMNESE */}
-            {abaAtiva === 'anamnese' && (
+            {/* Até o banco responder (ou sem unidade escolhida) a aba não mostra o padrão como se fosse da clínica. */}
+            {abaAtiva === 'anamnese' && (bloqueioDaSecao('anamnese_modelos') ?? (
                 <section className={sectionPad}>
-                        <div className="mb-5 flex shrink-0 items-center justify-between gap-3">
-                            <div>
+                        <div className="mb-3 flex shrink-0 items-center justify-between gap-3 md:mb-5">
+                            <div className="min-w-0">
                                 <h3 className="text-base font-semibold text-neutral-900">Modelos de anamnese</h3>
                                 <p className="mt-1 text-xs text-neutral-500">Perguntas usadas na ficha do paciente.</p>
                             </div>
-                            <button type="button" onClick={abrirNovoModelo} className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800"><Plus size={14}/> Novo modelo</button>
+                            {podeEditar && <button type="button" onClick={abrirNovoModelo} className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 sm:h-9"><Plus size={14}/> Novo modelo</button>}
                         </div>
 
-                        <div className="grid min-h-0 flex-1 grid-cols-1 content-start gap-2 overflow-y-auto md:grid-cols-2">
+                        {/* Celular: sem a prévia das perguntas, que era uma caixa de rolagem dentro do cartão. */}
+                        <div className="space-y-2 md:hidden">
+                            {modelos.map(m => (
+                                <CartaoCelular
+                                    key={m.id}
+                                    onAbrir={() => abrirEditarModelo(m)}
+                                    acoes={podeEditar ? (
+                                        <>
+                                            <button type="button" aria-label={`Duplicar ${m.nome}`} onClick={() => { void duplicarModelo(m); }} className={botaoCartao}><Copy size={16}/></button>
+                                            {!m.padrao && <button type="button" aria-label={`Excluir ${m.nome}`} onClick={() => { void excluirModelo(m.id); }} className={botaoCartao}><Trash2 size={16}/></button>}
+                                        </>
+                                    ) : undefined}
+                                >
+                                    <span className="min-w-0">
+                                        <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                                            <span className="break-words text-sm font-semibold text-neutral-900">{m.nome}</span>
+                                            {m.padrao && <span className="rounded-md bg-neutral-100 px-1.5 py-0.5 text-[10px] font-medium text-neutral-600">Padrão</span>}
+                                        </span>
+                                        {m.descricao && <span className="mt-0.5 block text-xs text-neutral-500">{m.descricao}</span>}
+                                        <span className="mt-0.5 block text-xs text-neutral-500">{m.perguntas.length} pergunta{m.perguntas.length !== 1 ? 's' : ''}</span>
+                                    </span>
+                                </CartaoCelular>
+                            ))}
+                        </div>
+                        <div className="hidden content-start gap-2 md:grid md:grid-cols-2 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
                             {modelos.map(m => (
                                 <div key={m.id} className="rounded-xl border border-neutral-200 bg-white p-3">
                                     <div className="flex justify-between items-start mb-3">
@@ -1072,53 +1485,54 @@ export default function Configuracoes() {
                                         {m.perguntas.length > 5 && <div className="text-[10px] text-neutral-400 text-center">+ {m.perguntas.length - 5} mais</div>}
                                     </div>
                                     <div className="flex gap-2">
-                                        <button onClick={() => abrirEditarModelo(m)} className="inline-flex h-8 flex-1 items-center justify-center gap-1 rounded-md border border-neutral-200 text-xs font-medium text-neutral-700 hover:bg-neutral-50"><Edit size={12}/> Editar</button>
-                                        <button onClick={() => duplicarModelo(m)} className="h-8 rounded-md border border-neutral-200 px-2.5 text-xs font-medium text-neutral-600 hover:bg-neutral-50">Duplicar</button>
-                                        {!m.padrao && <button onClick={() => excluirModelo(m.id)} className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-neutral-200 text-neutral-400 hover:bg-neutral-50 hover:text-rose-600"><Trash2 size={12}/></button>}
+                                        <button onClick={() => abrirEditarModelo(m)} className="inline-flex h-8 flex-1 items-center justify-center gap-1 rounded-md border border-neutral-200 text-xs font-medium text-neutral-700 hover:bg-neutral-50"><Edit size={12}/> {podeEditar ? 'Editar' : 'Ver'}</button>
+                                        {podeEditar && <button onClick={() => duplicarModelo(m)} className="h-8 rounded-md border border-neutral-200 px-2.5 text-xs font-medium text-neutral-600 hover:bg-neutral-50">Duplicar</button>}
+                                        {podeEditar && !m.padrao && <button type="button" aria-label={`Excluir ${m.nome}`} onClick={() => excluirModelo(m.id)} className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-neutral-200 text-neutral-400 hover:bg-neutral-50 hover:text-rose-600"><Trash2 size={12}/></button>}
                                     </div>
                                 </div>
                             ))}
                         </div>
                 </section>
-            )}
+            ))}
 
             {/* ABA GERAL / PREFERÊNCIAS */}
-            {abaAtiva === 'geral' && (
-                <div className="grid min-h-0 grid-cols-1 gap-3 overflow-visible p-3 md:h-full md:overflow-hidden lg:grid-cols-2">
-                    <section className="min-h-0 space-y-2 overflow-hidden">
+            {abaAtiva === 'geral' && (bloqueioDaSecao('preferencias') ?? (
+                <div className="grid grid-cols-1 gap-5 p-3 lg:h-full lg:min-h-0 lg:grid-cols-2 lg:gap-3 lg:overflow-hidden">
+                    <section className="space-y-2 lg:min-h-0 lg:overflow-hidden">
                         <h3 className="text-base font-semibold text-neutral-900">Preferências gerais</h3>
-                        <div className="grid grid-cols-2 gap-2">
-                            <div><label className={campoLabel}>Nome para documentos</label><input value={prefs.nome_clinica} onChange={e => atualizarPref('nome_clinica', e.target.value)} className={campoInput} placeholder="Ex: Clínica Sorriso"/></div>
-                            <div><label className={campoLabel}>CNPJ</label><input value={prefs.cnpj} onChange={e => atualizarPref('cnpj', e.target.value)} className={campoInput} placeholder="00.000.000/0000-00"/></div>
-                            <div className="col-span-2"><label className={campoLabel}>Slogan</label><input value={prefs.slogan} onChange={e => atualizarPref('slogan', e.target.value)} className={campoInput} placeholder="Ex: Odontologia Integrada"/></div>
-                            <div className="col-span-2"><label className={campoLabel}>Cabeçalho dos documentos</label><textarea value={prefs.cabecalho_documentos} onChange={e => atualizarPref('cabecalho_documentos', e.target.value)} className="h-16 w-full resize-none rounded-md border border-neutral-200 bg-white p-2.5 text-sm text-neutral-900 outline-none focus:border-neutral-900" placeholder="Endereço, telefone e responsável técnico..."/></div>
-                            <div className="col-span-2"><label className={campoLabel}>Rodapé dos documentos</label><input value={prefs.rodape_documentos} onChange={e => atualizarPref('rodape_documentos', e.target.value)} className={campoInput}/></div>
-                            <div className="col-span-2 flex items-center justify-between gap-3 rounded-md border border-neutral-200 px-3 py-2">
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-2">
+                            <div><label className={campoLabel}>Nome para documentos</label><input value={prefs.nome_clinica} onChange={e => atualizarPref('nome_clinica', e.target.value)} disabled={somenteLeitura} className={campoInput} placeholder="Ex: Clínica Sorriso"/></div>
+                            <div><label className={campoLabel}>CNPJ</label><input value={prefs.cnpj} onChange={e => atualizarPref('cnpj', e.target.value)} disabled={somenteLeitura} className={campoInput} placeholder="00.000.000/0000-00"/></div>
+                            <div className="sm:col-span-2"><label className={campoLabel}>Slogan</label><input value={prefs.slogan} onChange={e => atualizarPref('slogan', e.target.value)} disabled={somenteLeitura} className={campoInput} placeholder="Ex: Odontologia Integrada"/></div>
+                            <div className="sm:col-span-2"><label className={campoLabel}>Cabeçalho dos documentos</label><textarea value={prefs.cabecalho_documentos} onChange={e => atualizarPref('cabecalho_documentos', e.target.value)} disabled={somenteLeitura} className="h-20 w-full resize-none rounded-md border border-neutral-200 bg-white p-2.5 text-sm text-neutral-900 outline-none focus:border-neutral-900 disabled:cursor-not-allowed disabled:text-neutral-500 sm:h-16" placeholder="Endereço, telefone e responsável técnico..."/></div>
+                            <div className="sm:col-span-2"><label className={campoLabel}>Rodapé dos documentos</label><input value={prefs.rodape_documentos} onChange={e => atualizarPref('rodape_documentos', e.target.value)} disabled={somenteLeitura} className={campoInput}/></div>
+                            <div className="flex items-center justify-between gap-3 rounded-md border border-neutral-200 py-1.5 pl-3 pr-1.5 sm:col-span-2 sm:px-3 sm:py-2">
                                 <span className="text-sm font-medium text-neutral-800">Tabela de tratamentos</span>
-                                <button type="button" onClick={() => void exportarTabelaTratamentos()} className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-neutral-200 bg-white px-2.5 text-xs font-medium text-neutral-700">
+                                <button type="button" onClick={() => void exportarTabelaTratamentos()} className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-md border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-700 sm:h-8 sm:px-2.5 sm:text-xs">
                                     <Download size={14} /> Exportar
                                 </button>
                             </div>
                         </div>
                     </section>
-                    <section className="min-h-0 space-y-3 overflow-hidden">
+                    <section className="space-y-3 lg:min-h-0 lg:overflow-hidden">
                         <h3 className="text-base font-semibold text-neutral-900">Horário de atendimento</h3>
-                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                            <div><label className={campoLabel}>Abertura</label><input type="time" value={prefs.horario_abertura} onChange={e => atualizarPref('horario_abertura', e.target.value)} className={campoInput}/></div>
-                            <div><label className={campoLabel}>Fechamento</label><input type="time" value={prefs.horario_fechamento} onChange={e => atualizarPref('horario_fechamento', e.target.value)} className={campoInput}/></div>
-                            <div><label className={campoLabel}>Consulta (min)</label><input type="number" value={prefs.duracao_consulta_padrao} onChange={e => atualizarPref('duracao_consulta_padrao', parseInt(e.target.value)||60)} className={campoInput}/></div>
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-2">
+                            <div><label className={campoLabel}>Abertura</label><input type="time" value={prefs.horario_abertura} onChange={e => atualizarPref('horario_abertura', e.target.value)} disabled={somenteLeitura} className={campoInput}/></div>
+                            <div><label className={campoLabel}>Fechamento</label><input type="time" value={prefs.horario_fechamento} onChange={e => atualizarPref('horario_fechamento', e.target.value)} disabled={somenteLeitura} className={campoInput}/></div>
+                            <div><label className={campoLabel}>Consulta (min)</label><input type="number" inputMode="numeric" value={prefs.duracao_consulta_padrao} onChange={e => atualizarPref('duracao_consulta_padrao', parseInt(e.target.value)||60)} disabled={somenteLeitura} className={campoInput}/></div>
                         </div>
                         <div>
                             <label className={campoLabel}>Dias</label>
-                            <div className="flex flex-wrap gap-1.5">
+                            {/* Celular: sete colunas iguais, uma por dia; em tela muito estreita viram duas fileiras para o toque não encolher. */}
+                            <div className="grid grid-cols-4 gap-1 min-[360px]:grid-cols-7 sm:flex sm:flex-wrap sm:gap-1.5">
                                 {[{k:'seg',l:'Seg'},{k:'ter',l:'Ter'},{k:'qua',l:'Qua'},{k:'qui',l:'Qui'},{k:'sex',l:'Sex'},{k:'sab',l:'Sáb'},{k:'dom',l:'Dom'}].map(d => (
-                                    <button key={d.k} type="button" onClick={() => toggleDia(d.k)} className={`h-8 rounded-md px-2.5 text-xs font-medium ${prefs.dias_atendimento[d.k] ? 'bg-neutral-900 text-white' : 'border border-neutral-200 text-neutral-600 hover:bg-neutral-50'}`}>{d.l}</button>
+                                    <button key={d.k} type="button" aria-pressed={!!prefs.dias_atendimento[d.k]} onClick={() => toggleDia(d.k)} disabled={somenteLeitura} className={`h-10 rounded-md text-xs font-medium disabled:cursor-not-allowed disabled:opacity-60 sm:h-8 sm:px-2.5 ${prefs.dias_atendimento[d.k] ? 'bg-neutral-900 text-white' : 'border border-neutral-200 text-neutral-600 hover:bg-neutral-50'}`}>{d.l}</button>
                                 ))}
                             </div>
                         </div>
-                        <div className="max-w-xs">
+                        <div className="sm:max-w-xs">
                             <label className={campoLabel}>Cor do tema</label>
-                            <CustomSelect value={prefs.cor_tema || 'blue'} onChange={v => { atualizarPref('cor_tema', v); applyTheme(v as ThemeId); }} options={THEME_OPTIONS} size="lg"/>
+                            <CustomSelect value={prefs.cor_tema || 'blue'} onChange={v => atualizarPref('cor_tema', v)} options={THEME_OPTIONS} size="lg" disabled={somenteLeitura}/>
                         </div>
                         <div className="space-y-1.5">
                             {[
@@ -1126,18 +1540,20 @@ export default function Configuracoes() {
                                 { k: 'notificar_debitos', l: 'Débitos pendentes' },
                                 { k: 'confirmar_exclusao', l: 'Confirmar antes de excluir' },
                             ].map(it => (
-                                <div key={it.k} className="flex items-center justify-between rounded-md border border-neutral-200 px-3 py-2">
-                                    <span className="text-sm font-medium text-neutral-800">{it.l}</span>
-                                    <Switch checked={!!prefs[it.k]} onChange={(valor) => atualizarPref(it.k, valor)} />
+                                // A linha inteira é o rótulo do interruptor: no celular o alvo é a linha, não só a chave de 36px.
+                                <div key={it.k} className="flex rounded-md border border-neutral-200">
+                                    <Switch checked={!!prefs[it.k]} onChange={(valor) => atualizarPref(it.k, valor)} disabled={somenteLeitura} className="min-h-[44px] w-full justify-between px-3 py-2 sm:min-h-0">
+                                        <span className="text-sm font-medium text-neutral-800">{it.l}</span>
+                                    </Switch>
                                 </div>
                             ))}
                         </div>
                     </section>
                 </div>
-            )}
+            ))}
 
             {/* ABA CONTRATOS & DOCUMENTOS */}
-            {abaAtiva === 'documentos' && (
+            {abaAtiva === 'documentos' && (bloqueioDaSecao('modelos_documentos') ?? (
                 <section className={sectionPad}>
                         <div className="mb-3 flex shrink-0 flex-col gap-2">
                             <div className="flex items-center justify-between gap-3">
@@ -1145,25 +1561,28 @@ export default function Configuracoes() {
                                     <h3 className="text-base font-semibold text-neutral-900">Modelos de documentos</h3>
                                     <p className="mt-1 text-xs text-neutral-500">Contratos, receitas e termos.</p>
                                 </div>
-                                <button type="button" onClick={abrirNovoDoc} className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800"><Plus size={14}/> Novo modelo</button>
+                                {podeEditar && <button type="button" onClick={abrirNovoDoc} className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 sm:h-9"><Plus size={14}/> Novo modelo</button>}
                             </div>
-                            <div className="flex items-center gap-2">
-                                <div className="relative min-w-0 flex-1">
+                            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                                <div className="relative min-w-0 sm:flex-1">
                                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" size={16}/>
                                     <input value={docsBusca} onChange={e => setDocsBusca(e.target.value)} placeholder="Buscar modelo" className="h-10 w-full rounded-md border border-neutral-200 bg-white py-2 pl-9 pr-3 text-sm outline-none placeholder:text-neutral-400 focus:border-neutral-900"/>
                                 </div>
-                                <div className="w-40 shrink-0">
+                                <div className="shrink-0 sm:w-40">
                                     <CustomSelect value={docsTipo} onChange={setDocsTipo} options={[{value:'todos',label:'Tipo'},{value:'contrato',label:'Contrato'},{value:'receita',label:'Receita'},{value:'atestado',label:'Atestado'},{value:'outro',label:'Outro'}]} size="md"/>
                                 </div>
-                                <SegmentedControl
-                                    value={docsVisualizacao}
-                                    onChange={setDocsVisualizacao}
-                                    className="w-fit shrink-0"
-                                    options={[
-                                        { value: 'lista', label: <List size={16} />, ariaLabel: 'Lista' },
-                                        { value: 'grade', label: <LayoutGrid size={16} />, ariaLabel: 'Grade' },
-                                    ]}
-                                />
+                                {/* Lista ou grade só muda algo quando há duas colunas; no celular os modelos já são uma lista de cartões. */}
+                                <div className="hidden shrink-0 md:block">
+                                    <SegmentedControl
+                                        value={docsVisualizacao}
+                                        onChange={setDocsVisualizacao}
+                                        className="w-fit shrink-0"
+                                        options={[
+                                            { value: 'lista', label: <List size={16} />, ariaLabel: 'Lista' },
+                                            { value: 'grade', label: <LayoutGrid size={16} />, ariaLabel: 'Grade' },
+                                        ]}
+                                    />
+                                </div>
                             </div>
                         </div>
 
@@ -1171,9 +1590,30 @@ export default function Configuracoes() {
                             const q = docsBusca.trim().toLowerCase();
                             const lista = docs.filter((d) => (docsTipo === 'todos' || d.tipo === docsTipo) && (!q || d.nome.toLowerCase().includes(q) || d.conteudo.toLowerCase().includes(q)));
                             if (lista.length === 0) return <div className="rounded-xl border border-dashed border-neutral-200 py-8 text-center text-sm text-neutral-500">Nenhum modelo encontrado.</div>;
+                            const cartoesCelular = (
+                                <div className="space-y-2 md:hidden">
+                                    {lista.map((d) => (
+                                        <CartaoCelular
+                                            key={d.id}
+                                            onAbrir={() => abrirEditarDoc(d)}
+                                            acoes={podeEditar ? <button type="button" aria-label={`Excluir ${d.nome}`} onClick={() => { void excluirDoc(d.id); }} className={botaoCartao}><Trash2 size={16}/></button> : undefined}
+                                        >
+                                            <span className="min-w-0">
+                                                <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                                                    <span className="break-words text-sm font-semibold text-neutral-900">{d.nome}</span>
+                                                    <span className="rounded-md bg-neutral-100 px-1.5 py-0.5 text-[10px] font-medium text-neutral-600">{d.tipo}</span>
+                                                </span>
+                                                <span className="mt-0.5 line-clamp-2 text-xs text-neutral-500">{d.conteudo}</span>
+                                            </span>
+                                        </CartaoCelular>
+                                    ))}
+                                </div>
+                            );
                             if (docsVisualizacao === 'lista') {
                                 return (
-                                    <div className="min-h-0 flex-1 overflow-y-auto rounded-xl border border-neutral-200">
+                                    <>
+                                    {cartoesCelular}
+                                    <div className="hidden rounded-xl border border-neutral-200 md:block lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
                                         {lista.map((d) => (
                                             <div key={d.id} className="flex items-center gap-3 border-b border-black/5 px-3 py-2.5 last:border-0">
                                                 <span className="w-20 shrink-0 rounded-md bg-neutral-100 px-1.5 py-0.5 text-center text-[10px] font-medium text-neutral-600">{d.tipo}</span>
@@ -1181,15 +1621,18 @@ export default function Configuracoes() {
                                                     <p className="truncate text-sm font-medium text-neutral-900">{d.nome}</p>
                                                     <p className="truncate text-xs text-neutral-500">{d.conteudo}</p>
                                                 </div>
-                                                <button onClick={() => abrirEditarDoc(d)} className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-neutral-200 text-neutral-600 hover:bg-neutral-50"><Edit size={14}/></button>
-                                                <button onClick={() => excluirDoc(d.id)} className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-neutral-200 text-neutral-400 hover:text-rose-600"><Trash2 size={14}/></button>
+                                                <button onClick={() => abrirEditarDoc(d)} aria-label={podeEditar ? `Editar ${d.nome}` : `Ver ${d.nome}`} className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-neutral-200 text-neutral-600 hover:bg-neutral-50"><Edit size={14}/></button>
+                                                {podeEditar && <button type="button" aria-label={`Excluir ${d.nome}`} onClick={() => excluirDoc(d.id)} className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-neutral-200 text-neutral-400 hover:text-rose-600"><Trash2 size={14}/></button>}
                                             </div>
                                         ))}
                                     </div>
+                                    </>
                                 );
                             }
                             return (
-                        <div className="grid min-h-0 flex-1 grid-cols-1 content-start gap-2 overflow-y-auto md:grid-cols-2">
+                        <>
+                        {cartoesCelular}
+                        <div className="hidden content-start gap-2 md:grid md:grid-cols-2 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
                             {lista.map(d => (
                                 <div key={d.id} className="rounded-xl border border-neutral-200 bg-white p-3">
                                     <div className="mb-1.5 flex items-center gap-2">
@@ -1198,25 +1641,27 @@ export default function Configuracoes() {
                                     </div>
                                     <p className="mb-2 line-clamp-2 whitespace-pre-line text-xs text-neutral-500">{d.conteudo}</p>
                                     <div className="flex gap-2">
-                                        <button onClick={() => abrirEditarDoc(d)} className="inline-flex h-8 flex-1 items-center justify-center gap-1 rounded-md border border-neutral-200 text-xs font-medium text-neutral-700 hover:bg-neutral-50"><Edit size={12}/> Editar</button>
-                                        <button onClick={() => excluirDoc(d.id)} className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-neutral-200 text-neutral-400 hover:text-rose-600"><Trash2 size={12}/></button>
+                                        <button onClick={() => abrirEditarDoc(d)} className="inline-flex h-8 flex-1 items-center justify-center gap-1 rounded-md border border-neutral-200 text-xs font-medium text-neutral-700 hover:bg-neutral-50"><Edit size={12}/> {podeEditar ? 'Editar' : 'Ver'}</button>
+                                        {podeEditar && <button type="button" aria-label={`Excluir ${d.nome}`} onClick={() => excluirDoc(d.id)} className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-neutral-200 text-neutral-400 hover:text-rose-600"><Trash2 size={12}/></button>}
                                     </div>
                                 </div>
                             ))}
                         </div>
+                        </>
                             );
                         })()}
                 </section>
-            )}
+            ))}
 
             {/* ABA CATEGORIAS FINANCEIRAS */}
-            {abaAtiva === 'categorias' && (
+            {abaAtiva === 'categorias' && (bloqueioDaSecao('categorias_financeiro') ?? (
                 <section className={sectionPad}>
                         <div className="mb-2 flex shrink-0 items-center justify-between gap-3">
-                            <div>
+                            <div className="min-w-0">
                                 <h3 className="flex items-center gap-1.5 text-base font-semibold text-neutral-900">
                                     Categorias financeiras
-                                    <span className="group relative inline-flex">
+                                    {/* A dica por cima do "?" depende de passar o mouse: no celular ela vira texto fixo logo abaixo. */}
+                                    <span className="group relative hidden md:inline-flex">
                                         <button type="button" aria-label="Inativas não aparecem no Financeiro." className="flex h-5 w-5 items-center justify-center text-neutral-400">
                                             <HelpCircle size={14} />
                                         </button>
@@ -1225,8 +1670,9 @@ export default function Configuracoes() {
                                         </span>
                                     </span>
                                 </h3>
+                                <p className="text-xs text-neutral-500 md:hidden">Inativas não aparecem no Financeiro.</p>
                             </div>
-                            <button type="button" onClick={abrirNovaCatFin} className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800"><Plus size={14}/> Adicionar</button>
+                            {podeEditar && <button type="button" onClick={abrirNovaCatFin} className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 sm:h-9"><Plus size={14}/> Adicionar</button>}
                         </div>
 
                         <div className="mb-2 flex shrink-0 items-center gap-2">
@@ -1239,7 +1685,35 @@ export default function Configuracoes() {
                             <span className="shrink-0 text-xs text-neutral-500">{catsFinFiltradas.length}/{catsFin.length}</span>
                         </div>
 
-                        <div className="grid min-h-0 flex-1 grid-cols-1 content-start gap-1.5 overflow-y-auto md:grid-cols-2">
+                        {/* Celular: tocar abre a edição; ligar e desligar fica à mão, porque é o que mais se faz aqui. */}
+                        <div className="space-y-2 md:hidden">
+                            {catsFinFiltradas.length === 0 ? (
+                                <div className="rounded-xl border border-dashed border-neutral-200 py-8 text-center text-sm text-neutral-500">
+                                    {buscaCatFin.trim() ? 'Nenhuma categoria encontrada.' : 'Nenhuma categoria cadastrada.'}
+                                </div>
+                            ) : catsFinFiltradas.map(c => (
+                                <CartaoCelular
+                                    key={c.id}
+                                    apagado={!c.ativo}
+                                    onAbrir={() => abrirEditarCatFin(c)}
+                                    acoes={(
+                                        <>
+                                            <Switch checked={c.ativo} onChange={() => toggleCatFinAtiva(c.id)} disabled={somenteLeitura} className="h-10 w-12 justify-center">
+                                                <span className="sr-only">{`Categoria ${c.nome} ativa`}</span>
+                                            </Switch>
+                                            {podeEditar && <button type="button" aria-label={`Excluir ${c.nome}`} onClick={() => { void removerCatFin(c.id); }} className={botaoCartao}><Trash2 size={16}/></button>}
+                                        </>
+                                    )}
+                                >
+                                    <span className="h-3 w-3 shrink-0 rounded-sm" style={{ backgroundColor: c.cor }} />
+                                    <span className="min-w-0">
+                                        <span className="block break-words text-sm font-medium text-neutral-900">{c.nome}</span>
+                                        <span className="block text-xs text-neutral-500">{c.tipo === 'receita' ? 'Receita' : 'Despesa'}{c.ativo ? '' : ' · inativa'}</span>
+                                    </span>
+                                </CartaoCelular>
+                            ))}
+                        </div>
+                        <div className="hidden content-start gap-1.5 md:grid md:grid-cols-2 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
                             {catsFinFiltradas.length === 0 ? (
                                 <div className="col-span-2 rounded-xl border border-dashed border-neutral-200 py-8 text-center text-sm text-neutral-500">
                                     {buscaCatFin.trim() ? 'Nenhuma categoria encontrada.' : 'Nenhuma categoria cadastrada.'}
@@ -1249,25 +1723,44 @@ export default function Configuracoes() {
                                     <span className="h-3 w-3 shrink-0 rounded-sm" style={{ backgroundColor: c.cor }} />
                                     <span className="min-w-0 flex-1 truncate text-sm font-medium text-neutral-900">{c.nome}</span>
                                     <span className="rounded-md bg-neutral-100 px-1.5 py-0.5 text-[10px] font-medium text-neutral-600">{c.tipo}</span>
-                                    <button onClick={() => toggleCatFinAtiva(c.id)} className={`inline-flex h-8 w-8 items-center justify-center rounded-md ${c.ativo ? 'bg-neutral-900 text-white' : 'border border-neutral-200 text-neutral-400'}`} title={c.ativo ? 'Desativar' : 'Ativar'}><Check size={14}/></button>
-                                    <button onClick={() => abrirEditarCatFin(c)} className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-neutral-200 text-neutral-500 hover:bg-neutral-50"><Edit size={14}/></button>
-                                    <button onClick={() => removerCatFin(c.id)} className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-neutral-200 text-neutral-400 hover:text-rose-600"><Trash2 size={14}/></button>
+                                    <button onClick={() => toggleCatFinAtiva(c.id)} disabled={somenteLeitura} className={`inline-flex h-8 w-8 items-center justify-center rounded-md disabled:cursor-not-allowed ${c.ativo ? 'bg-neutral-900 text-white' : 'border border-neutral-200 text-neutral-400'}`} title={c.ativo ? 'Desativar' : 'Ativar'}><Check size={14}/></button>
+                                    <button onClick={() => abrirEditarCatFin(c)} aria-label={podeEditar ? `Editar ${c.nome}` : `Ver ${c.nome}`} className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-neutral-200 text-neutral-500 hover:bg-neutral-50"><Edit size={14}/></button>
+                                    {podeEditar && <button type="button" aria-label={`Excluir ${c.nome}`} onClick={() => removerCatFin(c.id)} className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-neutral-200 text-neutral-400 hover:text-rose-600"><Trash2 size={14}/></button>}
                                 </div>
                             ))}
                         </div>
                 </section>
-            )}
+            ))}
 
-            {abaAtiva === 'comunicacao' && (
+            {abaAtiva === 'comunicacao' && (bloqueioDaSecao('templates_comunicacao') ?? (
                 <section className={sectionPad}>
                     <div className="mb-2 flex shrink-0 items-center justify-between gap-3">
-                        <div>
+                        <div className="min-w-0">
                             <h3 className="text-base font-semibold text-neutral-900">Templates</h3>
                             <p className="text-xs text-neutral-500">WhatsApp, e-mail e SMS. Lembretes automáticos saem às 10h.</p>
                         </div>
-                        <button type="button" onClick={abrirNovoTemplateCom} className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800"><Plus size={14}/> Novo template</button>
+                        {podeEditar && <button type="button" onClick={abrirNovoTemplateCom} className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 sm:h-9"><Plus size={14}/> Novo template</button>}
                     </div>
-                    <div className="grid min-h-0 flex-1 grid-cols-1 content-start gap-2 overflow-y-auto md:grid-cols-2">
+                    <div className="space-y-2 md:hidden">
+                        {templatesComunicacao.map(t => (
+                            <CartaoCelular
+                                key={t.id}
+                                apagado={!t.ativo}
+                                onAbrir={() => abrirEditarTemplateCom(t)}
+                                acoes={podeEditar ? <button type="button" aria-label={`Excluir ${t.nome}`} onClick={() => { void excluirTemplateCom(t.id); }} className={botaoCartao}><Trash2 size={16}/></button> : undefined}
+                            >
+                                <span className="min-w-0">
+                                    <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                                        <span className="break-words text-sm font-semibold text-neutral-900">{t.nome}</span>
+                                        <span className="rounded-md bg-neutral-100 px-1.5 py-0.5 text-[10px] font-medium text-neutral-600">{t.canal}</span>
+                                        {!t.ativo && <span className="text-[10px] text-neutral-500">Inativo</span>}
+                                    </span>
+                                    <span className="mt-0.5 line-clamp-2 text-xs text-neutral-500">{t.corpo}</span>
+                                </span>
+                            </CartaoCelular>
+                        ))}
+                    </div>
+                    <div className="hidden content-start gap-2 md:grid md:grid-cols-2 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
                         {templatesComunicacao.map(t => (
                             <div key={t.id} className={`rounded-xl border border-neutral-200 bg-white p-3 ${t.ativo ? '' : 'opacity-50'}`}>
                                 <div className="mb-1.5 flex items-center gap-2">
@@ -1277,16 +1770,16 @@ export default function Configuracoes() {
                                 </div>
                                 <p className="mb-2 line-clamp-2 whitespace-pre-line text-xs text-neutral-500">{t.corpo}</p>
                                 <div className="flex gap-2">
-                                    <button onClick={() => abrirEditarTemplateCom(t)} className="inline-flex h-8 flex-1 items-center justify-center gap-1 rounded-md border border-neutral-200 text-xs font-medium text-neutral-700 hover:bg-neutral-50"><Edit size={12}/> Editar</button>
-                                    <button onClick={() => excluirTemplateCom(t.id)} className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-neutral-200 text-neutral-400 hover:text-rose-600"><Trash2 size={12}/></button>
+                                    <button onClick={() => abrirEditarTemplateCom(t)} className="inline-flex h-8 flex-1 items-center justify-center gap-1 rounded-md border border-neutral-200 text-xs font-medium text-neutral-700 hover:bg-neutral-50"><Edit size={12}/> {podeEditar ? 'Editar' : 'Ver'}</button>
+                                    {podeEditar && <button type="button" aria-label={`Excluir ${t.nome}`} onClick={() => excluirTemplateCom(t.id)} className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-neutral-200 text-neutral-400 hover:text-rose-600"><Trash2 size={12}/></button>}
                                 </div>
                             </div>
                         ))}
                     </div>
                 </section>
-            )}
+            ))}
 
-            {abaAtiva === 'taxas' && (() => {
+            {abaAtiva === 'taxas' && (bloqueioDaSecao('taxas_maquininha') ?? (() => {
                 const achar = (pred: (t: TaxaMaquininha) => boolean) => taxasMaquininha.find(pred) || TAXAS_MAQUININHA_PADRAO.find(pred);
                 const pix = achar((t) => t.tipo === 'pix');
                 const debVisa = achar((t) => t.tipo === 'debito' && t.bandeira === 'Visa/Master');
@@ -1309,26 +1802,27 @@ export default function Configuracoes() {
                     salvarTaxas(lista);
                 };
                 const linha = (nome: string, amostra: TaxaMaquininha, grupo: TaxaMaquininha[]) => (
-                    <div key={nome} className={`grid grid-cols-[minmax(0,1fr)_4.5rem_3.25rem_2rem] items-center gap-2 px-1 py-1 ${amostra.ativo ? '' : 'opacity-45'}`}>
-                        <p className="truncate text-sm font-medium text-neutral-900">{nome}</p>
-                        <input type="number" step="1" min="0" max="100" value={amostra.taxa_percentual} onChange={e => aplicarGrupo(grupo, 'taxa_percentual', parseFloat(e.target.value) || 0)} className="h-8 w-full rounded-md border border-neutral-200 bg-white px-2 text-xs font-medium text-neutral-900 outline-none focus:border-neutral-900" aria-label="Taxa" />
-                        <input type="number" min="0" value={amostra.prazo_recebimento_dias} onChange={e => aplicarGrupo(grupo, 'prazo_recebimento_dias', parseInt(e.target.value) || 0)} className="h-8 w-full rounded-md border border-neutral-200 bg-white px-2 text-xs font-medium text-neutral-900 outline-none focus:border-neutral-900" aria-label="Prazo" />
-                        <button type="button" onClick={() => aplicarGrupo(grupo, 'ativo', !amostra.ativo)} className={`inline-flex h-8 w-8 items-center justify-center rounded-md ${amostra.ativo ? 'bg-neutral-900 text-white' : 'border border-neutral-200 text-neutral-400'}`} aria-label={amostra.ativo ? 'Desativar' : 'Ativar'}><Check size={14}/></button>
+                    <div key={nome} className={`grid grid-cols-[minmax(0,1fr)_4.5rem_3.25rem_2.5rem] items-center gap-2 px-1 py-1 sm:grid-cols-[minmax(0,1fr)_4.5rem_3.25rem_2rem] ${amostra.ativo ? '' : 'opacity-45'}`}>
+                        <p className="break-words text-sm font-medium text-neutral-900 sm:truncate">{nome}</p>
+                        <input type="number" inputMode="decimal" step="1" min="0" max="100" value={amostra.taxa_percentual} onChange={e => aplicarGrupo(grupo, 'taxa_percentual', parseFloat(e.target.value) || 0)} disabled={somenteLeitura} className="h-10 w-full rounded-md border border-neutral-200 bg-white px-2 text-sm font-medium text-neutral-900 outline-none focus:border-neutral-900 disabled:cursor-not-allowed disabled:text-neutral-500 sm:h-8 sm:text-xs" aria-label={`Taxa de ${nome}, em %`} />
+                        <input type="number" inputMode="numeric" min="0" value={amostra.prazo_recebimento_dias} onChange={e => aplicarGrupo(grupo, 'prazo_recebimento_dias', parseInt(e.target.value) || 0)} disabled={somenteLeitura} className="h-10 w-full rounded-md border border-neutral-200 bg-white px-2 text-sm font-medium text-neutral-900 outline-none focus:border-neutral-900 disabled:cursor-not-allowed disabled:text-neutral-500 sm:h-8 sm:text-xs" aria-label={`Prazo de ${nome}, em dias`} />
+                        <button type="button" onClick={() => aplicarGrupo(grupo, 'ativo', !amostra.ativo)} disabled={somenteLeitura} className={`inline-flex h-10 w-10 items-center justify-center rounded-md disabled:cursor-not-allowed sm:h-8 sm:w-8 ${amostra.ativo ? 'bg-neutral-900 text-white' : 'border border-neutral-200 text-neutral-400'}`} aria-label={amostra.ativo ? `Desativar ${nome}` : `Ativar ${nome}`}><Check size={14}/></button>
                     </div>
                 );
-                const coluna = (titulo: string, linhas: React.ReactNode) => (
-                    <section className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white">
-                        <div className="border-b border-black/5 px-3 py-2.5">
+                // Abaixo de lg os três grupos viram abas e só o escolhido aparece; lado a lado só no computador.
+                const coluna = (id: 'pix' | 'visa' | 'elo', titulo: string, linhas: ReactNode) => (
+                    <section className={`${abaTaxas === id ? 'flex' : 'hidden lg:flex'} flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white lg:h-full lg:min-h-0`}>
+                        <div className="hidden border-b border-black/5 px-3 py-2.5 lg:block">
                             <h3 className="text-sm font-semibold text-neutral-900">{titulo}</h3>
                         </div>
-                        <div className="flex min-h-0 flex-1 flex-col p-2">
-                            <div className="grid shrink-0 grid-cols-[minmax(0,1fr)_4.5rem_3.25rem_2rem] gap-2 px-1 pb-1">
+                        <div className="flex flex-col p-2 lg:min-h-0 lg:flex-1">
+                            <div className="grid shrink-0 grid-cols-[minmax(0,1fr)_4.5rem_3.25rem_2.5rem] gap-2 px-1 pb-1 sm:grid-cols-[minmax(0,1fr)_4.5rem_3.25rem_2rem]">
                                 <span className="text-[11px] font-medium text-neutral-500">Pagamento</span>
                                 <span className="text-[11px] font-medium text-neutral-500">Taxa</span>
                                 <span className="text-[11px] font-medium text-neutral-500">Prazo</span>
                                 <span />
                             </div>
-                            <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">{linhas}</div>
+                            <div className="flex flex-col gap-1 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">{linhas}</div>
                         </div>
                     </section>
                 );
@@ -1339,62 +1833,107 @@ export default function Configuracoes() {
                     return TAXAS_MAQUININHA_PADRAO.filter((t) => t.parcela === parcela && bandeiras.includes(t.bandeira));
                 };
                 return (
-                <div className="grid h-full min-h-0 grid-cols-1 gap-2 overflow-hidden p-3 lg:grid-cols-3">
-                    {pix && debVisa && coluna('PIX e débito', <>
+                <div className="grid grid-cols-1 gap-2 p-3 lg:h-full lg:min-h-0 lg:grid-cols-3 lg:overflow-hidden">
+                    <div role="tablist" aria-label="Formas de pagamento" className="grid grid-cols-3 gap-1 rounded-xl border border-neutral-200 bg-white p-1 lg:hidden">
+                        {([['pix', 'PIX e débito'], ['visa', 'Crédito Visa/Master'], ['elo', 'Crédito Elo/Outros']] as const).map(([id, rotulo]) => (
+                            <button
+                                key={id}
+                                type="button"
+                                role="tab"
+                                aria-selected={abaTaxas === id}
+                                onClick={() => setAbaTaxas(id)}
+                                className={`flex min-h-[44px] items-center justify-center rounded-lg px-1 py-1 text-center text-[13px] font-medium leading-tight ${abaTaxas === id ? 'bg-neutral-900 text-white' : 'text-neutral-600 active:bg-neutral-100'}`}
+                            >
+                                {rotulo}
+                            </button>
+                        ))}
+                    </div>
+                    {pix && debVisa && coluna('pix', 'PIX e débito', <>
                         {linha('PIX', pix, [pix])}
                         {linha('Débito Visa/Master', debVisa, [debVisa])}
                         {debitosOutros[0] && linha('Elo/outros', debitosOutros[0], debitosOutros)}
                     </>)}
-                    {coluna('Crédito Visa/Master', creditoVisa.map((t) => linha(nomeParcela(t), t, grupoParcela(t.parcela || 1, ['Visa/Master']))))}
-                    {coluna('Crédito Elo/Outros', creditoElo.map((t) => linha(nomeParcela(t), t, grupoParcela(t.parcela || 1, ['Elo', 'Amex', 'Hipercard']))))}
+                    {coluna('visa', 'Crédito Visa/Master', creditoVisa.map((t) => linha(nomeParcela(t), t, grupoParcela(t.parcela || 1, ['Visa/Master']))))}
+                    {coluna('elo', 'Crédito Elo/Outros', creditoElo.map((t) => linha(nomeParcela(t), t, grupoParcela(t.parcela || 1, ['Elo', 'Amex', 'Hipercard']))))}
                 </div>
                 );
-            })()}
+            })())}
 
             {/* ABA BACKUP */}
             {abaAtiva === 'backup' && (
                 <section className={sectionPad}>
-                    <div className="mb-2 flex shrink-0 items-center justify-between gap-3">
-                        <div>
+                    <div className="mb-2 flex shrink-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
+                        <div className="min-w-0">
                             <h3 className="text-base font-semibold text-neutral-900">Backups</h3>
-                            <p className="text-xs text-neutral-500">Automático 2 vezes ao dia. Os 30 mais recentes ficam guardados.</p>
+                            {donoPlataforma && (
+                                <p className="text-xs text-neutral-500">Cada backup guarda pacientes, agendamentos, despesas, clínicas, profissionais e serviços de todas as clínicas. Ficam os 30 automáticos e os 10 manuais mais recentes.</p>
+                            )}
                         </div>
-                        <button type="button" onClick={backupAgoraManual} disabled={criandoBackup} className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50">
-                            {criandoBackup ? <><Loader2 className="animate-spin" size={14}/> Gerando</> : <><Plus size={14}/> Backup manual</>}
-                        </button>
+                        {donoPlataforma && (
+                            <button type="button" onClick={backupAgoraManual} disabled={criandoBackup} className="inline-flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50 sm:h-9">
+                                {criandoBackup ? <><Loader2 className="animate-spin" size={14}/> Gerando</> : <><Plus size={14}/> Backup manual</>}
+                            </button>
+                        )}
                     </div>
-                    <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto">
-                        {backups.length === 0 ? (
+                    <div className="space-y-2 md:space-y-1.5 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
+                        {donoPlataforma === null ? (
+                            Array.from({ length: 2 }).map((_, i) => <div key={i} className="h-14 animate-pulse rounded-xl bg-neutral-50" />)
+                        ) : !donoPlataforma ? (
+                            // Criar, restaurar e apagar são recusados pelo banco para quem não é dono da plataforma: a tela não oferece o que não funciona.
+                            <div className="rounded-xl border border-neutral-200 bg-[#f8f8f6] px-4 py-4">
+                                <p className="text-sm font-medium text-neutral-900">Os backups são feitos pelo suporte do Ortus.</p>
+                                <p className="mt-1 text-sm text-neutral-600">Por aqui não dá para criar, restaurar nem apagar backups. Se precisar recuperar algum dado da clínica, fale com o suporte.</p>
+                            </div>
+                        ) : backups.length === 0 ? (
                             <div className="rounded-xl border border-dashed border-neutral-200 px-4 py-8 text-center text-sm text-neutral-500">Nenhum backup encontrado.</div>
                         ) : backups.map((b: any) => {
                             const isAuto = (b.tipo || '').startsWith('automatico');
                             return (
-                                <div key={b.id} className="flex items-center gap-3 rounded-xl border border-neutral-200 bg-white px-3 py-2">
+                                <div key={b.id} className="flex items-center gap-2 rounded-xl border border-neutral-200 bg-white py-2 pl-3 pr-1 md:gap-3 md:pr-3">
                                     <div className="min-w-0 flex-1">
-                                        <div className="flex items-center gap-2">
+                                        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                                             <span className="text-sm font-medium text-neutral-900">#{b.id}</span>
                                             <span className="rounded-md bg-neutral-100 px-1.5 py-0.5 text-[10px] font-medium text-neutral-600">{isAuto ? 'automático' : (b.tipo || 'manual')}</span>
                                             {b.tamanho_kb ? <span className="text-[10px] text-neutral-500">{b.tamanho_kb} KB</span> : null}
                                         </div>
-                                        <p className="truncate text-xs text-neutral-500">
+                                        <p className="break-words text-xs text-neutral-500 md:truncate">
                                             {new Date(b.criado_em).toLocaleDateString('pt-BR')} às {new Date(b.criado_em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                                             {b.observacao ? ` · ${b.observacao}` : ''}
                                         </p>
                                     </div>
-                                    <button onClick={() => baixarBackupComoJson(b.id)} className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-neutral-200 text-neutral-600 hover:bg-neutral-50" title="Baixar"><Download size={14}/></button>
-                                    <button onClick={() => abrirModalRestaurar(b)} className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-neutral-200 text-neutral-600 hover:bg-neutral-50" title="Restaurar"><RotateCcw size={14}/></button>
-                                    <button onClick={() => excluirBackupItem(b.id)} className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-neutral-200 text-neutral-400 hover:text-rose-600" title="Excluir"><Trash2 size={14}/></button>
+                                    {/* Celular: três ícones sem nome lado a lado, um deles restaurar, pedem erro de dedo; viram menu com o nome de cada ação. */}
+                                    <div className="shrink-0 md:hidden">
+                                        <MenuPontos
+                                            className={botaoPontos}
+                                            itens={[
+                                                { id: 'baixar', label: 'Baixar', onClick: () => { void baixarBackupComoJson(b.id); } },
+                                                { id: 'restaurar', label: 'Restaurar', onClick: () => abrirModalRestaurar(b) },
+                                                { id: 'excluir', label: 'Excluir', perigo: true, onClick: () => { void excluirBackupItem(b.id); } },
+                                            ]}
+                                        />
+                                    </div>
+                                    <button onClick={() => baixarBackupComoJson(b.id)} className="hidden h-8 w-8 items-center justify-center rounded-md border border-neutral-200 text-neutral-600 hover:bg-neutral-50 md:inline-flex" title="Baixar"><Download size={14}/></button>
+                                    <button onClick={() => abrirModalRestaurar(b)} className="hidden h-8 w-8 items-center justify-center rounded-md border border-neutral-200 text-neutral-600 hover:bg-neutral-50 md:inline-flex" title="Restaurar"><RotateCcw size={14}/></button>
+                                    <button type="button" aria-label="Excluir backup" onClick={() => excluirBackupItem(b.id)} className="hidden h-8 w-8 items-center justify-center rounded-md border border-neutral-200 text-neutral-400 hover:text-rose-600 md:inline-flex" title="Excluir"><Trash2 size={14}/></button>
                                 </div>
                             );
                         })}
                     </div>
-                    <div className="mt-2 grid shrink-0 grid-cols-1 gap-2 sm:grid-cols-3">
-                        <button type="button" onClick={exportarPacientes} className="h-9 rounded-md border border-neutral-200 text-xs font-medium text-neutral-800 hover:bg-neutral-50">Exportar pacientes</button>
-                        <button type="button" onClick={exportarTudo} className="h-9 rounded-md border border-neutral-200 text-xs font-medium text-neutral-800 hover:bg-neutral-50">Exportar configurações</button>
-                        <label className="inline-flex h-9 cursor-pointer items-center justify-center rounded-md border border-neutral-200 text-xs font-medium text-neutral-800 hover:bg-neutral-50">
-                            Importar configurações
-                            <input type="file" accept="application/json" onChange={importarTudo} className="hidden"/>
-                        </label>
+                    <div className="mt-3 shrink-0 lg:mt-2">
+                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                            <button type="button" onClick={exportarPacientes} className="h-11 rounded-md border border-neutral-200 text-sm font-medium text-neutral-800 hover:bg-neutral-50 sm:h-9 sm:text-xs">Exportar pacientes</button>
+                            <button type="button" onClick={exportarTudo} className="h-11 rounded-md border border-neutral-200 text-sm font-medium text-neutral-800 hover:bg-neutral-50 sm:h-9 sm:text-xs">Exportar configurações</button>
+                            {/* A importação grava na clínica ativa: fica travada onde a pessoa só pode ler. */}
+                            <label aria-disabled={somenteLeitura} className={`inline-flex h-11 items-center justify-center rounded-md border border-neutral-200 text-sm font-medium sm:h-9 sm:text-xs ${somenteLeitura ? 'cursor-not-allowed text-neutral-400' : 'cursor-pointer text-neutral-800 hover:bg-neutral-50'}`}>
+                                Importar configurações
+                                <input type="file" accept=".json,application/json" onChange={importarTudo} disabled={somenteLeitura} className="hidden"/>
+                            </label>
+                        </div>
+                        <p className="mt-1.5 text-xs text-neutral-500">
+                            {somenteLeitura
+                                ? 'A importação grava na unidade ativa: escolha no seletor uma unidade própria, em que você é administrador.'
+                                : <>A importação só aceita o arquivo .json de &quot;Exportar configurações&quot;, com até 2 MB.</>}
+                        </p>
                     </div>
                 </section>
             )}
@@ -1404,25 +1943,28 @@ export default function Configuracoes() {
     </div>
 
       {/* MODAL RESTAURAR BACKUP - Confirmação Dupla */}
-      <Modal open={!!modalRestaurar} onClose={() => setModalRestaurar(null)} maxWidth="lg" zIndex={70} hideCloseButton>
+      <Modal open={!!modalRestaurar} onClose={() => { if (!restaurando) setModalRestaurar(null); }} maxWidth="lg" zIndex={70} hideCloseButton>
           {modalRestaurar && (
-          <div className="w-full overflow-hidden rounded-xl border border-neutral-200 bg-white">
-                  <div className="flex items-start justify-between gap-3 border-b border-neutral-200 px-4 py-3">
-                      <div>
+          <div className="flex max-h-[85dvh] w-full flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white">
+                  <div className="flex shrink-0 items-start justify-between gap-3 border-b border-neutral-200 px-4 py-3">
+                      <div className="min-w-0">
                           <h3 className="text-base font-semibold text-neutral-900">Restaurar backup</h3>
-                          <p className="mt-0.5 text-xs text-neutral-500">Essa ação substitui os dados atuais e não pode ser desfeita.</p>
+                          <p className="mt-0.5 text-xs text-neutral-500">Apaga os dados de todas as clínicas e recoloca só o que está neste backup. Não pode ser desfeito.</p>
                       </div>
-                      <button onClick={() => setModalRestaurar(null)} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-50"><X size={16}/></button>
+                      <button onClick={() => setModalRestaurar(null)} disabled={restaurando} aria-label="Fechar" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-50 disabled:opacity-50 sm:h-8 sm:w-8"><X size={16}/></button>
                   </div>
 
-                  <div className="space-y-3 p-4">
-                      <div className="rounded-xl border border-neutral-200 bg-[#f8f8f6] p-3">
-                          <div className="mb-1 flex items-center gap-2 text-sm font-medium text-neutral-900"><AlertTriangle size={14}/> O que vai acontecer</div>
-                          <ul className="ml-5 list-disc space-y-1 text-xs text-neutral-600">
-                              <li><strong>Apagar TODOS os dados atuais</strong> de pacientes, agendamentos, despesas, clínicas, profissionais e serviços.</li>
-                              <li><strong>Substituir</strong> pelo conteúdo do backup selecionado.</li>
-                              <li>Tudo o que foi adicionado <strong>após {new Date(modalRestaurar.criado_em).toLocaleString('pt-BR')}</strong> será permanentemente perdido.</li>
-                              <li><strong>Não pode ser desfeita.</strong></li>
+                  <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
+                      {/* O aviso repete o que a função restaurar_backup faz no banco, tabela por tabela: não resumir. */}
+                      <div className="rounded-xl border border-red-200 bg-red-50 p-3">
+                          <div className="mb-1.5 flex items-center gap-2 text-sm font-semibold text-red-800"><AlertTriangle size={14}/> O que a restauração faz</div>
+                          <ul className="ml-5 list-disc space-y-1.5 text-xs leading-relaxed text-neutral-800">
+                              <li><strong>Apaga</strong> agendamentos, despesas, pacientes, serviços, vínculos da equipe, profissionais e clínicas de <strong>TODAS as clínicas da plataforma</strong>, não só desta.</li>
+                              <li><strong>Recoloca só o que está na fotografia</strong> de {new Date(modalRestaurar.criado_em).toLocaleString('pt-BR')}: clínicas, profissionais, serviços, pacientes, agendamentos e despesas.</li>
+                              <li><strong>O que não está na fotografia some junto e não volta:</strong> tratamentos, anamneses, documentos, evoluções e débitos dos pacientes; planos, tarefas e configurações das clínicas.</li>
+                              <li><strong>Os vínculos da equipe com as clínicas não voltam:</strong> depois da restauração ninguém fica ligado a clínica nenhuma, e é preciso vincular cada pessoa de novo.</li>
+                              <li>Tudo o que qualquer clínica registrou <strong>depois de {new Date(modalRestaurar.criado_em).toLocaleString('pt-BR')}</strong> se perde.</li>
+                              <li><strong>Não pode ser desfeito.</strong> Um backup manual feito agora não protege o que some junto: ele guarda só essas mesmas seis tabelas.</li>
                           </ul>
                       </div>
 
@@ -1432,30 +1974,34 @@ export default function Configuracoes() {
                           <p className="text-xs text-neutral-500">{new Date(modalRestaurar.criado_em).toLocaleString('pt-BR')} {modalRestaurar.tamanho_kb ? `· ${modalRestaurar.tamanho_kb} KB` : ''}</p>
                       </div>
 
-                      <p className="text-xs text-neutral-500">Antes de restaurar, gere um backup manual do estado atual.</p>
-
                       <div>
-                          <label className={campoLabel}>
-                              Digite RESTAURAR para confirmar
+                          <label htmlFor="confirmar-restauracao" className={campoLabel}>
+                              Digite RESTAURAR para liberar o botão
                           </label>
+                          {/* Sem foco automático: no celular o teclado abriria por cima do aviso antes de ele ser lido. */}
                           <input
-                              autoFocus
+                              id="confirmar-restauracao"
                               value={confirmacaoTexto}
                               onChange={e => setConfirmacaoTexto(e.target.value)}
                               placeholder="RESTAURAR"
-                              className={`${campoInput} text-center font-mono tracking-wide ${confirmacaoTexto === 'RESTAURAR' ? 'border-neutral-900' : ''}`}
+                              autoCapitalize="characters"
+                              autoCorrect="off"
+                              autoComplete="off"
+                              spellCheck={false}
+                              disabled={restaurando}
+                              className={`${campoInput} text-center font-mono tracking-wide ${restauracaoLiberada ? 'border-neutral-900' : ''}`}
                           />
                       </div>
                   </div>
 
-                  <div className="flex gap-2 border-t border-neutral-200 px-4 py-3">
-                      <button onClick={() => setModalRestaurar(null)} disabled={restaurando} className="h-9 flex-1 rounded-md text-sm font-medium text-neutral-600 hover:bg-neutral-50 disabled:opacity-50">Cancelar</button>
+                  <div className="flex shrink-0 gap-2 border-t border-neutral-200 px-4 py-3">
+                      <button onClick={() => setModalRestaurar(null)} disabled={restaurando} className="h-11 flex-1 rounded-md text-sm font-medium text-neutral-600 hover:bg-neutral-50 disabled:opacity-50 sm:h-9">Cancelar</button>
                       <button
                           onClick={confirmarRestauracao}
-                          disabled={confirmacaoTexto !== 'RESTAURAR' || restaurando}
-                          className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-md bg-neutral-900 text-sm font-medium text-white hover:bg-neutral-800 disabled:cursor-not-allowed disabled:bg-neutral-200 disabled:text-neutral-400"
+                          disabled={!restauracaoLiberada || restaurando}
+                          className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-md bg-neutral-900 text-sm font-medium text-white hover:bg-neutral-800 disabled:cursor-not-allowed disabled:bg-neutral-200 disabled:text-neutral-400 sm:h-9"
                       >
-                          {restaurando ? <><Loader2 className="animate-spin" size={18}/> Restaurando...</> : <><RotateCcw size={18}/> Confirmar Restauração</>}
+                          {restaurando ? <><Loader2 className="animate-spin" size={16}/> Restaurando...</> : <><RotateCcw size={16}/> Confirmar restauração</>}
                       </button>
                   </div>
               </div>
@@ -1463,17 +2009,18 @@ export default function Configuracoes() {
       </Modal>
 
       {/* MODAL EDITAR DOCUMENTO */}
-      <Modal open={modalDoc && !!docEdit} onClose={() => setModalDoc(false)} maxWidth="2xl" hideCloseButton>
+      {/* Durante a gravação os popups não fecham: a resposta fecharia o próximo popup aberto. */}
+      <Modal open={modalDoc && !!docEdit} onClose={() => { if (!salvandoPopup) setModalDoc(false); }} maxWidth="2xl" hideCloseButton>
           {docEdit && (
-          <div className="flex max-h-[85vh] w-full flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white">
+          <div className="flex max-h-[85dvh] w-full flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white">
                   <div className="flex items-center justify-between border-b border-neutral-200 px-4 py-3">
                       <h3 className="text-base font-semibold text-neutral-900">{docs.find(d => d.id === docEdit.id) ? 'Editar modelo' : 'Novo modelo'}</h3>
-                      <button onClick={() => setModalDoc(false)} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-50"><X size={16}/></button>
+                      <button onClick={() => { if (!salvandoPopup) setModalDoc(false); }} aria-label="Fechar" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-50 sm:h-8 sm:w-8"><X size={16}/></button>
                   </div>
                   <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
                       <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
                           <div className="md:col-span-2">
-                              <label className={campoLabel}>Nome</label>
+                              <label className={campoLabel}>Nome <span className="text-red-500">*</span></label>
                               <input value={docEdit.nome} onChange={e => setDocEdit({...docEdit, nome: e.target.value})} className={campoInput}/>
                           </div>
                           <div>
@@ -1482,8 +2029,18 @@ export default function Configuracoes() {
                           </div>
                       </div>
                       <div>
-                          <label className={campoLabel}>Conteúdo</label>
-                          <div className="mb-2 flex flex-wrap gap-1">
+                          <label className={campoLabel}>Conteúdo <span className="text-red-500">*</span></label>
+                          {/* Celular: dezesseis botões pequenos empurravam o texto para fora da tela; viram uma lista só. */}
+                          <div className="mb-2 sm:hidden">
+                              <CustomSelect
+                                  value=""
+                                  onChange={(chave) => { if (chave) inserirVariavelDoc(chave); }}
+                                  options={DOCUMENTO_VARIAVEIS.map((v) => ({ value: String(v.chave), label: v.label }))}
+                                  placeholder="Inserir variável no texto"
+                                  size="md"
+                              />
+                          </div>
+                          <div className="mb-2 hidden flex-wrap gap-1 sm:flex">
                               {DOCUMENTO_VARIAVEIS.map(v => (
                                   <button key={v.chave} type="button" onClick={() => inserirVariavelDoc(String(v.chave))} title={tokenVariavelLabel(v.label)} className="rounded-md border border-neutral-200 px-2 py-1 text-[11px] font-medium text-neutral-700 hover:bg-neutral-50">{v.label}</button>
                               ))}
@@ -1492,7 +2049,7 @@ export default function Configuracoes() {
                               ref={docEditorRef}
                               value={docEdit.conteudo}
                               onChange={(conteudo) => setDocEdit({ ...docEdit, conteudo })}
-                              placeholder="Digite o texto do modelo e insira variáveis pelos botões acima..."
+                              placeholder="Digite o texto do modelo e insira as variáveis acima..."
                           />
                           <div className="mt-2 rounded-xl border border-neutral-200 bg-[#f8f8f6] p-3">
                               <p className="mb-1 text-xs font-medium text-neutral-500">Pré-visualização</p>
@@ -1501,25 +2058,25 @@ export default function Configuracoes() {
                       </div>
                   </div>
                   <div className="flex gap-2 border-t border-neutral-200 px-4 py-3">
-                      <button onClick={() => setModalDoc(false)} className="h-9 flex-1 rounded-md text-sm font-medium text-neutral-600 hover:bg-neutral-50">Cancelar</button>
-                      <button onClick={salvarDocEdit} className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-md bg-neutral-900 text-sm font-medium text-white hover:bg-neutral-800"><Save size={14}/> Salvar</button>
+                      <button onClick={() => { if (!salvandoPopup) setModalDoc(false); }} disabled={salvandoPopup} className="h-11 flex-1 rounded-md text-sm font-medium text-neutral-600 hover:bg-neutral-50 disabled:opacity-50 sm:h-9">Cancelar</button>
+                      <button onClick={() => { void salvarDocEdit(); }} disabled={salvandoPopup || somenteLeitura} className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-md bg-neutral-900 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-40 sm:h-9">{salvandoPopup ? <Loader2 size={14} className="animate-spin"/> : <Save size={14}/>} Salvar</button>
                   </div>
               </div>
           )}
       </Modal>
 
       {/* MODAL TEMPLATE COMUNICAÇÃO */}
-      <Modal open={modalTemplateCom && !!templateComEdit} onClose={() => setModalTemplateCom(false)} maxWidth="2xl" hideCloseButton>
+      <Modal open={modalTemplateCom && !!templateComEdit} onClose={() => { if (!salvandoPopup) setModalTemplateCom(false); }} maxWidth="2xl" hideCloseButton>
           {templateComEdit && (
-          <div className="flex max-h-[85vh] w-full flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white">
+          <div className="flex max-h-[85dvh] w-full flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white">
                   <div className="flex items-center justify-between border-b border-neutral-200 px-4 py-3">
                       <h3 className="text-base font-semibold text-neutral-900">{templatesComunicacao.find(t => t.id === templateComEdit.id) ? 'Editar template' : 'Novo template'}</h3>
-                      <button onClick={() => setModalTemplateCom(false)} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-50"><X size={16}/></button>
+                      <button onClick={() => { if (!salvandoPopup) setModalTemplateCom(false); }} aria-label="Fechar" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-50 sm:h-8 sm:w-8"><X size={16}/></button>
                   </div>
                   <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
                       <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2">
                           <div className="min-w-0">
-                              <label className={campoLabel}>Nome</label>
+                              <label className={campoLabel}>Nome <span className="text-red-500">*</span></label>
                               <input value={templateComEdit.nome} onChange={e => setTemplateComEdit({ ...templateComEdit, nome: e.target.value })} className="box-border h-10 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-900 outline-none focus:border-neutral-900"/>
                           </div>
                           <div className="min-w-0">
@@ -1534,34 +2091,36 @@ export default function Configuracoes() {
                           </div>
                       )}
                       <div>
-                          <label className={campoLabel}>Mensagem</label>
+                          <label className={campoLabel}>Mensagem <span className="text-red-500">*</span></label>
                           <textarea value={templateComEdit.corpo} onChange={e => setTemplateComEdit({ ...templateComEdit, corpo: e.target.value })} rows={6} className="box-border w-full resize-none rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-900 outline-none focus:border-neutral-900"/>
                       </div>
                   </div>
                   <div className="flex gap-2 border-t border-neutral-200 px-4 py-3">
-                      <button onClick={() => setModalTemplateCom(false)} className="h-9 flex-1 rounded-md text-sm font-medium text-neutral-600 hover:bg-neutral-50">Cancelar</button>
-                      <button onClick={salvarTemplateComEdit} className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-md bg-neutral-900 text-sm font-medium text-white hover:bg-neutral-800"><Save size={14}/> Salvar</button>
+                      <button onClick={() => { if (!salvandoPopup) setModalTemplateCom(false); }} disabled={salvandoPopup} className="h-11 flex-1 rounded-md text-sm font-medium text-neutral-600 hover:bg-neutral-50 disabled:opacity-50 sm:h-9">Cancelar</button>
+                      <button onClick={() => { void salvarTemplateComEdit(); }} disabled={salvandoPopup || somenteLeitura} className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-md bg-neutral-900 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-40 sm:h-9">{salvandoPopup ? <Loader2 size={14} className="animate-spin"/> : <Save size={14}/>} Salvar</button>
                   </div>
               </div>
           )}
       </Modal>
 
       {/* MODAL CATEGORIA FINANCEIRA */}
-      <Modal open={modalCatFin && !!catFinEdit} onClose={() => { setModalCatFin(false); setCatFinEdit(null); setCorCatAberta(false); }} maxWidth="md" hideCloseButton panelClassName="!overflow-visible">
+      {/* O miolo rola e o rodapé fica fixo: com as cores abertas o popup passava da tela do celular e levava o Salvar junto. */}
+      <Modal open={modalCatFin && !!catFinEdit} onClose={() => { if (salvandoPopup) return; setModalCatFin(false); setCatFinEdit(null); setCorCatAberta(false); }} maxWidth="md" hideCloseButton>
           {catFinEdit && (
-          <div className="w-full rounded-xl border border-neutral-200 bg-white">
-              <div className="flex items-center justify-between border-b border-neutral-200 px-4 py-3">
+          <div className="flex max-h-[85dvh] w-full flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white">
+              <div className="flex shrink-0 items-center justify-between border-b border-neutral-200 px-4 py-3">
                   <h3 className="text-base font-semibold text-neutral-900">{catsFin.find(c => c.id === catFinEdit.id) ? 'Editar categoria' : 'Nova categoria'}</h3>
-                  <button onClick={() => { setModalCatFin(false); setCatFinEdit(null); }} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-50"><X size={16}/></button>
+                  <button onClick={() => { if (salvandoPopup) return; setModalCatFin(false); setCatFinEdit(null); }} aria-label="Fechar" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-50 sm:h-8 sm:w-8"><X size={16}/></button>
               </div>
-              <div className="space-y-3 p-4">
+              <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
                   <div>
-                      <label className={campoLabel}>Nome</label>
+                      <label className={campoLabel}>Nome <span className="text-red-500">*</span></label>
                       <input value={catFinEdit.nome} onChange={e => setCatFinEdit({ ...catFinEdit, nome: e.target.value })} className={campoInput}/>
                   </div>
                   <div>
                       <label className={campoLabel}>Tipo</label>
-                      <div className="grid h-10 grid-cols-2 rounded-md border border-neutral-200 p-0.5">
+                      {/* 48px no celular: descontada a moldura, cada metade fica com 42px de toque. */}
+                      <div className="grid h-12 grid-cols-2 rounded-md border border-neutral-200 p-0.5 sm:h-10">
                           <button type="button" onClick={() => setCatFinEdit({ ...catFinEdit, tipo: 'receita' })} className={`rounded-[5px] text-sm font-medium ${catFinEdit.tipo === 'receita' ? 'bg-neutral-900 text-white' : 'text-neutral-600'}`}>Receita</button>
                           <button type="button" onClick={() => setCatFinEdit({ ...catFinEdit, tipo: 'despesa' })} className={`rounded-[5px] text-sm font-medium ${catFinEdit.tipo === 'despesa' ? 'bg-neutral-900 text-white' : 'text-neutral-600'}`}>Despesa</button>
                       </div>
@@ -1580,7 +2139,7 @@ export default function Configuracoes() {
                               <p className="mb-2 text-xs font-medium text-neutral-500">Predefinidas</p>
                               <div className="grid grid-cols-6 gap-1.5">
                                   {CORES_CATEGORIA.map((cor) => (
-                                      <button key={cor} type="button" onClick={() => { guardarCorRecente(cor); setCatFinEdit({ ...catFinEdit, cor }); setCorCatAberta(false); }} className={`h-8 rounded-md border ${catFinEdit.cor.toLowerCase() === cor ? 'border-neutral-900' : 'border-black/10'}`} style={{ backgroundColor: cor }} aria-label={cor} />
+                                      <button key={cor} type="button" onClick={() => { guardarCorRecente(cor); setCatFinEdit({ ...catFinEdit, cor }); setCorCatAberta(false); }} className={`h-10 rounded-md border sm:h-8 ${catFinEdit.cor.toLowerCase() === cor ? 'border-neutral-900' : 'border-black/10'}`} style={{ backgroundColor: cor }} aria-label={cor} />
                                   ))}
                               </div>
                               {lerCoresRecentes().length > 0 && (
@@ -1588,42 +2147,42 @@ export default function Configuracoes() {
                                       <p className="mb-2 mt-3 text-xs font-medium text-neutral-500">Últimas usadas</p>
                                       <div className="flex flex-wrap gap-1.5">
                                           {lerCoresRecentes().map((cor) => (
-                                              <button key={cor} type="button" onClick={() => { guardarCorRecente(cor); setCatFinEdit({ ...catFinEdit, cor }); setCorCatAberta(false); }} className="h-8 w-8 rounded-md border border-black/10" style={{ backgroundColor: cor }} aria-label={cor} />
+                                              <button key={cor} type="button" onClick={() => { guardarCorRecente(cor); setCatFinEdit({ ...catFinEdit, cor }); setCorCatAberta(false); }} className="h-10 w-10 rounded-md border border-black/10 sm:h-8 sm:w-8" style={{ backgroundColor: cor }} aria-label={cor} />
                                           ))}
                                       </div>
                                   </>
                               )}
                               <label className="mt-3 flex items-center gap-2 text-xs font-medium text-neutral-600">
                                   Personalizar
-                                  <input type="color" value={catFinEdit.cor} onChange={e => { guardarCorRecente(e.target.value); setCatFinEdit({ ...catFinEdit, cor: e.target.value }); }} className="h-8 w-10 cursor-pointer rounded-md border border-neutral-200 bg-white" />
+                                  <input type="color" value={catFinEdit.cor} onChange={e => { guardarCorRecente(e.target.value); setCatFinEdit({ ...catFinEdit, cor: e.target.value }); }} className="h-10 w-12 cursor-pointer rounded-md border border-neutral-200 bg-white sm:h-8 sm:w-10" />
                               </label>
                           </div>
                       )}
                   </div>
               </div>
-              <div className="flex gap-2 border-t border-neutral-200 px-4 py-3">
-                  <button onClick={() => { setModalCatFin(false); setCatFinEdit(null); }} className="h-9 flex-1 rounded-md text-sm font-medium text-neutral-600 hover:bg-neutral-50">Cancelar</button>
-                  <button onClick={salvarCatFinModal} className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-md bg-neutral-900 text-sm font-medium text-white hover:bg-neutral-800"><Save size={14}/> Salvar</button>
+              <div className="flex shrink-0 gap-2 border-t border-neutral-200 px-4 py-3">
+                  <button onClick={() => { if (salvandoPopup) return; setModalCatFin(false); setCatFinEdit(null); }} disabled={salvandoPopup} className="h-11 flex-1 rounded-md text-sm font-medium text-neutral-600 hover:bg-neutral-50 disabled:opacity-50 sm:h-9">Cancelar</button>
+                  <button onClick={() => { void salvarCatFinModal(); }} disabled={salvandoPopup || somenteLeitura} className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-md bg-neutral-900 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-40 sm:h-9">{salvandoPopup ? <Loader2 size={14} className="animate-spin"/> : <Save size={14}/>} Salvar</button>
               </div>
           </div>
           )}
       </Modal>
 
       {/* MODAL CRIAR/EDITAR MODELO ANAMNESE */}
-      <Modal open={modalModelo && !!modeloEdit} onClose={() => setModalModelo(false)} maxWidth="2xl" hideCloseButton>
+      <Modal open={modalModelo && !!modeloEdit} onClose={() => { if (!salvandoPopup) setModalModelo(false); }} maxWidth="2xl" hideCloseButton>
           {modeloEdit && (
-          <div className="flex max-h-[85vh] w-full flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white">
+          <div className="flex max-h-[85dvh] w-full flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white">
                   <div className="flex items-center justify-between border-b border-neutral-200 px-4 py-3">
                       <div>
                           <h3 className="text-base font-semibold text-neutral-900">{modelos.find(m => m.id === modeloEdit.id) ? 'Editar modelo' : 'Novo modelo'}</h3>
                           <p className="text-xs text-neutral-500">Perguntas do questionário.</p>
                       </div>
-                      <button onClick={() => setModalModelo(false)} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-50"><X size={16}/></button>
+                      <button onClick={() => { if (!salvandoPopup) setModalModelo(false); }} aria-label="Fechar" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-50 sm:h-8 sm:w-8"><X size={16}/></button>
                   </div>
                   <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
                       <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
                           <div>
-                              <label className={campoLabel}>Nome</label>
+                              <label className={campoLabel}>Nome <span className="text-red-500">*</span></label>
                               <input value={modeloEdit.nome} onChange={e => setModeloEdit({...modeloEdit, nome: e.target.value})} className={campoInput} placeholder="Ex: Anamnese endodôntica"/>
                           </div>
                           <div className="md:col-span-2">
@@ -1634,7 +2193,7 @@ export default function Configuracoes() {
                       <div>
                           <div className="mb-2 flex items-center justify-between">
                               <h4 className="text-sm font-medium text-neutral-900">Perguntas ({modeloEdit.perguntas.length})</h4>
-                              <button onClick={adicionarPergunta} className="inline-flex h-8 items-center gap-1 rounded-md border border-neutral-200 px-2 text-xs font-medium text-neutral-700 hover:bg-neutral-50"><Plus size={12}/> Adicionar</button>
+                              <button onClick={adicionarPergunta} className="inline-flex h-10 items-center gap-1 rounded-md border border-neutral-200 px-3 text-sm font-medium text-neutral-700 hover:bg-neutral-50 sm:h-8 sm:px-2 sm:text-xs"><Plus size={12}/> Adicionar</button>
                           </div>
                           <div className="space-y-1.5" ref={perguntasListRef}>
                               {modeloEdit.perguntas.map((p, idx) => (
@@ -1642,87 +2201,35 @@ export default function Configuracoes() {
                                       <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-white text-xs font-medium text-neutral-600">{idx + 1}</div>
                                       <div className="min-w-0 flex-1 space-y-1.5">
                                           <input value={p.label} onChange={e => atualizarPergunta(idx, { label: e.target.value })} className={campoInput} placeholder="Texto da pergunta"/>
-                                          <div className="flex items-center gap-2">
+                                          <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-2">
                                               <CustomSelect value={p.tipo} onChange={v => atualizarPergunta(idx, { tipo: v as TipoPergunta, opcoes: v === 'multipla' ? (p.opcoes || ['Opção 1']) : undefined })} options={[{value:'texto',label:'Texto livre'},{value:'sim_nao',label:'Sim / Não'},{value:'sim_nao_texto',label:'Sim / Não + Texto'},{value:'multipla',label:'Múltipla escolha'}]} size="sm"/>
                                               {p.tipo === 'multipla' && (
                                                   <input value={(p.opcoes || []).join(', ')} onChange={e => atualizarPergunta(idx, { opcoes: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })} className={campoInput} placeholder="Opções separadas por vírgula"/>
                                               )}
                                           </div>
                                       </div>
-                                      <button onClick={() => removerPergunta(idx)} className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-neutral-400 hover:bg-white hover:text-rose-600"><Trash2 size={14}/></button>
+                                      <button onClick={() => removerPergunta(idx)} aria-label={`Excluir pergunta ${idx + 1}`} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-neutral-400 hover:bg-white hover:text-rose-600 sm:h-8 sm:w-8"><Trash2 size={14}/></button>
                                   </div>
                               ))}
                           </div>
                       </div>
                   </div>
                   <div className="flex gap-2 border-t border-neutral-200 px-4 py-3">
-                      <button onClick={() => setModalModelo(false)} className="h-9 flex-1 rounded-md text-sm font-medium text-neutral-600 hover:bg-neutral-50">Cancelar</button>
-                      <button onClick={salvarModelo} className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-md bg-neutral-900 text-sm font-medium text-white hover:bg-neutral-800"><Save size={14}/> Salvar</button>
+                      <button onClick={() => { if (!salvandoPopup) setModalModelo(false); }} disabled={salvandoPopup} className="h-11 flex-1 rounded-md text-sm font-medium text-neutral-600 hover:bg-neutral-50 disabled:opacity-50 sm:h-9">Cancelar</button>
+                      <button onClick={() => { void salvarModelo(); }} disabled={salvandoPopup || somenteLeitura} className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-md bg-neutral-900 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-40 sm:h-9">{salvandoPopup ? <Loader2 size={14} className="animate-spin"/> : <Save size={14}/>} Salvar</button>
                   </div>
-              </div>
-          )}
-      </Modal>
-
-      <Modal open={modalProf} onClose={() => setModalProf(false)} maxWidth="2xl" hideCloseButton>
-          <div className="bg-white w-full rounded-[1.35rem] shadow-2xl flex flex-col max-h-[90vh] animate-in zoom-in-95 border border-neutral-100">
-                  <div className="p-6 border-b border-neutral-100 flex justify-between items-start bg-neutral-50/50 rounded-t-[1.35rem] flex-none">
-                      <div><h3 className="font-black text-2xl text-neutral-800">{editandoProf ? 'Editar Perfil' : 'Novo Acesso'}</h3><p className="text-neutral-500 font-medium text-sm">Dados profissionais e de acesso.</p></div>
-                      {editandoProf && (<button onClick={excluirProfissional} className="p-2 text-red-400 hover:bg-red-50 rounded-lg hover:text-red-600 transition-colors"><Trash2 size={20}/></button>)}
-                  </div>
-                  <div className="p-8 overflow-y-auto custom-scrollbar space-y-6 flex-1">
-                      <div className="bg-neutral-50 p-5 rounded-2xl border border-black/10 space-y-4">
-                          <div className="flex items-center gap-2 text-neutral-800 font-bold text-sm mb-2"><Shield size={16}/> Dados de Login</div>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              <div><label className="mb-1 block text-xs font-medium text-neutral-500">E-mail de Acesso</label><div className="relative"><Mail className="absolute left-3 top-3.5 text-neutral-400" size={18}/><input value={profForm.email} onChange={e => setProfForm({...profForm, email: e.target.value})} className="w-full pl-10 pr-4 py-3 bg-white border border-black/10 rounded-xl outline-none outline-none focus:border-neutral-400 font-medium text-neutral-700 placeholder:text-neutral-300" placeholder="email@clinica.com"/></div></div>
-                              <div><label className="mb-1 block text-xs font-medium text-neutral-500">Senha {editandoProf && '(Opcional)'}</label><div className="relative"><Lock className="absolute left-3 top-3.5 text-neutral-400" size={18}/><input type="password" value={profForm.senha} onChange={e => setProfForm({...profForm, senha: e.target.value})} className="w-full pl-10 pr-4 py-3 bg-white border border-black/10 rounded-xl outline-none outline-none focus:border-neutral-400 font-medium text-neutral-700 placeholder:text-neutral-300" placeholder={editandoProf ? "Manter atual" : "Criar senha"}/></div></div>
-                          </div>
-                      </div>
-                      <div className="space-y-4">
-                          <h4 className="text-sm font-bold text-neutral-800 border-b border-neutral-100 pb-2">Dados do Profissional</h4>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              <div className="md:col-span-2"><label className="mb-1 block text-xs font-medium text-neutral-500">Nome Completo</label><div className="relative"><User className="absolute left-3 top-3.5 text-neutral-300" size={18}/><input value={profForm.nome} onChange={e => setProfForm({...profForm, nome: e.target.value})} className="w-full pl-10 pr-4 py-3 bg-neutral-50 border border-neutral-200 rounded-xl outline-none outline-none focus:border-neutral-400 font-bold text-neutral-700" placeholder="Dr. Nome Sobrenome"/></div></div>
-                              <div><label className="mb-1 block text-xs font-medium text-neutral-500">CPF</label><input value={profForm.cpf} onChange={e => setProfForm({...profForm, cpf: e.target.value})} className="h-9 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-900 outline-none focus:border-neutral-900" placeholder="000.000.000-00"/></div>
-                              <div><label className="mb-1 block text-xs font-medium text-neutral-500">Sexo</label><CustomSelect value={profForm.sexo} onChange={v => setProfForm({...profForm, sexo: v})} options={[{value:'Masculino',label:'Masculino'},{value:'Feminino',label:'Feminino'},{value:'Outro',label:'Outro'}]} placeholder="Selecione..." size="lg"/></div>
-                              <div><label className="mb-1 block text-xs font-medium text-neutral-500">Contato / Telefone</label><div className="relative"><Phone className="absolute left-3 top-3.5 text-neutral-300" size={18}/><input value={profForm.telefone} onChange={e => setProfForm({...profForm, telefone: e.target.value})} className="w-full pl-10 pr-4 py-3 bg-neutral-50 border border-neutral-200 rounded-xl outline-none outline-none focus:border-neutral-400 font-medium text-neutral-700" placeholder="(00) 00000-0000"/></div></div>
-                              <div><label className="mb-1 block text-xs font-medium text-neutral-500">Cargo</label><input value={profForm.cargo} onChange={e => setProfForm({...profForm, cargo: e.target.value})} className="h-9 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-900 outline-none focus:border-neutral-900" placeholder="Ex: Ortodontista"/></div>
-                          </div>
-                          <div className="md:col-span-2"><label className="mb-1 block text-xs font-medium text-neutral-500">Endereço</label><input value={profForm.endereco} onChange={e => setProfForm({...profForm, endereco: e.target.value})} className="h-9 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-900 outline-none focus:border-neutral-900" placeholder="Rua, Número, Bairro..."/></div>
-                          <div className="grid grid-cols-1 gap-3 bg-neutral-50 p-3 rounded-xl border border-neutral-100 sm:grid-cols-3"><div className="col-span-1"><label className="text-[10px] font-bold text-neutral-400 uppercase ml-1">Conselho</label><CustomSelect value={profForm.conselho} onChange={v => setProfForm({...profForm, conselho: v})} options={[{value:'CRO',label:'CRO'},{value:'CRM',label:'CRM'},{value:'Outro',label:'Outro'}]} size="sm"/></div><div className="col-span-1"><label className="text-[10px] font-bold text-neutral-400 uppercase ml-1">UF</label><input value={profForm.uf} onChange={e => setProfForm({...profForm, uf: e.target.value})} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg outline-none text-sm font-medium" placeholder="UF"/></div><div className="col-span-1"><label className="text-[10px] font-bold text-neutral-400 uppercase ml-1">Nº Conselho</label><input value={profForm.cro} onChange={e => setProfForm({...profForm, cro: e.target.value})} className="w-full px-3 py-2 bg-white border border-neutral-200 rounded-lg outline-none text-sm font-medium" placeholder="12345"/></div></div>
-                      </div>
-                      <div className="bg-neutral-50 p-4 rounded-2xl border border-neutral-100 flex flex-col md:flex-row justify-between items-center gap-4">
-                          <div className="flex items-center gap-3"><div className={`p-3 rounded-xl ${profForm.nivel_acesso === 'admin' ? 'bg-purple-100 text-purple-600' : 'bg-white border border-neutral-200 text-neutral-400'}`}><Shield size={24}/></div><div><h4 className="font-bold text-neutral-800 text-sm">Nível de Permissão</h4><p className="text-xs text-neutral-500">Admins podem editar financeiro e ajustes.</p></div></div>
-                          <div className="flex bg-white p-1 rounded-xl border border-neutral-200 shadow-sm"><button onClick={() => setProfForm({...profForm, nivel_acesso: 'comum'})} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${profForm.nivel_acesso === 'comum' ? 'bg-neutral-800 text-white shadow' : 'text-neutral-500 hover:bg-neutral-50'}`}>Comum</button><button onClick={() => setProfForm({...profForm, nivel_acesso: 'admin'})} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${profForm.nivel_acesso === 'admin' ? 'bg-purple-600 text-white shadow' : 'text-neutral-500 hover:bg-neutral-50'}`}>Admin</button></div>
-                      </div>
-                  </div>
-                  <div className="p-6 border-t border-neutral-100 bg-neutral-50 flex gap-3 rounded-b-3xl flex-none"><button onClick={() => setModalProf(false)} className="flex-1 py-4 text-neutral-500 font-bold hover:bg-neutral-200 rounded-xl transition-colors">Cancelar</button><button onClick={salvarProfissional} disabled={salvandoProf} className={`${bentoPrimaryBtn} flex-1 py-4 active:scale-95`}>{salvandoProf ? <Loader2 className="animate-spin"/> : <><Save size={18}/> Salvar Acesso</>}</button></div>
-              </div>
-      </Modal>
-
-      {/* MODAL VINCULOS */}
-      <Modal open={modalVinculo && !!profSelecionado} onClose={() => setModalVinculo(false)} maxWidth="md" hideCloseButton>
-          {profSelecionado && (
-              <div className="bg-white p-6 rounded-2xl w-full shadow-2xl animate-in zoom-in-95">
-                  <div className="flex justify-between items-center mb-6"><div><h3 className="font-bold text-lg">Onde {profSelecionado.nome.split(' ')[0]} atende?</h3><p className="text-xs text-neutral-400">Marque as clínicas permitidas.</p></div><button onClick={() => setModalVinculo(false)} className="p-2 hover:bg-neutral-100 rounded-full"><X size={20}/></button></div>
-                  <div className="space-y-2 mb-6 max-h-60 overflow-y-auto">
-                      {clinicas.map(c => {
-                          const ativo = vinculosDoProf.includes(c.id);
-                          return (
-                              <button key={c.id} onClick={() => toggleVinculo(c.id)} className={`flex w-full items-center justify-between rounded-xl p-4 ${bentoChipOutline(ativo)}`}><span className={`font-bold ${ativo ? 'text-neutral-900' : 'text-neutral-600'}`}>{c.nome}</span><div className={`flex h-6 w-6 items-center justify-center rounded-full border ${ativo ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-300 bg-white'}`}>{ativo && <Check size={14}/>}</div></button>
-                          );
-                      })}
-                  </div>
-                  <button onClick={() => setModalVinculo(false)} className="w-full py-3 bg-neutral-900 text-white font-bold rounded-xl">Concluir</button>
               </div>
           )}
       </Modal>
 
       {/* MODAL EDIÇÃO COMPLETA CLÍNICA */}
-      <Modal open={modalClinicaCompleto} onClose={() => { setModalClinicaCompleto(false); setClinicaEditando(null); limparLogoLocal(); }} maxWidth="4xl" hideCloseButton panelClassName="overflow-visible rounded-xl border border-neutral-200 bg-white">
-          <div className="px-5 py-4 sm:px-6 sm:py-5">
-              <div className="mb-5 flex items-center justify-between gap-4 border-b border-black/5 pb-4">
+      {/* Cabeçalho e rodapé ficam parados e só os campos rolam: no celular o formulário é mais alto que a tela e o Salvar saía dela. */}
+      <Modal open={modalClinicaCompleto} onClose={fecharModalClinica} maxWidth="4xl" hideCloseButton panelClassName="rounded-xl border border-neutral-200 bg-white">
+          <div className="flex max-h-[90dvh] min-h-0 flex-col px-5 py-4 sm:px-6 sm:py-5">
+              <div className="flex shrink-0 items-center justify-between gap-4 border-b border-black/5 pb-4">
                   <div className="flex min-w-0 items-center gap-3.5">
                       <label className="relative h-16 w-16 shrink-0 cursor-pointer">
-                          <input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={escolherLogo} />
+                          <input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={escolherLogo} disabled={carregandoClinica || salvandoClinica} />
                           <span className={`flex h-16 w-16 items-center justify-center overflow-hidden rounded-full border bg-[#f8f8f6] text-neutral-500 ${logoPreview ? 'border-neutral-900' : 'border-black/10'}`}>
                               {logoPreview ? <img src={logoPreview} alt="" className="h-full w-full object-cover" /> : <Building2 size={22} />}
                           </span>
@@ -1735,12 +2242,19 @@ export default function Configuracoes() {
                           <p className="mt-0.5 text-xs font-medium text-neutral-400">Logo opcional. JPG, PNG ou WebP, até 2 MB.</p>
                       </div>
                   </div>
-                  <button type="button" onClick={() => { setModalClinicaCompleto(false); setClinicaEditando(null); limparLogoLocal(); }} className="rounded-full p-2 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-800" aria-label="Fechar"><X size={18}/></button>
+                  <button type="button" onClick={fecharModalClinica} disabled={salvandoClinica} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-neutral-400 hover:bg-neutral-100 hover:text-neutral-800 disabled:opacity-50 sm:h-[34px] sm:w-[34px]" aria-label="Fechar"><X size={18}/></button>
               </div>
 
+              <div className="-mx-5 min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:-mx-6 sm:px-6">
+              {carregandoClinica ? (
+                  // Os campos só aparecem com a linha do banco: preenchidos da lista, o Salvar apagava o que a clínica tinha.
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-busy="true">
+                      {Array.from({ length: 8 }).map((_, i) => <div key={i} className="h-10 animate-pulse rounded-md bg-neutral-50" />)}
+                  </div>
+              ) : (<>
               <section>
                   <h4 className="mb-3 text-sm font-semibold text-neutral-900">Identificação</h4>
-                  <div className="grid grid-cols-2 gap-x-3 gap-y-2.5 lg:grid-cols-4">
+                  <div className="grid grid-cols-1 gap-x-3 gap-y-3 sm:grid-cols-2 sm:gap-y-2.5 lg:grid-cols-4">
                       <label className="min-w-0 lg:col-span-2"><span className={labelModal}>Nome <span className="text-red-500">*</span></span><input value={clinicaForm.nome} onChange={e => setClinicaForm({...clinicaForm, nome: e.target.value})} className={campoModal} placeholder="Nome da clínica"/></label>
                       <label className="min-w-0"><span className={labelModal}>CNPJ</span><input value={clinicaForm.cnpj} onChange={e => setClinicaForm({...clinicaForm, cnpj: e.target.value})} className={campoModal} placeholder="00.000.000/0000-00"/></label>
                       <label className="min-w-0"><span className={labelModal}>Responsável</span><input value={clinicaForm.responsavel_nome} onChange={e => setClinicaForm({...clinicaForm, responsavel_nome: e.target.value})} className={campoModal} placeholder="Responsável técnico"/></label>
@@ -1751,7 +2265,9 @@ export default function Configuracoes() {
                       <label className="min-w-0"><span className={labelModal}>Fuso</span><CustomSelect value={clinicaForm.fuso_horario} onChange={v => setClinicaForm({...clinicaForm, fuso_horario: v})} options={FUSO_HORARIO_OPTIONS} size="md"/></label>
                       <div className="min-w-0 lg:col-span-2">
                           <span className={labelModal}>Notas fiscais em nome de</span>
+                          {/* 48px no celular: descontada a moldura do controle, cada opção fica com 42px de toque. */}
                           <SegmentedControl
+                              className="!h-12 sm:!h-10"
                               value={clinicaForm.emitir_notas_em_nome === 'profissional' ? 'profissional' : 'clinica'}
                               onChange={(v) => setClinicaForm({ ...clinicaForm, emitir_notas_em_nome: v })}
                               options={[
@@ -1765,7 +2281,7 @@ export default function Configuracoes() {
 
               <section className="mt-5 border-t border-black/5 pt-4">
                   <h4 className="mb-3 text-sm font-semibold text-neutral-900">Endereço</h4>
-                  <div className="grid grid-cols-2 gap-x-3 gap-y-2.5 lg:grid-cols-4">
+                  <div className="grid grid-cols-1 gap-x-3 gap-y-3 sm:grid-cols-2 sm:gap-y-2.5 lg:grid-cols-4">
                       <label className="min-w-0">
                           <span className={labelModal}>CEP <span className="text-red-500">*</span> {buscandoCepClinica && <Loader2 size={12} className="ml-1 inline animate-spin" />}</span>
                           <input value={clinicaForm.cep} onChange={e => { setClinicaForm({...clinicaForm, cep: e.target.value}); if (e.target.value.replace(/\D/g, '').length === 8) buscarCepClinica(e.target.value); }} onBlur={() => buscarCepClinica(clinicaForm.cep)} className={campoModal} placeholder="00000-000"/>
@@ -1778,10 +2294,14 @@ export default function Configuracoes() {
                       <label className="min-w-0"><span className={labelModal}>UF <span className="text-red-500">*</span></span><CustomSelect value={clinicaForm.uf || ''} onChange={v => setClinicaForm({...clinicaForm, uf: v})} options={UF_OPTIONS} size="md"/></label>
                   </div>
               </section>
+              </>)}
+              </div>
 
-              <div className="mt-5 flex items-center justify-end gap-3 border-t border-black/5 pt-4">
-                  <button type="button" onClick={() => { setModalClinicaCompleto(false); setClinicaEditando(null); limparLogoLocal(); }} className="h-10 px-3 text-sm font-medium text-neutral-500 hover:text-neutral-900">Cancelar</button>
-                  <button type="button" onClick={salvarClinicaCompleta} className="inline-flex h-10 items-center rounded-full bg-neutral-900 px-5 text-sm font-medium text-white hover:bg-neutral-800">
+              <div className="flex shrink-0 items-center justify-end gap-3 border-t border-black/5 pt-4">
+                  <button type="button" onClick={fecharModalClinica} disabled={salvandoClinica} className="h-11 px-3 text-sm font-medium text-neutral-500 hover:text-neutral-900 disabled:opacity-50 sm:h-10">Cancelar</button>
+                  {/* Travado enquanto carrega e enquanto grava: dois toques cadastravam duas clínicas. */}
+                  <button type="button" onClick={() => { void salvarClinicaCompleta(); }} disabled={carregandoClinica || salvandoClinica} className="inline-flex h-11 items-center gap-2 rounded-full bg-neutral-900 px-5 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50 sm:h-10">
+                      {salvandoClinica && <Loader2 size={14} className="animate-spin" />}
                       {clinicaEditando ? 'Salvar' : 'Cadastrar'}
                   </button>
               </div>

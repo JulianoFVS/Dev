@@ -1,0 +1,18 @@
+# Ortus — quando a rotina de assinaturas roda.
+# Todo dia às 09:00 UTC (6h de Brasília).
+#
+# Ligar:  sudo systemctl enable --now ortus-assinaturas.timer
+# Ver:    systemctl list-timers 'ortus-*' --no-pager
+
+[Unit]
+Description=Ortus - agenda das assinaturas (todo dia 09:00 UTC)
+
+[Timer]
+OnCalendar=*-*-* 09:00:00 UTC
+# Se a máquina estava desligada na hora, roda assim que ligar.
+Persistent=true
+AccuracySec=1min
+Unit=ortus-assinaturas.service
+
+[Install]
+WantedBy=timers.target

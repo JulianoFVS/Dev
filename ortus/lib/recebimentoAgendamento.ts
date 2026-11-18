@@ -1,6 +1,5 @@
-import { supabase } from '@/lib/supabase';
 import { dados as tabelas } from '@/lib/local/consulta';
-import { carregarConfig, salvarConfig } from '@/lib/configClinica';
+import { carregarConfig, carregarConfigComErro, salvarConfig } from '@/lib/configClinica';
 import { CONFIG_KEYS } from '@/lib/configKeys';
 import { calcularValorLiquido, TAXAS_MAQUININHA_PADRAO, normalizarTaxasMaquininha, type TaxaMaquininha } from '@/lib/configDefaults';
 import { registrarComissaoDebitoRecebido } from '@/lib/comissao';
@@ -57,27 +56,43 @@ export async function receberAgendamento(
       }
     : {};
 
-  const { error } = await tabelas.from('agendamentos')
+  // Só recebe débito em aberto (status 'fiado') e confere que a linha mudou: duas telas recebendo
+  // a mesma consulta ao mesmo tempo não recebem duas vezes nem lançam a comissão em dobro.
+  const { data: recebidas, error } = await tabelas.from('agendamentos')
     .update({
       status: 'concluido',
       data_pagamento: new Date().toISOString(),
       ...taxaMeta,
     })
-    .eq('id', agendamento.id);
+    .eq('id', agendamento.id)
+    .eq('status', 'fiado')
+    .select('id');
 
   if (error) throw error;
+  if (!Array.isArray(recebidas) || recebidas.length === 0) {
+    // Frase para a pessoa (o código P0001 faz fraseDeErro deixá-la passar).
+    throw Object.assign(new Error('Este débito já foi recebido ou não está mais em aberto. Atualize a tela.'), { code: 'P0001' });
+  }
 
   if (formas.length > 0) {
-    const meta = await carregarConfig<Record<string, unknown>>(
-      agendamento.clinica_id,
-      CONFIG_KEYS.lancamentos_meta,
-      'ortus_lancamentos_meta',
-      {},
-    );
-    await salvarConfig(agendamento.clinica_id, CONFIG_KEYS.lancamentos_meta, {
-      ...meta,
-      [`ag_${agendamento.id}`]: { ...taxaMeta, formas },
-    });
+    // `lancamentos_meta` está em desuso: o bruto, o líquido e a taxa já foram
+    // gravados no agendamento. Só o administrador grava configuração; para os
+    // outros, a recusa desta cópia não desfaz o recebimento nem barra a comissão.
+    try {
+      // Leitura conferida: se falhar, a cópia é pulada (gravar o JSON lido como vazio apagaria a
+      // forma e a taxa de todos os outros lançamentos da clínica).
+      const meta = await carregarConfigComErro<Record<string, unknown>>(
+        agendamento.clinica_id,
+        CONFIG_KEYS.lancamentos_meta,
+        {},
+      );
+      await salvarConfig(agendamento.clinica_id, CONFIG_KEYS.lancamentos_meta, {
+        ...meta,
+        [`ag_${agendamento.id}`]: { ...taxaMeta, formas },
+      });
+    } catch {
+      // segue sem a cópia (ver acima)
+    }
   }
 
   const comissao = await registrarComissaoDebitoRecebido(agendamento, valorLiquido);

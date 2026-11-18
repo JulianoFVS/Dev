@@ -8,7 +8,7 @@ export function BarraAjuda({ titulo }: { titulo: string }) {
       <Link
         href="/ajuda"
         aria-label="Voltar"
-        className="relative z-10 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-white hover:bg-white/10"
+        className="relative z-10 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-white hover:bg-white/10 sm:h-8 sm:w-8"
       >
         <ArrowLeft size={16} />
       </Link>

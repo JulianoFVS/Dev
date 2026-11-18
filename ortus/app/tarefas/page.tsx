@@ -1,6 +1,5 @@
 'use client';
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { supabase } from '@/lib/supabase';
 import { dados as tabelas } from '@/lib/local/consulta';
 import { modoDados, listar, inserir, atualizar, remover } from '@/lib/local/cliente';
 import { clinicScope, readRouteCache, writeRouteCache } from '@/lib/routeListCache';
@@ -18,6 +17,7 @@ import { TAREFA_PRIORIDADE_OPTIONS, TAREFA_STATUS_OPTIONS } from '@/lib/formOpti
 
 interface Tarefa {
     id: string;
+    clinica_id?: string | number | null;
     titulo: string;
     descricao: string;
     responsavel_id: number | null;
@@ -35,12 +35,15 @@ interface Tarefa {
 interface Profissional {
     id: number;
     nome: string;
+    /** Clínicas em que atende (de `profissionais_clinicas`). Ausente quando não se sabe. */
+    clinicas?: string[];
 }
 
 interface Paciente {
     id: string;
     nome: string;
     telefone: string | null;
+    clinica_id?: string | number | null;
 }
 
 const TAREFAS_CACHE_KEY = 'ortus:tarefas:v1';
@@ -103,7 +106,20 @@ function readTarefasBoot(): TarefasSnapshot | null {
 }
 
 function mensagemErro(err: unknown, padrao: string): string {
-    return err instanceof Error && err.message ? err.message : padrao;
+    // TypeError é a falha de rede do navegador ("Failed to fetch"): texto técnico, em inglês.
+    return err instanceof Error && !(err instanceof TypeError) && err.message ? err.message : padrao;
+}
+
+/**
+ * Aviso de falha do Supabase que pode ir para a tela. Texto do banco ou do navegador
+ * ("TypeError: Failed to fetch", "JWT expired", mensagens do Postgres) vira a frase fixa;
+ * só a frase do modo de consulta (PT402, "Assinatura suspensa...") passa como veio.
+ */
+function avisoDeFalha(erro: { message?: string; code?: string } | null, padrao: string): string {
+    const texto = (erro?.message || '').trim();
+    if (erro?.code === 'PT402' || /^Assinatura suspensa/.test(texto)) return texto || padrao;
+    if (erro?.code === '42501') return 'Você não tem permissão para alterar tarefas desta clínica.';
+    return padrao;
 }
 
 /** Replica no cliente o `alerta_data` da view `v_tarefas_completo`. */
@@ -127,6 +143,30 @@ function ordenarPorDataLimite(a: Tarefa, b: Tarefa): number {
     return a.data_limite.localeCompare(b.data_limite);
 }
 
+type VinculoClinica = { profissional_id?: string | number | null; clinica_id?: string | number | null };
+
+/** Põe em cada profissional as clínicas em que atende. Sem vínculo conhecido, fica sem a informação. */
+function comClinicas(lista: Profissional[], vinculos: VinculoClinica[] | null): Profissional[] {
+    if (!vinculos) return lista;
+    const porProfissional = new Map<string, string[]>();
+    for (const v of vinculos) {
+        if (v.profissional_id == null || v.clinica_id == null) continue;
+        const chave = String(v.profissional_id);
+        porProfissional.set(chave, [...(porProfissional.get(chave) ?? []), String(v.clinica_id)]);
+    }
+    return lista.map((p) => ({ ...p, clinicas: porProfissional.get(String(p.id)) }));
+}
+
+/** Paciente de outra clínica. Sem a clínica dele (cache antigo), não dá para saber: não barra. */
+function pacienteDeOutraClinica(p: Paciente | undefined, clinica: string): boolean {
+    return !!clinica && p?.clinica_id != null && String(p.clinica_id) !== clinica;
+}
+
+/** Responsável que não atende na clínica. Sem os vínculos dele, não dá para saber: não barra. */
+function responsavelDeOutraClinica(p: Profissional | undefined, clinica: string): boolean {
+    return !!clinica && !!p?.clinicas && !p.clinicas.includes(clinica);
+}
+
 type CacheProfissionaisLocal = { tentado: boolean; lista: Profissional[] };
 
 /**
@@ -139,7 +179,7 @@ async function carregarSnapshotLocal(
     clinicasIds: number[],
     cacheProfissionais: CacheProfissionaisLocal,
 ): Promise<TarefasSnapshot> {
-    const [tarefasBase, pacientes] = await Promise.all([
+    const [tarefasBase, pacientes, vinculos] = await Promise.all([
         listar<Tarefa>('tarefas', {
             filtros: [{ col: 'clinica_id', op: 'in', valor: clinicasIds }],
             ordem: [{ col: 'data_limite', asc: true }],
@@ -148,6 +188,10 @@ async function carregarSnapshotLocal(
             filtros: [{ col: 'clinica_id', op: 'in', valor: clinicasIds }],
             ordem: [{ col: 'nome', asc: true }],
         }),
+        // Em que clínica cada responsável atende (popup em "Todas as clínicas"). Sem a tabela, não filtra.
+        listar<VinculoClinica>('profissionais_clinicas', {
+            filtros: [{ col: 'clinica_id', op: 'in', valor: clinicasIds }],
+        }).catch(() => null),
     ]);
 
     const responsavelIds = [...new Set(
@@ -190,7 +234,7 @@ async function carregarSnapshotLocal(
             };
         });
 
-    return { tarefas, profissionais: cacheProfissionais.lista, pacientes };
+    return { tarefas, profissionais: comClinicas(cacheProfissionais.lista, vinculos), pacientes };
 }
 
 export default function Tarefas() {
@@ -206,6 +250,8 @@ export default function Tarefas() {
     const [pacientes, setPacientes] = useState<Paciente[]>(() => boot?.pacientes ?? []);
     const [loading, setLoading] = useState(() => !(boot?.tarefas?.length));
     const clinicas = useMemo(() => clinics, [clinics]);
+    // Clínica escolhida no topo. Em "Todas as clínicas" (ou sem escolha) a tarefa leva a do popup.
+    const clinicaFixa = activeClinicId && activeClinicId !== 'all' ? String(activeClinicId) : null;
 
     // Filtros
     const [filtroStatus, setFiltroStatus] = useState<string>('todos');
@@ -215,6 +261,8 @@ export default function Tarefas() {
     const [modalOpen, setModalOpen] = useState(false);
     const [coresQuadro, setCoresQuadro] = useState<Record<string, string>>(readCoresQuadro);
     const [pintando, setPintando] = useState<string | null>(null);
+    // Celular: uma coluna por vez, escolhida por abas no topo.
+    const [abaCelular, setAbaCelular] = useState<Tarefa['status']>('a_fazer');
     const [tarefaEditando, setTarefaEditando] = useState<Tarefa | null>(null);
     const [salvando, setSalvando] = useState(false);
     
@@ -225,18 +273,43 @@ export default function Tarefas() {
         prioridade: 'media' as 'baixa' | 'media' | 'alta',
         status: 'a_fazer' as 'a_fazer' | 'em_andamento' | 'concluido',
         data_limite: '',
-        paciente_id: ''
+        paciente_id: '',
+        clinica_id: '',
     });
 
     // No desktop a tabela `profissionais` pode não existir: mantemos o id visível
     // em vez de o seletor cair para "Sem responsável".
+    // Só entra quem atende na clínica da tarefa (em "Todas", aparecia gente de outra unidade).
     const opcoesResponsavel = useMemo(() => {
-        const opcoes = profissionais.map((p) => ({ value: String(p.id), label: p.nome }));
+        const opcoes = profissionais
+            .filter((p) => !responsavelDeOutraClinica(p, form.clinica_id))
+            .map((p) => ({ value: String(p.id), label: p.nome }));
         if (form.responsavel_id && !opcoes.some((o) => o.value === form.responsavel_id)) {
-            opcoes.unshift({ value: form.responsavel_id, label: `Responsável ${form.responsavel_id}` });
+            const atual = profissionais.find((p) => String(p.id) === form.responsavel_id);
+            opcoes.unshift({ value: form.responsavel_id, label: atual?.nome ?? `Responsável ${form.responsavel_id}` });
         }
         return opcoes;
-    }, [profissionais, form.responsavel_id]);
+    }, [profissionais, form.responsavel_id, form.clinica_id]);
+
+    // Paciente da clínica da tarefa. Sem clínica escolhida a lista junta todas (com o nome
+    // da clínica, para desfazer homônimos) e escolher o paciente define a clínica.
+    const opcoesPaciente = useMemo(() => {
+        const nomeDaClinica = new Map(clinicas.map((c): [string, string] => [String(c.id), c.nome]));
+        const opcoes = pacientes
+            .filter((p) => !pacienteDeOutraClinica(p, form.clinica_id))
+            .map((p) => {
+                const clinica = !form.clinica_id && clinicas.length > 1 && p.clinica_id != null
+                    ? nomeDaClinica.get(String(p.clinica_id))
+                    : undefined;
+                return { value: p.id, label: clinica ? `${p.nome} · ${clinica}` : p.nome };
+            });
+        // Tarefa antiga com paciente de outra clínica: aparece o nome, e o Salvar avisa.
+        if (form.paciente_id && !opcoes.some((o) => o.value === form.paciente_id)) {
+            const atual = pacientes.find((p) => p.id === form.paciente_id);
+            opcoes.unshift({ value: form.paciente_id, label: atual?.nome || tarefaEditando?.paciente_nome || 'Paciente' });
+        }
+        return [{ value: '', label: 'Nenhum paciente' }, ...opcoes];
+    }, [pacientes, clinicas, form.clinica_id, form.paciente_id, tarefaEditando]);
 
     useEffect(() => {
         if (clinicLoading) return;
@@ -247,6 +320,13 @@ export default function Tarefas() {
             setProfissionais(snap.profissionais);
             setPacientes(snap.pacientes);
             setLoading(false);
+        } else {
+            // Sem cache desta clínica: a lista da clínica anterior sai da tela. Ela ficava
+            // visível (e editável) até a carga chegar, e numa falha da carga ficaria de vez.
+            setTarefas([]);
+            setProfissionais([]);
+            setPacientes([]);
+            jaCarregou.current = false;
         }
         carregarDados({ silent: !!snap });
     }, [activeClinicId, clinicLoading]);
@@ -286,22 +366,40 @@ export default function Tarefas() {
 
         const [tarefasRes, vinculosRes, pacsRes] = await Promise.all([
             tabelas.from('v_tarefas_completo').select('*').in('clinica_id', clinicasIds).order('data_limite', { ascending: true }),
-            tabelas.from('profissionais_clinicas').select('profissional_id').in('clinica_id', clinicasIds),
-            tabelas.from('pacientes').select('id, nome, telefone').in('clinica_id', clinicasIds).order('nome'),
+            tabelas.from('profissionais_clinicas').select('profissional_id, clinica_id').in('clinica_id', clinicasIds),
+            tabelas.from('pacientes').select('id, nome, telefone, clinica_id').in('clinica_id', clinicasIds).order('nome'),
         ]);
 
         if (gen !== fetchGen.current) return;
 
-        const profissionalIds = [...new Set((vinculosRes.data || []).map((v: { profissional_id?: string | number | null }) => v.profissional_id))];
-        const { data: profsData } = profissionalIds.length > 0
+        // Falha na confirmação (rede, 5xx, sessão): o postgrest devolve `error` em vez de lançar.
+        // Fica a lista que já está na tela e no cache; zerar dava a entender que não há tarefas.
+        const falhouNaCarga = () => {
+            showAlert('Não foi possível atualizar as tarefas. Confira a conexão e tente de novo.', { type: 'error' });
+            setLoading(false);
+        };
+        if (tarefasRes.error || vinculosRes.error || pacsRes.error) {
+            falhouNaCarga();
+            return;
+        }
+
+        const vinculos = (vinculosRes.data || []) as VinculoClinica[];
+        const profissionalIds = [...new Set(vinculos.map((v) => v.profissional_id))];
+        const profsRes = profissionalIds.length > 0
             ? await tabelas.from('profissionais').select('id, nome').in('id', profissionalIds)
-            : { data: [] as Profissional[] };
+            : { data: [] as Profissional[], error: null };
 
         if (gen !== fetchGen.current) return;
+        if (profsRes.error) {
+            falhouNaCarga();
+            return;
+        }
 
         const snapshot: TarefasSnapshot = {
-            tarefas: (tarefasRes.data || []) as Tarefa[],
-            profissionais: profsData || [],
+            // A view calcula o atraso com o CURRENT_DATE do banco, que roda em UTC: das 21h à
+            // meia-noite a tarefa do dia já saía atrasada. Vale a data do aparelho, como no desktop.
+            tarefas: ((tarefasRes.data || []) as Tarefa[]).map((t) => ({ ...t, alerta_data: alertaDataLocal(t.data_limite, t.status) })),
+            profissionais: comClinicas((profsRes.data || []) as Profissional[], vinculos),
             pacientes: (pacsRes.data || []) as Paciente[],
         };
         writeRouteCache(TAREFAS_CACHE_KEY, clinicScope(activeClinicId), snapshot);
@@ -322,7 +420,9 @@ export default function Tarefas() {
             prioridade: 'media',
             status: 'a_fazer',
             data_limite: '',
-            paciente_id: ''
+            paciente_id: '',
+            // Em "Todas as clínicas" a pessoa escolhe a clínica no popup (ou ela vem do paciente).
+            clinica_id: clinicaFixa ?? (clinicas.length === 1 ? String(clinicas[0].id) : ''),
         });
         setModalOpen(true);
     }
@@ -336,9 +436,35 @@ export default function Tarefas() {
             prioridade: t.prioridade,
             status: t.status,
             data_limite: t.data_limite || '',
-            paciente_id: t.paciente_id?.toString() || ''
+            paciente_id: t.paciente_id?.toString() || '',
+            // Editar mantém a clínica da tarefa; só o campo Clínica (em "Todas") a troca.
+            clinica_id: t.clinica_id != null ? String(t.clinica_id) : (clinicaFixa ?? ''),
         });
         setModalOpen(true);
+    }
+
+    /** Trocar a clínica tira o paciente e o responsável que não são dela. */
+    function escolherClinica(clinica: string) {
+        setForm((f) => ({
+            ...f,
+            clinica_id: clinica,
+            paciente_id: pacienteDeOutraClinica(pacientes.find((p) => p.id === f.paciente_id), clinica) ? '' : f.paciente_id,
+            responsavel_id: responsavelDeOutraClinica(profissionais.find((p) => String(p.id) === f.responsavel_id), clinica) ? '' : f.responsavel_id,
+        }));
+    }
+
+    /** Sem clínica escolhida, o paciente define a clínica da tarefa. */
+    function escolherPaciente(id: string) {
+        const paciente = pacientes.find((p) => p.id === id);
+        setForm((f) => {
+            const clinica = f.clinica_id || (paciente?.clinica_id != null ? String(paciente.clinica_id) : '');
+            return {
+                ...f,
+                paciente_id: id,
+                clinica_id: clinica,
+                responsavel_id: responsavelDeOutraClinica(profissionais.find((p) => String(p.id) === f.responsavel_id), clinica) ? '' : f.responsavel_id,
+            };
+        });
     }
 
     async function salvarTarefa() {
@@ -347,13 +473,19 @@ export default function Tarefas() {
             return;
         }
 
-        const clinicasIds = clinicas.map(c => c.id);
-        const clinicaId = activeClinicId && activeClinicId !== 'all' 
-            ? activeClinicId 
-            : clinicasIds[0];
-        
-        if (!clinicaId) {
-            showAlert('Selecione uma clínica', { type: 'warning' });
+        // A clínica vem do contexto: a do topo, a da própria tarefa ou a escolhida no popup em
+        // "Todas as clínicas". Antes ia para a primeira da lista, mesmo com paciente de outra.
+        const clinicaId = form.clinica_id;
+        if (!clinicaId || (clinicaId !== clinicaFixa && !clinicas.some((c) => String(c.id) === clinicaId))) {
+            showAlert('Selecione a clínica da tarefa.', { type: 'warning' });
+            return;
+        }
+        if (pacienteDeOutraClinica(pacientes.find((p) => p.id === form.paciente_id), clinicaId)) {
+            showAlert('Este paciente é de outra clínica. Escolha um paciente da clínica da tarefa.', { type: 'warning' });
+            return;
+        }
+        if (responsavelDeOutraClinica(profissionais.find((p) => String(p.id) === form.responsavel_id), clinicaId)) {
+            showAlert('Este responsável não atende nesta clínica. Escolha outro responsável.', { type: 'warning' });
             return;
         }
 
@@ -373,7 +505,13 @@ export default function Tarefas() {
         if (await modoDados() === 'local') {
             try {
                 if (tarefaEditando) {
-                    await atualizar<Tarefa>('tarefas', tarefaEditando.id, payload);
+                    // O banco local devolve null quando a tarefa não existe mais: o popup fica aberto.
+                    const salva: Tarefa | null = await atualizar<Tarefa>('tarefas', tarefaEditando.id, payload);
+                    if (!salva) {
+                        showAlert('Esta tarefa não existe mais.', { type: 'error' });
+                        void carregarDados({ silent: true });
+                        return;
+                    }
                     showAlert('Tarefa atualizada!', { type: 'success' });
                 } else {
                     await inserir<Tarefa>('tarefas', payload);
@@ -393,16 +531,33 @@ export default function Tarefas() {
         }
 
         if (tarefaEditando) {
-            const { error } = await tabelas.from('tarefas')
+            const { data, error } = await tabelas.from('tarefas')
                 .update(payload)
-                .eq('id', tarefaEditando.id);
-            
-            if (error) showAlert('Erro ao atualizar: ' + error.message, { type: 'error' });
-            else showAlert('Tarefa atualizada!', { type: 'success' });
+                .eq('id', tarefaEditando.id)
+                .select('id');
+            if (error) {
+                // Falhou: o popup fica aberto com o aviso, para a pessoa não perder o que digitou.
+                showAlert(avisoDeFalha(error, 'Não foi possível salvar a tarefa. Confira a conexão e tente de novo.'), { type: 'error' });
+                setSalvando(false);
+                return;
+            }
+            // Nenhuma linha gravada: a tarefa foi excluída (aqui ou em outro aparelho). Sem o
+            // retorno, o banco respondia 204 e a tela dizia "atualizada" sem ter gravado nada.
+            if (!Array.isArray(data) || data.length === 0) {
+                showAlert('Esta tarefa não existe mais.', { type: 'error' });
+                setSalvando(false);
+                void carregarDados({ silent: true });
+                return;
+            }
+            showAlert('Tarefa atualizada!', { type: 'success' });
         } else {
             const { error } = await tabelas.from('tarefas').insert([payload]);
-            if (error) showAlert('Erro ao criar: ' + error.message, { type: 'error' });
-            else showAlert('Tarefa criada!', { type: 'success' });
+            if (error) {
+                showAlert(avisoDeFalha(error, 'Não foi possível criar a tarefa. Confira a conexão e tente de novo.'), { type: 'error' });
+                setSalvando(false);
+                return;
+            }
+            showAlert('Tarefa criada!', { type: 'success' });
         }
 
         setSalvando(false);
@@ -417,6 +572,9 @@ export default function Tarefas() {
             try {
                 await remover('tarefas', id);
                 showAlert('Tarefa excluída!', { type: 'success' });
+                // Fecha e esquece a tarefa apagada: com o popup aberto, o Salvar seguinte fingia gravar.
+                setModalOpen(false);
+                setTarefaEditando(null);
                 void carregarDados({ silent: true });
             } catch (err) {
                 showAlert('Erro ao excluir: ' + mensagemErro(err, 'banco local indisponível.'), { type: 'error' });
@@ -425,9 +583,11 @@ export default function Tarefas() {
         }
 
         const { error } = await tabelas.from('tarefas').delete().eq('id', id);
-        if (error) showAlert('Erro ao excluir: ' + error.message, { type: 'error' });
+        if (error) showAlert(avisoDeFalha(error, 'Não foi possível excluir a tarefa. Confira a conexão e tente de novo.'), { type: 'error' });
         else {
             showAlert('Tarefa excluída!', { type: 'success' });
+            setModalOpen(false);
+            setTarefaEditando(null);
             carregarDados({ silent: true });
         }
     }
@@ -456,16 +616,16 @@ export default function Tarefas() {
         const { error } = await tabelas.from('tarefas').update({ status: novoStatus }).eq('id', id);
         if (error) {
             setTarefas(prev);
-            showAlert('Erro ao mover: ' + error.message, { type: 'error' });
+            showAlert(avisoDeFalha(error, 'Não foi possível mover a tarefa. Confira a conexão e tente de novo.'), { type: 'error' });
         } else {
             const next = prev.map((t) => (t.id === id ? { ...t, status: novoStatus } : t));
             writeRouteCache(TAREFAS_CACHE_KEY, clinicScope(activeClinicId), { tarefas: next, profissionais, pacientes });
         }
     }
 
-    // Filtrar tarefas
-    const tarefasFiltradas = tarefas.filter(t => {
-        if (filtroStatus !== 'todos' && t.status !== filtroStatus) return false;
+    // Filtrar tarefas. O status só filtra o quadro: no celular o seletor fica escondido e
+    // quem escolhe o status é a aba (escondido, ele seguia filtrando a lista sem aviso).
+    const passaBuscaEPrioridade = (t: Tarefa) => {
         if (filtroPrioridade !== 'todos' && t.prioridade !== filtroPrioridade) return false;
         if (filtroBusca) {
             const busca = filtroBusca.toLowerCase();
@@ -474,7 +634,9 @@ export default function Tarefas() {
                    (t.paciente_nome?.toLowerCase().includes(busca));
         }
         return true;
-    });
+    };
+    const tarefasFiltradas = tarefas.filter(t => (filtroStatus === 'todos' || t.status === filtroStatus) && passaBuscaEPrioridade(t));
+    const tarefasDoCelular = tarefas.filter(passaBuscaEPrioridade);
 
     const contagemTarefas = {
         a_fazer: tarefas.filter(t => t.status === 'a_fazer').length,
@@ -483,6 +645,12 @@ export default function Tarefas() {
         atrasadas: tarefas.filter(t => t.alerta_data === 'atrasada' && t.status !== 'concluido').length,
         proximas: tarefas.filter(t => t.alerta_data === 'proxima' && t.status !== 'concluido').length
     };
+
+    /** Data pura (AAAA-MM-DD) escrita como dd/mm/aaaa, sem passar por Date: lida como UTC ela aparecia um dia antes. */
+    function dataSemFuso(iso: string) {
+        const [ano, mes, dia] = iso.slice(0, 10).split('-');
+        return ano && mes && dia ? `${dia}/${mes}/${ano}` : iso;
+    }
 
     function prioridadeDe(p: string) {
         if (p === 'alta') return { label: 'Alta', dot: 'bg-red-500', text: 'text-red-700' };
@@ -511,7 +679,7 @@ export default function Tarefas() {
                         {t.responsavel_nome && <span className="inline-flex items-center gap-1"><User size={11}/>{t.responsavel_nome}</span>}
                         {t.data_limite && (
                             <span className={`inline-flex items-center gap-1 ${t.alerta_data === 'atrasada' && t.status !== 'concluido' ? 'text-red-600' : ''}`}>
-                                <Calendar size={11}/>{new Date(t.data_limite).toLocaleDateString('pt-BR')}
+                                <Calendar size={11}/>{dataSemFuso(t.data_limite)}
                             </span>
                         )}
                     </div>
@@ -525,6 +693,45 @@ export default function Tarefas() {
                     </div>
                 </div>
             </div>
+        );
+    }
+
+    const ACAO_CELULAR: Record<Tarefa['status'], string> = { a_fazer: 'Iniciar', em_andamento: 'Concluir', concluido: 'Reabrir' };
+    const ROTULO_ABA_CELULAR: Record<Tarefa['status'], string> = { a_fazer: 'A fazer', em_andamento: 'Fazendo', concluido: 'Feitas' };
+
+    function renderTarefaCelular(t: Tarefa) {
+        const atrasada = t.alerta_data === 'atrasada' && t.status !== 'concluido';
+        return (
+            <article key={t.id} className="rounded-xl border border-neutral-200 bg-white">
+                <button type="button" onClick={() => abrirEditarTarefa(t)} className="block w-full px-3.5 pb-2 pt-3 text-left">
+                    <h3 className={`text-[15px] font-medium leading-snug ${t.status === 'concluido' ? 'text-neutral-400 line-through' : 'text-neutral-900'}`}>{t.titulo}</h3>
+                    {t.descricao && <p className="mt-1 line-clamp-2 text-sm text-neutral-500">{t.descricao}</p>}
+                    <span className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-neutral-500">
+                        <span className={`inline-flex items-center gap-1.5 ${prioridadeDe(t.prioridade).text}`}>
+                            <span className={`h-1.5 w-1.5 rounded-full ${prioridadeDe(t.prioridade).dot}`} />
+                            {prioridadeDe(t.prioridade).label}
+                        </span>
+                        {t.responsavel_nome && <span className="inline-flex items-center gap-1"><User size={12}/>{t.responsavel_nome}</span>}
+                        {t.data_limite && (
+                            <span className={`inline-flex items-center gap-1 ${atrasada ? 'font-medium text-red-600' : ''}`}>
+                                <Calendar size={12}/>{dataSemFuso(t.data_limite)}{atrasada ? ' · atrasada' : ''}
+                            </span>
+                        )}
+                    </span>
+                </button>
+                <div className="flex items-center justify-between gap-2 px-2 pb-2">
+                    {t.status !== 'a_fazer' && (
+                        <button type="button" onClick={() => moverStatus(t.id, proximoStatus(t, 'voltar'))} className="inline-flex h-11 items-center justify-center gap-1 rounded-lg px-3 text-sm font-medium text-neutral-500 active:bg-neutral-100">
+                            <ChevronLeft size={16} /> {t.status === 'concluido' ? 'Em andamento' : 'A fazer'}
+                        </button>
+                    )}
+                    {t.status !== 'concluido' && (
+                        <button type="button" onClick={() => moverStatus(t.id, proximoStatus(t, 'avancar'))} className="ml-auto inline-flex h-11 min-w-[7.5rem] items-center justify-center gap-1 rounded-full bg-neutral-900 px-4 text-sm font-medium text-white active:bg-neutral-700">
+                            {ACAO_CELULAR[t.status]} <ChevronRight size={16} />
+                        </button>
+                    )}
+                </div>
+            </article>
         );
     }
 
@@ -543,18 +750,21 @@ export default function Tarefas() {
                     <div className="min-w-0">
                         <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 md:text-[2rem]">
                             Tarefas
-                            <span className="text-neutral-400"> · {activeClinic ? getClinicLabel(activeClinic) : 'Todas as clínicas'}</span>
+                            <span className="hidden text-neutral-400 md:inline"> · {activeClinic ? getClinicLabel(activeClinic) : 'Todas as clínicas'}</span>
                         </h1>
                     </div>
                     <button
                         type="button"
                         onClick={abrirNovaTarefa}
-                        className="inline-flex h-10 shrink-0 items-center gap-1.5 self-start rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 sm:self-auto"
+                        className="inline-flex h-11 shrink-0 items-center justify-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 sm:h-10 sm:self-auto"
                     >
                         <Plus size={14} /> Nova tarefa
                     </button>
                 </div>
-                <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1">
+                {!kpiLoading && contagemTarefas.atrasadas > 0 && (
+                    <p className="mt-2 text-sm font-medium text-red-600 md:hidden">{contagemTarefas.atrasadas} {contagemTarefas.atrasadas === 1 ? 'tarefa atrasada' : 'tarefas atrasadas'}</p>
+                )}
+                <div className="mt-3 hidden flex-wrap gap-x-6 gap-y-1 md:flex">
                     <p className="text-sm text-neutral-500"><span className="font-medium tabular-nums text-neutral-900">{kpiLoading ? '—' : contagemTarefas.a_fazer}</span> a fazer</p>
                     <p className="text-sm text-neutral-500"><span className="font-medium tabular-nums text-neutral-900">{kpiLoading ? '—' : contagemTarefas.em_andamento}</span> em andamento</p>
                     <p className="text-sm text-neutral-500"><span className="font-medium tabular-nums text-neutral-900">{kpiLoading ? '—' : contagemTarefas.atrasadas}</span> atrasadas</p>
@@ -573,13 +783,15 @@ export default function Tarefas() {
                         onChange={(e) => setFiltroBusca(e.target.value)}
                     />
                 </div>
-                <div className="grid shrink-0 grid-cols-1 gap-2 sm:grid-cols-2 lg:w-[28rem]">
+                <div className="grid shrink-0 grid-cols-1 gap-2 md:grid-cols-2 lg:w-[28rem]">
+                    <div className="hidden md:block">
                     <CustomSelect
                         value={filtroStatus}
                         onChange={setFiltroStatus}
                         options={[{ value: 'todos', label: 'Todos os status' }, ...TAREFA_STATUS_OPTIONS]}
                         size="md"
                     />
+                    </div>
                     <CustomSelect
                         value={filtroPrioridade}
                         onChange={setFiltroPrioridade}
@@ -587,23 +799,62 @@ export default function Tarefas() {
                         size="md"
                     />
                 </div>
+                {/* Só com o status escolhido, o Limpar some no celular: lá o status não filtra. */}
                 {(filtroStatus !== 'todos' || filtroPrioridade !== 'todos') && (
                     <button
                         type="button"
                         onClick={() => { setFiltroStatus('todos'); setFiltroPrioridade('todos'); }}
-                        className="h-10 shrink-0 text-sm font-medium text-neutral-500 hover:text-neutral-900"
+                        className={`h-10 shrink-0 text-sm font-medium text-neutral-500 hover:text-neutral-900 ${filtroPrioridade === 'todos' ? 'hidden md:block' : ''}`}
                     >
                         Limpar
                     </button>
                 )}
             </div>
 
-            <div className="grid min-h-0 flex-1 grid-cols-1 gap-2 overflow-y-auto md:grid-cols-3 md:overflow-hidden">
+            {/* Celular: abas de status e uma lista só. Três colunas empilhadas viravam três rolagens pequenas. */}
+            <div className="flex min-h-0 flex-1 flex-col md:hidden">
+                <div role="tablist" aria-label="Status das tarefas" className="mb-2 grid shrink-0 grid-cols-3 gap-1 rounded-xl border border-neutral-200 bg-white p-1">
+                    {colunasKanban.map((col) => {
+                        const total = tarefas.filter((t) => t.status === col.id).length;
+                        const ativa = abaCelular === col.id;
+                        return (
+                            <button
+                                key={col.id}
+                                type="button"
+                                role="tab"
+                                aria-selected={ativa}
+                                onClick={() => setAbaCelular(col.id)}
+                                className={`flex h-11 items-center justify-center gap-1.5 rounded-lg px-1 text-[13px] font-medium ${ativa ? 'bg-neutral-900 text-white' : 'text-neutral-600 active:bg-neutral-100'}`}
+                            >
+                                <span className="truncate">{ROTULO_ABA_CELULAR[col.id]}</span>
+                                <span className={`tabular-nums ${ativa ? 'text-white/70' : 'text-neutral-400'}`}>{kpiLoading ? '—' : total}</span>
+                            </button>
+                        );
+                    })}
+                </div>
+                <div className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain">
+                    {kpiLoading ? (
+                        Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-24 animate-pulse rounded-xl bg-white" />)
+                    ) : (() => {
+                        const itens = tarefasDoCelular.filter((t) => t.status === abaCelular);
+                        if (itens.length === 0) {
+                            return (
+                                <p className="rounded-xl border border-dashed border-neutral-300 px-4 py-10 text-center text-sm text-neutral-500">
+                                    {filtroBusca || filtroPrioridade !== 'todos' ? 'Nenhuma tarefa com esse filtro.' : 'Nada por aqui.'}
+                                </p>
+                            );
+                        }
+                        return itens.map((t) => renderTarefaCelular(t));
+                    })()}
+                </div>
+            </div>
+
+            <div className="hidden min-h-0 flex-1 grid-cols-3 gap-2 overflow-hidden md:grid">
                 {colunasKanban.map((col) => {
                     const items = tarefasFiltradas.filter((t) => t.status === col.id);
                     const tinta = tintaSuave(coresQuadro[col.id]);
                     return (
-                        <section key={col.id} className="flex flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white md:min-h-0" style={tinta ? { backgroundColor: tinta.fundo, borderColor: tinta.borda, boxShadow: `inset 0 2px 0 ${tinta.marca}` } : undefined}>
+                        <section key={col.id} className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white" style={tinta ? { backgroundColor: tinta.fundo, borderColor: tinta.borda, boxShadow: `inset 0 2px 0 ${tinta.marca}` } : undefined}>
                             <div className="flex shrink-0 items-center justify-between gap-2 px-3 py-2.5">
                                 <h2 className="flex min-w-0 items-center gap-1.5 text-sm font-semibold text-neutral-900">
                                     <span className="truncate">{col.label}</span>
@@ -658,7 +909,7 @@ export default function Tarefas() {
                                     </button>
                                 </div>
                             </div>
-                            <div className="space-y-2 px-3 pb-3 md:min-h-0 md:flex-1 md:overflow-y-auto">
+                            <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 pb-3">
                                 {kpiLoading ? (
                                     Array.from({ length: 2 }).map((_, i) => (
                                         <div key={i} className="h-12 animate-pulse rounded-md bg-neutral-50" />
@@ -684,12 +935,20 @@ export default function Tarefas() {
                                 <h2 className="text-base font-semibold text-neutral-900">{tarefaEditando ? 'Editar tarefa' : 'Nova tarefa'}</h2>
                                 <p className="mt-0.5 text-sm text-neutral-500">Título, prazo e responsável.</p>
                             </div>
-                            <button type="button" onClick={() => setModalOpen(false)} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-100" aria-label="Fechar">
+                            {/* No celular os botões do popup têm 40px de toque; do sm em diante, o tamanho de antes. */}
+                            <button type="button" onClick={() => setModalOpen(false)} className="inline-flex h-10 w-10 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-100 sm:h-8 sm:w-8" aria-label="Fechar">
                                 <X size={16}/>
                             </button>
                         </div>
                         
                         <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-5 py-4 sm:px-6">
+                            {!clinicaFixa && (
+                                <label>
+                                    <span className="mb-1.5 block text-xs font-medium text-neutral-500">Clínica <span className="text-red-500">*</span></span>
+                                    <CustomSelect value={form.clinica_id} onChange={escolherClinica} options={clinicas.map((c) => ({ value: String(c.id), label: c.nome }))} placeholder="Selecione..." size="md" />
+                                </label>
+                            )}
+
                             <label>
                                 <span className="mb-1.5 block text-xs font-medium text-neutral-500">Título <span className="text-red-500">*</span></span>
                                 <input 
@@ -732,19 +991,19 @@ export default function Tarefas() {
 
                             <label>
                                 <span className="mb-1.5 block text-xs font-medium text-neutral-500">Paciente</span>
-                                <CustomSelect value={form.paciente_id} onChange={v => setForm({...form, paciente_id: v})} options={[{ value: '', label: 'Nenhum paciente' }, ...pacientes.map(p => ({ value: p.id, label: p.nome }))]} size="md" searchable />
+                                <CustomSelect value={form.paciente_id} onChange={escolherPaciente} options={opcoesPaciente} size="md" searchable />
                             </label>
                         </div>
                         
                         <div className="flex shrink-0 items-center justify-between gap-2 border-t border-black/5 px-5 py-4 sm:px-6">
                             {tarefaEditando ? (
-                                <button type="button" onClick={() => excluirTarefa(tarefaEditando.id)} className="inline-flex h-9 items-center gap-1.5 rounded-md px-3 text-sm font-medium text-rose-600 hover:bg-rose-50">
+                                <button type="button" onClick={() => excluirTarefa(tarefaEditando.id)} className="inline-flex h-10 items-center gap-1.5 rounded-md px-3 text-sm font-medium text-rose-600 hover:bg-rose-50 sm:h-9">
                                     <Trash2 size={14}/> Excluir
                                 </button>
                             ) : <span />}
                             <div className="flex items-center gap-2">
-                                <button type="button" onClick={() => setModalOpen(false)} className="inline-flex h-9 items-center rounded-md px-3 text-sm font-medium text-neutral-600 hover:bg-neutral-50">Cancelar</button>
-                                <button type="button" onClick={salvarTarefa} disabled={salvando} className="inline-flex h-9 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-40">
+                                <button type="button" onClick={() => setModalOpen(false)} className="inline-flex h-10 items-center rounded-md px-3 text-sm font-medium text-neutral-600 hover:bg-neutral-50 sm:h-9">Cancelar</button>
+                                <button type="button" onClick={salvarTarefa} disabled={salvando} className="inline-flex h-10 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-40 sm:h-9">
                                     {salvando ? <Loader2 size={14} className="animate-spin"/> : null} Salvar
                                 </button>
                             </div>

@@ -1,13 +1,18 @@
 import { NextResponse } from 'next/server';
 import { lerSessaoLocal } from '@/lib/local/ponte';
-import { negarForaDoDesktop } from '@/lib/local/rota';
+import { exigirJanelaLocal } from '@/lib/local/rota';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-/** Devolve a sessão em cache para a tela reabrir sem chamar o Supabase. */
-export async function GET() {
-  const fora = negarForaDoDesktop();
+/**
+ * Devolve a sessão em cache para a tela reabrir sem chamar o Supabase.
+ *
+ * A resposta leva o token de acesso e o de renovação: sem a prova de janela,
+ * qualquer página aberta no navegador da máquina poderia pedi-los.
+ */
+export async function GET(req: Request) {
+  const fora = exigirJanelaLocal(req);
   if (fora) return fora;
 
   const sessao = await lerSessaoLocal();

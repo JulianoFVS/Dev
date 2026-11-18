@@ -7,14 +7,16 @@ export default function ProtesesLoading() {
           <div className="mt-2 h-4 w-56 animate-pulse rounded-xl bg-neutral-100" />
         </div>
         <div className="flex gap-2">
-          <div className="h-10 w-28 animate-pulse rounded-md bg-neutral-200" />
-          <div className="h-10 w-36 animate-pulse rounded-md bg-neutral-900/20" />
+          <div className="h-11 flex-1 animate-pulse rounded-md bg-neutral-200 sm:h-10 sm:w-28 sm:flex-none" />
+          <div className="h-11 flex-1 animate-pulse rounded-md bg-neutral-900/20 sm:h-10 sm:w-36 sm:flex-none" />
         </div>
       </div>
-      <div className="h-14 shrink-0 animate-pulse rounded-xl bg-neutral-200" />
-      <div className="kanban-scrollbar flex min-h-0 flex-1 gap-3 overflow-x-auto px-3 pb-2 pt-3 sm:px-4 sm:pt-4">
+      <div className="h-16 shrink-0 animate-pulse rounded-xl bg-neutral-200 md:h-14" />
+      {/* Celular: resumo do fluxo e etapas empilhadas, como na tela. No computador, as colunas lado a lado. */}
+      <div className="h-36 shrink-0 animate-pulse rounded-xl bg-neutral-200 md:hidden" />
+      <div className="kanban-scrollbar flex min-h-0 flex-1 flex-col gap-3 md:flex-row md:overflow-x-auto md:px-4 md:pb-2 md:pt-4">
         {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="h-full min-h-[280px] w-72 shrink-0 animate-pulse rounded-xl bg-neutral-200 sm:min-h-0" />
+          <div key={i} className="h-40 w-full shrink-0 animate-pulse rounded-xl bg-neutral-200 md:h-full md:w-72" />
         ))}
       </div>
     </div>

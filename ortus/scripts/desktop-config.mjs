@@ -10,9 +10,14 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import { segredosDoConstrutor } from './desktop-verificar.mjs';
 
+const require = createRequire(import.meta.url);
 const raiz = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+// A mesma regra que o aplicativo aplica ao abrir (desktop/main.cjs).
+const { chaveDeServidor, papelDoJwt } = require(path.join(raiz, 'desktop', 'lib', 'chavePublica.cjs'));
 
 function lerEnv(nome) {
   if (process.env[nome]) return process.env[nome];
@@ -26,17 +31,6 @@ function lerEnv(nome) {
   return linha.slice(linha.indexOf('=') + 1).trim().replace(/^["']|["']$/g, '');
 }
 
-/** Lê o payload do JWT para conferir a role. */
-function roleDoJwt(token) {
-  try {
-    const payload = token.split('.')[1];
-    const json = JSON.parse(Buffer.from(payload.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8'));
-    return json.role || '';
-  } catch {
-    return '';
-  }
-}
-
 const url = lerEnv('NEXT_PUBLIC_SUPABASE_URL').replace(/\/$/, '');
 const anonKey = lerEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY');
 
@@ -47,10 +41,19 @@ if (!url || !anonKey) {
   process.exit(1);
 }
 
-const role = roleDoJwt(anonKey);
-if (role === 'service_role') {
+// JWT com papel service_role ou chave no formato novo `sb_secret_…`.
+const role = papelDoJwt(anonKey);
+if (chaveDeServidor(anonKey)) {
   console.error(
-    'A chave informada é a SERVICE ROLE. O .exe não pode levá-la: use a chave anônima (NEXT_PUBLIC_SUPABASE_ANON_KEY).',
+    'A chave informada é de servidor (service_role ou sb_secret_). O .exe não pode levá-la: use a chave anônima (NEXT_PUBLIC_SUPABASE_ANON_KEY).',
+  );
+  process.exit(1);
+}
+// Alguém colou, no lugar da chave pública, o valor de uma variável que é segredo.
+const trocada = segredosDoConstrutor({ raiz }).find((segredo) => segredo.valor === anonKey.trim());
+if (trocada) {
+  console.error(
+    `NEXT_PUBLIC_SUPABASE_ANON_KEY tem o mesmo valor de ${trocada.nome}, que é segredo do servidor. Use a chave anônima.`,
   );
   process.exit(1);
 }

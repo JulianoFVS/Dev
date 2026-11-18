@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { AlertTriangle, Plus, RefreshCw, ShieldCheck, UserPlus, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { dados as tabelas } from '@/lib/local/consulta';
@@ -14,16 +14,29 @@ import ClinicasSemRede from '@/components/saas/ClinicasSemRede';
 import ModalNovaRede from '@/components/saas/ModalNovaRede';
 import ModalNovoCliente from '@/components/saas/ModalNovoCliente';
 import { SkeletonBloco } from '@/components/saas/Feedback';
+import PainelAssinaturas from '@/components/saas/PainelAssinaturas';
+import FilaRelatos from '@/components/saas/FilaRelatos';
+import PainelOperacao from '@/components/saas/PainelOperacao';
 import {
   mensagemDeErro,
   normalizarBusca,
+  type FaturaSaaS,
   type OrdenacaoSaaS,
   type RedeDetalheSaaS,
+  type ResumoAssinaturasSaaS,
   type RedeSaaS,
   type VisaoGeralSaaS,
 } from '@/lib/saas';
 
 type StatusAcesso = 'verificando' | 'autorizado' | 'negado' | 'erro';
+
+type AbaPainel = 'redes' | 'assinaturas' | 'relatos' | 'operacao';
+const ABAS_PAINEL: { id: AbaPainel; label: string }[] = [
+  { id: 'redes', label: 'Redes' },
+  { id: 'assinaturas', label: 'Assinaturas' },
+  { id: 'relatos', label: 'Relatos' },
+  { id: 'operacao', label: 'Operação' },
+];
 
 function compararRedes(a: RedeSaaS, b: RedeSaaS, ordenacao: OrdenacaoSaaS): number {
   switch (ordenacao) {
@@ -73,6 +86,12 @@ export default function SuperAdminPage() {
   const [tentativaAcesso, setTentativaAcesso] = useState(0);
 
   const [visao, setVisao] = useState<VisaoGeralSaaS | null>(null);
+  const [assinaturas, setAssinaturas] = useState<ResumoAssinaturasSaaS | null>(null);
+  const parametros = useSearchParams();
+  const abaInicial = parametros.get('aba');
+  const [abaPainel, setAbaPainel] = useState<AbaPainel>(
+    abaInicial === 'relatos' || abaInicial === 'assinaturas' || abaInicial === 'operacao' ? abaInicial : 'redes',
+  );
   const [carregandoVisao, setCarregandoVisao] = useState(true);
   const [erroVisao, setErroVisao] = useState<string | null>(null);
   const requisicaoVisao = useRef(0);
@@ -119,6 +138,10 @@ export default function SuperAdminPage() {
         }
         setVisao(payload);
         setErroVisao(null);
+        const resumo = await supabase.rpc('saas_assinaturas_resumo');
+        if (geracao === requisicaoVisao.current && !resumo.error && resumo.data) {
+          setAssinaturas(resumo.data as unknown as ResumoAssinaturasSaaS);
+        }
       } catch (falha) {
         if (geracao !== requisicaoVisao.current) return;
         if (tratarAcessoNegado(falha)) return;
@@ -142,6 +165,9 @@ export default function SuperAdminPage() {
         if (error) throw error;
         const payload = data as unknown as RedeDetalheSaaS | null;
         if (!payload?.rede) throw new Error('A rede não foi encontrada.');
+        const faturas = await supabase.rpc('saas_rede_faturas', { p_rede: id });
+        if (geracao !== requisicaoDetalhe.current) return;
+        if (!faturas.error && Array.isArray(faturas.data)) payload.faturas = faturas.data as unknown as FaturaSaaS[];
         setDetalhe(payload);
         setErroDetalhe(null);
       } catch (falha) {
@@ -372,7 +398,7 @@ export default function SuperAdminPage() {
   }
 
   return (
-    <div className="flex flex-col gap-3 px-2.5 pb-28 pt-2.5 font-poppins sm:px-3 md:px-4 md:pt-3 lg:h-full lg:min-h-0 lg:flex-1 lg:gap-3.5 lg:overflow-hidden lg:pb-4 lg:pt-3.5">
+    <div className="flex flex-col gap-3 px-2.5 pb-3 pt-2.5 font-poppins sm:px-3 md:px-4 md:pt-3 lg:h-full lg:min-h-0 lg:flex-1 lg:gap-3.5 lg:overflow-hidden lg:pb-4 lg:pt-3.5">
       <header className="flex shrink-0 flex-col gap-3">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
@@ -419,6 +445,35 @@ export default function SuperAdminPage() {
         </div>
 
         <SaaSKpis totais={visao?.totais ?? null} carregando={carregandoVisao} />
+
+        <div role="tablist" aria-label="Seções do painel" className="-mx-1 flex gap-1 overflow-x-auto px-1">
+          {ABAS_PAINEL.map((item) => {
+            const ativa = abaPainel === item.id;
+            const contagem =
+              item.id === 'assinaturas'
+                ? (assinaturas?.totais.pagamentos_revisar ?? 0) + (assinaturas?.totais.compras_com_erro ?? 0) + (assinaturas?.totais.avisos_com_erro ?? 0)
+                : 0;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                role="tab"
+                aria-selected={ativa}
+                onClick={() => setAbaPainel(item.id)}
+                className={`inline-flex h-11 shrink-0 items-center gap-1.5 rounded-full px-4 text-sm font-medium ${
+                  ativa ? 'bg-neutral-900 text-white' : 'text-neutral-600 hover:bg-white hover:text-neutral-900'
+                }`}
+              >
+                {item.label}
+                {contagem > 0 && (
+                  <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums ${ativa ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-800'}`}>
+                    {contagem}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
       </header>
 
       {erroVisao && (
@@ -450,9 +505,30 @@ export default function SuperAdminPage() {
         </div>
       )}
 
-      <div className="flex min-h-0 flex-1 flex-col gap-3 md:grid md:grid-cols-2 md:items-start lg:grid-rows-[minmax(0,1fr)] lg:items-stretch">
+      {abaPainel === 'assinaturas' && (
+        <PainelAssinaturas
+          resumo={assinaturas}
+          onAbrirRede={(id) => {
+            setAbaPainel('redes');
+            abrirNoDispositivo(id);
+          }}
+          onAtualizar={() => carregarVisao({ silencioso: true })}
+        />
+      )}
+
+      {abaPainel === 'operacao' && <PainelOperacao />}
+
+      {abaPainel === 'relatos' && (
+        <div className="flex min-h-0 flex-1 flex-col lg:min-h-0">
+          <FilaRelatos className="lg:flex-1" />
+        </div>
+      )}
+
+      {/* md:grid só na aba Redes: com ele fixo, o md:grid vencia o hidden e o bloco aparecia nas outras abas. */}
+      <div className={`${abaPainel === 'redes' ? 'flex md:grid' : 'hidden'} min-h-0 flex-1 flex-col gap-3 md:grid-cols-2 md:items-start lg:grid-rows-[minmax(0,1fr)] lg:items-stretch`}>
         <div className="flex min-w-0 flex-col gap-3 lg:min-h-0">
           <RedeLista
+            assinaturas={assinaturas?.redes ?? null}
             redes={redesFiltradas}
             total={redesFiltradas.length}
             carregando={carregandoVisao}

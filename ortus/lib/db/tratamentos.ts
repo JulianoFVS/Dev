@@ -1,4 +1,3 @@
-import { supabase } from '@/lib/supabase';
 import { dados as tabelas } from '@/lib/local/consulta';
 import { rowToTratamento, type TratamentoPaciente } from '@/lib/db/types';
 import { atualizar, inserir, listar, modoDados, remover } from '@/lib/local/cliente';

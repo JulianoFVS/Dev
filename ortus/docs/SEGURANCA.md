@@ -78,12 +78,19 @@ Auditoria completa em 14/11/2026 (`node scripts/audit-db.mjs` + inspeção de
   cota da clínica e do projeto, e devolve URL assinada ou URL do R2.
 - Leitura privada: `/api/armazenamento/arquivo?caminho=...` (exige JWT e
   confere o vínculo com a clínica do paciente).
-- Leitura pública: `/api/public/midia/...` serve **apenas** logo da clínica
-  e avatar (`avatares/<uid>/avatar.jpg`, `pacientes/<uuid>/avatar.jpg`).
-  Documentos e fotos de HOF nunca são públicos.
-- Observação: a foto do paciente usa UUID não adivinhável e o proxy valida
-  o formato exato do caminho. Se quiser fechar 100%, troque o `<img>` por
-  URL assinada de curta duração.
+- Leitura pública: `/api/public/midia/...` serve **apenas** a logo da clínica
+  (`clinicas/<id>/logo-<ts>.png|jpg|jpeg|webp`) e a foto do profissional
+  (`avatares/<uid>/avatar.jpg`), no formato exato e em minúsculas; com R2,
+  só o que está registrado em `armazenamento_objetos` (o resto é 404 sem
+  consultar o Storage).
+- Foto de paciente (`pacientes/<uuid>/avatar.jpg`), documento e foto de HOF
+  ficam no bucket privado e só abrem por `/api/armazenamento/arquivo`
+  (login + vínculo com a clínica). A ficha mostra a foto como objectURL
+  (`hooks/useFotoPaciente.ts`), sem cache público. Fotos antigas que ainda
+  estão no bucket público: `node scripts/mover-fotos-pacientes.mjs`
+  (simulação) e depois `--aplicar`.
+- O banco recusa documento que aponte para arquivo de outro paciente ou que
+  leve conteúdo embutido que não seja imagem (`20261128_ajustes_finais`).
 
 ## 5. Como verificar
 
@@ -98,32 +105,45 @@ npm run test:rls
 npm test
 ```
 
-A suíte cobre: RLS ligada, buckets privados, `anon` sem acesso, isolamento
-entre clínicas, exclusão de paciente, forja de notificação, escalada para
-super admin, painel SaaS, convites e agenda multipartes.
+A suíte (257 verificações em 18/11/2026, no banco local de teste) cobre:
+RLS ligada em toda tabela, nenhuma policy para visitante, buckets privados,
+`anon` sem acesso a tabela nem a função, isolamento entre clínicas, privilégios
+dentro da clínica (exclusão de paciente só para administrador), forja de
+notificação, escalada para dono da plataforma, painel SaaS, convites (com o
+link do e-mail exigido no aceite), agenda, arquivos e tabelas internas,
+assinatura e cobrança (régua de atraso, modo de consulta, pagamento repetido,
+criação da conta), relatos ao suporte, os achados da revisão de 18/11 e a regra
+de matriz e filial. As verificações novas foram rodadas também num banco SEM as
+migrations de correção, para provar que cada uma acusa o buraco que fecha.
 
-## 6. Variáveis de ambiente obrigatórias
+## 6. Variáveis de ambiente
 
-```env
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
-SUPABASE_SERVICE_ROLE_KEY=      # NUNCA expor no cliente
-DATABASE_URL=                   # pooler do Supabase (porta 6543)
+A lista completa, com o que cada uma faz, está em [`.env.example`](../.env.example)
+e na tabela do [`README.md`](../README.md). O que importa para a segurança:
 
-# Opcionais, mas necessárias para os recursos correspondentes:
-CRON_SECRET=                    # sem ela, /api/lembretes/processar responde 401
-R2_ACCESS_KEY_ID=               # armazenamento em Cloudflare R2
-R2_SECRET_ACCESS_KEY=
-R2_BUCKET=
-R2_ENDPOINT=
-TWILIO_*                        # SMS
-RESEND_API_KEY=                 # e-mail
-WHATSAPP_GATEWAY_SECRET=        # gateway do WhatsApp
-```
+- `SUPABASE_SERVICE_ROLE_KEY`, `DATABASE_URL`, `CRON_SECRET`, `RESEND_API_KEY`,
+  `MERCADOPAGO_*`, `TWILIO_*`, `R2_*` e `WHATSAPP_GATEWAY_SECRET` ficam só no
+  servidor. O build do aplicativo desktop recusa qualquer uma delas.
+- Sem `CRON_SECRET` as três rotinas do agendador respondem 401 (falha fechada).
+- Sem `MERCADOPAGO_WEBHOOK_SECRET` o webhook recusa todo aviso de pagamento.
+- Credencial de teste do Mercado Pago (`TEST-…`) com o servidor em produção
+  trava a venda, e pagamento marcado como teste (`live_mode=false`) não cria
+  conta nem quita fatura: vai para conferência no painel. Só um servidor de
+  homologação usa `MERCADOPAGO_ACEITAR_TESTE=1`.
+- Rotas que abrem sem login (compra, link de acesso, "Esqueci a senha")
+  aceitam só corpo JSON da própria origem e têm limite de tentativas no banco
+  (`limite_publico_consumir`, atômico). IP e e-mail entram só como hash com
+  segredo; IPv6 conta pelo bloco /64.
+- A compra pela página nunca é reaproveitada, alterada ou cancelada por quem
+  só sabe o e-mail: cada envio é uma compra nova, e o identificador de uma
+  compra paga não volta para requisição anônima.
+- O R2 usa `R2_BUCKET_PUBLICO` (logo e foto de perfil) e `R2_BUCKET_PRIVADO`
+  (prontuário, documentos, HOF e foto de paciente); `R2_BUCKET` e `R2_ENDPOINT`
+  não existem mais.
 
 ## 7. Checklist de deploy
 
-- [ ] Rodar as migrations em ordem:
+- [ ] Rodar as migrations em ordem (as de 14/11 na ordem abaixo; as demais pela data):
       `20261114_seguranca_total`,
       `20261114_agenda_partes`,
       `20261114_equipe_convites`,
@@ -134,11 +154,27 @@ WHATSAPP_GATEWAY_SECRET=        # gateway do WhatsApp
       `20261115_normalizar_urls`,
       `20261117_desktop_sync`,
       `20261118_sync_multimaquina`,
-      `20261119_offline_completo`.
-- [ ] `npm test` com 100% OK (`test:rls`).
-- [ ] `CRON_SECRET` definido no ambiente da Vercel.
+      `20261119_offline_completo`,
+      `20261120_armazenamento_usuario`,
+      `20261121_seguranca_reforco`,
+      `20261122_operacao`,
+      `20261123_relatos`,
+      `20261124_assinaturas`,
+      `20261125_seguranca_revisao`,
+      `20261126_painel_assinaturas`,
+      `20261127_seguranca_rede`,
+      `20261128_ajustes_finais`.
+      Atenção: `20261114_seguranca_total` não pode ser reexecutada depois de
+      `20261120` (concede EXECUTE numa assinatura antiga de função).
+- [ ] `npm test` com 100% OK. Com `ORTUS_SUPER_ADMINS="email1,email2"` ela
+      confere também que só os donos têm `is_super_admin`.
+- [ ] `CRON_SECRET` definido no servidor e o agendador chamando as três rotinas
+      (lembretes, assinaturas e vigia) — ver `docs/ORACLE.md` ou `vercel.json`.
 - [ ] Confirmar que `SUPABASE_SERVICE_ROLE_KEY` existe **apenas** no servidor.
-- [ ] Conferir no painel do Supabase que os três buckets estão privados.
+- [ ] Conferir no painel do Supabase que os buckets estão privados.
+- [ ] SMTP do Supabase Auth apontado para a Resend (confirmação de conta e
+      redefinição de senha saem do mesmo domínio verificado).
+- [ ] Webhook do Mercado Pago cadastrado com a assinatura secreta.
 - [ ] Conferir que apenas os donos têm `is_super_admin = true`.
 
 ---

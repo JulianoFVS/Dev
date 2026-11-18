@@ -9,6 +9,7 @@ import { Loader2, ShieldCheck, Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import { registrarAudit } from '@/lib/auditLog';
 import { setAuthMarkerCookie } from '@/lib/authCookies';
+import { destinoInterno } from '@/lib/destinoInterno';
 
 type BlobMotion = {
   x: number;
@@ -227,8 +228,8 @@ export default function Login() {
       const { data } = await supabase.auth.getSession();
       if (!vivo || !data.session) return;
       setAuthMarkerCookie();
-      const destino = new URLSearchParams(window.location.search).get('redirect') || '/dashboard';
-      router.replace(destino.startsWith('/') && !destino.startsWith('//') ? destino : '/dashboard');
+      // Só caminho deste site: '/\golpe.example' e afins viram outro site no navegador.
+      router.replace(destinoInterno(new URLSearchParams(window.location.search).get('redirect'), ['/login']) || '/dashboard');
     })();
     return () => {
       vivo = false;
@@ -373,11 +374,15 @@ export default function Login() {
         return;
       }
 
+      // Destino pedido antes do login (ex.: link de convite). Só caminho deste site
+      // (destinoInterno recusa '/\host', TAB e afins, que o navegador leva para outro site).
+      const destino = destinoInterno(new URLSearchParams(window.location.search).get('redirect'), ['/login']) || '';
+
       if (count === 1 && unicaClinicaId) {
         localStorage.setItem('ortus_clinica_id', unicaClinicaId);
-        router.push('/dashboard');
+        router.push(destino || '/dashboard');
       } else {
-        router.push('/selecao');
+        router.push(destino ? `/selecao?redirect=${encodeURIComponent(destino)}` : '/selecao');
       }
       router.refresh();
     } catch (err) {
@@ -483,17 +488,18 @@ export default function Login() {
                   {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                 </button>
               </div>
-              <div className="flex justify-end pt-0.5">
+              <div className="flex justify-end pt-1">
                 {desktop ? (
                   <span className="text-sm font-medium text-neutral-400">
                     Esqueceu a senha? Fale com o suporte da clínica.
                   </span>
                 ) : (
+                  // alvo-toque: 44px de toque no celular sem mudar o espaço da linha.
                   <Link
-                    href="/#contato"
-                    className="text-sm font-medium text-[#2563eb] hover:underline"
+                    href="/recuperar-senha"
+                    className="alvo-toque text-sm font-medium text-neutral-900 hover:underline"
                   >
-                    Esqueceu a senha?
+                    Esqueci a senha
                   </Link>
                 )}
               </div>

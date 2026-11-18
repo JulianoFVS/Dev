@@ -38,20 +38,52 @@ function hojeISO() {
 }
 
 /**
- * ids de tabelas bigint criados offline.
- *
- * Precisam ser únicos entre MÁQUINAS diferentes que trabalham sem internet.
- * Layout: segundos desde 2020 (28 bits) << 20 | tag da máquina (12 bits) << 8
- * | contador. Assim duas máquinas nunca geram o mesmo número, e a sequência do
- * Postgres (só positivos) também nunca colide.
+ * Carimbo em milissegundos, ou `null`. Os carimbos chegam em dois formatos —
+ * `…sssZ` (gravado aqui) e `…ssssss+00:00` (vindo do Postgres) — e comparar
+ * os textos entre si erra dentro do mesmo milissegundo.
  */
-let contadorLocal = 0;
+function instante(valor) {
+  if (valor === null || valor === undefined || valor === '') return null;
+  const ms = Date.parse(String(valor));
+  return Number.isFinite(ms) ? ms : null;
+}
+
+/**
+ * ids de tabelas bigint criados neste computador.
+ *
+ * Precisam ser únicos entre MÁQUINAS diferentes que trabalham sem internet e
+ * entre uma abertura do programa e a seguinte.
+ * Layout: segundos desde 2020 × 2^20 + tag da máquina (12 bits) × 2^8 +
+ * contador (8 bits), sempre negativo — a sequência do Postgres só ocupa
+ * positivos.
+ *
+ * A conta é feita com multiplicação, não com `<<` e `|`: os operadores de bit
+ * do JavaScript trabalham em 32 bits e cortavam os segundos, de modo que os
+ * ids se repetiam a cada 68 minutos e, em metade do tempo, recomeçavam em -1 a
+ * cada abertura do programa. O número cabe com folga no inteiro seguro do
+ * JavaScript (2^53) e no bigint do Postgres.
+ */
+const EPOCA_DOS_IDS = Date.UTC(2020, 0, 1) / 1000;
+let ultimoSegundo = 0;
+let contadorNoSegundo = 0;
 function novoId(tabela, tagMaquina = 0) {
   const t = def(tabela);
   if (t.pkTipo === 'uuid') return crypto.randomUUID();
-  const base = (Math.floor(Date.now() / 1000) << 20) | ((tagMaquina & 0xfff) << 8);
-  contadorLocal = Math.max(base, contadorLocal + 1);
-  return -contadorLocal;
+  const agora = Math.floor(Date.now() / 1000) - EPOCA_DOS_IDS;
+  if (agora > ultimoSegundo) {
+    ultimoSegundo = agora;
+    contadorNoSegundo = 0;
+  } else {
+    // Mesmo segundo, ou relógio do PC que voltou atrás: segue do último valor.
+    contadorNoSegundo += 1;
+    if (contadorNoSegundo > 0xff) {
+      // Mais de 256 ids no mesmo segundo: adianta o relógio lógico em vez de
+      // invadir os bits da tag da máquina.
+      ultimoSegundo += 1;
+      contadorNoSegundo = 0;
+    }
+  }
+  return -(ultimoSegundo * 2 ** 20 + (tagMaquina & 0xfff) * 2 ** 8 + contadorNoSegundo);
 }
 
 /** Transforma o id da instalação em um número curto (12 bits). */
@@ -123,11 +155,30 @@ function criarBanco(arquivo, opcoes = {}) {
   db.pragma('busy_timeout = 5000');
   db.pragma('foreign_keys = OFF');
   if (opcoes.somenteLeitura) db.pragma('query_only = ON');
+  // LOWER() do SQLite só converte letras ASCII: 'Érica' não casava com 'érica'. A busca sem
+  // maiúsculas (ilike) usa esta versão, que converte qualquer letra, como o ILIKE do Postgres.
+  db.function('ortus_minusculas', { deterministic: true }, (valor) => (valor == null ? null : String(valor).toLowerCase()));
 
   migrar();
   const cacheComando = new Map();
 
   // ---------------------------------------------------------------- schema
+  /**
+   * `CREATE TABLE IF NOT EXISTS` não mexe em tabela que já existe. Num banco
+   * criado por uma versão anterior do programa, a coluna nova precisa entrar
+   * por `ALTER TABLE` — senão a primeira linha que a traz derruba o pull.
+   */
+  function garantirColunas(tabela, colunas) {
+    const existentes = new Set(db.prepare(`PRAGMA table_info("${tabela}")`).all().map((c) => c.name));
+    let acrescentou = false;
+    for (const [coluna, tipoSql] of colunas) {
+      if (existentes.has(coluna)) continue;
+      db.exec(`ALTER TABLE "${tabela}" ADD COLUMN "${coluna}" ${tipoSql}`);
+      acrescentou = true;
+    }
+    return acrescentou;
+  }
+
   function migrar() {
     db.exec(`
       CREATE TABLE IF NOT EXISTS sync_outbox (
@@ -140,7 +191,8 @@ function criarBanco(arquivo, opcoes = {}) {
         updated_at  TEXT NOT NULL,
         criado_em   TEXT NOT NULL,
         tentativas  INTEGER NOT NULL DEFAULT 0,
-        ultimo_erro TEXT
+        ultimo_erro TEXT,
+        base        TEXT
       );
       CREATE INDEX IF NOT EXISTS sync_outbox_ordem ON sync_outbox(seq);
       CREATE INDEX IF NOT EXISTS sync_outbox_linha ON sync_outbox(tabela, linha_id);
@@ -154,14 +206,16 @@ function criarBanco(arquivo, opcoes = {}) {
         versao_remota TEXT,
         escolhido    TEXT NOT NULL,
         resolucao    TEXT NOT NULL DEFAULT 'auto',
+        motivo       TEXT,
         detectado_em TEXT NOT NULL,
         resolvido_em TEXT
       );
       CREATE INDEX IF NOT EXISTS sync_conflitos_pendentes ON sync_conflitos(resolvido_em);
 
       CREATE TABLE IF NOT EXISTS sync_cursor (
-        tabela TEXT PRIMARY KEY,
-        cursor TEXT
+        tabela  TEXT PRIMARY KEY,
+        cursor  TEXT,
+        posicao TEXT
       );
 
       CREATE TABLE IF NOT EXISTS sync_tombstones (
@@ -177,9 +231,23 @@ function criarBanco(arquivo, opcoes = {}) {
       );
     `);
 
+    // Colunas de controle que versões anteriores não tinham.
+    garantirColunas('sync_outbox', [['base', 'TEXT']]);
+    garantirColunas('sync_cursor', [['posicao', 'TEXT']]);
+    // Por que a nuvem recusou a escrita ('consulta', 'permissao', 'rejeitado').
+    garantirColunas('sync_conflitos', [['motivo', 'TEXT']]);
+
     for (const tabela of ORDEM_SYNC) {
       db.exec(sqlCriacao(tabela));
       const t = def(tabela);
+      const ganhouColuna = garantirColunas(
+        tabela,
+        Object.entries(t.colunas).map(([coluna, tipo]) => [coluna, TIPOS_SQL[tipo]]),
+      );
+      // As linhas já baixadas ficaram com a coluna nova vazia, e o pull
+      // incremental só traz o que mudou depois: zera a posição para a tabela
+      // descer inteira de novo no próximo ciclo.
+      if (ganhouColuna) db.prepare('DELETE FROM sync_cursor WHERE tabela = ?').run(tabela);
       db.exec(`CREATE INDEX IF NOT EXISTS "${tabela}_updated" ON "${tabela}"(updated_at);`);
       if (t.clinicaCol) {
         db.exec(`CREATE INDEX IF NOT EXISTS "${tabela}_clinica" ON "${tabela}"(${t.clinicaCol});`);
@@ -299,7 +367,7 @@ function criarBanco(arquivo, opcoes = {}) {
           valores.push(String(valor));
           break;
         case 'ilike':
-          partes.push(`LOWER(${coluna}) LIKE LOWER(?)`);
+          partes.push(`ortus_minusculas(${coluna}) LIKE ortus_minusculas(?)`);
           valores.push(String(valor));
           break;
         default:
@@ -366,18 +434,52 @@ function criarBanco(arquivo, opcoes = {}) {
     return null;
   }
 
-  function enfileirar({ tabela, linhaId, clinicaId, op, payload, updatedAt }) {
+  /**
+   * `base` é o carimbo da versão da nuvem sobre a qual a escrita foi feita.
+   * É o que deixa o pull distinguir "a nuvem continua como eu a vi" (segue a
+   * edição local) de "outro computador mexeu nesse meio tempo" (conflito).
+   */
+  function enfileirar({ tabela, linhaId, clinicaId, op, payload, updatedAt, base }) {
     db.prepare(`
-      INSERT INTO sync_outbox (tabela, linha_id, clinica_id, op, payload, updated_at, criado_em)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(tabela, String(linhaId), clinicaId ?? null, op, payload ?? null, updatedAt, agoraISO());
+      INSERT INTO sync_outbox (tabela, linha_id, clinica_id, op, payload, updated_at, criado_em, base)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(tabela, String(linhaId), clinicaId ?? null, op, payload ?? null, updatedAt, agoraISO(), base ?? null);
+  }
+
+  /**
+   * Base da próxima escrita na linha. Com edição já na fila, a base é a dela
+   * (o `updated_at` local, nesse caso, é a hora do PC e não uma versão da
+   * nuvem). Sem nada na fila, o `updated_at` local é o que o servidor carimbou.
+   */
+  function baseDaEscrita(tabela, linhaId, anterior) {
+    const pendente = db
+      .prepare('SELECT base FROM sync_outbox WHERE tabela = ? AND linha_id = ? ORDER BY seq DESC LIMIT 1')
+      .get(tabela, String(linhaId));
+    if (pendente) return pendente.base ?? null;
+    return anterior?.updated_at ?? null;
+  }
+
+  /** O id já pertence a uma linha (ou a uma linha excluída) desta tabela? */
+  function idEmUso(tabela, id) {
+    const t = def(tabela);
+    if (db.prepare(`SELECT 1 FROM "${tabela}" WHERE "${t.pk}" = ?`).get(paraBanco(t.colunas[t.pk], id))) return true;
+    return Boolean(
+      db.prepare('SELECT 1 FROM sync_tombstones WHERE tabela = ? AND linha_id = ?').get(tabela, String(id)),
+    );
   }
 
   const gerar = (tabela, { dados, op }) => {
     const t = def(tabela);
     const agora = agoraISO();
     const entrada = { ...dados };
-    const id = entrada[t.pk] ?? novoId(tabela, tagMaquina);
+    let id = entrada[t.pk];
+    if (id == null) {
+      id = novoId(tabela, tagMaquina);
+      // Relógio que voltou atrás ou programa reaberto no mesmo segundo: um id
+      // já usado nunca é reaproveitado (o INSERT abaixo ignoraria a linha
+      // nova e devolveria a antiga no lugar dela).
+      while (t.pkTipo !== 'uuid' && idEmUso(tabela, id)) id = novoId(tabela, tagMaquina);
+    }
     entrada[t.pk] = id;
     if ('created_at' in t.colunas && entrada.created_at == null) entrada.created_at = agora;
     if ('updated_at' in t.colunas) entrada.updated_at = agora;
@@ -396,15 +498,16 @@ function criarBanco(arquivo, opcoes = {}) {
     const atual = obter(tabela, id);
     if (!atual) return null;
     const agora = agoraISO();
-    const entrada = { ...atual, ...dados };
-    if ('updated_at' in t.colunas) entrada.updated_at = agora;
     const linha = paraLinha(tabela, dados);
     if ('updated_at' in t.colunas) linha.updated_at = agora;
     const colunas = Object.keys(linha).filter((c) => c !== t.pk);
     if (!colunas.length) return atual;
     db.prepare(`UPDATE "${tabela}" SET ${colunas.map((c) => `"${c}" = ?`).join(', ')} WHERE "${t.pk}" = ?`)
       .run(...colunas.map((c) => linha[c]), paraBanco(t.colunas[t.pk], id));
-    return { ...entrada, ...paraApi(tabela, linha), updated_at: 'updated_at' in t.colunas ? agora : entrada.updated_at };
+    // Relê a linha inteira. Montar a resposta a partir de `paraApi(linha)`
+    // devolvia `null` em toda coluna que não estava sendo alterada — inclusive
+    // o id —, e era esse objeto que ia para a tela e para a fila de envio.
+    return obter(tabela, id);
   };
 
   const removerLinha = (tabela, id) => {
@@ -425,6 +528,9 @@ function criarBanco(arquivo, opcoes = {}) {
     let linhaApi = null;
     let op = operacao;
     let linhaId = id ?? dados[t.pk];
+    // Antes de gravar: depois, o `updated_at` da linha já é a hora deste PC.
+    const anterior = linhaId != null ? obter(tabela, linhaId) : null;
+    const base = linhaId != null ? baseDaEscrita(tabela, linhaId, anterior) : null;
 
     if (op === 'delete') {
       if (linhaId == null) throw new Error('Excluir exige id.');
@@ -437,12 +543,12 @@ function criarBanco(arquivo, opcoes = {}) {
       // um pull antigo de outra máquina.
       registrarTumulo(tabela, linhaId, agora);
       if (!t.semFila) {
-        enfileirar({ tabela, linhaId, clinicaId, op: 'delete', payload: null, updatedAt: agora });
+        enfileirar({ tabela, linhaId, clinicaId, op: 'delete', payload: null, updatedAt: agora, base });
       }
       return linhaApi;
     }
 
-    if (op === 'update' || (op === 'upsert' && linhaId != null && obter(tabela, linhaId))) {
+    if (op === 'update' || (op === 'upsert' && linhaId != null && anterior)) {
       if (linhaId == null) throw new Error('Atualizar exige id.');
       linhaApi = atualizarLinha(tabela, linhaId, dados);
       if (!linhaApi) return null;
@@ -465,6 +571,7 @@ function criarBanco(arquivo, opcoes = {}) {
         op,
         payload: JSON.stringify(linhaApi),
         updatedAt: linhaApi.updated_at || agoraISO(),
+        base,
       });
     }
     return linhaApi;
@@ -494,25 +601,32 @@ function criarBanco(arquivo, opcoes = {}) {
   const aplicarTumulo = db.transaction((tabela, linhaId, quando) => {
     const t = def(tabela);
     const local = obter(tabela, linhaId);
-    const localUpdated = local?.updated_at || null;
-    if (local && localUpdated && localUpdated > quando) {
+    // Só é conflito quando havia trabalho local ainda não enviado. Exclusão
+    // feita em outro computador sobre uma linha intocada aqui é o caso normal
+    // e não pede decisão de ninguém.
+    const tinhaPendencia = temPendencia(tabela, linhaId);
+    const conflito = (escolhido) => registrarConflito({
+      tabela,
+      linhaId,
+      clinicaId: local[t.clinicaCol || 'clinica_id'] ?? null,
+      versaoLocal: local,
+      versaoRemota: null,
+      escolhido,
+    });
+
+    const localMs = instante(local?.updated_at);
+    const quandoMs = instante(quando);
+    if (local && localMs != null && quandoMs != null && localMs > quandoMs) {
+      // A edição daqui é mais nova que a exclusão: fica, e sobe no próximo envio.
+      if (tinhaPendencia) conflito('local');
       return { apagou: false, motivo: 'edicao-local-mais-nova' };
     }
     removerLinha(tabela, linhaId);
     registrarTumulo(tabela, linhaId, quando);
-    // Escrita local pendente para essa linha perdeu: descarta.
+    // Escrita local pendente para essa linha perdeu: sai da fila, mas a
+    // versão fica guardada no conflito.
     db.prepare('DELETE FROM sync_outbox WHERE tabela = ? AND linha_id = ?').run(String(tabela), String(linhaId));
-    if (local) {
-      registrarConflito({
-        tabela,
-        linhaId,
-        clinicaId: local[t.clinicaCol || 'clinica_id'] ?? null,
-        versaoLocal: local,
-        versaoRemota: null,
-        escolhido: 'remoto',
-      });
-    }
-    void t;
+    if (local && tinhaPendencia) conflito('remoto');
     return { apagou: Boolean(local), motivo: 'excluido' };
   });
 
@@ -524,8 +638,10 @@ function criarBanco(arquivo, opcoes = {}) {
 
     // Nunca ressuscita o que já foi excluído (aqui ou em outra máquina).
     const tumulo = tumuloDe(tabela, copia[t.pk]);
-    if (tumulo && (!copia.updated_at || String(copia.updated_at) <= tumulo)) {
-      return null;
+    if (tumulo) {
+      const linhaMs = instante(copia.updated_at);
+      const tumuloMs = instante(tumulo);
+      if (linhaMs == null || tumuloMs == null || linhaMs <= tumuloMs) return null;
     }
     if ('updated_at' in t.colunas && copia.updated_at == null) copia.updated_at = agoraISO();
     const fisica = paraLinha(tabela, copia);
@@ -570,6 +686,36 @@ function criarBanco(arquivo, opcoes = {}) {
     `).run(String(tabela), String(cursor));
   };
 
+  /**
+   * Posição do pull: carimbo E chave da última linha lida.
+   *
+   * Só o carimbo não basta, porque muitas linhas podem ter o mesmo (todas as
+   * que já existiam quando a coluna `updated_at` foi criada, por exemplo).
+   * `cursor` continua gravado com o carimbo para uma versão anterior do
+   * programa conseguir ler o banco; se ela mexer no cursor, a posição deixa
+   * de valer e a leitura recomeça do carimbo, incluindo-o.
+   */
+  const obterPosicao = (tabela) => {
+    const linha = db.prepare('SELECT cursor, posicao FROM sync_cursor WHERE tabela = ?').get(String(tabela));
+    if (!linha || !linha.cursor) return null;
+    try {
+      const posicao = linha.posicao ? JSON.parse(linha.posicao) : null;
+      if (posicao && posicao.t === linha.cursor && posicao.id != null) return { t: posicao.t, id: posicao.id };
+    } catch {
+      /* posição ilegível: vale o cursor */
+    }
+    return { t: linha.cursor, id: null };
+  };
+  const definirPosicao = (tabela, posicao) => {
+    db.prepare(`
+      INSERT INTO sync_cursor (tabela, cursor, posicao) VALUES (?, ?, ?)
+      ON CONFLICT(tabela) DO UPDATE SET cursor = excluded.cursor, posicao = excluded.posicao
+    `).run(String(tabela), String(posicao.t), JSON.stringify({ t: String(posicao.t), id: posicao.id }));
+  };
+  const limparPosicoes = () => {
+    db.prepare('DELETE FROM sync_cursor').run();
+  };
+
   // --------------------------------------------------------------- outbox
   const proximosOutbox = (limite = 50) => db
     .prepare('SELECT * FROM sync_outbox ORDER BY seq ASC LIMIT ?')
@@ -595,11 +741,32 @@ function criarBanco(arquivo, opcoes = {}) {
       .get(tabela, String(linhaId)),
   );
 
+  /** As escritas da linha que ainda não subiram, da mais antiga para a mais nova. */
+  const pendenciasDe = (tabela, linhaId) => db
+    .prepare('SELECT seq, op, payload, updated_at, base FROM sync_outbox WHERE tabela = ? AND linha_id = ? ORDER BY seq ASC')
+    .all(tabela, String(linhaId));
+
+  /** Ficou alguma escrita na fila para esta linha depois da entrada `seq`? */
+  const temPendenciaDepois = (tabela, linhaId, seq) => Boolean(
+    db.prepare('SELECT 1 FROM sync_outbox WHERE tabela = ? AND linha_id = ? AND seq > ? LIMIT 1')
+      .get(tabela, String(linhaId), Number(seq)),
+  );
+
+  /** As pendências da linha passam a se apoiar nesta versão da nuvem. */
+  const definirBaseDaPendencia = (tabela, linhaId, base) => {
+    db.prepare('UPDATE sync_outbox SET base = ? WHERE tabela = ? AND linha_id = ?')
+      .run(base == null ? null : String(base), tabela, String(linhaId));
+  };
+
+  const descartarPendencias = (tabela, linhaId) => {
+    db.prepare('DELETE FROM sync_outbox WHERE tabela = ? AND linha_id = ?').run(tabela, String(linhaId));
+  };
+
   // ------------------------------------------------------------ conflitos
-  const registrarConflito = ({ tabela, linhaId, clinicaId, versaoLocal, versaoRemota, escolhido, resolucao = 'auto' }) => {
+  const registrarConflito = ({ tabela, linhaId, clinicaId, versaoLocal, versaoRemota, escolhido, resolucao = 'auto', motivo = null }) => {
     db.prepare(`
-      INSERT INTO sync_conflitos (tabela, linha_id, clinica_id, versao_local, versao_remota, escolhido, resolucao, detectado_em)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO sync_conflitos (tabela, linha_id, clinica_id, versao_local, versao_remota, escolhido, resolucao, motivo, detectado_em)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       tabela,
       String(linhaId),
@@ -608,6 +775,7 @@ function criarBanco(arquivo, opcoes = {}) {
       JSON.stringify(versaoRemota ?? null),
       escolhido,
       resolucao,
+      motivo ?? null,
       agoraISO(),
     );
   };
@@ -624,29 +792,62 @@ function criarBanco(arquivo, opcoes = {}) {
     }));
   };
 
-  const resolverConflito = (id, escolha) => {
+  /**
+   * A pessoa escolheu qual versão fica. A escolha é gravada aqui e sobe para
+   * a nuvem, qualquer que tenha sido o vencedor automático — é assim que os
+   * outros computadores recebem a decisão. Um lado sem versão significa
+   * "excluído": escolhê-lo exclui o registro.
+   */
+  const resolverConflito = db.transaction((id, escolha) => {
     const conflito = db.prepare('SELECT * FROM sync_conflitos WHERE id = ?').get(Number(id));
     if (!conflito) throw new Error('Conflito não encontrado.');
-    const payload = escolha === 'local' ? conflito.versao_local : conflito.versao_remota;
-    if (payload) {
-      const linha = typeof payload === 'string' ? JSON.parse(payload) : payload;
-      aplicarRemoto(conflito.tabela, linha);
-      if (escolha === 'local') {
-        // Reenvia a versão local para a nuvem.
-        const t = def(conflito.tabela);
-        enfileirar({
-          tabela: conflito.tabela,
-          linhaId: linha[t.pk],
-          clinicaId: conflito.clinica_id,
-          op: 'upsert',
-          payload: JSON.stringify(linha),
-          updatedAt: linha.updated_at || agoraISO(),
-        });
+    if (conflito.resolvido_em) return true;
+
+    const tabela = conflito.tabela;
+    const t = def(tabela);
+    const ler = (texto) => {
+      try {
+        return texto ? JSON.parse(texto) : null;
+      } catch {
+        return null;
+      }
+    };
+    const local = ler(conflito.versao_local);
+    const remota = ler(conflito.versao_remota);
+    const escolhida = escolha === 'local' ? local : remota;
+    const linhaId = (local || remota)?.[t.pk] ?? conflito.linha_id;
+    // A decisão se apoia na versão da nuvem que este computador conhece AGORA
+    // (pode ser mais nova que a do conflito, se a linha já foi enviada ou
+    // recebida depois dele).
+    const baseNova = baseDaEscrita(tabela, linhaId, obter(tabela, linhaId));
+    // A nuvem recusou a escrita daqui e não sabemos o que ela guarda.
+    const recusado = conflito.resolucao === 'recusado';
+
+    descartarPendencias(tabela, linhaId);
+
+    if (escolhida) {
+      // A decisão de quem resolve vale mais que uma exclusão anterior.
+      removerTumulo(tabela, linhaId);
+      gravar(tabela, 'upsert', escolhida, linhaId);
+      definirBaseDaPendencia(tabela, linhaId, baseNova);
+    } else if (recusado && escolha === 'remoto') {
+      // Desiste do que foi recusado: tira a linha daqui e baixa a tabela de
+      // novo, para ficar igual ao que a nuvem tiver.
+      removerTumulo(tabela, linhaId);
+      removerLinha(tabela, linhaId);
+      db.prepare('DELETE FROM sync_cursor WHERE tabela = ?').run(tabela);
+    } else {
+      removerLinha(tabela, linhaId);
+      const agora = agoraISO();
+      registrarTumulo(tabela, linhaId, agora);
+      if (!t.semFila) {
+        enfileirar({ tabela, linhaId, clinicaId: conflito.clinica_id, op: 'delete', payload: null, updatedAt: agora, base: baseNova });
       }
     }
+
     db.prepare("UPDATE sync_conflitos SET resolvido_em = ?, resolucao = 'manual' WHERE id = ?").run(agoraISO(), Number(id));
     return true;
-  };
+  });
 
   const contarConflitosPendentes = () => Number(
     db.prepare('SELECT COUNT(*) AS total FROM sync_conflitos WHERE resolvido_em IS NULL').get()?.total || 0,
@@ -669,9 +870,13 @@ function criarBanco(arquivo, opcoes = {}) {
     db.close();
   };
 
+  /** Roda `trabalho` numa transação só (tudo ou nada). Pode ser aninhada. */
+  const emTransacao = (trabalho) => db.transaction(trabalho)();
+
   return {
     bruto: db,
     arquivo,
+    emTransacao,
     // leitura
     consultar,
     contar,
@@ -685,12 +890,19 @@ function criarBanco(arquivo, opcoes = {}) {
     definirMeta,
     obterCursor,
     definirCursor,
+    obterPosicao,
+    definirPosicao,
+    limparPosicoes,
     // outbox
     proximosOutbox,
     removerOutbox,
     marcarErroOutbox,
     contarOutbox,
     temPendencia,
+    pendenciasDe,
+    temPendenciaDepois,
+    definirBaseDaPendencia,
+    descartarPendencias,
     enfileirar,
     // túmulos (exclusões compartilhadas)
     registrarTumulo,
@@ -714,4 +926,4 @@ function criarBanco(arquivo, opcoes = {}) {
   };
 }
 
-module.exports = { criarBanco, paraBanco, doBanco, agoraISO, hojeISO, novoId, TIPOS_SQL, TABELAS };
+module.exports = { criarBanco, paraBanco, doBanco, agoraISO, hojeISO, novoId, instante, TIPOS_SQL, TABELAS };

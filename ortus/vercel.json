@@ -3,6 +3,14 @@
     {
       "path": "/api/lembretes/processar?enviar=true",
       "schedule": "0 13 * * *"
+    },
+    {
+      "path": "/api/assinaturas/processar",
+      "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/saude/vigia",
+      "schedule": "0 16 * * *"
     }
   ]
 }

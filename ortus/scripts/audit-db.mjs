@@ -1,18 +1,8 @@
 import pg from 'pg';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import { conexaoPg } from './_env.mjs';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const envPath = path.join(__dirname, '..', '.env.local');
-const env = fs.readFileSync(envPath, 'utf8');
-const url = env.match(/DATABASE_URL=(.+)/)?.[1]?.trim();
-if (!url) {
-  console.error('DATABASE_URL not found');
-  process.exit(1);
-}
 
-const client = new pg.Client({ connectionString: url, ssl: { rejectUnauthorized: false } });
+const client = new pg.Client(conexaoPg());
 
 const CHECK_TABLES = [
   'configuracoes_clinica', 'comissoes_regras', 'comissoes_lancamentos', 'tarefas',

@@ -2,20 +2,43 @@ name: Ortus Desktop (Windows)
 
 # Gera o instalador .exe (NSIS, Windows x64).
 # Rodar no Windows evita depender de wine no macOS.
+#
+# Assinatura digital (detalhes em desktop/README.md, "Assinatura digital"):
+#   - Variável do repositório ORTUS_ASSINATURA = certificado | azure | nenhuma.
+#     Com "certificado" ou "azure" o build FALHA se faltar algum segredo: nenhum
+#     instalador sai sem assinatura por esquecimento.
+#   - Sem a variável, o build assina se os segredos de uma das opções estiverem
+#     todos presentes; com só parte deles, FALHA dizendo o que falta; sem
+#     nenhum, gera o instalador sem assinatura e avisa no resumo.
+#   - Os segredos de assinatura só existem no passo que monta o instalador.
 
 on:
   workflow_dispatch:
+    inputs:
+      assinatura:
+        description: 'Assinatura digital (padrao = variável ORTUS_ASSINATURA do repositório)'
+        type: choice
+        default: padrao
+        options:
+          - padrao
+          - nenhuma
+          - certificado
+          - azure
   push:
     tags:
       - 'desktop-v*'
 
+permissions:
+  contents: read
+
 jobs:
   instalador:
     runs-on: windows-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
 
     env:
-      # Chave PÚBLICA (vai no bundle). Nunca use a service role aqui.
+      # Chave PÚBLICA (vai no bundle). Nunca use a service role aqui: o
+      # scripts/desktop-config.mjs recusa e o build para.
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
 
@@ -24,7 +47,8 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          # 22: o teste das rotas locais roda os arquivos .ts direto no Node.
+          node-version: '22'
           cache: 'npm'
 
       - name: Dependências do app
@@ -36,18 +60,48 @@ jobs:
       - name: Chromium do Puppeteer (win64)
         run: node scripts/desktop-chromium.mjs
 
-      - name: Testes da camada local
+      - name: Testes da camada local, da sincronização e das rotas locais
         run: npm run desktop:teste
 
+      # Ambiente saneado + verificação de segredos na pasta do build.
       - name: Build do Next (standalone) + config
         run: npm run desktop:build
 
+      # O afterPack varre a pasta final de novo antes de montar o .exe.
       - name: Instalador NSIS
         run: npx electron-builder --config desktop/electron-builder.yml --win nsis --x64
+        env:
+          ORTUS_ASSINATURA: ${{ (inputs.assinatura != '' && inputs.assinatura != 'padrao') && inputs.assinatura || vars.ORTUS_ASSINATURA }}
+          # Opção 1: certificado de assinatura de código em arquivo .pfx (base64).
+          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+          # Opção 2: Azure Trusted Signing.
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          ORTUS_AZURE_ENDPOINT: ${{ vars.ORTUS_AZURE_ENDPOINT }}
+          ORTUS_AZURE_CONTA: ${{ vars.ORTUS_AZURE_CONTA }}
+          ORTUS_AZURE_PERFIL: ${{ vars.ORTUS_AZURE_PERFIL }}
+          ORTUS_AZURE_PUBLICADOR: ${{ vars.ORTUS_AZURE_PUBLICADOR }}
+
+      - name: Conferir a assinatura do instalador
+        id: assinatura
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem dist-desktop -Filter *.exe | Select-Object -First 1
+          if (-not $exe) { throw 'Nenhum .exe em dist-desktop.' }
+          $assinatura = Get-AuthenticodeSignature -LiteralPath $exe.FullName
+          if ($assinatura.Status -eq 'Valid') {
+            "sufixo=" >> $env:GITHUB_OUTPUT
+            "### Instalador assinado`n`n$($exe.Name) — $($assinatura.SignerCertificate.Subject)" >> $env:GITHUB_STEP_SUMMARY
+          } else {
+            "sufixo=-SEM-ASSINATURA" >> $env:GITHUB_OUTPUT
+            "### Instalador SEM assinatura digital`n`n$($exe.Name) (estado: $($assinatura.Status)). O SmartScreen vai avisar na instalação. Serve para teste; para distribuir, configure a assinatura (desktop/README.md)." >> $env:GITHUB_STEP_SUMMARY
+          }
 
       - name: Publicar artefato
         uses: actions/upload-artifact@v4
         with:
-          name: ortus-desktop-windows
+          name: ortus-desktop-windows${{ steps.assinatura.outputs.sufixo }}
           path: dist-desktop/*.exe
           if-no-files-found: error

@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { dados as tabelas, usuarioDaSessao } from '@/lib/local/consulta';
-import { gravarVerificadorSenha, salvarSessaoCache } from '@/lib/local/cliente';
+import { gravarVerificadorSenha } from '@/lib/local/cliente';
 import {
   User,
   LogOut,
@@ -24,13 +24,23 @@ import { useClinica, getClinicLabel } from '@/app/context/ClinicaContext';
 import {
   patchProfileSession,
   readProfileSession,
-  clearProfileSession,
   writeProfileSession,
 } from '@/lib/profileSession';
-import { clearAuthCookies } from '@/lib/authCookies';
+import { encerrarSessao } from '@/lib/sessao';
+import { fraseDeErro } from '@/lib/fraseDeErro';
 
 const cardShell = 'rounded-xl border border-neutral-200 bg-white';
 const sectionPad = 'p-4 sm:p-5 md:p-6';
+const rotulo = 'mb-1.5 block text-xs font-medium text-neutral-500';
+const rotuloComIcone = 'mb-1.5 flex items-center gap-1 text-xs font-medium text-neutral-500';
+
+/** Recusa da troca de senha em frase da tela: o Supabase Auth responde em inglês. */
+function fraseErroSenha(error: { message?: string; code?: string }): string {
+  const texto = `${error.code ?? ''} ${error.message ?? ''}`;
+  if (/same_password|different from the old/i.test(texto)) return 'A nova senha precisa ser diferente da atual.';
+  if (/weak_password|at least|characters|too short|weak/i.test(texto)) return 'A nova senha é curta ou fraca demais. Use uma senha mais longa, com letras e números.';
+  return fraseDeErro(error, 'Tente de novo em instantes.');
+}
 
 type ProfRow = {
   id: number;
@@ -40,6 +50,7 @@ type ProfRow = {
   foto_url?: string | null;
   created_at?: string;
   precisa_trocar_senha?: boolean | null;
+  is_super_admin?: boolean | null;
 };
 
 function bootProf(): ProfRow | null {
@@ -86,7 +97,7 @@ export default function Perfil() {
     }
     setUserId(user.id);
     const { data: prof } = await tabelas.from('profissionais')
-      .select('id, nome, cargo, nivel_acesso, foto_url, created_at, precisa_trocar_senha')
+      .select('id, nome, cargo, nivel_acesso, foto_url, created_at, precisa_trocar_senha, is_super_admin')
       .eq('user_id', user.id)
       .maybeSingle();
 
@@ -125,18 +136,20 @@ export default function Perfil() {
       const foto = await prepararFotoPaciente(file);
       const publicUrl = await enviarAvatarPerfil(userId, foto);
 
-      const { error: updErr } = await tabelas.from('profissionais')
+      // Com o select, a recusa do banco (zero linhas) aparece em vez de "Foto atualizada!".
+      const { data: alteradas, error: updErr } = await tabelas.from('profissionais')
         .update({ foto_url: publicUrl })
-        .eq('user_id', userId);
+        .eq('user_id', userId)
+        .select('id');
       if (updErr) throw updErr;
+      if (!alteradas?.length) throw new Error('perfil não atualizado');
 
       setFotoUrl(publicUrl);
       setPerfil((p) => (p ? { ...p, foto_url: publicUrl } : p));
       patchProfileSession({ foto_url: publicUrl, nome: form.nome, cargo: form.cargo });
       showAlert('Foto atualizada!', { type: 'success' });
     } catch (error: unknown) {
-      const msg = error instanceof Error ? error.message : 'Falha no upload';
-      showAlert('Erro no upload: ' + msg, { type: 'error' });
+      showAlert(fraseDeErro(error, 'Não foi possível trocar a foto. Confira a internet e tente de novo.'), { type: 'error' });
     } finally {
       setSalvando(false);
       e.target.value = '';
@@ -145,7 +158,7 @@ export default function Perfil() {
 
   async function salvar(e: FormEvent) {
     e.preventDefault();
-    if (!userId) return;
+    if (!userId || salvando) return;
     setSalvando(true);
 
     const updates: { nome: string; cargo?: string } = { nome: form.nome.trim() };
@@ -153,35 +166,46 @@ export default function Perfil() {
       updates.cargo = form.cargo;
     }
 
-    await tabelas.from('profissionais').update(updates).eq('user_id', userId);
-
-    if (form.novaSenha) {
-      const { error } = await supabase.auth.updateUser({ password: form.novaSenha });
-      if (error) showAlert('Erro ao mudar senha: ' + error.message, { type: 'error' });
-      else {
-        await gravarVerificadorSenha(form.novaSenha);
-        showAlert('Senha atualizada com sucesso!', { type: 'success' });
+    try {
+      // Antes o resultado era ignorado e a tela dizia "Perfil atualizado!" mesmo com a gravação recusada.
+      const { data: alteradas, error: erroPerfil } = await tabelas.from('profissionais').update(updates).eq('user_id', userId).select('id');
+      if (erroPerfil || !alteradas?.length) {
+        showAlert(fraseDeErro(erroPerfil, 'Não foi possível salvar o perfil. Confira a internet e tente de novo.'), { type: 'error' });
+        return;
       }
-    }
 
-    setPerfil((p) => (p ? { ...p, ...updates } : p));
-    patchProfileSession({
-      nome: updates.nome,
-      cargo: updates.cargo ?? form.cargo,
-      foto_url: fotoUrl,
-      nivel_acesso: perfil?.nivel_acesso ?? 'comum',
-    });
-    setForm((f) => ({ ...f, novaSenha: '' }));
-    setSalvando(false);
-    showAlert('Perfil atualizado!', { type: 'success' });
+      let senhaRecusada = false;
+      if (form.novaSenha) {
+        const { error } = await supabase.auth.updateUser({ password: form.novaSenha });
+        if (error) {
+          senhaRecusada = true;
+          showAlert('O perfil foi salvo, mas a senha não mudou. ' + fraseErroSenha(error), { type: 'error' });
+        } else {
+          await gravarVerificadorSenha(form.novaSenha);
+          showAlert('Senha atualizada com sucesso!', { type: 'success' });
+        }
+      }
+
+      setPerfil((p) => (p ? { ...p, ...updates } : p));
+      patchProfileSession({
+        nome: updates.nome,
+        cargo: updates.cargo ?? form.cargo,
+        foto_url: fotoUrl,
+        nivel_acesso: perfil?.nivel_acesso ?? 'comum',
+      });
+      // Senha recusada fica no campo para a pessoa corrigir.
+      if (senhaRecusada) return;
+      setForm((f) => ({ ...f, novaSenha: '' }));
+      showAlert('Perfil atualizado!', { type: 'success' });
+    } catch (err) {
+      showAlert(fraseDeErro(err, 'Não foi possível salvar o perfil. Confira a internet e tente de novo.'), { type: 'error' });
+    } finally {
+      setSalvando(false);
+    }
   }
 
   async function sair() {
-    await salvarSessaoCache(null);
-    await supabase.auth.signOut();
-    clearProfileSession();
-    clearAuthCookies();
-    localStorage.removeItem('ortus_clinica_id');
+    await encerrarSessao();
     router.push('/login');
   }
 
@@ -222,13 +246,16 @@ export default function Perfil() {
     }
     if (!userId) return;
     try {
-      const { error } = await tabelas.from('profissionais')
+      // Com o select, a recusa do banco (zero linhas) não vira "Solicitação registrada" seguida de saída.
+      const { data: alteradas, error } = await tabelas.from('profissionais')
         .update({
           exclusao_solicitada_em: new Date().toISOString(),
           ativo: false,
         })
-        .eq('user_id', userId);
+        .eq('user_id', userId)
+        .select('id');
       if (error) throw error;
+      if (!alteradas?.length) throw new Error('solicitação não gravada');
 
       await showAlert(
         'Solicitação registrada com sucesso.\n\nSua conta será desativada imediatamente e os dados serão excluídos permanentemente em 30 dias.\n\nCaso mude de ideia, entre em contato com o suporte dentro desse prazo.',
@@ -236,8 +263,7 @@ export default function Perfil() {
       );
       await sair();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Tente novamente.';
-      showAlert('Erro ao processar solicitação: ' + msg, { type: 'error' });
+      showAlert(fraseDeErro(err, 'Não foi possível registrar a solicitação. Confira a internet e tente de novo.'), { type: 'error' });
     }
   }
 
@@ -255,18 +281,21 @@ export default function Perfil() {
   }, [form.nome, perfil?.nome]);
 
   return (
-    <div className="w-full space-y-3 px-2.5 py-2.5 pb-12 font-poppins sm:px-3 sm:py-3 md:px-4 md:py-3.5">
+    <div className="w-full space-y-3 px-2.5 py-2.5 font-poppins sm:px-3 sm:py-3 md:px-4 md:py-3.5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 md:text-[2rem]">Meu perfil</h1>
           <p className="mt-1 text-sm text-neutral-500 sm:text-base">
-            {activeClinic ? getClinicLabel(activeClinic) : 'Sua conta'} · Dados pessoais e preferências
+            {/* No celular o topo da tela já mostra a clínica. */}
+            <span className="hidden md:inline">{activeClinic ? getClinicLabel(activeClinic) : 'Sua conta'} · </span>
+            Dados pessoais e preferências
           </p>
         </div>
+        {/* No celular o Sair fica no fim do cartão: aqui em cima ele ocupava a largura toda e disputava com o título. */}
         <button
           type="button"
           onClick={sair}
-          className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-700 hover:bg-neutral-50 sm:w-auto"
+          className="hidden h-10 items-center justify-center gap-2 rounded-md border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-700 hover:bg-neutral-50 sm:inline-flex"
         >
           <LogOut size={18} /> Sair
         </button>
@@ -290,9 +319,14 @@ export default function Perfil() {
                     <span className="mt-1 text-[10px] font-semibold">Alterar foto</span>
                     <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleFotoUpload} disabled={salvando} />
                   </label>
+                  {/* Em tela de toque não existe passar o mouse: sem esta marca nada indicava que a foto troca ao tocar. */}
+                  <span aria-hidden className="pointer-events-none absolute bottom-1.5 right-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-neutral-900 text-white md:hidden">
+                    {salvando ? <Loader2 className="animate-spin" size={14} /> : <Upload size={14} />}
+                  </span>
                 </div>
-                <p className="mt-2 max-w-[8rem] text-center text-[11px] text-neutral-500 md:text-left">
-                  PNG ou JPG · aparece na barra lateral
+                <p className="mt-2 text-center text-[11px] text-neutral-500 md:max-w-[8rem] md:text-left">
+                  <span className="md:hidden">Toque na foto para trocar · PNG ou JPG</span>
+                  <span className="hidden md:inline">PNG ou JPG · aparece na barra lateral</span>
                 </p>
               </div>
 
@@ -306,7 +340,7 @@ export default function Perfil() {
                 <form onSubmit={salvar} className="min-w-0 flex-1 space-y-4">
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div>
-                      <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-neutral-500">Nome</label>
+                      <label className={rotulo}>Nome <span className="text-red-500">*</span></label>
                       <input
                         required
                         className={bentoInput}
@@ -315,7 +349,7 @@ export default function Perfil() {
                       />
                     </div>
                     <div>
-                      <label className="mb-1 flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                      <label className={rotuloComIcone}>
                         Cargo {!isAdmin && <Lock size={10} />}
                       </label>
                       <input
@@ -327,7 +361,7 @@ export default function Perfil() {
                     </div>
                   </div>
                   <div>
-                    <label className="mb-1 flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                    <label className={rotuloComIcone}>
                       <Mail size={12} /> E-mail
                     </label>
                     <input
@@ -338,7 +372,7 @@ export default function Perfil() {
                     />
                   </div>
                   <div>
-                    <label className="mb-1 flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                    <label className={rotuloComIcone}>
                       <Lock size={12} /> Nova senha
                     </label>
                     <input
@@ -349,7 +383,7 @@ export default function Perfil() {
                       onChange={(e) => setForm({ ...form, novaSenha: e.target.value })}
                     />
                   </div>
-                  <button type="submit" disabled={salvando} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-40 sm:w-auto">
+                  <button type="submit" disabled={salvando} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-40 sm:h-10 sm:w-auto">
                     {salvando ? <Loader2 className="animate-spin" /> : <><Save size={18} /> Salvar</>}
                   </button>
                 </form>
@@ -357,14 +391,25 @@ export default function Perfil() {
             </div>
           </section>
 
-          <ArmazenamentoSecao clinicaId={activeClinicId && activeClinicId !== 'all' ? activeClinicId : null} />
+          <ArmazenamentoSecao clinicaId={activeClinicId && activeClinicId !== 'all' ? activeClinicId : null} souDono={perfil?.is_super_admin === true} />
+
+          {/* Celular: Sair fecha o cartão, numa linha própria e fácil de achar, longe do título e do Salvar. */}
+          <section className="p-2 sm:hidden">
+            <button
+              type="button"
+              onClick={sair}
+              className="flex h-11 w-full items-center justify-center gap-2 rounded-md text-sm font-medium text-neutral-700 active:bg-neutral-50"
+            >
+              <LogOut size={18} /> Sair da conta
+            </button>
+          </section>
         </div>
       </div>
     </div>
   );
 }
 
-function ArmazenamentoSecao({ clinicaId }: { clinicaId: string | null }) {
+function ArmazenamentoSecao({ clinicaId, souDono = false }: { clinicaId: string | null; souDono?: boolean }) {
   const [resumo, setResumo] = useState<ResumoArmazenamento | null>(null);
   const [erro, setErro] = useState('');
 
@@ -373,7 +418,8 @@ function ArmazenamentoSecao({ clinicaId }: { clinicaId: string | null }) {
     const atualizar = () => {
       carregarUsoArmazenamento(clinicaId)
         .then((dados) => { if (ativo) { setResumo(dados); setErro(''); } })
-        .catch((err: unknown) => { if (ativo) setErro(err instanceof Error ? err.message : 'Falha ao medir.'); });
+        // Falha de rede ("Failed to fetch") não vai crua para a tela.
+        .catch((err: unknown) => { if (ativo) setErro(fraseDeErro(err, 'Não foi possível medir o armazenamento agora.')); });
     };
     atualizar();
     window.addEventListener(EVENTO_ARMAZENAMENTO, atualizar);
@@ -404,7 +450,7 @@ function ArmazenamentoSecao({ clinicaId }: { clinicaId: string | null }) {
             return (
               <div key={uso.clinicaId}>
                 <div className="mb-1.5 flex items-baseline justify-between gap-3 text-sm">
-                  <span className="min-w-0 truncate text-neutral-700">{usos.length > 1 ? uso.nome : 'Fotos e documentos da clínica'}</span>
+                  <span className="min-w-0 break-words text-neutral-700 sm:truncate">{usos.length > 1 ? uso.nome : 'Fotos e documentos da clínica'}</span>
                   <span className="shrink-0 tabular-nums text-neutral-500">
                     {formatarBytes(uso.usado)} de {formatarBytes(uso.limite)}
                   </span>
@@ -433,11 +479,11 @@ function ArmazenamentoSecao({ clinicaId }: { clinicaId: string | null }) {
             const alerta = dia >= limiteDia * 0.8 || (limiteMes > 0 && mes >= limiteMes * 0.8);
             return (
               <p className={`text-xs ${alerta ? 'text-amber-700' : 'text-neutral-500'}`}>
-                Seus envios: {formatarBytes(dia)} de {formatarBytes(limiteDia)} hoje · {formatarBytes(mes)} de {formatarBytes(limiteMes)} em 30 dias.
+                Seus envios: {formatarBytes(dia)} de {formatarBytes(limiteDia)} em 24 h · {formatarBytes(mes)} de {formatarBytes(limiteMes)} em 30 dias.
               </p>
             );
           })()}
-          {resumo && (
+          {resumo && souDono && (
             <p className="text-xs text-neutral-500">
               Conta inteira: {formatarBytesDecimais(resumo.total)} de {formatarBytesDecimais(resumo.teto)}. O envio para ao chegar nesse teto.
             </p>

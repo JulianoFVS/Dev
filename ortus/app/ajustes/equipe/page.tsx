@@ -7,6 +7,8 @@ import { useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { dados as tabelas, usuarioDaSessao } from '@/lib/local/consulta';
 import { useClinica, getClinicLabel } from '@/app/context/ClinicaContext';
+import { buscarUsoDoPlano } from '@/lib/assinaturaCliente';
+import { textoDoLimite, type UsoDoPlano } from '@/lib/assinaturas';
 import { fetchUserEquipe } from '@/lib/clinicScoped';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
 import Modal from '@/components/ui/Modal';
@@ -18,7 +20,7 @@ import { ConviteStatusBadge } from '@/components/forms/ConviteEquipeCard';
 import {
     Loader2, X, ShieldCheck, Copy, Check,
     AlertTriangle,
-    Trash2, ArrowUpDown, Pencil, Plus,
+    Trash2, ArrowUpDown, Pencil, Plus, ChevronRight,
 } from 'lucide-react';
 import {
     cancelarConviteEquipe,
@@ -31,11 +33,11 @@ import {
     obterStatusConvite,
     type ConviteEquipe,
     type MeuConvite,
+    avisarConvitePorEmail,
 } from '@/lib/convites';
 import type { ComissaoRegra, ModuleName } from '@/lib/types/permissions';
 import { MODULES, buildModuleAccessMap } from '@/lib/modules';
 import { PERMISSION_PRESETS, buildPresetAccessMap, type PermissionPresetId } from '@/lib/permissionPresets';
-import { carregarConfig, salvarConfig } from '@/lib/configClinica';
 import { carregarHorarioProfissional, salvarHorarioProfissional, type HorarioAtendimento, type HorarioDia } from '@/lib/horarioProfissional';
 const cardShell = 'rounded-[1.35rem] bg-white sm:rounded-[1.5rem]';
 
@@ -81,8 +83,12 @@ const HORARIO_PADRAO: HorarioAtendimentoLocal = {
 const GATILHOS_COMISSAO = [
     { value: 'debito_recebido', label: 'Débito Recebido' },
     { value: 'tratamento_finalizado', label: 'Tratamento Finalizado' },
-    { value: 'orcamento_aprovado', label: 'Orçamento Aprovado' },
 ];
+
+// Nada no sistema dispara estes gatilhos: não entram em regra nova, mas a regra antiga continua à vista.
+const GATILHOS_SEM_EFEITO: Record<string, string> = {
+    orcamento_aprovado: 'Orçamento Aprovado (sem efeito)',
+};
 
 const TIPOS_COMISSAO = [
     { value: 'percentual', label: 'Percentual (%)' },
@@ -106,7 +112,7 @@ const cloneHorarioPadrao = (): HorarioAtendimentoLocal => ({
 
 const novaPermissaoMap = () => buildModuleAccessMap(false);
 
-const getGatilhoLabel = (valor: string) => GATILHOS_COMISSAO.find((g) => g.value === valor)?.label || valor;
+const getGatilhoLabel = (valor: string) => GATILHOS_COMISSAO.find((g) => g.value === valor)?.label || GATILHOS_SEM_EFEITO[valor] || valor;
 
 const formatValorComissao = (tipo: string, valor: number) => (
     tipo === 'percentual'
@@ -127,7 +133,17 @@ function readEquipeBoot(): Profissional[] | null {
 
 export default function EquipePage() {
     const searchParams = useSearchParams();
-    const { clinics, loading: clinicLoading, activeClinicId, activeClinic } = useClinica();
+    const { clinics, loading: clinicLoading, activeClinicId, activeClinic, convidadoAqui } = useClinica();
+    // Limite de profissionais do plano da rede (só o administrador da matriz recebe).
+    const [usoPlano, setUsoPlano] = useState<UsoDoPlano | null>(null);
+    useEffect(() => {
+        let vivo = true;
+        setUsoPlano(null);
+        if (!activeClinicId || activeClinicId === 'all') return () => { vivo = false; };
+        void buscarUsoDoPlano(String(activeClinicId)).then((uso) => { if (vivo) setUsoPlano(uso); });
+        return () => { vivo = false; };
+    }, [activeClinicId]);
+    const equipeNoLimite = Boolean(usoPlano?.limite_profissionais && usoPlano.profissionais >= usoPlano.limite_profissionais);
     const { showAlert, showConfirm } = useCustomAlert();
 
     const bootEquipe = readEquipeBoot();
@@ -153,7 +169,7 @@ export default function EquipePage() {
     });
 
     // Modal final com credenciais
-    const [credenciais, setCredenciais] = useState<{ email: string; senha: string; nome: string } | null>(null);
+    const [credenciais, setCredenciais] = useState<{ email: string; senha: string; nome: string; avisoEmail?: string; avisoFalhou?: boolean } | null>(null);
     const [copiado, setCopiado] = useState<'email' | 'senha' | 'tudo' | null>(null);
 
     // Convites de equipe enviados / recebidos
@@ -310,14 +326,16 @@ export default function EquipePage() {
             // Se o e-mail já pertence a uma conta Ortus, o caminho correto é o
             // convite: nunca recriamos nem vinculamos a conta existente sem consentimento.
             let conviteCriado = false;
+            let conviteId: number | null = null;
             try {
-                await enviarConviteEquipe({
+                const convite = await enviarConviteEquipe({
                     email,
                     clinicaIds,
                     cargo: form.cargo,
                     mensagem: form.mensagem.trim() || null,
                 });
                 conviteCriado = true;
+                conviteId = convite?.id ?? null;
             } catch (error) {
                 if (!conviteErroSemConta(error)) {
                     setErro(mensagemErroConvite(error, 'Não foi possível enviar o convite.'));
@@ -327,11 +345,21 @@ export default function EquipePage() {
             }
 
             if (conviteCriado) {
+                // O aceite em Mensagens só passa depois que a pessoa abre o link deste
+                // e-mail (o banco confere). Só dizemos que saiu quando a Resend confirmou.
+                const aviso = conviteId != null ? await avisarConvitePorEmail(conviteId, 'convite') : { enviado: false, erro: 'Convite sem identificador.' };
                 setModalOpen(false);
-                await showAlert(
-                    `Convite enviado para ${email}. A pessoa verá o convite em Mensagens.`,
-                    { title: 'Convite enviado', type: 'success' },
-                );
+                if (aviso.enviado) {
+                    await showAlert(
+                        `Convite enviado para ${email}. Para aceitar, a pessoa abre o link do e-mail com a conta dela no Ortus e responde em Mensagens.`,
+                        { title: 'Convite enviado', type: 'success' },
+                    );
+                } else {
+                    await showAlert(
+                        `O convite para ${email} foi criado, mas o e-mail não saiu, e sem o link dele a pessoa não consegue aceitar. Para tentar de novo, adicione a pessoa outra vez com o mesmo e-mail. Motivo: ${aviso.erro}`,
+                        { title: 'Convite criado, e-mail não enviado', type: 'warning' },
+                    );
+                }
                 await carregar({ silent: true });
                 await carregarConvites();
                 return;
@@ -363,6 +391,8 @@ export default function EquipePage() {
                 error?: string;
                 email?: string;
                 senha_temporaria?: string;
+                email_enviado?: boolean;
+                email_erro?: string;
             };
             if (!resp.ok || !json.success || !json.email || !json.senha_temporaria) {
                 setErro(json.error || 'Falha ao criar usuário.');
@@ -370,7 +400,15 @@ export default function EquipePage() {
             }
 
             setModalOpen(false);
-            setCredenciais({ nome, email: json.email, senha: json.senha_temporaria });
+            setCredenciais({
+                nome,
+                email: json.email,
+                senha: json.senha_temporaria,
+                avisoFalhou: json.email_enviado !== true,
+                avisoEmail: json.email_enviado === true
+                    ? 'Avisamos a pessoa por e-mail que o acesso existe. A senha não vai no e-mail: é você quem entrega.'
+                    : `O e-mail de aviso não saiu${json.email_erro ? ` (${json.email_erro})` : ''}. Avise a pessoa você mesmo.`,
+            });
             await carregar({ silent: true });
         } catch (e: unknown) {
             setErro(e instanceof Error ? e.message : 'Erro inesperado.');
@@ -956,7 +994,16 @@ export default function EquipePage() {
                 <form onSubmit={salvarComissaoRapida} className="grid shrink-0 grid-cols-1 gap-x-3 gap-y-2.5 sm:grid-cols-2">
                     <label className="sm:col-span-2">
                         <span className={rotuloClasse}>Gatilho</span>
-                        <CustomSelect value={comissaoForm.gatilho} onChange={v => setComissaoForm(prev => ({ ...prev, gatilho: v }))} options={GATILHOS_COMISSAO.map(g => ({ value: g.value, label: g.label }))} size="md" />
+                        <CustomSelect
+                            value={comissaoForm.gatilho}
+                            onChange={v => setComissaoForm(prev => ({ ...prev, gatilho: v }))}
+                            // Na edição de regra antiga, o gatilho sem efeito dela continua na lista; em regra nova, não.
+                            options={[
+                                ...GATILHOS_COMISSAO.map(g => ({ value: g.value, label: g.label })),
+                                ...(GATILHOS_SEM_EFEITO[comissaoForm.gatilho] ? [{ value: comissaoForm.gatilho, label: GATILHOS_SEM_EFEITO[comissaoForm.gatilho] }] : []),
+                            ]}
+                            size="md"
+                        />
                     </label>
                     <label>
                         <span className={rotuloClasse}>Tipo</span>
@@ -1017,7 +1064,8 @@ export default function EquipePage() {
         );
     };
 
-    const isAdmin = perfilCaller?.nivel_acesso === 'admin' || perfilCaller?.is_super_admin;
+    // Convidado de outra rede não administra a equipe desta clínica (o banco também recusa).
+    const isAdmin = perfilCaller?.is_super_admin === true || (perfilCaller?.nivel_acesso === 'admin' && !convidadoAqui);
 
     useEffect(() => {
         if (!isAdmin) {
@@ -1076,13 +1124,13 @@ export default function EquipePage() {
     }
 
     return (
-        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden px-2.5 py-2.5 font-poppins sm:px-3 sm:py-3 md:px-4 md:py-3.5">
+        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-2.5 py-2.5 font-poppins sm:px-3 sm:py-3 md:px-4 md:py-3.5 lg:overflow-hidden">
             <Aviso mensagem={aviso} />
             <div className="flex shrink-0 flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                 <div className="min-w-0">
                     <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 md:text-[2rem]">
                         Equipe
-                        <span className="text-neutral-400"> · {activeClinic ? getClinicLabel(activeClinic) : 'Todas as clínicas'}</span>
+                        <span className="hidden text-neutral-400 md:inline"> · {activeClinic ? getClinicLabel(activeClinic) : 'Todas as clínicas'}</span>
                     </h1>
                     <p className="mt-1 text-sm text-neutral-500 sm:text-base">
                         <span className="tabular-nums text-neutral-900">{totalAtivos}</span> {totalAtivos === 1 ? 'profissional' : 'profissionais'}
@@ -1091,11 +1139,17 @@ export default function EquipePage() {
                         {' · '}
                         <span className="tabular-nums text-neutral-900">{pendentesSenha}</span> com senha provisória
                     </p>
+                    {usoPlano?.limite_profissionais ? (
+                        <p className={`mt-1 text-xs ${equipeNoLimite ? 'text-amber-700' : 'text-neutral-500'}`}>
+                            Plano {usoPlano.plano_nome || usoPlano.plano}: {textoDoLimite(usoPlano.profissionais, usoPlano.limite_profissionais, 'profissional', 'profissionais')}.
+                            {equipeNoLimite && ' A equipe está completa: para incluir mais pessoas, fale com o suporte do Ortus para mudar de plano.'}
+                        </p>
+                    ) : null}
                 </div>
                 <button
                     type="button"
                     onClick={abrirModal}
-                    className="inline-flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-md bg-neutral-900 px-4 text-sm font-medium text-white hover:bg-neutral-800"
+                    className="inline-flex h-11 shrink-0 items-center justify-center gap-1.5 rounded-md bg-neutral-900 px-4 text-sm font-medium text-white hover:bg-neutral-800 sm:h-10"
                 >
                     <Plus size={16} /> Adicionar
                 </button>
@@ -1115,8 +1169,8 @@ export default function EquipePage() {
                 </Link>
             )}
 
-            <div className="flex min-h-0 flex-1 flex-col gap-3">
-            <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white">
+            <div className="flex flex-col gap-3 lg:min-h-0 lg:flex-1">
+            <section className="flex shrink-0 flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white lg:min-h-0 lg:flex-1 lg:shrink">
                 <div className="shrink-0 px-3 pt-3">
                     <h2 className="text-base font-semibold text-neutral-900">Colaboradores</h2>
                 </div>
@@ -1128,7 +1182,30 @@ export default function EquipePage() {
                         ))}
                     </div>
                 ) : (
-                <div className="min-h-0 flex-1 overflow-auto">
+                <>
+                {/* Celular: cada pessoa é uma linha inteira tocável. A tabela de quatro colunas não cabia sem rolar para o lado. */}
+                <ul className="divide-y divide-black/5 md:hidden">
+                    {profissionaisOrdenados.map((p) => (
+                        <li key={p.id}>
+                            <button type="button" onClick={() => abrirEditorAvancado(p)} className="flex min-h-[64px] w-full items-center gap-3 px-3 py-2.5 text-left active:bg-neutral-50">
+                                <AvatarEquipe nome={p.nome} foto={p.foto_url} />
+                                <span className="min-w-0 flex-1">
+                                    <span className="block truncate text-sm font-medium text-neutral-900">{p.nome}</span>
+                                    <span className="block truncate text-xs text-neutral-500">{[p.cargo, p.nivel_acesso === 'admin' ? 'Administrador' : null].filter(Boolean).join(' · ') || 'Sem cargo'}</span>
+                                    <span className="mt-0.5 inline-flex items-center gap-1.5 text-xs text-neutral-600">
+                                        <span className={`h-1.5 w-1.5 rounded-full ${p.precisa_trocar_senha ? 'bg-amber-500' : 'bg-emerald-500'}`} />
+                                        {p.precisa_trocar_senha ? 'Senha provisória' : 'Ativo'}
+                                    </span>
+                                </span>
+                                <ChevronRight size={18} className="shrink-0 text-neutral-300" aria-hidden />
+                            </button>
+                        </li>
+                    ))}
+                    {profissionais.length === 0 && (
+                        <li className="px-4 py-10 text-center text-sm text-neutral-400">Nenhum profissional cadastrado.</li>
+                    )}
+                </ul>
+                <div className="hidden min-h-0 flex-1 overflow-auto md:block">
                     <table className="w-full min-w-[540px] text-sm">
                     <thead className="sticky top-0 z-10 bg-white">
                         <tr className="border-b border-black/5">
@@ -1194,10 +1271,11 @@ export default function EquipePage() {
                     </tbody>
                 </table>
                 </div>
+                </>
                 )}
             </section>
 
-            <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-2">
+            <div className="grid shrink-0 grid-cols-1 gap-3 lg:min-h-0 lg:flex-1 lg:shrink lg:grid-cols-2">
             {isAdmin && (
             <section className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white">
                 <div className="flex shrink-0 items-center justify-between gap-3 px-3 pt-3">
@@ -1570,6 +1648,11 @@ export default function EquipePage() {
                                     O funcionário será obrigado a trocar a senha no primeiro acesso.
                                 </p>
                             </div>
+                            {credenciais.avisoEmail && (
+                                <p className={`rounded-lg border px-3 py-2 text-xs ${credenciais.avisoFalhou ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-neutral-200 bg-neutral-50 text-neutral-600'}`}>
+                                    {credenciais.avisoEmail}
+                                </p>
+                            )}
                             <button
                                 onClick={() => copiar('tudo')}
                                 className="touch-target w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 text-sm font-bold rounded-lg"

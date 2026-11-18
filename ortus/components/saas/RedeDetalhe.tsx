@@ -15,8 +15,9 @@ import RedeVisaoGeral from './RedeVisaoGeral';
 import RedeFiliais from './RedeFiliais';
 import RedeEquipe from './RedeEquipe';
 import RedeFaturas from './RedeFaturas';
+import RedeAssinatura from './RedeAssinatura';
 
-type AbaRede = 'geral' | 'filiais' | 'equipe' | 'faturas';
+type AbaRede = 'geral' | 'assinatura' | 'filiais' | 'equipe' | 'faturas';
 
 type Props = {
   redeId: string | null;
@@ -34,6 +35,7 @@ type Props = {
 
 const ABAS: { id: AbaRede; label: string }[] = [
   { id: 'geral', label: 'Visão geral' },
+  { id: 'assinatura', label: 'Assinatura' },
   { id: 'filiais', label: 'Filiais' },
   { id: 'equipe', label: 'Equipe' },
   { id: 'faturas', label: 'Faturas' },
@@ -87,6 +89,7 @@ export default function RedeDetalhe({
 
   const contagens: Record<AbaRede, number | null> = {
     geral: null,
+    assinatura: null,
     filiais: detalhe ? detalhe.clinicas.length : null,
     equipe: detalhe ? detalhe.profissionais.length : null,
     faturas: detalhe ? detalhe.faturas.length : null,
@@ -216,6 +219,8 @@ export default function RedeDetalhe({
             onSalvo={onAtualizar}
             onExcluir={onExcluir}
           />
+        ) : aba === 'assinatura' ? (
+          <RedeAssinatura key={detalhe.rede.id} redeId={detalhe.rede.id} onAtualizar={onAtualizar} />
         ) : aba === 'filiais' ? (
           <RedeFiliais
             redeId={detalhe.rede.id}

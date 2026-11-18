@@ -17,6 +17,10 @@ import {
 
 type Props = { clinicaId: string; clinicaNome: string };
 
+const ROTULO = 'mb-1.5 block text-xs font-medium text-neutral-500';
+// Etiqueta de variável: 40px de toque no celular, compacta no computador.
+const ETIQUETA = 'inline-flex h-10 items-center rounded-full px-3 text-xs sm:h-auto sm:px-2.5 sm:py-1 sm:text-[11px]';
+
 const EXEMPLO = {
   paciente_nome: 'Maria',
   clinica_telefone: '(11) 3333-0000',
@@ -69,7 +73,13 @@ export default function Automacoes({ clinicaId, clinicaNome }: Props) {
   }, [clinicaId]);
 
   if (!config) {
-    return <div className="flex flex-1 items-center justify-center py-16 text-neutral-400"><Loader2 size={20} className="animate-spin" /></div>;
+    return (
+      <div aria-busy="true" aria-label="Carregando as automações" className="mx-auto w-full max-w-3xl space-y-3 pb-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="h-[4.5rem] animate-pulse rounded-[1.25rem] border border-black/[0.06] bg-white" />
+        ))}
+      </div>
+    );
   }
 
   const alterado = JSON.stringify(config) !== salvo;
@@ -108,25 +118,25 @@ export default function Automacoes({ clinicaId, clinicaNome }: Props) {
       await salvarConfig(clinicaId, CHAVE_AUTOMACOES_WHATSAPP, config);
       setSalvo(JSON.stringify(config));
       setAviso('Automações salvas.');
-    } catch {
-      setAviso('Não foi possível salvar.');
+    } catch (e) {
+      setAviso(e instanceof Error && e.message ? e.message : 'Não foi possível salvar.');
     } finally {
       setSalvando(false);
     }
   }
 
   return (
-    <div className="mx-auto w-full max-w-3xl space-y-3 pb-28 lg:pb-6">
+    <div className="mx-auto w-full max-w-3xl space-y-3 pb-4 lg:pb-6">
       <section className="rounded-[1.25rem] border border-black/[0.06] bg-white p-4">
-        <h2 className="text-sm font-semibold text-neutral-900">Horário de envio</h2>
+        <h2 className="text-base font-semibold text-neutral-900">Horário de envio</h2>
         <p className="mt-0.5 text-xs text-neutral-500">As automações só saem dentro deste horário. O que cair fora espera o próximo horário permitido.</p>
         <div className="mt-3 grid max-w-xs grid-cols-2 gap-2">
           <div>
-            <p className="mb-1 text-[11px] text-neutral-500">De</p>
+            <p className={ROTULO}>De</p>
             <CampoHora value={config.janela.inicio} onChange={(inicio) => setConfig({ ...config, janela: { ...config.janela, inicio } })} passo={15} />
           </div>
           <div>
-            <p className="mb-1 text-[11px] text-neutral-500">Até</p>
+            <p className={ROTULO}>Até</p>
             <CampoHora value={config.janela.fim} onChange={(fim) => setConfig({ ...config, janela: { ...config.janela, fim } })} passo={15} />
           </div>
         </div>
@@ -141,10 +151,13 @@ export default function Automacoes({ clinicaId, clinicaNome }: Props) {
                 <Icone size={17} />
               </span>
               <div className="min-w-0 flex-1">
-                <h2 className="text-sm font-semibold text-neutral-900">{titulo}</h2>
+                <h2 className="text-base font-semibold text-neutral-900">{titulo}</h2>
                 <p className="mt-0.5 text-xs text-neutral-500">{descricao}</p>
               </div>
-              <Switch checked={regra.ativo} onChange={(v) => alternar(tipo, v)} />
+              {/* O desenho da chave tem 20px de altura; no toque ela ganha área de 44px. */}
+              <Switch checked={regra.ativo} onChange={(v) => alternar(tipo, v)} className="alvo-toque">
+                <span className="sr-only">{regra.ativo ? `Desligar ${titulo}` : `Ligar ${titulo}`}</span>
+              </Switch>
             </div>
 
             {regra.ativo && (
@@ -182,7 +195,8 @@ export default function Automacoes({ clinicaId, clinicaNome }: Props) {
                     value={regra.texto}
                     onChange={(e) => atualizar(tipo, { texto: e.target.value })}
                     rows={3}
-                    className="w-full resize-y rounded-md border border-neutral-200 px-3 py-2 text-sm leading-5 outline-none focus:border-neutral-400"
+                    aria-label={`Texto de ${titulo}`}
+                    className="w-full resize-y rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm leading-5 outline-none focus:border-neutral-400"
                   />
                   <div className="mt-1.5 flex flex-wrap gap-1.5">
                     {VARIAVEIS_WHATSAPP.filter((v) => consulta || !v.soConsulta).map((v) => (
@@ -190,7 +204,7 @@ export default function Automacoes({ clinicaId, clinicaNome }: Props) {
                         key={v.chave}
                         type="button"
                         onClick={() => inserirVariavel(tipo, v.chave)}
-                        className="rounded-full border border-neutral-200 px-2.5 py-1 text-[11px] text-neutral-600 hover:bg-neutral-50"
+                        className={`${ETIQUETA} border border-neutral-200 text-neutral-600 hover:bg-neutral-50`}
                       >
                         + {v.label}
                       </button>
@@ -199,7 +213,7 @@ export default function Automacoes({ clinicaId, clinicaNome }: Props) {
                       <button
                         type="button"
                         onClick={() => atualizar(tipo, { texto: AUTOMACOES_PADRAO[tipo].texto })}
-                        className="rounded-full px-2.5 py-1 text-[11px] text-neutral-400 hover:text-neutral-700"
+                        className={`${ETIQUETA} text-neutral-400 hover:text-neutral-700`}
                       >
                         Restaurar texto
                       </button>
@@ -219,8 +233,9 @@ export default function Automacoes({ clinicaId, clinicaNome }: Props) {
         );
       })}
 
-      <div className="sticky bottom-24 flex items-center justify-end gap-3 lg:bottom-2">
-        {aviso && <span className="rounded-full bg-white px-3 py-1 text-xs text-neutral-600 shadow-sm">{aviso}</span>}
+      {/* A casca do celular já reserva o espaço da barra flutuante: o botão fica no fim da área de rolagem. */}
+      <div className="sticky bottom-2 flex items-center justify-end gap-3">
+        {aviso && <span role="status" className="rounded-full bg-white px-3 py-1 text-xs text-neutral-600 shadow-sm">{aviso}</span>}
         <button
           type="button"
           onClick={salvar}

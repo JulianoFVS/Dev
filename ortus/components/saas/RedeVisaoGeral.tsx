@@ -232,7 +232,7 @@ export default function RedeVisaoGeral({ rede, possuiClinicas, onSalvo, onExclui
           <span className="min-w-0">
             <span className="block text-sm font-medium text-neutral-900">Rede ativa</span>
             <span className="mt-0.5 block text-[11px] text-neutral-500">
-              Desative para suspender a rede e sinalizá-la como suspensa no painel.
+              Desligada, a rede fica suspensa em modo de consulta: a equipe entra e lê, mas nada é gravado. Nenhum dado é apagado.
             </span>
           </span>
         </Switch>

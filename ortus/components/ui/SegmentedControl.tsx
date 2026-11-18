@@ -54,6 +54,8 @@ export default function SegmentedControl<T extends string>({
           ? { width: pill.w, transform: `translateX(${pill.x}px)` }
           : { width: `calc((100% - 0.25rem) / ${n})`, transform: `translateX(${i * 100}%)` }}
       />
+      {/* A opção visível tem a altura do trilho menos a moldura (34px no h-10, 26px no h-8);
+          no toque, alvo-toque dá 44px a cada uma sem mudar o desenho nem brigar com a altura que a tela passa. */}
       {options.map((option) => (
         <button
           key={option.value}
@@ -61,7 +63,7 @@ export default function SegmentedControl<T extends string>({
           aria-label={option.ariaLabel}
           aria-pressed={value === option.value}
           onClick={() => onChange(option.value)}
-          className={`relative z-10 flex items-center justify-center gap-1.5 rounded-[5px] transition-colors duration-200 ${fit ? 'px-2.5' : 'px-2 font-medium'} ${texto} ${
+          className={`alvo-toque relative z-10 flex items-center justify-center gap-1.5 rounded-[5px] transition-colors duration-200 ${fit ? 'px-2.5' : 'px-2 font-medium'} ${texto} ${
             value === option.value ? 'text-white' : 'text-neutral-600'
           }`}
         >

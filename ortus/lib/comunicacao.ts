@@ -6,6 +6,8 @@ import { aplicarVariaveisDocumento, type DocumentoContexto } from '@/lib/documen
 
 import { abrirSmsCliente } from '@/lib/sms';
 
+import { linkWhatsappDoAparelho } from '@/lib/whatsappTelefone';
+
 
 
 export type EventoComunicacao = 'confirmacao' | 'lembrete' | 'pos_consulta' | 'aniversario' | 'generico';
@@ -158,11 +160,13 @@ export async function montarMensagemEvento(
 
 export function abrirWhatsappComMensagem(telefone: string | null | undefined, mensagem: string): boolean {
 
-  const numero = telefone?.replace(/\D/g, '');
+  // Telefone que já vem com 55 não ganha outro DDI.
 
-  if (!numero) return false;
+  const link = linkWhatsappDoAparelho(telefone, mensagem);
 
-  window.open(`https://wa.me/55${numero}?text=${encodeURIComponent(mensagem)}`, '_blank');
+  if (!link) return false;
+
+  window.open(link, '_blank');
 
   return true;
 
@@ -196,16 +200,6 @@ export function abrirEmailComMensagem(
 
 
 
-export function abrirEmailTemplate(template: TemplateComunicacao, email: string, ctx: Partial<DocumentoContexto>): boolean {
-
-  const corpo = montarMensagemTemplate(template, ctx);
-
-  const assunto = montarAssuntoTemplate(template, ctx);
-
-  return abrirEmailComMensagem(email, assunto, corpo);
-
-}
-
 
 
 export async function abrirComunicacaoCliente(
@@ -233,19 +227,5 @@ export async function abrirComunicacaoCliente(
 }
 
 
-
-export async function montarWhatsappConfirmacaoConsulta(
-
-  clinicaId: string | number,
-
-  ctx: Partial<DocumentoContexto> & { data_consulta?: string; hora_consulta?: string },
-
-): Promise<string> {
-
-  const { mensagem } = await montarMensagemEvento(clinicaId, 'confirmacao', 'whatsapp', ctx);
-
-  return mensagem;
-
-}
 
 

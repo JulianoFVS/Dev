@@ -292,6 +292,8 @@ export type ConflitoSyncUI = {
   versao_remota: Record<string, unknown> | null;
   escolhido: string;
   resolucao: string;
+  /** Só em `resolucao: 'recusado'`: 'consulta' (402), 'permissao' (403) ou 'rejeitado'. */
+  motivo?: string | null;
   detectado_em: string;
 };
 

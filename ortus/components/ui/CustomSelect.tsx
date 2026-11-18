@@ -40,6 +40,8 @@ export default function CustomSelect({
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [menuStyle, setMenuStyle] = useState<React.CSSProperties>({});
+  // Altura de cada opção: 40px no celular (py-2.5), 36px do sm em diante (py-2).
+  const [alturaOpcao, setAlturaOpcao] = useState(36);
   const ref = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -87,9 +89,11 @@ export default function CustomSelect({
         width: raw.width * scale,
       };
       const gap = 6;
-      const contentH = filtered.length * 36 + (searchable ? 52 : 10);
+      const item = window.innerWidth < 640 ? 40 : 36;
+      setAlturaOpcao(item);
+      const contentH = filtered.length * item + (searchable ? 52 : 10);
       const curto = !searchable && filtered.length <= 6;
-      const piso = (searchable ? 52 : 0) + 4 * 36 + 8;
+      const piso = (searchable ? 52 : 0) + 4 * item + 8;
       const needed = curto ? contentH : Math.min(Math.max(contentH, piso), 360);
       const spaceBelow = window.innerHeight - rect.bottom - gap;
       const spaceAbove = rect.top - gap;
@@ -148,7 +152,7 @@ export default function CustomSelect({
         className={`py-1 ${!searchable && filtered.length <= 6 ? 'overflow-hidden' : 'custom-scrollbar overflow-y-auto'}`}
         style={!searchable && filtered.length <= 6 ? undefined : {
           maxHeight: menuPortal && typeof menuStyle.maxHeight === 'number'
-            ? Math.max(4 * 36 + 8, Number(menuStyle.maxHeight) - (searchable ? 52 : 0))
+            ? Math.max(4 * alturaOpcao + 8, Number(menuStyle.maxHeight) - (searchable ? 52 : 0))
             : 288,
         }}
       >
@@ -166,7 +170,7 @@ export default function CustomSelect({
                 setOpen(false);
                 setSearch('');
               }}
-              className={`flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm transition-colors ${
+              className={`flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left text-sm transition-colors sm:py-2 ${
                 option.value === value
                   ? 'bg-neutral-900 font-medium text-white'
                   : 'font-medium text-neutral-700 hover:bg-[#f6f6f4]'

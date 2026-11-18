@@ -42,7 +42,8 @@ async function lerNaNuvem(caminho: string) {
   if ('erro' in arquivo) {
     return NextResponse.json({ erro: arquivo.erro }, {
       status: arquivo.status,
-      headers: { ...SEGURANCA, 'Cache-Control': 'public, s-maxage=600' },
+      // Falha interna é passageira: não fica guardada na CDN.
+      headers: { ...SEGURANCA, 'Cache-Control': arquivo.status >= 500 ? 'no-store' : 'public, s-maxage=600' },
     });
   }
   return new NextResponse(Buffer.from(arquivo.bytes), {

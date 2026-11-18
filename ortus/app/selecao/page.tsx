@@ -3,12 +3,11 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { dados as tabelas, usuarioDaSessao } from '@/lib/local/consulta';
-import { salvarSessaoCache } from '@/lib/local/cliente';
 import { useRouter } from 'next/navigation';
 import { useClinica } from '@/app/context/ClinicaContext';
 import { LoginBrandPanel } from '@/app/login/page';
-import { clearAuthCookies, clearSuperAdminCache } from '@/lib/authCookies';
-import { clearProfileSession } from '@/lib/profileSession';
+import { encerrarSessao } from '@/lib/sessao';
+import { destinoInterno } from '@/lib/destinoInterno';
 import { Building2, ChevronRight, Globe, LogOut } from 'lucide-react';
 
 function nomeRede(c: { redes?: { nome?: string } | { nome?: string }[] | null }): string | null {
@@ -98,18 +97,14 @@ export default function SelecaoClinica() {
         const normalized = id === 'todas' ? 'all' : id;
         localStorage.setItem('ortus_clinica_id', normalized);
         try { setActiveClinicById(normalized); } catch { /* contexto ainda hidratando */ }
-        router.replace('/dashboard');
+        // Volta ao destino pedido antes do login (ex.: link de convite). Só caminho deste site:
+        // '/\golpe.example' passava pela checagem por prefixo e o navegador abria outro site.
+        const destino = destinoInterno(new URLSearchParams(window.location.search).get('redirect'), ['/login', '/selecao']) || '/dashboard';
+        router.replace(destino);
     }
 
     async function sair() {
-        await salvarSessaoCache(null);
-        await supabase.auth.signOut();
-        localStorage.removeItem('ortus_clinica_id');
-        localStorage.removeItem('ortus_clinics_cache');
-        clearAuthCookies();
-        clearSuperAdminCache();
-        clearProfileSession();
-        try { sessionStorage.clear(); } catch { /* sessão já encerrada */ }
+        await encerrarSessao();
         router.push('/login');
     }
 

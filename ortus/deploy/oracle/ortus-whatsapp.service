@@ -1,0 +1,98 @@
+# Ortus — gateway do WhatsApp (whatsapp-web.js + navegador sem tela).
+# Opcional: só instale se alguma clínica for usar o WhatsApp pelo site.
+#
+# Instalar (veja docs/ORACLE.md, seção do WhatsApp):
+#   sudo install -o root -g root -m 0644 /opt/ortus/deploy/oracle/ortus-whatsapp.service /etc/systemd/system/ortus-whatsapp.service
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now ortus-whatsapp.service
+#
+# Ajuste local sem mexer neste arquivo: sudo systemctl edit ortus-whatsapp.service
+
+[Unit]
+Description=Ortus - gateway do WhatsApp (127.0.0.1:3920)
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=ortus
+Group=ortus
+
+# /var/lib/ortus/whatsapp: o systemd cria, dá ao usuário ortus e libera para
+# escrita. É a única pasta em que este serviço grava.
+#   sessao/         uma pasta session-<id da clínica> por WhatsApp conectado
+#   .wwebjs_cache/  cópia da página do WhatsApp Web (pode apagar; volta sozinha)
+# A pasta de trabalho precisa aceitar escrita: o whatsapp-web.js grava
+# ./.wwebjs_cache/ a partir dela e não trata erro de escrita.
+StateDirectory=ortus/whatsapp
+StateDirectoryMode=0700
+WorkingDirectory=/var/lib/ortus/whatsapp
+
+EnvironmentFile=/etc/ortus/ortus.env
+Environment=NODE_ENV=production
+
+# O gateway escuta só em 127.0.0.1:3920. O server.mjs atual já faz isso por
+# padrão e só sai de 127.0.0.1 com WHATSAPP_GATEWAY_EXPOSE=1, que esta unidade
+# tira do ambiente. Endereço e porta ficam explícitos aqui, e o PORT=3500 do
+# arquivo de ambiente (que é do site) também sai: numa versão anterior do
+# server.mjs, PORT virava a porta do gateway e o fazia escutar em 0.0.0.0.
+Environment=WHATSAPP_GATEWAY_HOST=127.0.0.1
+Environment=WHATSAPP_GATEWAY_PORT=3920
+UnsetEnvironment=PORT HOSTNAME WHATSAPP_GATEWAY_EXPOSE
+
+# Sessão fora da pasta do código: o padrão do server.mjs (PASTA_SESSAO) é
+# services/whatsapp/.wwebjs_auth, dentro do clone, onde um `git clean` ou um
+# clone novo apagaria tudo.
+Environment=WHATSAPP_DATA_DIR=/var/lib/ortus/whatsapp/sessao
+
+# Navegador do sistema. O server.mjs lê PUPPETEER_EXECUTABLE_PATH; se o
+# caminho não existir ele ignora em silêncio, e a falha só apareceria quando
+# uma clínica tentasse conectar. O ExecStartPre abaixo faz o erro aparecer na
+# hora de subir. Com o Chromium do PPA, troque para /usr/bin/chromium
+# (systemctl edit).
+Environment=PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome-stable
+
+# O navegador grava perfil auxiliar, certificados e cache de fontes em $HOME.
+Environment=HOME=/var/lib/ortus/whatsapp
+
+# O gateway só lê NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY e
+# WHATSAPP_GATEWAY_SECRET. O navegador herda o ambiente do Node, então o que
+# este serviço não usa sai daqui.
+UnsetEnvironment=DATABASE_URL CRON_SECRET RESEND_API_KEY TWILIO_ACCOUNT_SID TWILIO_AUTH_TOKEN
+UnsetEnvironment=R2_ACCOUNT_ID R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY
+UnsetEnvironment=MERCADOPAGO_ACCESS_TOKEN MERCADOPAGO_WEBHOOK_SECRET
+
+ExecStartPre=/usr/bin/test -x ${PUPPETEER_EXECUTABLE_PATH}
+ExecStart=/usr/bin/node /opt/ortus/services/whatsapp/server.mjs
+
+Restart=always
+RestartSec=10
+TimeoutStopSec=30
+SyslogIdentifier=ortus-whatsapp
+
+# Se faltar memória, o kernel derruba primeiro o navegador do WhatsApp, não o
+# site nem o SSH.
+OOMScoreAdjust=300
+# Teto de memória do serviço inteiro (Node + todos os navegadores). Meça com
+# `systemctl status ortus-whatsapp` antes de ligar.
+#MemoryMax=<SEU_LIMITE>
+
+# ---- Endurecimento ----
+# Lista mais curta que a do site de propósito: o navegador não foi testado
+# com as outras restrições.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

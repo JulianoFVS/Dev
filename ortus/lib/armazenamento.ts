@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
-import { extrairCaminhoArquivo, urlProxyPublica } from '@/lib/caminhosArquivo';
+import { avisarMudancaNaAssinatura } from '@/lib/assinaturaCliente';
+import { caminhoFotoPaciente, extrairCaminhoArquivo, urlProxyPublica } from '@/lib/caminhosArquivo';
 
 export { extrairCaminhoArquivo };
 export const BUCKET_ARQUIVOS = 'arquivos_ortus';
@@ -32,6 +33,8 @@ async function pedir(body: unknown) {
     body: JSON.stringify(body),
   });
   const dados = await resposta.json().catch(() => ({}));
+  // 402 = modo de consulta: a faixa de assinatura confere de novo e aparece na hora.
+  if (resposta.status === 402) avisarMudancaNaAssinatura();
   if (!resposta.ok) throw new Error(dados.erro || 'Não foi possível enviar o arquivo.');
   return dados as { modo?: string; url?: string; caminho?: string; token?: string; urlPublica?: string | null; erro?: string };
 }
@@ -50,7 +53,7 @@ async function enviarParaR2(dados: { url?: string }, arquivo: Blob, contentType:
 
 /**
  * Envia um arquivo da clínica (pacientes/<id>/... ou clinicas/<id>/...).
- * Devolve a URL pública quando o arquivo é foto ou logo. Documento devolve null.
+ * Devolve a URL pública quando o arquivo é logo. Foto de paciente, documento e HOF devolvem null.
  */
 export async function enviarArquivoClinica(
   caminho: string,
@@ -82,6 +85,18 @@ export async function enviarArquivoClinica(
   if (error) throw new Error(error.message);
   disparar();
   return dados.urlPublica ? comVersao(dados.urlPublica) : null;
+}
+
+/**
+ * Foto de perfil do paciente. Fica no armazenamento privado e só abre pela rota
+ * autenticada (hooks/useFotoPaciente). Devolve o novo valor de `pacientes.foto_url`:
+ * o caminho interno com a versão, que muda a cada envio.
+ */
+export async function enviarFotoPaciente(pacienteId: string, foto: Blob): Promise<string> {
+  const caminho = caminhoFotoPaciente(pacienteId);
+  if (!caminho) throw new Error('Não foi possível salvar a foto.');
+  await enviarArquivoClinica(caminho, foto, { contentType: 'image/jpeg', upsert: true });
+  return comVersao(caminho);
 }
 
 /** Foto de perfil da pessoa logada. Não entra na cota da clínica. */
@@ -122,6 +137,7 @@ export async function apagarArquivosClinica(caminhos: string[]) {
     body: JSON.stringify({ acao: 'apagar', caminhos }),
   });
   const dados = await resposta.json().catch(() => ({}));
+  if (resposta.status === 402) avisarMudancaNaAssinatura();
   if (!resposta.ok) throw new Error(dados.erro || 'Não foi possível apagar o arquivo.');
   disparar();
 }

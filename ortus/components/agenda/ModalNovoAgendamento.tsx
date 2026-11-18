@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Loader2, X } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
 import { dados as tabelas, usuarioDaSessao } from '@/lib/local/consulta';
 import { fetchUserClinicas, fetchUserEquipe, type ProfissionalEquipe } from '@/lib/clinicScoped';
 import { inserir, lerSessaoCacheUI, listar, modoDados } from '@/lib/local/cliente';
 import { useClinica } from '@/app/context/ClinicaContext';
+import { fraseDeErro } from '@/lib/fraseDeErro';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
 import { validarAgendamentoCompleto } from '@/lib/horarioProfissional';
 import CustomSelect from '@/components/ui/CustomSelect';
@@ -21,11 +21,19 @@ type PacienteOpcao = { id: string | number; nome: string; clinica_id?: string | 
 type PerfilSessaoLocal = {
   id?: string | number | null;
   nivel_acesso?: string | null;
+  is_super_admin?: boolean | null;
 };
 
-function mensagemErro(erro: unknown, padrao: string): string {
-  return erro instanceof Error && erro.message ? erro.message : padrao;
+/**
+ * Administrador nesta clínica: dono da plataforma, ou perfil admin que não entrou por convite.
+ * Quem é convidado é membro comum na clínica que convidou (mesma regra da Agenda e do banco).
+ */
+function nivelEfetivo(nivel: unknown, superAdmin: unknown, convidado: boolean): string {
+  if (superAdmin === true) return 'admin';
+  if (nivel === 'admin' && !convidado) return 'admin';
+  return typeof nivel === 'string' && nivel && nivel !== 'admin' ? nivel : 'comum';
 }
+
 
 type Props = {
   open: boolean;
@@ -59,7 +67,7 @@ export default function ModalNovoAgendamento({
   observacoes = '',
   data,
 }: Props) {
-  const { activeClinicId, clinics: clinicasContexto } = useClinica();
+  const { activeClinicId, clinics: clinicasContexto, convidadoAqui } = useClinica();
   const { showAlert } = useCustomAlert();
   const clinicaTravada = !!activeClinicId && activeClinicId !== 'all';
   const [clinicas, setClinicas] = useState<{ id: string | number; nome: string; telefone?: string | null }[]>([]);
@@ -72,6 +80,7 @@ export default function ModalNovoAgendamento({
   const [nivel, setNivel] = useState<string>('admin');
   const [meuProfissionalId, setMeuProfissionalId] = useState('');
   const [salvando, setSalvando] = useState(false);
+  const salvandoRef = useRef(false);
   const [modoLocal, setModoLocal] = useState(false);
   const [form, setForm] = useState({
     clinica_id: '',
@@ -135,7 +144,7 @@ export default function ModalNovoAgendamento({
         try {
           const cache = await lerSessaoCacheUI();
           const perfil = cache?.perfil as PerfilSessaoLocal | null | undefined;
-          nivelAtual = typeof perfil?.nivel_acesso === 'string' ? perfil.nivel_acesso : 'admin';
+          nivelAtual = nivelEfetivo(typeof perfil?.nivel_acesso === 'string' ? perfil.nivel_acesso : 'admin', perfil?.is_super_admin, convidadoAqui);
           profAtual = nivelAtual !== 'admin' && perfil?.id != null ? String(perfil.id) : '';
           listaClinicas = clinicasContexto.length > 0
             ? clinicasContexto.map((c) => ({ id: c.id, nome: c.nome }))
@@ -143,7 +152,7 @@ export default function ModalNovoAgendamento({
           equipe = await fetchUserEquipe();
         } catch (erro) {
           if (!cancelado) {
-            await showAlert(mensagemErro(erro, 'Não foi possível carregar os dados da agenda.'), { type: 'error' });
+            await showAlert(fraseDeErro(erro, 'Não foi possível carregar os dados da agenda.'), { type: 'error' });
           }
           return;
         }
@@ -156,9 +165,9 @@ export default function ModalNovoAgendamento({
         listaClinicas = clinicasNuvem;
         equipe = equipeNuvem;
         if (user) {
-          const { data: prof } = await tabelas.from('profissionais').select('id, nivel_acesso').eq('user_id', user.id).maybeSingle();
+          const { data: prof } = await tabelas.from('profissionais').select('id, nivel_acesso, is_super_admin').eq('user_id', user.id).maybeSingle();
           if (prof) {
-            nivelAtual = prof.nivel_acesso || 'admin';
+            nivelAtual = nivelEfetivo(prof.nivel_acesso || 'admin', prof.is_super_admin, convidadoAqui);
             profAtual = nivelAtual !== 'admin' ? String(prof.id) : '';
           }
         }
@@ -184,7 +193,7 @@ export default function ModalNovoAgendamento({
 
     carregar();
     return () => { cancelado = true; };
-  }, [open, pacienteId, pacienteNome, clinicaId, procedimento, observacoes, data, clinicaTravada, activeClinicId, clinicasContexto]);
+  }, [open, pacienteId, pacienteNome, clinicaId, procedimento, observacoes, data, clinicaTravada, activeClinicId, clinicasContexto, convidadoAqui]);
 
   useEffect(() => {
     if (!open || !form.clinica_id) return;
@@ -202,7 +211,7 @@ export default function ModalNovoAgendamento({
         } catch (erro) {
           if (!cancelado) {
             setPacientes([]);
-            await showAlert(mensagemErro(erro, 'Não foi possível carregar os pacientes.'), { type: 'error' });
+            await showAlert(fraseDeErro(erro, 'Não foi possível carregar os pacientes.'), { type: 'error' });
           }
           return;
         }
@@ -262,7 +271,19 @@ export default function ModalNovoAgendamento({
   })();
   const tratamentosAgenda = tratamentosVisiveis(tratamentos, planoDoPaciente, linhasPreco);
 
+  // A checagem de horário vai ao servidor antes de o botão travar: um segundo
+  // toque nesse intervalo gravaria o agendamento duas vezes.
   async function salvar() {
+    if (salvandoRef.current) return;
+    salvandoRef.current = true;
+    try {
+      await gravar();
+    } finally {
+      salvandoRef.current = false;
+    }
+  }
+
+  async function gravar() {
     if (!form.title || !form.paciente_id || !form.clinica_id || !form.date || !form.time) {
       await showAlert('Preencha clínica, paciente, data, hora e procedimento.', { type: 'warning' });
       return;
@@ -302,12 +323,20 @@ export default function ModalNovoAgendamento({
       } else {
         const { error } = await tabelas.from('agendamentos').insert([dados]);
         if (error) {
-          await showAlert('Erro ao agendar: ' + error.message, { type: 'error' });
+          const texto = String(error.message || '');
+          await showAlert(
+            /Assinatura suspensa/.test(texto)
+              ? texto
+              : /paciente não pertence/i.test(texto)
+                ? 'Este paciente não é desta clínica. Escolha um paciente da clínica selecionada.'
+                : 'Não foi possível agendar agora. Confira os dados e tente de novo.',
+            { type: 'error' },
+          );
           return;
         }
       }
     } catch (erro) {
-      await showAlert('Erro ao agendar: ' + mensagemErro(erro, 'Falha no banco local.'), { type: 'error' });
+      await showAlert(fraseDeErro(erro, 'Não foi possível agendar agora. Tente de novo.'), { type: 'error' });
       return;
     } finally {
       setSalvando(false);
@@ -324,16 +353,20 @@ export default function ModalNovoAgendamento({
       maxWidth="lg"
       hideCloseButton
       zIndex={80}
-      panelClassName="flex max-h-[85vh] flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white"
+      /* Celular: folha de largura inteira presa embaixo, com a altura da área visível (dvh) para o rodapé
+         com o Salvar não ficar atrás da barra do navegador. No computador vale o máximo padrão do Modal. */
+      className="max-sm:p-0"
+      panelClassName="flex flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white max-sm:max-h-[92dvh] max-sm:rounded-b-none max-sm:rounded-t-2xl max-sm:border-x-0 max-sm:border-b-0"
     >
       <div className="flex shrink-0 items-start justify-between gap-3 border-b border-black/5 px-5 py-4 sm:px-6">
         <div>
           <h2 className="text-lg font-semibold text-neutral-900">Novo agendamento</h2>
           <p className="mt-0.5 text-xs font-medium text-neutral-400">Paciente, horário e procedimento.</p>
         </div>
-        <button type="button" onClick={onClose} className="rounded-full p-2 text-neutral-400 hover:bg-neutral-100" aria-label="Fechar"><X size={18} /></button>
+        <button type="button" onClick={onClose} className="-mr-2 -mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-neutral-400 hover:bg-neutral-100 sm:m-0 md:h-auto md:w-auto md:p-2" aria-label="Fechar"><X size={18} /></button>
       </div>
-      <div className="flex-1 space-y-5 overflow-y-auto p-5 sm:p-6">
+      {/* Só o miolo rola; cabeçalho e rodapé ficam fixos. No celular cada campo ocupa a linha inteira. */}
+      <div className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain p-5 sm:p-6">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <label className="mb-1.5 block text-xs font-medium text-neutral-500">Clínica <span className="text-red-500">*</span></label>
@@ -421,9 +454,10 @@ export default function ModalNovoAgendamento({
           </div>
         </div>
       </div>
-      <div className="flex shrink-0 items-center justify-end gap-3 border-t border-black/5 px-5 py-4 sm:px-6">
-        <button type="button" onClick={onClose} className="h-10 px-3 text-sm font-medium text-neutral-500 hover:text-neutral-900">Cancelar</button>
-        <button type="button" onClick={salvar} disabled={salvando} className="inline-flex h-10 items-center gap-2 rounded-md bg-neutral-900 px-5 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-60">
+      {/* Celular: os dois botões dividem a largura inteira, com 44px de altura. */}
+      <div className="grid shrink-0 grid-cols-2 gap-3 border-t border-black/5 px-5 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 sm:flex sm:items-center sm:justify-end sm:px-6 sm:py-4">
+        <button type="button" onClick={onClose} className="h-11 rounded-md border border-neutral-200 px-3 text-sm font-medium text-neutral-700 hover:text-neutral-900 sm:h-10 sm:border-0 sm:text-neutral-500">Cancelar</button>
+        <button type="button" onClick={salvar} disabled={salvando} className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-neutral-900 px-5 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-60 sm:h-10">
           {salvando && <Loader2 className="animate-spin" size={16} />} Salvar
         </button>
       </div>

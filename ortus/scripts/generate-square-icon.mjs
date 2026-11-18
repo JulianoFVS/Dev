@@ -62,7 +62,6 @@ const base32 = await sharp(base512).resize(32, 32).png({ force: true }).toBuffer
 const base16 = await sharp(base512).resize(16, 16).png({ force: true }).toBuffer();
 
 const outputs512 = [
-  path.join(root, 'public', 'icon-square.png'),
   path.join(root, 'public', 'favicon.png'),
   path.join(root, 'public', 'apple-icon.png'),
   path.join(root, 'app', 'icon.png'),
