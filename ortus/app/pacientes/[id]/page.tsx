@@ -213,6 +213,20 @@ function gruposDeFaces(faces: Array<{ face: OdontoFace; status: OdontoFaceStatus
   return [...mapa.entries()];
 }
 
+/** Faces agrupadas por situação, com o nome da face no dente certo (palatal/lingual, oclusal/incisal). */
+function facesPorStatus(num: number, faces: Array<{ face: OdontoFace; status: OdontoFaceStatus }>) {
+  const ordem: OdontoFaceStatus[] = ['carie', 'restaurado', 'tratado'];
+  const rotulos: Record<string, string> = { carie: 'Cárie', restaurado: 'Restauração', tratado: 'Tratado' };
+  const ordemFaces: OdontoFace[] = ['V', 'M', 'O', 'D', 'L'];
+  return ordem
+    .map((status) => ({
+      status,
+      rotulo: rotulos[status],
+      nomes: ordemFaces.filter((f) => faces.some((x) => x.face === f && x.status === status)).map((f) => nomeDaFace(f, num)),
+    }))
+    .filter((g) => g.nomes.length > 0);
+}
+
 function textoMarcacao(cond: string, faces: Array<{ face: OdontoFace; status: OdontoFaceStatus }>) {
   const nomeCond = cond && cond !== 'normal' ? (ODONTO_TOOLS.find((tool) => tool.key === cond)?.label || cond) : '';
   const facesTexto = gruposDeFaces(faces).map(([status, nomes]) => `${nomes.join(', ')} · ${status}`).join(' · ');
@@ -796,7 +810,8 @@ export default function PacienteDetalhe() {
       const estilo = getComputedStyle(el);
       setOdontoLargura(el.clientWidth - parseFloat(estilo.paddingLeft) - parseFloat(estilo.paddingRight));
       if (!raiz || !window.matchMedia('(min-width: 1024px)').matches) { setOdontoAlturaLivre(0); return; }
-      const RESERVA_LISTA = 150;
+      // Cartão de Marcações: título + umas três linhas à vista; o resto rola dentro dele.
+      const RESERVA_LISTA = 210;
       const livre = raiz.getBoundingClientRect().bottom - el.getBoundingClientRect().top - parseFloat(estilo.paddingTop) - parseFloat(estilo.paddingBottom) - RESERVA_LISTA;
       setOdontoAlturaLivre(Math.max(0, Math.round(livre)));
     };
@@ -3434,7 +3449,14 @@ export default function PacienteDetalhe() {
                 {abaAtiva === 'odontograma' && (
                     <div data-odonto-raiz className="flex flex-col px-3 pb-4 pt-3 sm:px-5 sm:pt-4 lg:h-full lg:min-h-0 lg:overflow-hidden">
                         <div className="mb-3 grid shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 sm:flex sm:flex-wrap">
-                            <h3 className="text-base font-semibold text-neutral-900">Odontograma</h3>
+                            <div className="min-w-0">
+                                <h3 className="text-base font-semibold text-neutral-900">Odontograma</h3>
+                                <p className="mt-0.5 truncate text-xs text-neutral-500">
+                                    {marcacoesOdonto.length === 0
+                                        ? 'Nenhum dente marcado'
+                                        : `${marcacoesOdonto.length} ${marcacoesOdonto.length === 1 ? 'dente marcado' : 'dentes marcados'}${marcacoesPendentes.length > 0 ? ` · ${marcacoesPendentes.length} para tratar` : ''}`}
+                                </p>
+                            </div>
                             <SegmentedControl
                                 value={visaoOdonto}
                                 onChange={setVisaoOdonto}
@@ -3630,61 +3652,60 @@ export default function PacienteDetalhe() {
                             )}
                             </div>
 
-                            <div className="mt-3 flex shrink-0 flex-col border-t border-neutral-200 pt-3 lg:min-h-0 lg:flex-1 lg:shrink lg:overflow-hidden">
-                                <div className="mb-2 flex flex-wrap items-center gap-3">
+                            {/* Marcações no mesmo cartão das outras abas (Tratamentos realizados): título, ação principal à direita, vazio centrado. */}
+                            <section className="mt-3 flex shrink-0 flex-col rounded-xl border border-neutral-200 bg-white p-3 sm:p-4 lg:min-h-0 lg:flex-1 lg:shrink lg:overflow-hidden">
+                                <div className="mb-2 flex items-center justify-between gap-3">
+                                    <h3 className="text-base font-semibold text-neutral-900">Marcações</h3>
                                     {marcacoesPendentes.length > 0 && (
                                         <button
                                             type="button"
                                             onClick={() => abrirNovoTratamento()}
-                                            className="inline-flex h-10 items-center justify-center gap-1.5 rounded-md bg-neutral-900 px-3 text-xs font-medium text-white hover:bg-neutral-800 sm:h-8 sm:px-2.5"
+                                            className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-xs font-medium text-white hover:bg-neutral-800 sm:h-8 sm:px-2.5"
                                         >
-                                            <Plus size={12} /> Tratar marcações
+                                            <Plus size={14} /> Tratar marcações
                                         </button>
                                     )}
-                                    <div className="text-xs font-medium text-neutral-500">
-                                        {marcacoesOdonto.length} marcações
-                                        {marcacoesPendentes.length > 0 && (
-                                            <span className="ml-1.5 text-amber-700">· {marcacoesPendentes.length} para tratar</span>
-                                        )}
-                                    </div>
                                 </div>
                                 {marcacoesOdonto.length === 0 ? (
-                                    <p className="py-2 text-sm text-neutral-400">Nenhuma marcação.</p>
+                                    <p className="py-6 text-center text-sm text-neutral-400">Nenhuma marcação. {telaCelular ? 'Toque num dente' : 'Escolha uma ferramenta e clique numa face'} para marcar.</p>
                                 ) : (
-                                    <div className="grid items-start gap-2 lg:min-h-0 lg:flex-1 lg:grid-cols-2 lg:overflow-y-auto">
-                                        {[marcacoesOdonto.slice(0, Math.ceil(marcacoesOdonto.length / 2)), marcacoesOdonto.slice(Math.ceil(marcacoesOdonto.length / 2))].filter((fatia) => fatia.length > 0).map((fatia) => (
-                                            <div key={fatia[0].num} className="overflow-hidden rounded-xl border border-neutral-200">
-                                                {fatia.map((m) => (
-                                                    <div key={m.num} className={`grid grid-cols-[3.5rem_minmax(0,1fr)_auto] items-center gap-2 border-b border-neutral-100 py-1 pl-3 pr-1 last:border-b-0 sm:px-3 sm:py-2 ${m.precisaTratamento ? 'bg-amber-50/70' : 'bg-white'}`}>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => abrirNovoTratamento([m.num])}
-                                                            className="min-h-[40px] text-left text-sm font-semibold text-neutral-900 sm:min-h-0"
-                                                            title="Abrir tratamento deste dente"
-                                                        >
-                                                            #{m.num}
-                                                        </button>
-                                                        <div className="flex min-w-0 flex-wrap gap-1.5">
-                                                            {m.cond !== 'normal' && (
-                                                                <span className="rounded-md bg-neutral-900 px-2 py-0.5 text-xs font-medium text-white">{ODONTO_TOOLS.find((tool) => tool.key === m.cond)?.label || m.cond}</span>
-                                                            )}
-                                                            {gruposDeFaces(m.faces).map(([status, nomes]) => (
-                                                                <span key={status} className="rounded-md bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-700">
-                                                                    {nomes.join(', ')} · {status}
-                                                                </span>
-                                                            ))}
-                                                        </div>
-                                                        <button type="button" onClick={() => limparDente(m.num)} className="inline-flex h-10 w-10 items-center justify-center rounded-md text-neutral-400 hover:bg-white hover:text-rose-600 sm:h-7 sm:w-7" aria-label={`Limpar dente ${m.num}`}><X size={14}/></button>
-                                                    </div>
-                                                ))}
-                                            </div>
+                                    <ul className="-mx-3 grid content-start sm:-mx-4 lg:min-h-0 lg:flex-1 lg:grid-cols-2 lg:overflow-y-auto">
+                                        {marcacoesOdonto.map((m) => (
+                                            <li key={m.num} className="flex items-center gap-2 border-t border-neutral-100 px-3 py-2 sm:px-4 lg:odd:border-r">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => (telaCelular ? abrirDente(m.num) : abrirNovoTratamento([m.num]))}
+                                                    className="min-w-0 flex-1 rounded-md text-left"
+                                                    title={telaCelular ? 'Abrir o dente' : 'Abrir tratamento deste dente'}
+                                                >
+                                                    <span className="flex items-baseline gap-1.5">
+                                                        <span className="text-sm font-semibold tabular-nums text-neutral-900">{m.num}</span>
+                                                        <span className="truncate text-xs text-neutral-500">{nomeDoDente(m.num)}</span>
+                                                        {m.precisaTratamento && (
+                                                            <span className="ml-auto shrink-0 text-[11px] font-medium text-amber-700">Para tratar</span>
+                                                        )}
+                                                    </span>
+                                                    <span className="mt-1 flex flex-wrap gap-1">
+                                                        {m.cond !== 'normal' && (
+                                                            <span className="inline-flex items-center gap-1 rounded-md bg-neutral-900 px-1.5 py-0.5 text-[11px] font-medium text-white">
+                                                                <span className="h-1.5 w-1.5 rounded-full" style={{ background: ODONTO_TOOLS.find((t) => t.key === m.cond)?.color }} />
+                                                                {ODONTO_TOOLS.find((t) => t.key === m.cond)?.label || m.cond}
+                                                            </span>
+                                                        )}
+                                                        {facesPorStatus(m.num, m.faces).map(({ status, rotulo, nomes }) => (
+                                                            <span key={status} className="inline-flex items-center gap-1 rounded-md bg-neutral-100 px-1.5 py-0.5 text-[11px] font-medium text-neutral-700">
+                                                                <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: FACE_COLORS[status], boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.12)' }} />
+                                                                {rotulo} · {nomes.join(', ')}
+                                                            </span>
+                                                        ))}
+                                                    </span>
+                                                </button>
+                                                <button type="button" onClick={() => limparDente(m.num)} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-50 hover:text-rose-600 sm:h-8 sm:w-8" aria-label={`Limpar dente ${m.num}`}><X size={14}/></button>
+                                            </li>
                                         ))}
-                                    </div>
+                                    </ul>
                                 )}
-                                {marcacoesPendentes.length > 0 && (
-                                    <p className="mt-2 text-[11px] text-neutral-500">{telaToque ? 'Toque' : 'Clique'} em um dente para abrir o tratamento só dele, ou em Tratar marcações para incluir todos.</p>
-                                )}
-                            </div>
+                            </section>
                             </>
                             )}
                     </div>
