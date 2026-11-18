@@ -623,3 +623,25 @@ combinados (essencial, rede, enterprise): sem limite. Os números ficam em
 `planos_saas.limite_profissionais` e `limite_unidades` (NULL = sem limite).
 Para liberar uma rede, mude o plano dela no painel. Quem já está na equipe
 nunca é removido por causa do plano; o limite vale para quem entra.
+
+---
+
+## 10. Homologação (build de produção contra serviços falsos)
+
+Em produção (`NODE_ENV=production`) o site ignora as variáveis
+`ORTUS_TESTE_URL_RESEND`, `ORTUS_TESTE_URL_R2` e `ORTUS_TESTE_URL_PAGAMENTO`:
+um servidor publicado nunca troca o endereço da Resend, do R2 ou do Mercado
+Pago por descuido. Um servidor de homologação, que roda o build de produção
+contra serviços falsos, liga a exceção com as três juntas:
+
+| Variável | Valor | Para quê |
+|---|---|---|
+| `ORTUS_HOMOLOGACAO` | `1` | aceita as `ORTUS_TESTE_URL_*` no build de produção (`lib/servicosExternos.ts`) |
+| `ORTUS_TESTE_URL_*` | endereço do serviço falso | e-mail, arquivos e pagamento vão para lá |
+| `MERCADOPAGO_ACEITAR_TESTE` | `1` | pagamento de teste cria a conta, como em produção faria o de verdade |
+
+Na produção de verdade, nenhuma das três existe no arquivo de ambiente.
+
+A demonstração da preparação do lançamento roda assim numa VPS (relatório,
+item 20): `https://ortus.trinityforce.duckdns.org`, com banco PGlite em
+memória e Supabase, R2, Resend e Mercado Pago falsos.

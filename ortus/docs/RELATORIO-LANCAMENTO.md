@@ -14,8 +14,10 @@ só os donos podem criar.
 - **produção** = verificado no projeto Supabase real. Nesta entrega **nada**
   foi verificado em produção: o clone não traz `.env.local` e nenhuma
   credencial foi usada.
+- **demonstração** = o build de produção no ar numa VPS, contra os mesmos
+  serviços falsos, conferido pela internet (item 20).
 
-Nenhum commit, push ou PR foi feito. Tudo está na árvore de trabalho.
+O trabalho está no branch `preparacao-lancamento`. Nenhum PR foi aberto.
 
 ---
 
@@ -826,7 +828,8 @@ pontuais.
 
 Nada em produção (sem `.env.local`), nenhuma chamada ao Mercado Pago, à Resend
 ou à Cloudflare de verdade, o aplicativo Electron aberto, o instalador e o
-WhatsApp/Chromium reais.
+WhatsApp/Chromium reais. O build de produção, esse sim, rodou de verdade: é a
+demonstração do item 20.
 
 ### `docs/SEGURANCA.md`
 
@@ -834,6 +837,76 @@ Atualizado: checklist de deploy com as migrations até `20261128_ajustes_finais`
 (na ordem), suíte com 257 verificações, variáveis de ambiente (incluindo
 `MERCADOPAGO_ACEITAR_TESTE`), as proteções novas das rotas sem login e da
 compra, e a nota de que nenhuma credencial de servidor vai no desktop.
+
+---
+
+## 20. Demonstração no ar (homologação)
+
+O build de produção do Ortus está publicado numa VPS, contra serviços falsos.
+Até aqui as baterias rodavam com o servidor de desenvolvimento e o build só era
+compilado; agora o próprio `next start` atende pela internet, atrás do Nginx,
+com as unidades de `deploy/oracle`.
+
+| Endereço | O que é |
+|---|---|
+| https://ortus.trinityforce.duckdns.org | o Ortus |
+| https://api.ortus.trinityforce.duckdns.org/caixa | caixa de e-mails da demonstração |
+| https://tldr.ortus.trinityforce.duckdns.org | resumo das alterações (`docs/alteracoes-18-11-2026.html`) |
+
+### Como funciona
+
+- Banco PGlite em memória com todas as migrations até `20261128` e os dados
+  de exemplo (Mais Sorriso com duas unidades, Bem Estar). Login, dados, R2,
+  Resend e Mercado Pago são imitações no próprio servidor: nenhum e-mail,
+  cobrança ou arquivo sai para a internet. Reiniciar a demonstração volta tudo
+  ao estado inicial.
+- O site roda com `ORTUS_HOMOLOGACAO=1` (novo, em `lib/servicosExternos.ts`;
+  `docs/OPERACAO.md`, item 10), as `ORTUS_TESTE_URL_*` e
+  `MERCADOPAGO_ACEITAR_TESTE=1`. Sem `ORTUS_HOMOLOGACAO`, o build de produção
+  continua ignorando endereço trocado.
+- WhatsApp desligado (`NEXT_PUBLIC_WHATSAPP_ATIVO=0`) e sem número de suporte.
+- Contas de exemplo: ana.admin@maissorriso.test (administradora),
+  bia.recepcao@maissorriso.test (recepção), caio.admin@bemestar.test,
+  dani.dentista@bemestar.test, gabriel@ortus.test e juliano@ortus.test (donos
+  da plataforma). A senha não fica no repositório. Qualquer pessoa pode testar
+  a compra com um e-mail inventado e seguir o e-mail de acesso na caixa.
+
+### Como provei (no ar, pela internet)
+
+- **Compra de ponta a ponta (9 de 9):** vitrine com os três planos; compra
+  pedida por outra origem recusada; tela do provedor com o valor do plano; Pix
+  aprovado volta para o retorno do site; webhook assinado aceito, pagamento
+  relido no provedor, conta criada; e-mail de acesso na caixa, com o link para
+  o site publicado; caixa das contas de exemplo fechada.
+- **Arquivo:** link de envio pedido ao app (`/api/armazenamento`) por uma conta
+  de exemplo; o envio pela internet com o link certo passa; com outro tipo de
+  arquivo, com a assinatura adulterada ou lendo o arquivo direto de fora, é
+  recusado; confirmar e baixar pela rota do app devolve o mesmo conteúdo.
+- **Rotinas** (assinaturas, lembretes, vigia) pelo
+  `deploy/oracle/chamar-rotina.sh`: as três com HTTP 200; os lembretes geraram
+  5 e-mails, que aparecem na caixa; o vigia respondeu "tudo normal".
+  `/api/saude`: banco, configuração e agendador ok.
+- **Kit da Oracle numa VM de verdade** (Ubuntu 24.04 ARM): `npm ci
+  --ignore-scripts --include=dev` em 24 s, build em 1 min 7 s, `next start`
+  com o endurecimento de `ortus.service` (sistema só-leitura), bloqueio de
+  `/api/local/*` no Nginx e `chamar-rotina.sh` funcionaram sem ajuste.
+- **No navegador:** login, compra e caixa de e-mails abrem sem erro no
+  console; HSTS, `X-Frame-Options` e `noindex` nas respostas.
+
+### Proteções da demonstração (por ser pública)
+
+As rotas de teste (SQL, sementes, controles do provedor) não existem. O e-mail
+falso, a API do pagamento e a administração do login só atendem a própria
+máquina. Arquivo de fora só entra por PUT com link assinado de verdade (SigV4,
+60 s), e ler, listar ou apagar só pelo site. A caixa de e-mails mostra um
+endereço por vez e fica fechada para as contas de exemplo. Há limite de
+pedidos por IP, teto de memória e de CPU, e `noindex`.
+
+### O que a demonstração não prova
+
+Nada fala com o Supabase, a Resend, o Mercado Pago ou a Cloudflare de verdade.
+O banco é o PGlite, não o Postgres do Supabase, e o servidor falso atende um
+pedido por vez.
 
 ---
 
