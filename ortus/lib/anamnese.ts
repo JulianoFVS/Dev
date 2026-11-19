@@ -114,13 +114,15 @@ export function carregarModelos(): ModeloAnamnese[] {
 
 export async function carregarModelosAsync(clinicaId?: string | number | null): Promise<ModeloAnamnese[]> {
   if (clinicaId) {
+    // Só o banco da clínica. A cópia do navegador pode ser de outra pessoa ou de outra
+    // unidade, e migrá-la gravaria os modelos de uma clínica na outra.
     const remoto = await carregarConfig<ModeloAnamnese[]>(
       clinicaId,
       CONFIG_KEYS.anamnese_modelos,
-      STORAGE_KEY,
+      undefined,
       MODELOS_PADRAO,
     );
-    if (Array.isArray(remoto) && remoto.length) return remoto;
+    return Array.isArray(remoto) && remoto.length ? remoto : MODELOS_PADRAO;
   }
   return carregarModelosLocal();
 }
@@ -132,8 +134,10 @@ export function salvarModelos(modelos: ModeloAnamnese[]) {
 }
 
 export async function salvarModelosAsync(clinicaId: string | number, modelos: ModeloAnamnese[]) {
-  salvarModelos(modelos);
   await salvarConfig(clinicaId, CONFIG_KEYS.anamnese_modelos, modelos);
+  // A ficha do paciente ainda lê esta cópia (carregarModelos): só muda depois que o banco aceitou.
+  // Navegador sem espaço ou bloqueado não desfaz o que já está gravado.
+  try { salvarModelos(modelos); } catch { /* cópia local é melhor-esforço */ }
 }
 
 export function novoIdModelo(): string {

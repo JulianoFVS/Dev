@@ -1,15 +1,8 @@
 /** Inventário rápido do banco — só leitura */
 import pg from 'pg';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import { conexaoPg } from './_env.mjs';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const env = fs.readFileSync(path.join(__dirname, '..', '.env.local'), 'utf8');
-const url = env.match(/DATABASE_URL=(.+)/)?.[1]?.trim();
-if (!url) { console.error('DATABASE_URL ausente'); process.exit(1); }
-
-const client = new pg.Client({ connectionString: url, ssl: { rejectUnauthorized: false } });
+const client = new pg.Client(conexaoPg());
 
 try {
   await client.connect();
@@ -41,7 +34,8 @@ try {
     SELECT p.id, p.nome, p.email, p.user_id, COALESCE(p.is_super_admin, false) AS is_super_admin
     FROM profissionais p ORDER BY p.id
   `);
-  profs.forEach(p => console.log(`  [${p.id}] ${p.nome} | ${p.email || '-'} | super=${p.is_super_admin}`));
+  // E-mail mascarado: o inventário vai para terminal e log; só a limpeza (clean-db) mostra o e-mail dos donos.
+  profs.forEach(p => console.log(`  [${p.id}] ${p.nome} | ${(p.email || '-').replace(/^(.{2}).*(@.*)$/, '$1***$2')} | super=${p.is_super_admin}`));
 
   console.log('\n=== AUTH USERS (contagem) ===');
   const { rows: authCount } = await client.query(`SELECT COUNT(*)::int AS n FROM auth.users`);

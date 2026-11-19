@@ -20,11 +20,16 @@ export function abrirSmsCliente(telefone: string | null | undefined, mensagem: s
   return true;
 }
 
-/** Envia SMS via API Twilio (server-side). Requer TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER. */
+/** Número remetente. O nome oficial é TWILIO_FROM; TWILIO_FROM_NUMBER é aceito por compatibilidade. */
+function remetenteTwilio(): string {
+  return (process.env.TWILIO_FROM || process.env.TWILIO_FROM_NUMBER || '').trim();
+}
+
+/** Envia SMS via API Twilio (server-side). Requer TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN e TWILIO_FROM. */
 export async function enviarSmsTwilio(telefone: string, mensagem: string): Promise<ResultadoSms> {
   const sid = process.env.TWILIO_ACCOUNT_SID;
   const token = process.env.TWILIO_AUTH_TOKEN;
-  const from = process.env.TWILIO_FROM_NUMBER;
+  const from = remetenteTwilio();
 
   if (!sid || !token || !from) {
     return { ok: false, metodo: 'nenhum', erro: 'Twilio não configurado' };
@@ -46,15 +51,17 @@ export async function enviarSmsTwilio(telefone: string, mensagem: string): Promi
       body: body.toString(),
     });
     if (!res.ok) {
-      const err = await res.text();
-      return { ok: false, metodo: 'twilio', erro: err.slice(0, 200) };
+      // O corpo do erro repete o número de destino: fica só o código e a mensagem.
+      const dados = (await res.json().catch(() => ({}))) as { code?: number; message?: string };
+      const motivo = (dados.message || '').replace(/\+?\d[\d\s().-]{7,}\d/g, '[telefone]').slice(0, 160);
+      return { ok: false, metodo: 'twilio', erro: `O Twilio recusou o envio (${res.status}${dados.code ? `, código ${dados.code}` : ''})${motivo ? `: ${motivo}` : ''}` };
     }
     return { ok: true, metodo: 'twilio' };
-  } catch (e: any) {
-    return { ok: false, metodo: 'twilio', erro: e.message || String(e) };
+  } catch {
+    return { ok: false, metodo: 'twilio', erro: 'Falha de rede ao falar com o Twilio.' };
   }
 }
 
 export function smsTwilioConfigurado(): boolean {
-  return !!(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_FROM_NUMBER);
+  return !!(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && remetenteTwilio());
 }

@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Loader2, X } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
 import { dados as tabelas } from '@/lib/local/consulta';
 import { modoDados, listar, inserir, atualizar } from '@/lib/local/cliente';
 import CampoData from '@/components/ui/CampoData';
@@ -11,9 +10,13 @@ import { useCustomAlert } from '@/components/ui/CustomAlert';
 import { VARIAVEIS_WHATSAPP } from '@/lib/whatsappAutomacoes';
 import { formatarTelefone } from '@/lib/whatsappTelefone';
 import BuscaPaciente from './BuscaPaciente';
-import { mensagemDeErro, type PacienteBusca } from './api';
+import { erroDeEnvio, mensagemDeErro, type PacienteBusca } from './api';
 
 type Props = { clinicaId: string };
+
+const ROTULO = 'mb-1.5 block text-xs font-medium text-neutral-500';
+// Etiqueta de variável: 40px de toque no celular, compacta no computador.
+const ETIQUETA = 'inline-flex h-10 items-center rounded-full px-3 text-xs sm:h-auto sm:px-2.5 sm:py-1 sm:text-[11px]';
 
 type Agendada = {
   id: number;
@@ -57,6 +60,7 @@ export default function Agendadas({ clinicaId }: Props) {
   const [texto, setTexto] = useState('');
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState('');
+  const [aviso, setAviso] = useState('');
   const campo = useRef<HTMLTextAreaElement>(null);
 
   const carregar = useCallback(async () => {
@@ -82,7 +86,7 @@ export default function Agendadas({ clinicaId }: Props) {
       .order('enviar_em', { ascending: false })
       .limit(150);
     if (error) {
-      setErroLista('Não foi possível carregar. Confira se a migration do WhatsApp foi aplicada.');
+      setErroLista('Não foi possível carregar as mensagens agendadas. Tente de novo em instantes.');
     } else {
       setErroLista('');
       setLista((linhas || []) as Agendada[]);
@@ -132,6 +136,9 @@ export default function Agendadas({ clinicaId }: Props) {
     if (Number.isNaN(quando.getTime()) || quando.getTime() < Date.now() - 60_000) return setErro('Escolha uma data e hora no futuro.');
     setSalvando(true);
     setErro('');
+    setAviso('');
+    // No celular a lista de envios fica abaixo do formulário: o aviso confirma sem precisar rolar.
+    const feito = `${destinos.length > 1 ? `${destinos.length} mensagens agendadas` : 'Mensagem agendada'} para ${quando.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}.`;
 
     if (await modoDados() === 'local') {
       try {
@@ -149,9 +156,10 @@ export default function Agendadas({ clinicaId }: Props) {
         }
         setDestinos([]);
         setTexto('');
+        setAviso(feito);
         void carregar();
       } catch (err) {
-        setErro(mensagemDeErro(err, 'Não foi possível agendar. Verifique o banco local.'));
+        setErro(mensagemDeErro(err, 'Não foi possível agendar neste computador. Tente de novo.'));
         // Inserimos um destinatário por vez: recarrega para refletir os que entraram.
         void carregar();
       } finally {
@@ -172,11 +180,12 @@ export default function Agendadas({ clinicaId }: Props) {
     );
     setSalvando(false);
     if (error) {
-      setErro('Não foi possível agendar. Confira se a migration do WhatsApp foi aplicada.');
+      setErro('Não foi possível agendar. Tente de novo em instantes.');
       return;
     }
     setDestinos([]);
     setTexto('');
+    setAviso(feito);
     void carregar();
   }
 
@@ -189,6 +198,7 @@ export default function Agendadas({ clinicaId }: Props) {
         const pendentes = await listar<Agendada>('whatsapp_agendadas', {
           filtros: [
             { col: 'id', op: 'eq', valor: item.id },
+            { col: 'clinica_id', op: 'eq', valor: Number(clinicaId) },
             { col: 'status', op: 'eq', valor: 'pendente' },
           ],
           limite: 1,
@@ -203,7 +213,13 @@ export default function Agendadas({ clinicaId }: Props) {
       return;
     }
 
-    await tabelas.from('whatsapp_agendadas').update({ status: 'cancelada' }).eq('id', item.id).eq('status', 'pendente');
+    const { error } = await tabelas.from('whatsapp_agendadas')
+      .update({ status: 'cancelada' })
+      .eq('id', item.id)
+      .eq('clinica_id', clinicaId)
+      .eq('status', 'pendente');
+    // Cancelamento que falha em silêncio deixaria a mensagem sair para o paciente.
+    if (error) showAlert('Não foi possível cancelar o envio. Tente de novo.', { type: 'error' });
     void carregar();
   }
 
@@ -211,14 +227,14 @@ export default function Agendadas({ clinicaId }: Props) {
   const anteriores = lista.filter((item) => item.status !== 'pendente' && item.status !== 'enviando');
 
   return (
-    <div className="mx-auto grid w-full max-w-5xl gap-3 pb-28 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:pb-6">
+    <div className="mx-auto grid w-full max-w-5xl gap-3 pb-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:pb-6">
       <section className="h-fit rounded-[1.25rem] border border-black/[0.06] bg-white p-4">
-        <h2 className="text-sm font-semibold text-neutral-900">Agendar mensagem</h2>
+        <h2 className="text-base font-semibold text-neutral-900">Agendar mensagem</h2>
         <p className="mt-0.5 text-xs text-neutral-500">Para um ou vários pacientes. Sai no horário escolhido pelo número conectado.</p>
 
         <div className="mt-4 space-y-3">
           <div className="space-y-2">
-            <p className="text-[11px] font-medium text-neutral-500">Para</p>
+            <p className="block text-xs font-medium text-neutral-500">Para <span className="text-red-500">*</span></p>
             <BuscaPaciente clinicaId={clinicaId} onEscolher={adicionarPaciente} ignorar={destinos.map((d) => d.paciente_id || '')} />
             <div className="flex gap-2">
               <input
@@ -226,8 +242,9 @@ export default function Agendadas({ clinicaId }: Props) {
                 onChange={(e) => setTelefone(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); adicionarTelefone(); } }}
                 inputMode="tel"
+                aria-label="Número com DDD"
                 placeholder="Ou um número: (11) 99999-0000"
-                className="h-10 min-w-0 flex-1 rounded-md border border-neutral-200 px-3 text-sm outline-none focus:border-neutral-400"
+                className="h-10 min-w-0 flex-1 rounded-md border border-neutral-200 bg-white px-3 text-sm outline-none focus:border-neutral-400"
               />
               <button type="button" onClick={adicionarTelefone} className="h-10 shrink-0 rounded-md border border-neutral-200 px-3 text-sm text-neutral-700 hover:bg-neutral-50">
                 Adicionar
@@ -235,49 +252,60 @@ export default function Agendadas({ clinicaId }: Props) {
             </div>
             {destinos.length > 0 && (
               <div className="flex flex-wrap gap-1.5">
-                {destinos.map((d) => (
-                  <span key={d.chave} className="inline-flex items-center gap-1 rounded-full bg-neutral-100 py-1 pl-2.5 pr-1 text-xs text-neutral-700">
-                    {d.nome || formatarTelefone(d.telefone)}
-                    <button type="button" onClick={() => setDestinos((atual) => atual.filter((x) => x.chave !== d.chave))} aria-label="Remover" className="rounded-full p-0.5 text-neutral-400 hover:bg-neutral-200 hover:text-neutral-700">
-                      <X size={12} />
-                    </button>
-                  </span>
-                ))}
+                {destinos.map((d) => {
+                  const rotulo = d.nome || formatarTelefone(d.telefone);
+                  return (
+                    // Celular: o X de remover tem 40px; no computador a etiqueta continua compacta.
+                    <span key={d.chave} className="inline-flex max-w-full items-center gap-1 rounded-full bg-neutral-100 pl-3 text-sm text-neutral-700 sm:py-1 sm:pl-2.5 sm:pr-1 sm:text-xs">
+                      <span className="min-w-0 break-words">{rotulo}</span>
+                      <button
+                        type="button"
+                        onClick={() => setDestinos((atual) => atual.filter((x) => x.chave !== d.chave))}
+                        aria-label={`Remover ${rotulo}`}
+                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-neutral-400 hover:bg-neutral-200 hover:text-neutral-700 sm:h-auto sm:w-auto sm:p-0.5"
+                      >
+                        <X size={14} className="sm:h-3 sm:w-3" />
+                      </button>
+                    </span>
+                  );
+                })}
               </div>
             )}
           </div>
 
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <p className="mb-1 text-[11px] font-medium text-neutral-500">Data</p>
+              <p className={ROTULO}>Data <span className="text-red-500">*</span></p>
               <CampoData value={data} onChange={setData} />
             </div>
             <div>
-              <p className="mb-1 text-[11px] font-medium text-neutral-500">Hora</p>
+              <p className={ROTULO}>Hora <span className="text-red-500">*</span></p>
               <CampoHora value={hora} onChange={setHora} passo={5} />
             </div>
           </div>
 
           <div>
-            <p className="mb-1 text-[11px] font-medium text-neutral-500">Mensagem</p>
+            <p className={ROTULO}>Mensagem <span className="text-red-500">*</span></p>
             <textarea
               ref={campo}
               value={texto}
               onChange={(e) => setTexto(e.target.value)}
               rows={4}
+              aria-label="Mensagem"
               placeholder="Olá {{paciente_nome}}, ..."
-              className="w-full resize-y rounded-md border border-neutral-200 px-3 py-2 text-sm leading-5 outline-none focus:border-neutral-400"
+              className="w-full resize-y rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm leading-5 outline-none focus:border-neutral-400"
             />
             <div className="mt-1.5 flex flex-wrap gap-1.5">
               {VARIAVEIS_WHATSAPP.filter((v) => !v.soConsulta).map((v) => (
-                <button key={v.chave} type="button" onClick={() => inserirVariavel(v.chave)} className="rounded-full border border-neutral-200 px-2.5 py-1 text-[11px] text-neutral-600 hover:bg-neutral-50">
+                <button key={v.chave} type="button" onClick={() => inserirVariavel(v.chave)} className={`${ETIQUETA} border border-neutral-200 text-neutral-600 hover:bg-neutral-50`}>
                   + {v.label}
                 </button>
               ))}
             </div>
           </div>
 
-          {erro && <p className="text-xs text-rose-600">{erro}</p>}
+          {erro && <p role="alert" className="text-xs text-rose-600">{erro}</p>}
+          {aviso && !erro && <p role="status" className="text-xs text-emerald-700">{aviso}</p>}
           <button
             type="button"
             onClick={agendar}
@@ -291,9 +319,11 @@ export default function Agendadas({ clinicaId }: Props) {
       </section>
 
       <section className="min-w-0 rounded-[1.25rem] border border-black/[0.06] bg-white p-4">
-        <h2 className="text-sm font-semibold text-neutral-900">Próximos envios</h2>
+        <h2 className="text-base font-semibold text-neutral-900">Próximos envios</h2>
         {carregando ? (
-          <div className="flex justify-center py-8 text-neutral-400"><Loader2 size={18} className="animate-spin" /></div>
+          <div aria-busy="true" aria-label="Carregando os envios" className="mt-3 space-y-2">
+            {Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-14 animate-pulse rounded-md bg-neutral-50" />)}
+          </div>
         ) : erroLista ? (
           <p className="mt-3 text-sm text-rose-600">{erroLista}</p>
         ) : (
@@ -319,24 +349,33 @@ export default function Agendadas({ clinicaId }: Props) {
 
 function Linha({ item, onCancelar }: { item: Agendada; onCancelar?: () => void }) {
   const status = STATUS[item.status];
+  const motivo = erroDeEnvio(item.erro);
+  const cancelavel = Boolean(onCancelar) && item.status === 'pendente';
   return (
     <li className="py-3">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="truncate text-sm font-medium text-neutral-900">{item.nome || formatarTelefone(item.telefone)}</p>
+          {/* No celular o nome quebra em vez de cortar. */}
+          <p className="break-words text-sm font-medium text-neutral-900 sm:truncate">{item.nome || formatarTelefone(item.telefone)}</p>
           <p className="text-xs text-neutral-400">
             {new Date(item.enviar_em).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${status.classe}`}>{status.rotulo}</span>
-          {onCancelar && item.status === 'pendente' && (
-            <button type="button" onClick={onCancelar} className="text-xs text-neutral-400 hover:text-rose-600">Cancelar</button>
+          {cancelavel && (
+            <button type="button" onClick={onCancelar} className="hidden text-xs text-neutral-400 hover:text-rose-600 sm:inline">Cancelar</button>
           )}
         </div>
       </div>
       <p className="mt-1 line-clamp-2 whitespace-pre-wrap text-xs text-neutral-600">{item.texto}</p>
-      {item.erro && <p className="mt-1 text-xs text-rose-600">{item.erro}</p>}
+      {motivo && <p className="mt-1 text-xs text-rose-600">{motivo}</p>}
+      {cancelavel && (
+        // Celular: ao lado do selo a ação teria 16px de altura; aqui embaixo ela tem 40px.
+        <button type="button" onClick={onCancelar} className="mt-2 inline-flex h-10 items-center rounded-md border border-neutral-200 px-3 text-sm font-medium text-neutral-700 active:bg-neutral-50 sm:hidden">
+          Cancelar envio
+        </button>
+      )}
     </li>
   );
 }

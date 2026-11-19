@@ -1,0 +1,82 @@
+# Ortus — site (Next.js em produção, `next start`).
+#
+# Instalar (veja docs/ORACLE.md):
+#   sudo install -o root -g root -m 0644 /opt/ortus/deploy/oracle/ortus.service /etc/systemd/system/ortus.service
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now ortus.service
+#
+# Ajuste local sem mexer neste arquivo: sudo systemctl edit ortus.service
+
+[Unit]
+Description=Ortus - site (Next.js em 127.0.0.1:3500)
+After=network-online.target
+Wants=network-online.target
+# Sem limite de tentativas: se cair, volta sempre (a cada RestartSec).
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=ortus
+Group=ortus
+WorkingDirectory=/opt/ortus
+
+# Segredos e configuração: fora do git, dono root, grupo ortus, modo 0640.
+EnvironmentFile=/etc/ortus/ortus.env
+Environment=NEXT_TELEMETRY_DISABLED=1
+# O site não lê DATABASE_URL (só os scripts de banco leem). Fica fora do
+# processo que atende a internet. Se uma rota passar a usar, tire-a desta linha.
+# WHATSAPP_GATEWAY_AUTOSTART=1 faria o site subir o gateway do WhatsApp como
+# processo filho (lib/whatsappGateway.ts). Na VM quem sobe o gateway é a
+# unidade ortus-whatsapp; os dois disputariam a porta 3920.
+UnsetEnvironment=DATABASE_URL WHATSAPP_GATEWAY_AUTOSTART
+
+# `next start` é o que `npm run start` roda. O endereço vai na linha de comando
+# porque o `next start` não lê a variável HOSTNAME (só o servidor "standalone"
+# lê): sem `--hostname` ele escutaria em todas as interfaces.
+# A porta vem de PORT, no arquivo de ambiente.
+ExecStart=/usr/bin/node /opt/ortus/node_modules/next/dist/bin/next start --hostname 127.0.0.1
+
+Restart=always
+RestartSec=5
+TimeoutStopSec=20
+SyslogIdentifier=ortus
+
+# ---- Endurecimento ----
+# O processo enxerga o sistema inteiro como só-leitura. Só grava no cache do
+# próprio build (o `-` ignora a pasta se ela ainda não existir).
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=-/opt/ortus/.next/cache
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectProc=invisible
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+SystemCallArchitectures=native
+CapabilityBoundingSet=
+AmbientCapabilities=
+UMask=0027
+
+# Segunda trava para o mesmo caso: com a pasta escondida, o site não acha o
+# server.mjs para subir como filho. Cobre também uma versão anterior do
+# código, que subia o gateway sozinha em produção quando ele não respondia.
+# O site continua falando com o gateway por HTTP (WHATSAPP_GATEWAY_URL).
+InaccessiblePaths=-/opt/ortus/services/whatsapp
+
+# De propósito fora desta lista:
+#   MemoryDenyWriteExecute  quebra o Node (o motor V8 gera código em memória).
+#   SystemCallFilter        não foi testado nesta máquina; um filtro errado
+#                           derruba o site com erro difícil de ler.
+
+[Install]
+WantedBy=multi-user.target

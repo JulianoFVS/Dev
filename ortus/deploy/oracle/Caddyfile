@@ -1,0 +1,50 @@
+# Ortus — alternativa ao Nginx + Certbot: Caddy na frente do Next (127.0.0.1:3500).
+#
+# O Caddy tira e renova o certificado sozinho. Para isso o DNS do domínio já
+# tem que apontar para esta máquina e as portas 80 e 443 têm que estar abertas
+# (Security List da Oracle e iptables).
+#
+# Instalar trocando o domínio de exemplo pelo seu (veja docs/ORACLE.md):
+#   sudo sed 's/ortus\.exemplo\.com\.br/<SEU_DOMINIO>/g' /opt/ortus/deploy/oracle/Caddyfile | sudo tee /etc/caddy/Caddyfile > /dev/null
+#   sudo caddy validate --config /etc/caddy/Caddyfile
+#   sudo systemctl reload caddy
+#
+# O reverse_proxy do Caddy já manda X-Forwarded-For, X-Forwarded-Proto e
+# X-Forwarded-Host e descarta os que o visitante mandar.
+# Os cabeçalhos de segurança saem do próprio Next (next.config.ts).
+# Sem diretiva `log`, o Caddy não grava registro de acesso (o app manda
+# telefone de paciente na query string).
+
+ortus.exemplo.com.br {
+	# Maior corpo que o site aceita: arquivo enviado pelo WhatsApp, até
+	# 4.200.000 caracteres em base64 (app/api/whatsapp/route.ts).
+	request_body {
+		max_size 5MB
+	}
+
+	# O Node lê "\" como "/" no caminho: "/api\local/db" chegaria ao Next
+	# como "/api/local/db". Nenhum endereço do app usa "\".
+	@barra_invertida path_regexp `\x5c`
+	handle @barra_invertida {
+		respond 400
+	}
+
+	# Toda tela consulta /api/local/status para saber se está dentro do
+	# aplicativo desktop. Resposta fixa: não é o aplicativo.
+	@status_local path /api/local/status
+	handle @status_local {
+		header Content-Type application/json
+		header Cache-Control no-store
+		respond `{"desktop":false}` 200
+	}
+
+	# As outras rotas /api/local/* são do aplicativo desktop: fechadas.
+	@api_local path /api/local /api/local/*
+	handle @api_local {
+		respond 404
+	}
+
+	handle {
+		reverse_proxy 127.0.0.1:3500
+	}
+}

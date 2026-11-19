@@ -63,10 +63,6 @@ export function inserirTokenVariavel(conteudo: string, label: string): string {
   return `${conteudo}${tokenVariavelLabel(label)}`;
 }
 
-const LABEL_TO_CHAVE = Object.fromEntries(
-  DOCUMENTO_VARIAVEIS.map(v => [v.label.toLowerCase(), String(v.chave)]),
-) as Record<string, string>;
-
 export function aplicarVariaveisDocumento(texto: string, ctx: DocumentoContexto): string {
   let out = texto;
   // Tokens legíveis 【Label】

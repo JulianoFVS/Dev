@@ -171,15 +171,6 @@ async function buscarClinicasDoUsuario(
 }
 
 /**
- * Lista IDs (string) das clínicas permitidas ao usuário logado.
- * Útil para `.in('clinica_id', ids)` em queries de pacientes/agenda/etc.
- */
-export async function fetchUserClinicaIds(): Promise<string[]> {
-    const lista = await fetchUserClinicas();
-    return lista.map((c) => String(c.id));
-}
-
-/**
  * Retorna a equipe (profissionais) visível ao usuário logado:
  *  - super admin: TODOS os profissionais.
  *  - demais usuários: profissionais que compartilham pelo menos UMA

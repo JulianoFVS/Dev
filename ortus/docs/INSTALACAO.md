@@ -34,10 +34,16 @@ GitHub Actions).
 
 1. **Copie o `.exe`** para a máquina da clínica (pendrive, rede interna ou
    download).
-2. Dê **duplo clique**. O Windows vai mostrar *"O Windows protegeu o seu PC"*.
-   - Clique em **Mais informações** → **Executar assim mesmo**.
-   - Isso acontece porque o instalador ainda não tem assinatura digital
-     (certificado EV). O app é o mesmo que você gerou.
+2. Dê **duplo clique**.
+   - **Instalador sem assinatura digital** (build de teste): o Windows mostra
+     *"O Windows protegeu o seu PC"*. Clique em **Mais informações** →
+     **Executar assim mesmo**.
+   - **Instalador assinado**: o aviso mostra a empresa como fornecedor
+     verificado. Com um certificado novo, o SmartScreen ainda pode avisar nas
+     primeiras semanas, até a reputação se formar (detalhes em
+     [`desktop/README.md`](../desktop/README.md#assinatura-digital-windows)).
+   - Para conferir: botão direito no `.exe` → **Propriedades → Assinaturas
+     Digitais**.
 3. No assistente:
    - **Destino:** deixe o padrão (`%LOCALAPPDATA%\Programs\Ortus`) ou escolha
      outra pasta. **Não é preciso ser administrador.**
@@ -53,6 +59,9 @@ GitHub Actions).
    inferior direito mostra **"Sincronizando"** e depois **"Sincronizado"**.
    - Só libere o uso depois de aparecer **Sincronizado**.
 4. Se for trocar a senha temporária, o app pede antes de abrir.
+
+Depois do primeiro acesso, sem internet o app entra com a mesma conta e a
+mesma senha, e o trabalho sobe para a nuvem quando a conexão voltar.
 
 ### Conectar o WhatsApp
 
@@ -150,7 +159,7 @@ instalação real.
 Rode **no sistema do alvo** (o `.exe` só sai no Windows ou no CI):
 
 ```bash
-# 1. variáveis públicas do Supabase
+# 1. variáveis públicas do Supabase (nunca a service role: o build recusa)
 export NEXT_PUBLIC_SUPABASE_URL=https://SEU_PROJETO.supabase.co
 export NEXT_PUBLIC_SUPABASE_ANON_KEY=...
 
@@ -158,15 +167,30 @@ export NEXT_PUBLIC_SUPABASE_ANON_KEY=...
 npm --prefix services/whatsapp ci
 node scripts/desktop-chromium.mjs
 
-# 3. build + empacotamento
-npm run desktop:mac      # .dmg + .zip
-npm run desktop:win      # .exe NSIS
-npm run desktop:linux    # AppImage + .deb
+# 3. testes, build e empacotamento
+npm run desktop:teste
+npm run desktop:mac                            # .dmg + .zip
+ORTUS_ASSINATURA=nenhuma npm run desktop:win   # .exe NSIS de teste, sem assinatura
+npm run desktop:linux                          # AppImage + .deb
 ```
 
+O build roda o `next build` com um ambiente sem os segredos do servidor e
+confere duas vezes (depois do build e antes de montar o instalador) que nenhum
+`.env` nem valor de segredo foi para o pacote. Se encontrar, para e mostra o
+nome da variável e o arquivo — nunca o valor.
+
+**Assinatura do `.exe`:** com `ORTUS_ASSINATURA=certificado` ou `azure` o build
+assina e **falha** se faltar algum segredo; sem a variável, assina quando o
+ambiente tem todos os dados de uma opção, para quando tem só parte deles e,
+sem nenhum, sai sem assinatura com aviso. As opções (certificado OV/EV ou Azure
+Trusted Signing), o custo e o efeito no SmartScreen estão em
+[`desktop/README.md`](../desktop/README.md#assinatura-digital-windows).
+
 Sem nuvem, o atalho é o workflow **Ortus Desktop (Windows)** no GitHub Actions
-(`.github/workflows/desktop-windows.yml`) — configure os dois secrets públicos
-no repositório.
+(`.github/workflows/desktop-windows.yml`): configure os dois segredos públicos
+(`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`) e, para assinar,
+a variável `ORTUS_ASSINATURA` com os segredos da opção escolhida. O artefato
+sem assinatura sai com `-SEM-ASSINATURA` no nome.
 
 ---
 
@@ -179,9 +203,13 @@ local**, e todas conversam com o mesmo Supabase.
 - Sem internet, cada uma trabalha sozinha e envia quando a conexão voltar.
 - Exclusões feitas em uma máquina **chegam às outras** (não ressuscitam).
 - Se duas pessoas editarem **o mesmo registro** ao mesmo tempo, a versão mais
-  nova (carimbada pelo servidor) vence e a outra fica em
+  nova (carimbada pelo servidor) vence e as duas ficam em
   **Configurações → Sincronização** para você decidir — nada é apagado em
   silêncio.
+- Se a nuvem **recusar** uma alteração (assinatura em modo de consulta, ou o
+  usuário sem permissão para aquilo), ela sai da fila e aparece na mesma tela
+  com o motivo. A alteração continua no computador até você **tentar enviar
+  de novo** ou **descartar**; o programa não fica reenviando sozinho.
 
 Detalhes técnicos ficam em [`desktop/README.md`](../desktop/README.md).
 
@@ -189,6 +217,7 @@ Detalhes técnicos ficam em [`desktop/README.md`](../desktop/README.md).
 
 ## 8. Checklist depois de instalar
 
+- [ ] Instalador assinado (se for o caso): **Propriedades → Assinaturas Digitais** mostra a empresa
 - [ ] Login feito com internet
 - [ ] Indicador mostra **Sincronizado**
 - [ ] Um paciente de teste aparece no Supabase
@@ -196,6 +225,11 @@ Detalhes técnicos ficam em [`desktop/README.md`](../desktop/README.md).
 - [ ] Mensagem de teste enviada
 - [ ] Fechou e abriu o app: WhatsApp continua conectado
 - [ ] Desligou a internet: agenda e pacientes continuam abrindo
+- [ ] Alterou sem internet e religou: a alteração aparece no site uma vez só
+- [ ] **Configurações → Sincronização**: nada aguardando envio e nenhum conflito
+
+O roteiro completo de aceite (com conflito forçado e o que cada passo prova)
+está em [`desktop/README.md`](../desktop/README.md#roteiro-de-teste-real-aceite).
 
 ---
 
@@ -203,7 +237,11 @@ Detalhes técnicos ficam em [`desktop/README.md`](../desktop/README.md).
 
 | Sintoma | O que fazer |
 |---|---|
-| Windows bloqueia o instalador | *Mais informações → Executar assim mesmo* |
+| Windows bloqueia o instalador | sem assinatura: *Mais informações → Executar assim mesmo*; assinado e novo: o aviso diminui conforme a reputação se forma |
+| Aviso “O servidor local não reconheceu esta janela” | feche e abra o Ortus; se voltar, envie o log (menu **Ajuda → Abrir pasta de dados → logs**) |
+| Conflitos “Recusada: modo de consulta” | regularize em **Assinatura** e use **Tentar enviar de novo** |
+| Build para em “verificação de segredos” | um `.env` ou o valor de um segredo foi parar no pacote: o relatório diz a variável e o arquivo |
+| Build para em “A assinatura digital foi pedida” | falta o segredo listado; para um teste, `ORTUS_ASSINATURA=nenhuma` |
 | macOS diz que o app "não pode ser aberto" | botão direito → Abrir, ou `xattr -dr com.apple.quarantine /Applications/Ortus.app` |
 | Tela "Entre para sincronizar" e não sai | conecte a internet e entre novamente |
 | WhatsApp não abre o QR | aba WhatsApp → **Desconectar** → conectar de novo |

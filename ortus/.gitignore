@@ -49,6 +49,8 @@ next-env.d.ts
 
 # desktop (Electron)
 /desktop/config.json
+# segredos da assinatura do instalador (desktop/README.md)
+/electron-builder.env
 /dist-desktop/
 /build/chromium/
 /services/whatsapp/node_modules/

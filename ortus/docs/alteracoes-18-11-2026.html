@@ -1,0 +1,897 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<meta name="color-scheme" content="light dark">
+<meta name="description" content="O que mudou no Ortus em 18/11/2026: o que ficou pronto, como foi provado e o que ainda depende dos donos.">
+<title>Ortus · tl;dr de 18/11</title>
+<link rel="icon" href="data:,">
+<style>
+:root{
+  --bg:#fafafa;
+  --surface:#ffffff;
+  --subtle:#f4f4f4;
+  --text:#171717;
+  --text-2:#6b6b6b;
+  --border:#e5e5e5;
+  --border-strong:#d4d4d4;
+  --ok:#15803d;
+  --warn:#b45309;
+  --warn-line:#fcd34d;
+  --code-bg:#f1f1f1;
+  --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+  --sans:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans",sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#0a0a0a;
+    --surface:#151515;
+    --subtle:#1d1d1d;
+    --text:#f5f5f5;
+    --text-2:#a3a3a3;
+    --border:#262626;
+    --border-strong:#3a3a3a;
+    --ok:#4ade80;
+    --warn:#fbbf24;
+    --warn-line:#92400e;
+    --code-bg:#232323;
+    color-scheme:dark;
+  }
+}
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.6 var(--sans);-webkit-font-smoothing:antialiased}
+.wrap{max-width:760px;margin:0 auto;padding:40px 16px 56px}
+h1{font-size:clamp(1.55rem,5.4vw,2.1rem);line-height:1.2;letter-spacing:-.02em;font-weight:700;margin:0 0 10px;text-wrap:balance}
+h2{font-size:1.25rem;line-height:1.3;letter-spacing:-.01em;font-weight:650;margin:0 0 12px;scroll-margin-top:16px}
+h3{font-size:1.05rem;line-height:1.35;font-weight:650;margin:0}
+p{margin:0 0 12px}
+p,li{text-wrap:pretty}
+b,strong{font-weight:650}
+a{color:inherit;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:2px;text-decoration-color:var(--text-2);overflow-wrap:anywhere}
+a:hover{text-decoration-color:currentColor}
+:focus-visible{outline:2px solid var(--text);outline-offset:2px}
+code{font-family:var(--mono);font-size:.86em;background:var(--code-bg);padding:.08em .34em;border-radius:4px;overflow-wrap:anywhere}
+pre{margin:8px 0 0;padding:10px 12px;background:var(--code-bg);border-radius:8px;font:13px/1.5 var(--mono);white-space:pre-wrap;overflow-wrap:anywhere}
+pre code{background:none;padding:0;font-size:inherit}
+[hidden]{display:none!important}
+section{margin-top:44px}
+
+/* Cabeçalho */
+.sub{color:var(--text-2);font-size:1.05rem;margin:0 0 12px;max-width:62ch}
+.meta{font-size:.875rem;color:var(--text-2);margin:0}
+.meta code{font-size:.82rem}
+.atalhos{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:18px;font-size:.875rem}
+.atalhos a{color:var(--text-2);text-decoration:none;border-bottom:1px solid var(--border-strong)}
+.atalhos a:hover{color:var(--text);border-color:currentColor}
+
+/* tl;dr */
+.tldr{margin-top:28px;border:1px solid var(--border-strong);border-radius:14px;background:var(--surface);padding:18px 20px 6px}
+.tldr-cab{display:flex;align-items:center;flex-wrap:wrap;gap:6px 12px;margin-bottom:14px}
+.tldr-cab h2{margin:0;font:700 .95rem/1.4 var(--mono);letter-spacing:.02em;padding:2px 9px;border-radius:6px;background:var(--text);color:var(--bg)}
+.tldr-cab span{font-size:.875rem;color:var(--text-2)}
+.tldr ul{list-style:none;margin:0;padding:0}
+.tldr li{position:relative;padding:0 0 13px 22px}
+.tldr li::before{content:"";position:absolute;left:3px;top:.58em;width:9px;height:9px;border-radius:50%;background:var(--text-2)}
+.tldr li.ok::before{background:var(--ok)}
+.tldr li.warn::before{background:var(--warn)}
+
+/* Números */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.stat{border:1px solid var(--border);border-radius:12px;background:var(--surface);padding:14px}
+.stat .v{display:block;font-size:1.6rem;line-height:1.15;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.stat .v.ok{color:var(--ok)}
+.stat .l{display:block;font-size:.875rem;color:var(--text-2);margin-top:4px}
+.stat .s{display:block;font-size:.8rem;color:var(--text-2);margin-top:6px}
+.mini{margin:26px 0 2px}
+.nota{font-size:.875rem;color:var(--text-2);margin:4px 0 0}
+.testes{list-style:none;margin:10px 0 0;padding:0;display:grid;grid-template-columns:1fr;column-gap:28px}
+.testes li{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:8px 0;border-bottom:1px solid var(--border);font-size:.95rem}
+.testes .r{flex:none;white-space:nowrap;font-weight:650;font-variant-numeric:tabular-nums;color:var(--ok)}
+@media (min-width:640px){.testes{grid-template-columns:1fr 1fr}}
+.quadro{margin-top:18px;padding:14px 16px 2px;border:1px dashed var(--border-strong);border-radius:12px;font-size:.95rem}
+
+/* Temas */
+.temas-cab{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px 16px;margin-bottom:8px}
+.temas-cab h2{margin:0}
+.intro{color:var(--text-2);font-size:.95rem}
+.btn{font:inherit;font-size:.875rem;font-weight:600;color:var(--text);background:var(--surface);border:1px solid var(--border-strong);border-radius:999px;padding:7px 14px;min-height:36px;cursor:pointer}
+.btn:hover{background:var(--subtle)}
+details.tema{border:1px solid var(--border);border-radius:12px;background:var(--surface);margin-top:10px}
+details.tema>summary{display:block;position:relative;list-style:none;cursor:pointer;padding:14px 46px 14px 52px;border-radius:12px}
+details.tema>summary::-webkit-details-marker{display:none}
+details.tema>summary::marker{content:""}
+details.tema>summary:focus-visible{outline-offset:-2px}
+details.tema>summary:hover h3{text-decoration:underline;text-decoration-color:var(--border-strong);text-underline-offset:3px}
+.s-n{position:absolute;left:16px;top:15px;width:24px;height:24px;border-radius:50%;border:1px solid var(--border-strong);color:var(--text-2);font-size:.8rem;font-weight:600;line-height:22px;text-align:center;font-variant-numeric:tabular-nums}
+.s-d{display:block;color:var(--text-2);font-size:.925rem;margin-top:2px}
+.s-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.tag{display:inline-flex;align-items:center;gap:6px;font-size:.75rem;font-weight:600;line-height:1.5;color:var(--text-2);border:1px solid var(--border-strong);border-radius:999px;padding:1px 9px}
+.chev{position:absolute;right:20px;top:50%;width:9px;height:9px;margin-top:-7px;border-right:2px solid var(--text-2);border-bottom:2px solid var(--text-2);transform:rotate(45deg);transition:transform .15s ease}
+details[open]>summary .chev{transform:rotate(-135deg);margin-top:-2px}
+.dot{display:inline-block;flex:none;width:8px;height:8px;border-radius:50%;background:var(--text-2)}
+.tag .dot{width:6px;height:6px}
+.dot.ok{background:var(--ok)}
+.dot.warn{background:var(--warn)}
+.corpo{padding:0 16px 16px 52px}
+.corpo h4{display:flex;align-items:center;gap:8px;font-size:.95rem;font-weight:650;margin:20px 0 8px}
+.corpo>h4:first-child{margin-top:4px}
+.corpo ul,.corpo ol{margin:0;padding-left:20px}
+.corpo li{margin:0 0 8px}
+.corpo li::marker{color:var(--text-2)}
+.corpo p{margin:0 0 10px}
+.grupo{font-size:.875rem;font-weight:650;color:var(--text-2);margin:14px 0 6px!important}
+.corpo>.grupo:first-of-type{margin-top:0!important}
+.np{font-size:.925rem;color:var(--text-2)}
+.np b{color:var(--text)}
+.dep{margin-top:20px;border-left:3px solid var(--warn-line);padding-left:14px}
+.dep h4{margin-top:0!important}
+.dep p{font-size:.925rem;color:var(--text-2);margin-top:6px}
+.fonte{font-size:.8125rem;color:var(--text-2);margin:18px 0 0!important;padding-top:10px;border-top:1px solid var(--border)}
+.telas{margin:0;padding:0}
+.telas dt{font-weight:650;margin-top:10px}
+.telas dd{margin:2px 0 0}
+.planos{width:100%;border-collapse:collapse;font-size:.925rem;margin:0 0 12px}
+.planos th,.planos td{text-align:left;vertical-align:top;padding:8px 10px 8px 0;border-bottom:1px solid var(--border)}
+.planos th:last-child,.planos td:last-child{padding-right:0}
+.planos thead th{font-size:.8125rem;font-weight:600;color:var(--text-2)}
+.planos tbody th{font-weight:650}
+.planos small{display:block;font-weight:400;font-size:.8125rem;color:var(--text-2)}
+@media (max-width:520px){.corpo{padding-left:16px}}
+
+/* Depende de vocês */
+.checklist{list-style:none;margin:0;padding:0}
+.checklist li{position:relative;margin-top:8px;padding:12px 14px 12px 46px;border:1px solid var(--border);border-radius:12px;background:var(--surface)}
+.checklist li::before{content:"";position:absolute;left:15px;top:15px;width:18px;height:18px;border:2px solid var(--warn);border-radius:5px}
+.checklist b{display:block}
+
+/* Decisões */
+.decisoes{list-style:none;margin:0;padding:0;border-top:1px solid var(--border)}
+.decisoes li{padding:12px 0;border-bottom:1px solid var(--border)}
+.decisoes b{display:block}
+
+/* Demo */
+.passos{list-style:none;counter-reset:p;margin:16px 0 0;padding:0}
+.passos li{counter-increment:p;position:relative;padding:2px 0 14px 42px;min-height:30px}
+.passos li::before{content:counter(p);position:absolute;left:0;top:0;width:28px;height:28px;border-radius:50%;background:var(--text);color:var(--bg);font-size:.875rem;font-weight:700;line-height:28px;text-align:center}
+.contas{list-style:none;margin:10px 0 0;padding:0;border:1px solid var(--border);border-radius:12px;background:var(--surface)}
+.contas li{display:block;padding:10px 14px;border-top:1px solid var(--border)}
+.contas li:first-child{border-top:0}
+.contas code{display:block;background:none;padding:0;font-size:.875rem}
+.contas span{display:block;color:var(--text-2);font-size:.9rem}
+@media (min-width:560px){
+  .contas li{display:flex;justify-content:space-between;align-items:baseline;gap:14px}
+  .contas code,.contas span{display:inline}
+}
+.demo-nota{font-size:.925rem;color:var(--text-2);margin-top:12px}
+
+/* Rodapé */
+footer{margin-top:56px;padding-top:16px;border-top:1px solid var(--border);font-size:.875rem;color:var(--text-2)}
+footer p{margin:0 0 8px}
+footer .hash{font-size:.78rem}
+
+@media (max-width:520px){
+  .wrap{padding-top:28px}
+  .tldr{padding:16px 16px 4px}
+}
+@media (prefers-reduced-motion:reduce){.chev{transition:none}}
+@media print{.btn,.atalhos{display:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>Ortus — o que mudou em 18/11/2026</h1>
+  <p class="sub">A preparação para o lançamento numa página: o que ficou pronto, como foi provado e o que ainda depende de vocês.</p>
+  <p class="meta">Branch <code>preparacao-lancamento</code> · commit <code>5da963b</code> · em revisão no <a href="https://github.com/JulianoFVS/Dev/pull/35">PR #35 em JulianoFVS/Dev</a></p>
+  <nav class="atalhos" aria-label="Nesta página">
+    <a href="#tldr">tl;dr</a>
+    <a href="#numeros">Números do dia</a>
+    <a href="#temas">Detalhes por tema</a>
+    <a href="#depende">Depende de vocês</a>
+    <a href="#decisoes">Decisões</a>
+    <a href="#demo">Testar a demo</a>
+  </nav>
+</header>
+
+<section class="tldr" id="tldr" aria-labelledby="tldr-t">
+  <div class="tldr-cab"><h2 id="tldr-t">tl;dr</h2><span>se for ler só uma coisa, leia isto</span></div>
+  <ul>
+    <li class="ok"><b>A venda sozinha está pronta.</b> A clínica escolhe o plano, paga pelo Mercado Pago (Pix ou cartão) e a conta nasce sozinha, com um e-mail para criar a senha.</li>
+    <li class="ok"><b>Mais seguro e melhor no celular.</b> Brechas entre clínicas e redes foram fechadas. Fotos e documentos de pacientes só abrem com login. Cada tela foi repensada para o telefone.</li>
+    <li class="ok"><b>Tudo foi testado, e passou.</b> Os testes rodaram num ambiente que imita o banco, o e-mail e o pagamento. Só na segurança, 257 de 257. Nada foi conferido ainda no sistema de verdade.</li>
+    <li class="warn"><b>Falta a parte de vocês.</b> Criar as contas (Mercado Pago, Resend e o servidor), pôr as chaves no servidor e aplicar as mudanças no banco de dados de verdade.</li>
+    <li class="warn"><b>A limpeza do banco parou antes do banco de verdade.</b> Nada foi apagado. Ela só roda depois do sim de vocês.</li>
+    <li><b>Dá para experimentar agora:</b> <a href="https://ortus.trinityforce.duckdns.org">ortus.trinityforce.duckdns.org</a>. É uma demo com serviços de mentira: nada sai de lá.</li>
+  </ul>
+</section>
+
+<section id="numeros" aria-labelledby="numeros-t">
+  <h2 id="numeros-t">Números do dia</h2>
+  <div class="stats">
+    <div class="stat"><span class="v">306</span><span class="l">arquivos no commit</span><span class="s">91 novos · 57 removidos · 158 alterados</span></div>
+    <div class="stat"><span class="v">+33.248</span><span class="l">linhas adicionadas</span></div>
+    <div class="stat"><span class="v">−9.170</span><span class="l">linhas removidas</span></div>
+    <div class="stat"><span class="v ok">257/257</span><span class="l">verificações de segurança</span></div>
+  </div>
+
+  <h3 class="mini">Testes da última rodada</h3>
+  <p class="nota">Banco de teste refeito do zero, com todas as migrations.</p>
+  <ul class="testes">
+    <li><span>Suíte de segurança (<code>npm test</code>)</span><span class="r">257 de 257</span></li>
+    <li><span>Assinatura de ponta a ponta</span><span class="r">77 de 77</span></li>
+    <li><span>E-mail de ponta a ponta</span><span class="r">30 de 30</span></li>
+    <li><span>“Esqueci a senha” de ponta a ponta</span><span class="r">10 de 10</span></li>
+    <li><span>Páginas (cada rota abre)</span><span class="r">67 de 67</span></li>
+    <li><span>Vigia e saúde</span><span class="r">58 de 58</span></li>
+    <li><span>Serviço do WhatsApp (com dublês)</span><span class="r">51 de 51</span></li>
+    <li><span>Aplicativo desktop</span><span class="r">todas passaram</span></li>
+    <li><span>Typecheck (<code>tsc --noEmit</code>)</span><span class="r">0 erros</span></li>
+    <li><span>Build de produção</span><span class="r">ok, 49 páginas</span></li>
+  </ul>
+  <p class="nota">As baterias do WhatsApp e do vigia supõem dados que outros testes deixam no banco. Num banco recém-criado, falham por isso. Com as pré-condições recriadas, passaram inteiras.</p>
+
+  <div class="quadro">
+    <p><b>Onde os testes rodaram.</b> Num Postgres de teste com as 43 migrations do repositório mais as novas, dados inventados e um servidor que imita o Supabase. A RLS é a de verdade (o mesmo SQL). O esquema-base foi reconstruído a partir de <code>desktop/lib/esquema.cjs</code>, porque as tabelas originais foram criadas pelo painel e não estão em migration.</p>
+    <p><b>Ainda não verificado.</b> Nada em produção: não havia <code>.env.local</code> e nenhuma credencial foi usada. Nenhuma chamada ao Mercado Pago, à Resend ou à Cloudflare de verdade. Também ficaram de fora o aplicativo Electron aberto, o instalador e o WhatsApp/Chromium reais.</p>
+  </div>
+</section>
+
+<section id="temas" aria-labelledby="temas-t">
+  <div class="temas-cab">
+    <h2 id="temas-t">Quer ler mais?</h2>
+    <button type="button" class="btn" id="alternar" hidden>Abrir tudo</button>
+  </div>
+  <p class="intro">Os 19 itens do relatório, agrupados em 11 temas, do mais importante para o menos. Cada tema diz o que mudou, como foi provado e, quando for o caso, o que depende de vocês.</p>
+
+  <!-- 1 -->
+  <details class="tema" id="tema-assinatura">
+    <summary>
+      <span class="s-n" aria-hidden="true">1</span>
+      <h3>Assinatura e pagamento</h3>
+      <span class="s-d">A clínica assina e paga sozinha. A conta nasce quando o pagamento é aprovado.</span>
+      <span class="s-tags"><span class="tag"><span class="dot warn" aria-hidden="true"></span>depende de vocês</span></span>
+      <span class="chev" aria-hidden="true"></span>
+    </summary>
+    <div class="corpo">
+      <h4>O que mudou</h4>
+      <ul>
+        <li><b>Mercado Pago (Checkout Pro)</b>, atrás de uma interface em <code>lib/pagamentos/</code>. A pessoa paga na página do Mercado Pago, por Pix ou cartão. O Ortus não recebe nem guarda número de cartão nem CVV. O pagamento falso de <code>app/checkout</code> saiu.</li>
+        <li><b>Preço no servidor.</b> Catálogo <code>planos_saas</code>: Básico R$&nbsp;97, Profissional R$&nbsp;197, Clínica R$&nbsp;297. O valor que vem do navegador é ignorado. O banco confere valor e moeda de cada pagamento. Sem o provedor configurado, a página não oferece “Assinar” e mostra o contato do suporte.</li>
+        <li><b>Webhook assinado</b> (<code>/api/pagamentos/webhook</code>). Confere a assinatura (HMAC), relê o pagamento na API do Mercado Pago e só então aplica, numa transação. Aviso sem assinatura válida recebe 401.</li>
+        <li><b>A conta nasce sozinha.</b> Pagamento aprovado → login com senha aleatória que ninguém vê → rede com cobrança automática, clínica matriz, administrador, vínculo e a 1ª fatura paga, numa transação → e-mail com o link para confirmar o e-mail e criar a senha. A página de retorno e a rotina diária também consultam o provedor, então a conta nasce mesmo se o webhook se perder.</li>
+        <li><b>Estados à vista:</b> recusado (com o motivo em português), pendente, pago, estornado e contestado. Aparecem na página de retorno, na tela Assinatura e no painel.</li>
+        <li><b>Mensalidade.</b> A rotina diária (<code>/api/assinaturas/processar</code>, protegida por <code>CRON_SECRET</code>) gera a fatura 5 dias antes do vencimento, uma por competência. Também confere com o provedor as cobranças abertas, termina contas que pararam no meio e manda os e-mails de cobrança sem repetir. Fatura manual do painel conta como a do mês.</li>
+        <li><b>Régua de atraso</b>, ajustável numa função. Vence no dia D. De D+1 a D+7, a rede fica “em atraso”, com faixa de aviso e e-mail. A partir de D+8, entra em <b>modo de consulta</b>: todo mundo entra e lê prontuário, agenda e financeiro, mas nada é gravado. O banco recusa com 402, inclusive o que o servidor grava. <b>Nada é apagado.</b> Pagou, volta na hora.</li>
+        <li>Estorno e contestação voltam a contar como dívida a partir da data do evento. O dono pode dar prazo extra (até 60 dias), cancelar e reativar. Clínica em modo de consulta não recebe lembrete automático.</li>
+        <li><b>Convive com a cobrança manual.</b> Rede que já existia começa sem cobrança automática. Ligar a cobrança automática (ou reativar) com fatura antiga em aberto faz a dívida contar a partir daquele dia, sem bloquear na hora.</li>
+        <li><b>Tela Assinatura</b>, no menu do administrador da matriz: plano, valor, próxima cobrança, situação, quanto do plano está em uso e faturas com o botão Pagar.</li>
+        <li><b>Painel SaaS, para os donos.</b> Abas Redes, Assinaturas, Relatos e Operação. Em cada rede, a aba Assinatura mostra plano, valor, estado, próxima cobrança, desde quando está em atraso, prazo extra, a compra de origem, os pagamentos e os e-mails de cobrança (enviado, ou o motivo de não ter saído). Fatura estornada ou contestada conta como em aberto e vencida nos totais e filtros.</li>
+        <li><b>Ações do painel:</b> ligar ou desligar a cobrança automática, dar prazo extra, cancelar (com motivo) e reativar, dar um pagamento por conferido (com anotação), reenviar o link de acesso, refazer a criação de conta de uma compra paga, conferir uma cobrança no provedor, lançar ou editar fatura e marcá-la como paga, cancelada, estornada ou contestada. Todas exigem dono da plataforma, conferido no banco, e ficam no <code>audit_log</code> com o autor.</li>
+        <li><b>Pagamentos a conferir.</b> O sistema nunca devolve dinheiro sozinho. Pagamento que não pode ser aplicado com segurança vai para a lista “a conferir”, com o motivo: <code>duplicado</code>, <code>email_em_uso</code>, <code>valor_divergente</code>, <code>contestacao_atualizada</code>, <code>estorno_parcial</code>, <code>pagamento_de_teste</code>, <code>sem_alvo</code> ou <code>fatura_cancelada</code>. O que fazer em cada caso está em <code>docs/OPERACAO.md</code> (9.1).</li>
+      </ul>
+
+      <h4>Revisão independente do pagamento</h4>
+      <p>Não achou caminho para ganhar conta sem pagamento aprovado, pagar menos ou quitar o alvo errado. O que achou foi corrigido. Alguns exemplos:</p>
+      <ul>
+        <li>Quem sabia o e-mail de um comprador tomava a compra. Agora cada envio é uma compra nova. Ao pagar uma, as outras do mesmo e-mail se encerram. Se outra também for paga, vai para conferência.</li>
+        <li>Pix antigo pago depois de trocar de plano era cobrado sem criar conta. Agora o pagamento é atendido, e por 10 dias a rotina e a página de retorno conferem as compras encerradas.</li>
+        <li>A conta ficava presa depois do 1º clique no link, sem a senha. Agora o link novo vale enquanto a senha não foi escolhida.</li>
+        <li>Link de pagamento antigo era reaproveitado depois de corrigir o valor da fatura. Agora o link guarda o valor: se o valor mudou, a cobrança é nova.</li>
+        <li>Contestação revertida depois de a clínica pagar de novo cobrava em dobro, sem alerta. Agora vai para conferência como “duplicado”.</li>
+        <li>A próxima cobrança e a geração mensal foram refeitas e testadas com datas simuladas.</li>
+        <li>Credencial de teste em produção trava a venda, e pagamento de teste vai para conferência. <code>MERCADOPAGO_ACEITAR_TESTE=1</code> só em homologação.</li>
+        <li>Administrador de filial via e pagava a assinatura. Agora só o administrador da matriz.</li>
+      </ul>
+
+      <h4><span class="dot ok" aria-hidden="true"></span>Como foi provado</h4>
+      <ul>
+        <li><b>Assinatura de ponta a ponta (<code>e2e-assinatura.mjs</code>): 77 de 77</b>, contra o app e um Mercado Pago falso que imita a API e o webhook assinado. Cobre, entre outros: valor manipulado ignorado, aviso sem assinatura ou com assinatura errada recusado, aprovação cria a conta completa, aviso repetido três vezes não duplica nada, link do e-mail entra uma vez só, 9 dias de atraso levam ao modo de consulta, pagamento reabre, estorno volta a dívida, webhook perdido resolvido pela página de retorno e compra abandonada expira.</li>
+        <li><b>Suíte do banco</b>, grupos “Assinatura e cobrança” e “Painel SaaS: assinaturas”: régua, modo de consulta, pagamento divergente, duplicado, estorno, contestação, geração mensal com datas simuladas e quem pode chamar cada função. Quem não é dono não executa nenhuma função do painel. Prazo extra limitado a 60 dias. Conferir pagamento exige anotação.</li>
+        <li><b>No navegador:</b> compra recusada → Pix aprovado → “Pagamento confirmado” → link do e-mail → senha criada → painel da clínica nova → Assinatura com o plano e a fatura paga.</li>
+      </ul>
+      <p class="np"><b>Ainda não provado:</b> nenhuma chamada ao Mercado Pago de verdade. O formato da assinatura do webhook e o sentido dos detalhes de contestação foram conferidos pela documentação e pedem um teste com a conta de teste.</p>
+
+      <div class="dep">
+        <h4><span class="dot warn" aria-hidden="true"></span>Depende de vocês</h4>
+        <ol>
+          <li>Conta no Mercado Pago (pessoa jurídica), aplicação de Checkout Pro e credenciais de teste e de produção (<code>MERCADOPAGO_ACCESS_TOKEN</code>).</li>
+          <li>Webhook em Suas integrações &gt; Webhooks: URL <code>&lt;NEXT_PUBLIC_APP_URL&gt;/api/pagamentos/webhook</code>, evento “Pagamentos”. A assinatura secreta vai em <code>MERCADOPAGO_WEBHOOK_SECRET</code>.</li>
+          <li>Um teste completo com as credenciais de teste (cartão aprovado e recusado, Pix, estorno), num servidor de homologação com <code>MERCADOPAGO_ACEITAR_TESTE=1</code>, antes de virar para produção.</li>
+          <li>Confirmar preços, régua e o texto dos Termos sobre cobrança e cancelamento (veja “Decisões para vocês”).</li>
+        </ol>
+      </div>
+      <p class="fonte">No relatório: itens 5 e 9. Apoio: <code>docs/OPERACAO.md</code>, seção 9.</p>
+    </div>
+  </details>
+
+  <!-- 2 -->
+  <details class="tema" id="tema-limites">
+    <summary>
+      <span class="s-n" aria-hidden="true">2</span>
+      <h3>Limites dos planos</h3>
+      <span class="s-d">Cada plano tem um teto de profissionais e de unidades. Quem já está na equipe nunca sai por causa disso.</span>
+      <span class="s-tags"><span class="tag">decisão de vocês</span></span>
+      <span class="chev" aria-hidden="true"></span>
+    </summary>
+    <div class="corpo">
+      <h4>O que mudou</h4>
+      <table class="planos">
+        <thead><tr><th scope="col">Plano</th><th scope="col">Profissionais</th><th scope="col">Unidades</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Básico<small>R$&nbsp;97</small></th><td>1</td><td>1</td></tr>
+          <tr><th scope="row">Profissional<small>R$&nbsp;197</small></th><td>até 3</td><td>1</td></tr>
+          <tr><th scope="row">Clínica<small>R$&nbsp;297</small></th><td>sem limite</td><td>várias</td></tr>
+          <tr><th scope="row">Combinados à mão<small>essencial, rede, enterprise; e rede sem plano</small></th><td>sem limite</td><td>sem limite</td></tr>
+        </tbody>
+      </table>
+      <ul>
+        <li>Conta toda pessoa vinculada a alguma unidade da rede, própria ou convidada, uma vez só. O dono da plataforma não ocupa vaga. Tirar alguém da equipe libera a vaga.</li>
+        <li>O banco confere ao vincular (cadastro de funcionário, aceite de convite, painel), ao criar convite e ao criar unidade. A resposta traz a frase do plano, como “O plano Básico permite 1 profissional.”</li>
+        <li>O cadastro de funcionário confere o limite antes de criar o login.</li>
+        <li>Equipe e Assinatura mostram o uso, como “2 de 3 profissionais”.</li>
+        <li>Ninguém é removido quando a rede passa para um plano menor. Só não entra mais ninguém.</li>
+        <li>Os números ficam em <code>planos_saas</code> (<code>limite_profissionais</code> e <code>limite_unidades</code>; NULL = sem limite). Para liberar uma rede, o dono muda o plano dela no painel.</li>
+      </ul>
+
+      <h4><span class="dot ok" aria-hidden="true"></span>Como foi provado</h4>
+      <ul>
+        <li>Na bateria de assinatura de ponta a ponta (77 de 77), que cobre compra, conta, limites do plano, régua, pagamento e estorno.</li>
+      </ul>
+
+      <div class="dep">
+        <h4><span class="dot warn" aria-hidden="true"></span>Depende de vocês</h4>
+        <ol>
+          <li>Confirmar os limites. A decisão foi de vocês e já está aplicada.</li>
+          <li>Antes da migration, conferir no painel o plano de cada rede que já existe. Rede marcada à mão como Básico ou Profissional passa a ter limite (quem já está continua). As outras (“essencial”, o padrão) seguem sem limite.</li>
+        </ol>
+        <p>“Financeiro completo”, “Anamnese personalizada” e “Gestão avançada” continuam só texto da vitrine.</p>
+      </div>
+      <p class="fonte">No relatório: item 5 e “Decisões para vocês”. Apoio: <code>docs/OPERACAO.md</code>, 9.4.</p>
+    </div>
+  </details>
+
+  <!-- 3 -->
+  <details class="tema" id="tema-seguranca">
+    <summary>
+      <span class="s-n" aria-hidden="true">3</span>
+      <h3>Segurança</h3>
+      <span class="s-d">Brechas fechadas entre clínicas, redes e visitantes. Cada correção tem teste.</span>
+      <span class="s-tags"><span class="tag"><span class="dot warn" aria-hidden="true"></span>depende de vocês</span></span>
+      <span class="chev" aria-hidden="true"></span>
+    </summary>
+    <div class="corpo">
+      <h4>O que mudou</h4>
+      <p class="grupo">Contas e papéis</p>
+      <ul>
+        <li><code>/api/criar-usuario</code> criava conta de administrador <b>sem login</b>. A rota saiu. Criar funcionário exige administrador da clínica (<code>/api/admin/criar-usuario</code>).</li>
+        <li>Convidado de outra rede virava administrador na clínica que convidou. As regras de administrador agora exigem vínculo próprio (<code>20261121</code>).</li>
+        <li>Conta criada por um administrador com o e-mail de outra pessoa aceitava convite de outra rede e lia os pacientes dela. O aceite exige o link do e-mail do convite, com a chave guardada só como resumo (<code>20261125</code>).</li>
+        <li>Administrador de filial se vinculava à matriz e podia apagar o dono. Agora administrador da rede é administrador da matriz, e a matriz nunca fica sem administrador (<code>20261127</code>).</li>
+        <li>Membro comum mudava a própria comissão para 100% e a marcava como paga. Comissão e pagamento de lançamento agora são só do administrador.</li>
+      </ul>
+      <p class="grupo">Dados de outras clínicas e redes</p>
+      <ul>
+        <li>Dava para gerar link de anamnese para paciente de outra clínica, informando a clínica no pedido. Agora a clínica vem do paciente, lida no banco. Paciente alheio e inexistente respondem igual (404).</li>
+        <li>Link de anamnese valia por anos, servia a clínica alheia ou era reaberto. Agora: clínica do paciente, até 72 h, sem prorrogar nem reabrir.</li>
+        <li>Cartão de prótese ia para o quadro de outra clínica, e agendamento aceitava paciente de outra rede. Gatilhos no banco: a clínica da linha manda, e o paciente tem que ser da mesma clínica ou rede.</li>
+        <li>Funções auxiliares respondiam sobre clínicas e redes alheias, e a situação financeira de qualquer cliente era legível. Agora só respondem a quem é da rede, e <code>rede_status_financeiro</code> fica só no servidor.</li>
+        <li>Notas internas e dados comerciais da rede eram legíveis pela equipe. A leitura de <code>redes</code> ficou limitada a id e nome; o resto, só pelo painel.</li>
+        <li>Funções novas eram executáveis por visitante. Cada migration nova termina com <code>REVOKE EXECUTE … FROM PUBLIC, anon</code>.</li>
+      </ul>
+      <p class="grupo">Navegador e rotas</p>
+      <ul>
+        <li><b>Open redirect</b> no login e na seleção de unidade: um link preparado mandava a pessoa para outro site depois da senha. <code>lib/destinoInterno.ts</code> recusa contrabarra e caractere de controle e confere a origem depois de resolver o endereço.</li>
+        <li><b>XSS na ficha:</b> documento com HTML embutido rodava na origem do Ortus. O visualizador só aceita arquivo do próprio paciente ou imagem conferida pelos bytes, e o banco também recusa (<code>20261128</code>).</li>
+        <li>Rotas sem login aceitavam pedido de outro site, e o limite por IP era contornável. Agora só aceitam JSON da própria origem, com limite atômico no banco (<code>limites_publicos</code>), IPv6 contado pelo bloco /64 e teto geral por hora.</li>
+        <li>Rotas públicas devolviam o texto cru do erro do banco. Agora devolvem frase fixa, e o erro fica em <code>falhas_servidor</code>.</li>
+        <li>API sem cookie recebia a página de login com status 200. Agora recebe 401 em JSON.</li>
+        <li><code>/privacidade</code> e <code>/anamnese/&lt;token&gt;</code> mandavam o visitante para o login. Agora há uma fonte única de rotas públicas para o proxy e a casca (<code>lib/rotasPublicas.ts</code>).</li>
+        <li><code>/dashboard</code> entrava em laço de redirecionamento para quem não tinha o módulo “Inteligência”. Agora ele é o destino do “acesso negado” e não exige módulo.</li>
+        <li>O logout deixava caches no navegador. <code>lib/sessao.ts</code> limpa cookies, perfil, clínica, cache de clínicas, <code>sessionStorage</code> e as chaves por clínica.</li>
+      </ul>
+      <p class="grupo">Compra, arquivos e mensagens</p>
+      <ul>
+        <li><b>Compra tomada por quem só sabia o e-mail:</b> a pessoa pegava o identificador, trocava nome e telefone e cancelava a compra da vítima. Agora cada envio é uma compra nova. Nada é reaproveitado, alterado ou cancelado por requisição anônima.</li>
+        <li>Dava para enviar direto ao bucket <code>arquivos_ortus</code>, sem cota nem tipo. As policies de INSERT e UPDATE saíram. O envio é só por link assinado do servidor.</li>
+        <li>Apagar o registro de uma mensagem enviada fazia o lembrete sair de novo. <code>whatsapp_envios</code> não aceita mais DELETE pela API.</li>
+        <li>Gravações feitas pelo servidor escapavam do modo de consulta (link de anamnese, WhatsApp, envio de arquivo). Agora conferem <code>clinica_aceita_escrita</code> antes de gravar.</li>
+        <li>O servidor local do aplicativo desktop atendia qualquer página da máquina. Agora exige prova de origem por execução (tema 8).</li>
+      </ul>
+      <p class="grupo">Documentação</p>
+      <ul>
+        <li><code>docs/SEGURANCA.md</code> atualizado: checklist de deploy com as migrations até <code>20261128_ajustes_finais</code>, na ordem; suíte com 257 verificações; variáveis de ambiente; as proteções novas das rotas sem login e da compra; e a nota de que nenhuma credencial de servidor vai no desktop.</li>
+      </ul>
+
+      <h4>Ficaram abertos, com motivo</h4>
+      <ul>
+        <li>A permissão de módulo continua só na tela para várias tabelas (despesas, evoluções, documentos). A RLS libera qualquer pessoa da clínica. Levar o módulo para a RLS é mudança de produto: quem pode apagar evolução?</li>
+        <li><code>equipe_convidar</code> ainda diz se um e-mail tem conta (com limite de 30 convites por dia por pessoa). A página de compra também diz (409), agora contando no limite por endereço. Um captcha depende de conta externa (Cloudflare Turnstile).</li>
+      </ul>
+
+      <h4><span class="dot ok" aria-hidden="true"></span>Como foi provado</h4>
+      <ul>
+        <li><b>Suíte de segurança: 257 de 257</b> (<code>npm test</code>, banco local com todas as migrations). Roda em transação e desfaz tudo. Cria duas redes, matriz e filial, administradores, membros comuns, um convidado e um dono da plataforma.</li>
+        <li><b>Controle negativo.</b> Os grupos novos rodaram também num banco sem a migration de correção. Sem a <code>20261125</code>, 15 falhas, exatamente nos buracos. Sem a <code>20261127</code>, 7.</li>
+        <li>Os cenários da revisão do pagamento foram reproduzidos antes da correção, com scripts guardados, e rodados de novo depois.</li>
+        <li>Ponta a ponta contra o app: veja os temas 1 e 5 e os números do dia.</li>
+      </ul>
+      <p class="np"><b>Não rodou:</b> <code>npm run db:audit</code>, que precisa do <code>DATABASE_URL</code> do projeto real.</p>
+
+      <div class="dep">
+        <h4><span class="dot warn" aria-hidden="true"></span>Depende de vocês</h4>
+        <ol>
+          <li>Aplicar as migrations <code>20261120</code> a <code>20261128</code>, na ordem do checklist de <code>docs/SEGURANCA.md</code>. Atenção: a <code>20261114_seguranca_total</code> não pode ser reexecutada depois da <code>20261120</code>.</li>
+          <li>Rodar <code>npm test</code> e <code>npm run db:audit</code> no projeto real, com o <code>.env.local</code>. E <code>ORTUS_SUPER_ADMINS="email1,email2" npm test</code> para conferir os donos.</li>
+          <li>No painel do Supabase Auth, conferir: cadastro público (signup) desligado, troca de e-mail com confirmação, política de senha e duração da sessão. Nada disso está no código.</li>
+        </ol>
+      </div>
+      <p class="fonte">No relatório: itens 2 e 19. Apoio: <code>docs/SEGURANCA.md</code>.</p>
+    </div>
+  </details>
+
+  <!-- 4 -->
+  <details class="tema" id="tema-dados">
+    <summary>
+      <span class="s-n" aria-hidden="true">4</span>
+      <h3>Dados sensíveis e arquivos</h3>
+      <span class="s-d">Foto, documento e HOF do paciente só abrem com login e vínculo. Logs sem dado clínico.</span>
+      <span class="s-tags"><span class="tag"><span class="dot warn" aria-hidden="true"></span>depende de vocês</span></span>
+      <span class="chev" aria-hidden="true"></span>
+    </summary>
+    <div class="corpo">
+      <h4>O que mudou</h4>
+      <ul>
+        <li><b>Foto de paciente privada.</b> Saiu do bucket público. Abre só por <code>/api/armazenamento/arquivo</code> (login + vínculo com a clínica), sem cache público. A tela mostra a foto como objectURL (<code>hooks/useFotoPaciente.ts</code>). Trocar ou apagar a foto tira a cópia pública antiga.</li>
+        <li><b>Documento e HOF não são públicos.</b> Abrem pela mesma rota, com login e vínculo. O visualizador só aceita arquivo do próprio paciente ou imagem conferida pelos bytes, e só PDF vai para iframe. O banco também recusa o registro (<code>20261128</code>). A impressão do HOF escapa tudo.</li>
+        <li><b>Mídia pública mínima.</b> <code>/api/public/midia</code> serve só a logo da clínica e a foto do profissional, no formato exato. O que não está registrado responde 404.</li>
+        <li><b>Logs sem dado clínico nem segredo.</b> <code>lib/registro.ts</code> limpa JWT, chaves, e-mail, CPF, CNPJ, telefone, UUID e URL de banco antes de gravar. As rotas devolvem frase fixa.</li>
+        <li><b>Cache por clínica, limpo no logout</b> (<code>lib/sessao.ts</code>). Os modelos de anamnese não passam mais de um usuário para o próximo pelo navegador.</li>
+        <li><b>Envio de arquivos.</b> O fluxo preparar → PUT → confirmar foi mantido. Os bytes mágicos são conferidos. Arquivo não confirmado responde 404. O backup de configuração só aceita <code>.json</code> de até 2&nbsp;MB; a importação confere cada seção e parou de apagar as taxas do Financeiro.</li>
+        <li><b>Cotas mantidas:</b> por clínica, 500&nbsp;MB por pessoa em 24 h, 2&nbsp;GB em 30 dias e teto de 9,5&nbsp;GB da conta. Há um único medidor no Perfil, e a linha “conta inteira” só aparece para os donos.</li>
+        <li>O envio direto ao bucket, sem passar pela cota, foi fechado no banco (<code>20261125</code>).</li>
+        <li><b>Mídia órfã.</b> <code>scripts/limpar-orfaos.mjs</code> (<code>npm run db:orfaos</code>) acha arquivo de paciente que não existe mais e arquivo da pasta <code>legado/</code> sem referência. Por padrão só simula; apaga com <code>--apagar --projeto=&lt;ref&gt;</code>.</li>
+        <li><b>Fotos antigas.</b> <code>scripts/mover-fotos-pacientes.mjs</code> move as fotos que ainda estão no bucket público. Por padrão só simula.</li>
+        <li><b>Custo do R2:</b> no painel da Cloudflare, em R2 (uso e operações por bucket). A fatura fica em Manage Account &gt; Billing. Os limites gratuitos estão em <code>docs/OPERACAO.md</code> (7).</li>
+      </ul>
+
+      <h4><span class="dot ok" aria-hidden="true"></span>Como foi provado</h4>
+      <ul>
+        <li><b>Ponta a ponta contra o app, com dois usuários de redes diferentes: 65 de 65.</b> Antes: 24 de 39, porque a foto ia para o bucket público e abria sem login. A pessoa de outra rede recebe 403 na foto e no documento; o visitante, 404. Documento com HTML gravado por um membro comum não vira iframe.</li>
+        <li>Suíte do banco com os casos de documento.</li>
+        <li>A limpeza de órfãos foi provada no banco de teste, com fotos de HOF e o jpeg antigo do levantamento.</li>
+      </ul>
+
+      <div class="dep">
+        <h4><span class="dot warn" aria-hidden="true"></span>Depende de vocês</h4>
+        <ol>
+          <li>Depois do deploy: <code>node scripts/mover-fotos-pacientes.mjs</code> (só lista) e depois o mesmo com <code>--aplicar</code>.</li>
+          <li>Rodar <code>npm run db:orfaos</code>.</li>
+          <li>Remover os originais do Storage do Supabase só depois que o R2 estiver configurado em produção, o <code>scripts/migrar-r2.mjs</code> tiver copiado tudo e a contagem bater (<code>npm run db:orfaos</code> sem nada a apagar e <code>node scripts/inspect-storage.mjs</code> igual dos dois lados). Até lá, o Storage do Supabase é a reserva de leitura.</li>
+        </ol>
+      </div>
+      <p class="fonte">No relatório: itens 7 e 15. Apoio: <code>docs/SEGURANCA.md</code>, seção 4.</p>
+    </div>
+  </details>
+
+  <!-- 5 -->
+  <details class="tema" id="tema-email">
+    <summary>
+      <span class="s-n" aria-hidden="true">5</span>
+      <h3>E-mail, acesso e senha</h3>
+      <span class="s-d">Os e-mails saem de verdade pela Resend. Confirmação de conta e “Esqueci a senha” são novos.</span>
+      <span class="s-tags"><span class="tag"><span class="dot warn" aria-hidden="true"></span>depende de vocês</span></span>
+      <span class="chev" aria-hidden="true"></span>
+    </summary>
+    <div class="corpo">
+      <h4>O que mudou</h4>
+      <ul>
+        <li><b>Um só jeito de mandar e-mail</b> (<code>lib/email.ts</code>). Quando a Resend recusa ou falta configuração, ele devolve o motivo exato. Nenhuma tela diz “enviado” sem o aceite da Resend. As páginas sem login dizem que o e-mail não saiu sem expor a configuração; o motivo fica no painel do dono.</li>
+        <li><b>Modelos em texto e HTML</b> (<code>lib/emailModelos.ts</code>): convite, convite aceito, acesso criado, pagamento confirmado com o link de criar a senha, nova senha, fatura do mês, fatura em atraso, modo de consulta, liberado de novo, relato e alerta da operação. Senha nunca vai por e-mail.</li>
+        <li><b>Confirmação de conta.</b> Quem assina recebe o link que confirma o e-mail e leva à criação da senha (<code>/acesso</code> → <code>/primeiro-acesso</code>). O link só é gasto ao tocar “Continuar”, então o programa de e-mail que abre links não o queima. Num navegador com outra conta aberta, sai dela antes.</li>
+        <li><b>“Esqueci a senha”</b>, que não existia. Link na tela de login, página <code>/recuperar-senha</code>, limite por endereço e por e-mail, resposta igual exista ou não a conta, e <code>/redefinir-senha</code>.</li>
+        <li><b>Convites saem de verdade</b> (<code>/api/convites/notificar</code>), e também o aviso de convite aceito. O destinatário sai do banco, nunca do corpo da requisição. O aceite exige o link do e-mail.</li>
+        <li><b>Lembrete de 24 h</b> por e-mail, com o “responder para” da clínica, uma vez por agendamento.</li>
+        <li><b>Links só com <code>NEXT_PUBLIC_APP_URL</code>.</b> O cabeçalho da requisição podia ser forjado e levar o link para outro site.</li>
+        <li><b>Primeiro acesso</b> no padrão visual, sem spinner bloqueante nem erro do Supabase em inglês.</li>
+      </ul>
+
+      <h4><span class="dot ok" aria-hidden="true"></span>Como foi provado</h4>
+      <ul>
+        <li>Contra uma Resend falsa, os e-mails saíram com assunto, texto e link certos. Com a Resend recusando, a resposta trouxe <code>enviado: false</code> com o motivo, e nada foi marcado como enviado.</li>
+        <li><b>E-mail de ponta a ponta</b> (convites, anamnese entre clínicas): <b>30 de 30</b>.</li>
+        <li><b>“Esqueci a senha” de ponta a ponta: 10 de 10.</b> No navegador: pedido, e-mail, link, aviso de senhas diferentes, senha nova salva e entrada no painel.</li>
+      </ul>
+
+      <div class="dep">
+        <h4><span class="dot warn" aria-hidden="true"></span>Depende de vocês</h4>
+        <ol>
+          <li>Conta na Resend, domínio verificado (SPF/DKIM no DNS) e as variáveis <code>RESEND_API_KEY</code> e <code>RESEND_FROM_EMAIL</code>.</li>
+          <li>SMTP do Supabase apontado para a Resend, em Authentication &gt; Emails &gt; SMTP Settings: ligar “Custom SMTP” com host <code>smtp.resend.com</code>, porta <code>465</code>, usuário <code>resend</code>, uma chave de API da Resend no campo da senha e remetente do domínio verificado.</li>
+          <li>Depois de configurar, mandar um e-mail de teste de cada tipo. Os textos só foram vistos no ambiente local.</li>
+        </ol>
+      </div>
+      <p class="fonte">No relatório: itens 3, 4 e 19.</p>
+    </div>
+  </details>
+
+  <!-- 6 -->
+  <details class="tema" id="tema-telas">
+    <summary>
+      <span class="s-n" aria-hidden="true">6</span>
+      <h3>Telas e responsividade</h3>
+      <span class="s-d">Cada tela foi repensada para o celular, não encolhida. Muitos erros de tela corrigidos no caminho.</span>
+      <span class="s-tags"><span class="tag">decisão de vocês</span></span>
+      <span class="chev" aria-hidden="true"></span>
+    </summary>
+    <div class="corpo">
+      <h4>O que mudou</h4>
+      <p><b>A regra.</b> No celular não se encolhe a tela do computador: decide-se como a pessoa usa aquela área no telefone. Alvo de toque de 40 a 44&nbsp;px. Título sem repetir a clínica. A barra flutuante tem espaço reservado. No computador, muda o mínimo.</p>
+      <dl class="telas">
+        <dt>Agenda</dt><dd>Abre em Dia, com a faixa da semana. Filtros atrás de um botão, com um ponto quando estão ativos. Semana, Lista e Profissionais viram listas. Lembretes começam fechados. Modal em uma coluna, com Salvar visível.</dd>
+        <dt>Ficha do paciente</dt><dd>Rola inteira, com as abas presas no topo e o nome inteiro no cabeçalho. Débitos, tratamentos, histórico, anamneses e documentos em cartões. O odontograma rola de lado na própria caixa. 8 modais com cabeçalho e ações fixos.</dd>
+        <dt>Dashboard e Pacientes</dt><dd>Dias do calendário de 40&nbsp;px. Busca presa no topo, filtros em folha, linha inteira tocável. Novo paciente em tela cheia, com rodapé fixo.</dd>
+        <dt>Financeiro</dt><dd>Seletor de mês junto dos indicadores. Concluídos, Em aberto e Cancelados em abas. Cartões com a descrição inteira e a ação escrita.</dd>
+        <dt>Relatórios</dt><dd>As tabelas viram itens de duas linhas.</dd>
+        <dt>Laboratório (próteses)</dt><dd>Cada etapa vira um bloco sem rolagem própria. O cartão tem Avançar e Mudar status.</dd>
+        <dt>Tarefas, Equipe e Tratamentos</dt><dd>Abas de status com lista única. A tabela vira lista tocável.</dd>
+        <dt>Configurações, Mensagens e Perfil</dt><dd>A página rola inteira, abas de 44&nbsp;px, listas viram cartões, popups com miolo rolável e rodapé fixo.</dd>
+        <dt>Assinatura, checkout, acesso e senha</dt><dd>Uma coluna, o Pagar alcançável e botões de 44&nbsp;px.</dd>
+        <dt>WhatsApp e Ajuda</dt><dd>Abas de 40&nbsp;px, conversa em tela cheia com Voltar, QR na largura, artigo com índice em gaveta.</dd>
+        <dt>Painel SaaS</dt><dd>Já era responsivo. As abas novas seguem o mesmo padrão.</dd>
+        <dt>Componentes compartilhados</dt><dd>Modal, menus, seletor, calendário, chave, etiquetas, alerta e botões de contato, corrigidos na fonte.</dd>
+      </dl>
+
+      <h4>Erros corrigidos no caminho</h4>
+      <p>Veio de uma revisão independente das telas mexidas e das novas. Cada achado passou por uma verificação separada antes de virar correção. Entre outros:</p>
+      <ul>
+        <li><b>Agenda:</b> lia a tabela inteira, e o PostgREST corta em 1000 linhas; agora lê a janela do mês em blocos. O modal fechava como se tivesse salvo quando o banco recusava. Convidado era tratado como administrador. “Editar” abria com “Selecione…”. As setas do Mês pulavam fevereiro a partir do dia 29.</li>
+        <li><b>Assinatura no celular:</b> as faturas e o botão Pagar ficavam com altura zero justamente em atraso e em modo de consulta.</li>
+        <li><b>Configurações:</b> editar uma clínica apagava e-mail, telefone, CNPJ, logo, horários e fuso. A tela lia e gravava a primeira clínica por ordem alfabética, e não a ativa. Gravação recusada aparecia como salva.</li>
+        <li><b>Financeiro:</b> Concluir, Cancelar e Restaurar diziam sucesso com o banco recusando. Editar um lançamento apagava a taxa. “Receber” agora registra data, forma, taxa e comissão, como a ficha. “Hoje” e o mês padrão ficavam em UTC depois das 21 h.</li>
+        <li><b>Relatórios:</b> a data aparecia um dia antes.</li>
+        <li><b>Laboratório:</b> sem as provas marcáveis no popup, nenhum pedido novo chegava a Entregue.</li>
+        <li><b>Tarefas, Tratamentos, Laboratório e busca:</b> falha de rede zerava a lista e o cache. Tarefa do dia ficava “atrasada” depois das 21 h. A busca só via os 500 primeiros pacientes e só achava telefone com a máscara exata.</li>
+        <li><b>Painel SaaS:</b> as abas Assinaturas e Relatos não escondiam o bloco de Redes a partir de 768&nbsp;px. Faturas estornadas e contestadas sumiam dos totais e filtros. Cancelar ou conferir com erro apagava o texto digitado.</li>
+      </ul>
+
+      <h4><span class="dot ok" aria-hidden="true"></span>Como foi provado</h4>
+      <ul>
+        <li>Cada correção foi provada com o código real rodando em teste (antes falhava, depois passa) e com typecheck.</li>
+        <li><b>Páginas: 67 de 67.</b> Cada rota abre; as públicas sem login, as protegidas pedem login.</li>
+        <li><b>No navegador</b>, no ambiente local, em computador e celular de 360 a 375&nbsp;px. Assinatura a 360×640, em atraso e em modo de consulta: o Pagar aparece sem rolar, acima da barra de navegação. Painel SaaS a 1024&nbsp;px: o bloco de Redes some na aba Assinaturas e volta na aba Redes. Editar clínica abre com os dados reais. O popup novo “Registrar recebimento” cabe no celular.</li>
+        <li><b>Varredura de 18 telas a 375&nbsp;px:</b> nenhuma com rolagem lateral. Em rodadas anteriores também foram percorridas a ficha do paciente, o popup de agendamento, Equipe, WhatsApp e checkout.</li>
+        <li>A conferência no navegador foi feita pelo texto da página, por medidas com script e por capturas pontuais.</li>
+      </ul>
+
+      <div class="dep">
+        <h4><span class="dot warn" aria-hidden="true"></span>Ficou para vocês decidirem</h4>
+        <ul>
+          <li>Agenda, visão Profissionais: quem não é administrador consegue marcar na coluna de outro profissional.</li>
+          <li>“Todas as clínicas”: quem tem clínica própria e é convidado em outra continua visto como administrador nessa outra.</li>
+          <li>Laboratório: “Todas as clínicas” pede uma clínica, em vez de juntar quadros com etapas diferentes.</li>
+        </ul>
+      </div>
+      <p class="fonte">No relatório: itens 4 e 19.</p>
+    </div>
+  </details>
+
+  <!-- 7 -->
+  <details class="tema" id="tema-operacao">
+    <summary>
+      <span class="s-n" aria-hidden="true">7</span>
+      <h3>Operação: saúde, vigia, rotinas, backup e Oracle</h3>
+      <span class="s-d">O sistema avisa quando algo para. Lembretes consertados. Guia para rodar na Oracle de graça.</span>
+      <span class="s-tags"><span class="tag"><span class="dot warn" aria-hidden="true"></span>depende de vocês</span></span>
+      <span class="chev" aria-hidden="true"></span>
+    </summary>
+    <div class="corpo">
+      <h4>O que mudou</h4>
+      <ul>
+        <li><b>Registro de falhas.</b> <code>lib/registro.ts</code> grava falha de servidor em <code>falhas_servidor</code>, sem dado clínico nem segredo, e limpa sozinho depois de 30 dias.</li>
+        <li><b><code>GET /api/saude</code></b>, pública, para monitor externo: banco, configuração e se o vigia está em dia. Responde 503 quando o banco não responde ou o vigia sumiu.</li>
+        <li><b><code>GET /api/saude/vigia</code></b>, chamada pelo agendador com <code>CRON_SECRET</code>: batimento de cada rotina, falhas da última hora, gateway do WhatsApp em modo servidor e Resend. Abre e fecha alerta sem duplicar, e manda e-mail aos donos quando algo para e quando volta.</li>
+        <li><b>Aba Operação</b> no Painel SaaS: alertas abertos, último sinal de cada rotina e falhas das últimas 24 horas.</li>
+        <li><b>Lembretes</b> (<code>/api/lembretes/processar</code>). Responde 401 sem o segredo. Acha os agendamentos de amanhã no fuso de cada clínica; antes usava o cliente anônimo no servidor e nunca achava nada. Reserva cada envio antes de mandar e desfaz a reserva se o provedor recusar. Resend ou Twilio ausentes não contam como “enviado”. A resposta não traz nome, telefone nem e-mail. Pula clínica em modo de consulta e paciente de outra rede.</li>
+        <li><b>Backup, como ele é de verdade</b>, descrito em <code>docs/OPERACAO.md</code>. O backup interno copia algumas tabelas no próprio banco. A restauração apaga e regrava <b>todas as clínicas</b>, por isso pede que se digite RESTAURAR e só aparece para os donos. O documento também explica o backup do Supabase por plano e por quanto tempo um dado apagado continua nas cópias.</li>
+        <li><b>Variáveis de ambiente.</b> <code>.env.example</code>, <code>README.md</code> e <code>docs/SEGURANCA.md</code> trazem a lista real. Saíram <code>R2_BUCKET</code> e <code>R2_ENDPOINT</code>, que o código não lia. Entraram <code>NEXT_PUBLIC_APP_URL</code>, <code>RESEND_FROM_EMAIL</code>, <code>ALERTA_EMAILS</code>, <code>MERCADOPAGO_*</code>, <code>NEXT_PUBLIC_SUPORTE_WHATSAPP_*</code> e <code>WHATSAPP_GATEWAY_*</code>. No <code>package.json</code>, saiu <code>landing:assets</code> e entrou <code>db:orfaos</code>.</li>
+        <li><b>Oracle Cloud (gratuito).</b> <code>docs/ORACLE.md</code> (passo a passo) e <code>deploy/oracle/</code>: unidades systemd do site, do gateway do WhatsApp e dos três timers (lembretes às 13:00 UTC, assinaturas às 09:00 UTC, vigia a cada 15 min), <code>nginx-ortus.conf</code> e <code>Caddyfile</code> com HTTPS, modelo do arquivo de ambiente fora do git e <code>chamar-rotina.sh</code>, que lê o segredo do arquivo sem pô-lo na linha de comando.</li>
+        <li>No servidor, o gateway escuta só na própria máquina. O Nginx fecha <code>/api/local/*</code> e repassa <code>X-Real-IP</code>, o endereço que o limite das rotas públicas usa. O log de acesso não grava a busca. O guia inclui a saída da Vercel e os avisos reais do plano gratuito.</li>
+      </ul>
+
+      <h4><span class="dot ok" aria-hidden="true"></span>Como foi provado</h4>
+      <ul>
+        <li><b>Vigia e saúde: 58 de 58</b> contra o app: saúde sem dado sensível, vigia com 401 sem segredo, alerta que abre uma vez, e-mail que sai uma vez, volta ao normal, Resend fora, falhas acima do limite e limpeza por idade.</li>
+        <li><b>Lembretes:</b> 401 sem o segredo. A simulação achou os agendamentos de amanhã. Um agendamento gerou um e-mail, e a segunda chamada respondeu “já enviado”. Com a Resend recusando, o erro foi registrado e nada foi marcado. Clínica em modo de consulta saiu da fila e voltou depois do pagamento (<code>e2e-assinatura.mjs</code>).</li>
+        <li><code>chamar-rotina.sh</code>: 17 casos contra um servidor de mentira.</li>
+        <li>Typecheck com 0 erros e build de produção ok, com 49 páginas.</li>
+      </ul>
+      <p class="np"><b>Ainda não provado:</b> nenhum comando rodou numa VM da Oracle. As unidades e as configurações do Nginx e do Caddy não passaram por <code>systemctl</code>, <code>nginx -t</code> nem <code>caddy validate</code>. A lista do que conferir está na seção 18 do guia.</p>
+
+      <div class="dep">
+        <h4><span class="dot warn" aria-hidden="true"></span>Depende de vocês</h4>
+        <ol>
+          <li>Ambiente do servidor com as variáveis da tabela do <code>README.md</code>, o <code>CRON_SECRET</code> e o agendador (timers da Oracle ou crons da Vercel).</li>
+          <li>Oracle: conta, VM, domínio e DNS (guia em <code>docs/ORACLE.md</code>), ou manter a Vercel com os crons.</li>
+          <li>Conferir no painel do Supabase o plano e os backups (Database &gt; Backups).</li>
+          <li>Cadastrar um monitor externo apontado para <code>/api/saude</code>.</li>
+          <li>No servidor do site, instalar com <code>npm ci --ignore-scripts --include=dev</code>. O <code>better-sqlite3</code> só serve ao desktop; o motivo está em <code>docs/ORACLE.md</code>.</li>
+        </ol>
+      </div>
+      <p class="fonte">No relatório: itens 12, 14 e 17.</p>
+    </div>
+  </details>
+
+  <!-- 8 -->
+  <details class="tema" id="tema-desktop">
+    <summary>
+      <span class="s-n" aria-hidden="true">8</span>
+      <h3>Desktop e WhatsApp</h3>
+      <span class="s-d">Instalador sem segredo, servidor local só para a janela do Ortus e WhatsApp mais duro de quebrar.</span>
+      <span class="s-tags"><span class="tag"><span class="dot warn" aria-hidden="true"></span>depende de vocês</span></span>
+      <span class="chev" aria-hidden="true"></span>
+    </summary>
+    <div class="corpo">
+      <h4>O que mudou</h4>
+      <p class="grupo">Aplicativo desktop</p>
+      <ul>
+        <li><b>Assinatura do instalador.</b> Com certificado, o build assina sozinho: electron-builder e workflow do GitHub lendo segredos, nunca no repositório. <code>desktop/README.md</code> explica as duas opções reais, certificado OV/EV ou Azure Trusted Signing, com custo e efeito no SmartScreen. Build de lançamento com assinatura pedida e segredo faltando <b>falha</b>.</li>
+        <li><b>O instalador não leva segredo.</b> O build roda com ambiente saneado. Um verificador (<code>scripts/desktop-verificar.mjs</code>, no build e no afterPack) procura <code>.env*</code> e os valores das chaves do servidor (service role, <code>DATABASE_URL</code>, <code>CRON_SECRET</code>, Resend, Twilio, R2, Mercado Pago, <code>WHATSAPP_GATEWAY_SECRET</code>) dentro do que vai para o instalador, e derruba o build.</li>
+        <li><b>Rede.</b> Next local, API de dados e gateway escutam só na própria máquina, em portas sorteadas. Um segredo de 32 bytes fica em userData, fora do .exe, e não chega à página.</li>
+        <li><b>Prova de origem.</b> O servidor local só atende a janela do Ortus: <code>Host</code> local na porta certa, <code>Origin</code> próprio e um segredo por execução que o processo principal injeta nas requisições da janela. Site aberto no navegador da máquina, DNS rebinding e outro programa recebem 403.</li>
+        <li><b>Sincronização.</b> Usa o JWT do usuário, nunca service role, e respeita as policies. Conflito aparece em Configurações &gt; Sincronização, e nenhum lado é apagado sozinho. Recusa definitiva do banco (402 do modo de consulta, 403 de permissão) fica marcada com o motivo, sem laço de reenvio, e pode ser reenviada depois de pagar.</li>
+      </ul>
+      <p class="grupo">WhatsApp</p>
+      <ul>
+        <li><b>Modo explícito.</b> <code>NEXT_PUBLIC_WHATSAPP_ATIVO=0</code> esconde a aba, e os botões passam a abrir o wa.me. No site, sem <code>WHATSAPP_GATEWAY_URL</code> e <code>WHATSAPP_GATEWAY_SECRET</code>, a tela diz que o WhatsApp não está disponível neste endereço, em vez de tentar conectar. Em produção, o site só sobe o serviço sozinho com <code>WHATSAPP_GATEWAY_AUTOSTART=1</code>; o padrão é a unidade systemd da Oracle ou o aplicativo desktop.</li>
+        <li><b>Uma clínica, um lugar.</b> Aplicativo e servidor na mesma clínica mandariam as mensagens automáticas em dobro. Isso está documentado.</li>
+        <li><b>Gateway só na própria máquina.</b> Outro endereço exige <code>WHATSAPP_GATEWAY_EXPOSE=1</code> e grava aviso. <code>GET /saude</code> responde sem conversa.</li>
+        <li><b>Sem erro cru do Node na tela.</b> Frases fixas; o detalhe vai para <code>falhas_servidor</code>.</li>
+        <li><b>Endurecimento (gravidade alta).</b> Id de clínica não canônico (<code>012</code>, <code>0012</code>…) abria um Chromium novo a cada pedido e permitia parear uma sessão-fantasma. Agora só aceita id canônico, a clínica tem que existir e há teto de sessões. Ler conversas e enviar exige o módulo da tela. Conectar e desconectar exige administrador da clínica, não convidado.</li>
+        <li><b>Modo de consulta também no servidor</b> (<code>lib/escritaLiberada.ts</code>). Enviar pelo WhatsApp, gerar link de anamnese e subir ou apagar arquivo respondem 402 em modo de consulta; ler, baixar e conversar continuam. As mensagens automáticas param para a clínica em modo de consulta. Falha ao conferir não libera em silêncio (503). Esses 402 acendem a faixa de assinatura na hora.</li>
+      </ul>
+
+      <h4><span class="dot ok" aria-hidden="true"></span>Como foi provado</h4>
+      <ul>
+        <li><b>Desktop:</b> <code>npm run desktop:teste</code> (79/79, 71/71, 50/50). Rotas por HTTP real, com e sem a prova. Sincronização de ponta a ponta contra o banco local: 23 de 23. Verificador testado com segredos de mentira. Schema do electron-builder validado.</li>
+        <li><b>WhatsApp:</b> serviço real com dublês do whatsapp-web.js, 51 de 51 (a versão anterior falhava em 33). Rota real contra o app com cinco perfis, 43 de 43. Caminho do aplicativo, 21 de 21.</li>
+      </ul>
+      <p class="np"><b>Ainda não provado:</b> o Electron aberto e o instalador gerado (o roteiro de aceite está em <code>desktop/README.md</code>), e o WhatsApp e o Chromium de verdade, com leitura de um QR real.</p>
+
+      <div class="dep">
+        <h4><span class="dot warn" aria-hidden="true"></span>Depende de vocês</h4>
+        <ol>
+          <li>Certificado de assinatura de código, ou conta no Azure Trusted Signing.</li>
+          <li>Gerar o instalador no Windows ou no CI.</li>
+        </ol>
+      </div>
+      <p class="fonte">No relatório: itens 13 e 16. Apoio: <code>docs/SEGURANCA.md</code>, seção 8.</p>
+    </div>
+  </details>
+
+  <!-- 9 -->
+  <details class="tema" id="tema-limpeza">
+    <summary>
+      <span class="s-n" aria-hidden="true">9</span>
+      <h3>Código morto e limpeza do banco</h3>
+      <span class="s-d">Saiu o que nada usava. A limpeza do banco de verdade parou antes de apagar, esperando vocês.</span>
+      <span class="s-tags"><span class="tag"><span class="dot warn" aria-hidden="true"></span>depende de vocês</span></span>
+      <span class="chev" aria-hidden="true"></span>
+    </summary>
+    <div class="corpo">
+      <h4>O que mudou</h4>
+      <p class="grupo">Código morto</p>
+      <ul>
+        <li><b>Como a falta de uso foi provada:</b> grafo de imports a partir de todas as rotas, do <code>proxy.ts</code> e das configs; “Find all references” do TypeScript em cada export; <code>tsc --noUnusedLocals</code>; e busca textual no repositório inteiro para arquivos estáticos, rotas e scripts.</li>
+        <li><b>Telas que saíram:</b> <code>app/teste-3d/</code> (experimento, público no proxy), <code>app/site/</code> (landing antiga duplicada) e <code>app/inbox/</code> (só redirecionava).</li>
+        <li><b>Rotas que saíram:</b> <code>/api/criar-usuario</code> (criava usuário <b>sem login</b> com nível admin), <code>/api/editar-usuario</code> e <code>/api/comunicacao/status</code>.</li>
+        <li>Componentes e arquivos de <code>lib/</code> sem nenhum import. E o cadastro de profissionais escondido em Configurações (cerca de 190 linhas): nenhum botão abria os modais, e a equipe é gerida em <code>/ajustes/equipe</code>.</li>
+        <li>24 exports sem referência, 60 imports e cerca de 20 funções e constantes locais nunca lidos, e o cache <code>ortus_super_admin</code>, gravado e nunca lido.</li>
+        <li>Scripts que <b>sobrescreviam</b> telas com versões antigas, e scripts avulsos fora do <code>package.json</code> e dos docs. Um deles recriava um super-admin com e-mail fixo.</li>
+        <li>Arquivos públicos sem referência, como <code>public/arcada.glb</code> (3,6&nbsp;MB), o PDF de protótipo e o <code>dev-seed.html</code>, que ficavam servidos em público.</li>
+        <li>A exceção de <code>/mediapipe</code>, <code>.task</code> e <code>.wasm</code> no proxy e no <code>next.config.ts</code>. Não existe MediaPipe no projeto.</li>
+        <li><b>Telas de experimento barradas.</b> Em produção, o <code>proxy.ts</code> responde 404 a qualquer rota que comece com <code>/teste</code>, <code>/experimento</code>, <code>/lab</code>, <code>/playground</code> ou <code>/demo</code>, mesmo que alguém recrie a pasta.</li>
+        <li><b>Ficou de propósito:</b> os rascunhos da LGPD sem botão (exportar meus dados, pedir exclusão, estados de consentimento); funções da ponte do desktop sem chamador, porque o desktop ficou fora desta limpeza; a pasta <code>docs/</code>; e a dependência <code>svg-path-bbox</code>, porque tirá-la exige regravar o <code>package-lock.json</code>.</li>
+      </ul>
+      <p class="grupo">Banco: candidatos que não foram apagados</p>
+      <ul>
+        <li>O código não usa mais: <code>servicos</code>, <code>tipos_procedimentos</code>, <code>anamneses</code>, <code>anexos</code>, <code>prontuarios</code>, <code>audit_logs</code>, <code>centros_custo</code>, <code>profissional_especialidade</code>, a função <code>agendamento_salvar_partes</code> e as colunas <code>grupo_id</code> e <code>parte_*</code> de <code>agendamentos</code>.</li>
+        <li>Tabela só sai com prova no banco, e não houve acesso a ele. Antes de apagar qualquer uma: contar linhas e conferir chaves estrangeiras e gatilhos que apontam para ela.</li>
+      </ul>
+      <p class="grupo">Limpeza do banco</p>
+      <ul>
+        <li><code>scripts/clean-db.mjs</code> foi reescrito (<code>npm run db:clean</code>). <b>Sem parâmetros, só mostra o inventário:</b> o project ref, os donos da plataforma, as contagens (logins, perfis, redes, clínicas, pacientes, agendamentos, prontuário, financeiro, convites, notificações, compras) e os arquivos de cada bucket do R2 e do Storage.</li>
+        <li><b>Para apagar, três travas juntas:</b> <code>--apagar</code>, <code>--projeto=&lt;ref&gt;</code> igual ao do banco e <code>--manter=&lt;e-mails&gt;</code>, e só donos da plataforma podem ficar. Apaga logins, perfis e todas as tabelas de dados. Mantém esquema, migrations e o catálogo de planos. Apaga os arquivos do R2 e do Storage, menos a foto de perfil dos donos. Registra a própria limpeza na auditoria.</li>
+        <li><code>scripts/inventory-db.mjs</code> não rodava e mostrava o e-mail de todos. Foi corrigido e mascarado.</li>
+      </ul>
+
+      <h4><span class="dot ok" aria-hidden="true"></span>Como foi provado</h4>
+      <ul>
+        <li><b>Código morto:</b> depois de cada remoção, <code>tsc --noEmit</code> limpo e grafo sem órfãos.</li>
+        <li><b>Limpeza:</b> numa instância separada do banco de teste, com 6 logins, 4 clínicas, 13 pacientes e arquivos de mentira no R2 e no Storage. O inventário listou tudo. Projeto errado e “manter” quem não é dono foram recusados. A limpeza deixou os 2 donos, 0 clínicas, 0 pacientes, as migrations e os planos, e só a foto de perfil do dono no R2.</li>
+      </ul>
+      <p class="np"><b>Onde parou:</b> sem o <code>.env.local</code>, o inventário do banco de verdade <b>não foi mostrado</b> e <b>nada foi apagado</b>. Até lá, os dados atuais ficam como estão.</p>
+
+      <div class="dep">
+        <h4><span class="dot warn" aria-hidden="true"></span>Depende de vocês</h4>
+        <ol>
+          <li>Ver o inventário, que não apaga nada:
+            <pre><code>npm run db:clean</code></pre>
+          </li>
+          <li>Conferir o backup do Supabase (Database &gt; Backups) e baixar o que quiserem guardar.</li>
+          <li>Só depois da confirmação de vocês, com o ref e os dois e-mails conferidos:
+            <pre><code>npm run db:clean -- --apagar --projeto=&lt;ref&gt; --manter=&lt;e-mail do dono 1&gt;,&lt;e-mail do dono 2&gt;</code></pre>
+          </li>
+          <li>Rodar <code>npm uninstall svg-path-bbox</code> numa máquina com o toolset C++.</li>
+          <li>Decidir o que fazer com a pasta <code>docs/</code> (PDFs, guias de mudanças, mockups HTML). É documentação histórica, não código.</li>
+        </ol>
+      </div>
+      <p class="fonte">No relatório: itens 1 e 8.</p>
+    </div>
+  </details>
+
+  <!-- 10 -->
+  <details class="tema" id="tema-ajuda">
+    <summary>
+      <span class="s-n" aria-hidden="true">10</span>
+      <h3>Ajuda, suporte e relatos</h3>
+      <span class="s-d">Manual reescrito a partir do código, contato com o suporte e uma fila de bugs e sugestões.</span>
+      <span class="s-tags"><span class="tag"><span class="dot warn" aria-hidden="true"></span>depende de vocês</span></span>
+      <span class="chev" aria-hidden="true"></span>
+    </summary>
+    <div class="corpo">
+      <h4>O que mudou</h4>
+      <ul>
+        <li><b>Ajuda.</b> Manual escrito a partir do código de cada tela: 18 assuntos com passos, listas e avisos. Já cobre assinatura (modo de consulta), convite pelo link do e-mail, comissões, Mensagens e o limite de 10&nbsp;MB. A busca acha por título e por conteúdo, sem acento e sem caixa.</li>
+        <li><b>Sem vídeo de exemplo.</b> A lista de tutoriais está vazia, com aviso e atalho para o guia. Não há id de vídeo no código.</li>
+        <li><b>Bugs que o manual descrevia, corrigidos:</b> a comissão de “Débito recebido” nunca era lançada; a de “Tratamento finalizado” duplicava a cada salvamento; o gatilho “Orçamento aprovado” aparecia e não fazia nada; Mensagens exigia um módulo que só o “acesso completo” tinha; salvar configuração sem ser administrador dizia “salvo” e não gravava.</li>
+        <li><b>Contato com o suporte.</b> Cartão na Ajuda com os dois números de WhatsApp do suporte. Com o WhatsApp da clínica conectado, tocar no número abre a conversa “Suporte Ortus” dentro do Ortus. Desconectado, sem serviço, fora do ar ou sem acesso às conversas, a tela diz qual é o caso e mostra os números com botão de copiar. Com o WhatsApp desligado (<code>NEXT_PUBLIC_WHATSAPP_ATIVO=0</code>), mostra os números para chamar pelo celular. Sem as variáveis, diz que o contato não foi configurado; nenhum número é inventado. Não há chat interno.</li>
+        <li><b>Bugs e sugestões.</b> Formulário na Ajuda (tipo, assunto, descrição). Erro mantém o popup aberto; sucesso avisa e fecha. Tabela <code>relatos_suporte</code> com RLS: quem enviou lê o próprio; só os donos leem a fila, mudam o andamento e apagam; ninguém grava direto pela API, só pela rota, com limite por hora. Cada mudança de status vai para a auditoria, sem o texto livre.</li>
+        <li><b>E-mail aos donos</b> pela Resend, com “responder para” de quem relatou. Se a Resend falhar, o relato continua na fila, e a coluna <code>email_erro</code> diz por quê. A fila fica na aba Relatos do Painel SaaS.</li>
+      </ul>
+
+      <h4><span class="dot ok" aria-hidden="true"></span>Como foi provado</h4>
+      <ul>
+        <li><b>Relatos:</b> suíte do banco (grupo “Relatos ao suporte”) e a rota contra o banco local com Resend falsa: aceite, 401, 400, 429 no sexto envio e Resend fora do ar. Typecheck.</li>
+        <li>A Ajuda entrou na varredura de 18 telas a 375&nbsp;px, sem rolagem lateral.</li>
+      </ul>
+
+      <div class="dep">
+        <h4><span class="dot warn" aria-hidden="true"></span>Depende de vocês</h4>
+        <ol>
+          <li>Os dois números do suporte, só dígitos e com DDI, no ambiente do site e no build do aplicativo desktop (<code>NEXT_PUBLIC_SUPORTE_WHATSAPP_1</code> e <code>_2</code>).</li>
+        </ol>
+      </div>
+      <p class="fonte">No relatório: itens 10, 11 e 18.</p>
+    </div>
+  </details>
+
+  <!-- 11 -->
+  <details class="tema" id="tema-lgpd">
+    <summary>
+      <span class="s-n" aria-hidden="true">11</span>
+      <h3>LGPD</h3>
+      <span class="s-d">Só o levantamento: 82 pontos em 18 temas. Nenhum código mudou por causa da LGPD.</span>
+      <span class="s-tags"><span class="tag">decisão de vocês</span></span>
+      <span class="chev" aria-hidden="true"></span>
+    </summary>
+    <div class="corpo">
+      <h4>O que mudou</h4>
+      <ul>
+        <li><code>docs/LGPD-INVENTARIO.md</code>: <b>82 pontos em 18 temas</b>. 7 existem, 49 são parciais, 25 estão ausentes e 1 não é verificável pelo código. Cada ponto traz o que a lei pede, o que o código faz hoje (arquivo e linha) e o que mudar, com esforço estimado.</li>
+        <li>No fim, a atualização de 18/11 com os dados novos desta entrega: compras, pagamentos, limites das rotas públicas, relatos e registros de operação.</li>
+        <li><b>Nenhum código foi mudado por causa da LGPD.</b> Onde a correção de outro tema tocou um ponto da lista, o texto do ponto foi atualizado.</li>
+        <li>É levantamento técnico, não parecer jurídico.</li>
+      </ul>
+      <p class="grupo">Os cinco mais urgentes, segundo o levantamento</p>
+      <ol>
+        <li>Política e Termos prometem o que o sistema não faz: backup duas vezes ao dia, exclusão em 90 dias, “Stripe”, hospedagem nos EUA. E não citam R2, Resend, Twilio, WhatsApp e desktop.</li>
+        <li>Não existe caminho para apagar paciente nem conta.</li>
+        <li>O backup interno e a restauração mexem em todas as clínicas.</li>
+        <li>O desktop guarda banco, sessão e WhatsApp em claro.</li>
+        <li>Quem lê o prontuário não fica registrado de forma útil.</li>
+      </ol>
+      <p>Também entrou na lista: compras não pagas (nome, e-mail, telefone) sem prazo de guarda.</p>
+
+      <h4><span class="dot ok" aria-hidden="true"></span>Como foi provado</h4>
+      <ul>
+        <li>É um levantamento, não um teste. Cada ponto aponta o arquivo e a linha do código.</li>
+      </ul>
+
+      <div class="dep">
+        <h4><span class="dot warn" aria-hidden="true"></span>Ficou para vocês decidirem</h4>
+        <ul>
+          <li>O prazo de guarda das compras não pagas.</li>
+        </ul>
+      </div>
+      <p class="fonte">No relatório: item 6.</p>
+    </div>
+  </details>
+</section>
+
+<section id="depende" aria-labelledby="depende-t">
+  <h2 id="depende-t">O que depende de vocês</h2>
+  <p class="intro">A lista única do relatório, em um lugar só.</p>
+  <ol class="checklist">
+    <li><b>Ambiente do servidor</b> <code>.env.local</code> ou o ambiente do servidor, com as variáveis do <code>README.md</code>: Supabase, <code>NEXT_PUBLIC_APP_URL</code>, <code>CRON_SECRET</code>, Resend, Mercado Pago, suporte, R2 e WhatsApp. Sem ele, nada foi verificado em produção.</li>
+    <li><b>Migrations</b> Aplicar de <code>20261120</code> a <code>20261128</code>, na ordem do checklist de <code>docs/SEGURANCA.md</code>. Depois, <code>npm test</code> e <code>npm run db:audit</code> no projeto real.</li>
+    <li><b>Resend</b> Conta, domínio verificado (SPF/DKIM), chaves e o SMTP do Supabase apontado para a Resend.</li>
+    <li><b>Mercado Pago</b> Conta PJ, Checkout Pro, credenciais, webhook com a assinatura secreta e um teste completo em homologação.</li>
+    <li><b>Suporte</b> Os dois números de WhatsApp.</li>
+    <li><b>Oracle</b> Conta, VM, domínio e DNS (guia em <code>docs/ORACLE.md</code>), ou manter a Vercel com os crons.</li>
+    <li><b>Desktop</b> Certificado de assinatura de código, ou Azure Trusted Signing.</li>
+    <li><b>Depois do deploy</b> <code>mover-fotos-pacientes</code> (lista, depois <code>--aplicar</code>), <code>npm run db:orfaos</code> e, só com o R2 conferido, a remoção dos originais do Supabase.</li>
+    <li><b>Limpeza do banco</b> Rodar <code>npm run db:clean</code> (só inventário), conferir e confirmar. Só então a limpeza com as três travas.</li>
+    <li><b>Monitor externo e backup</b> Um monitor externo em <code>/api/saude</code>, e conferir o backup do Supabase.</li>
+    <li><b>Dependência sem uso</b> <code>npm uninstall svg-path-bbox</code> numa máquina com o toolset C++. No servidor do site, a instalação é <code>npm ci --ignore-scripts --include=dev</code>.</li>
+    <li><b>Supabase Auth</b> Do tema Segurança: conferir no painel o cadastro público desligado, a confirmação na troca de e-mail, a política de senha e a duração da sessão.</li>
+  </ol>
+</section>
+
+<section id="decisoes" aria-labelledby="decisoes-t">
+  <h2 id="decisoes-t">Decisões para vocês</h2>
+  <ul class="decisoes">
+    <li><b>Limites dos planos, já aplicados</b> Antes da migration, confiram no painel o plano de cada rede que já existe. Rede que alguém marcou à mão como Básico ou Profissional passa a ter limite (quem já está continua). As outras (“essencial”, o padrão) seguem sem limite. “Financeiro completo”, “Anamnese personalizada” e “Gestão avançada” continuam só texto da vitrine.</li>
+    <li><b>Régua e preços</b> 7 dias de tolerância e modo de consulta no 8º; prazo extra de até 60 dias. Confirmar também os preços (R$&nbsp;97, R$&nbsp;197 e R$&nbsp;297) e o texto dos Termos sobre cobrança e cancelamento.</li>
+    <li><b>Permissão de módulo na RLS e prazo de guarda das compras não pagas</b> Veja os temas Segurança e LGPD.</li>
+    <li><b>Agenda e “Todas as clínicas”</b> Na visão Profissionais, quem não é administrador consegue marcar na coluna de outro profissional (pode ser o uso da recepção hoje). Em “Todas as clínicas”, quem tem clínica própria e é convidado em outra é tratado como administrador também nessa outra. No Laboratório, “Todas as clínicas” pede uma clínica.</li>
+    <li><b>Modo de consulta</b> A resposta de anamnese que o paciente envia por um link gerado antes do bloqueio é aceita, porque o dado é do paciente. As cores dos quadros do Laboratório só o administrador grava.</li>
+    <li><b>Taxas dos lançamentos (<code>lancamentos_meta</code>)</b> Ficam num JSON único por clínica. As telas agora releem antes de gravar e nunca gravam por cima numa falha de leitura. Mas duas gravações exatamente ao mesmo tempo ainda podem perder uma. A solução de vez é uma migration (gravar por lançamento, ou mesclar no banco), e fica para depois do lançamento.</li>
+    <li><b>Pasta <code>docs/</code></b> PDFs, guias de mudanças e mockups HTML: é documentação histórica, não código. Fica ou sai, a decisão é de vocês.</li>
+  </ul>
+</section>
+
+<section id="demo" aria-labelledby="demo-t">
+  <h2 id="demo-t">Como testar a demo</h2>
+  <p>A demo em <a href="https://ortus.trinityforce.duckdns.org">ortus.trinityforce.duckdns.org</a> é o build de produção do Ortus rodando contra serviços de mentira: um banco local (PGlite) e imitações do Supabase Auth e Storage, do R2, da Resend e do Mercado Pago. Nenhum e-mail, pagamento ou arquivo sai do servidor. Quando a demo reinicia, tudo volta ao estado inicial.</p>
+
+  <h3 class="mini">Do zero, sem conta</h3>
+  <ol class="passos">
+    <li>Abra a demo em <a href="https://ortus.trinityforce.duckdns.org">ortus.trinityforce.duckdns.org</a>.</li>
+    <li>Vá à página de assinatura e assine com um endereço inventado, por exemplo <code>voce@exemplo.test</code>.</li>
+    <li>Na tela de pagamento de mentira, escolha o resultado. Para a conta nascer, aprove o pagamento.</li>
+    <li>Abra a caixa de teste em <a href="https://api.ortus.trinityforce.duckdns.org/caixa">api.ortus.trinityforce.duckdns.org/caixa</a> e digite o mesmo endereço para ver as mensagens dele.</li>
+    <li>Abra o e-mail de pagamento confirmado e siga o link de acesso. Toque em “Continuar” e crie a senha.</li>
+    <li>Você entra no painel da clínica nova. Abra Assinatura para ver o plano e a fatura paga.</li>
+  </ol>
+  <p class="demo-nota">Quer ver mais? Escolha recusar na tela de pagamento para ver o motivo na página de retorno. Ou saia e use “Esqueci a senha” com o mesmo endereço: o e-mail também chega na caixa de teste.</p>
+
+  <h3 class="mini">Contas de exemplo</h3>
+  <p class="nota">Todas inventadas. A senha não aparece aqui: peça a quem cuida da demo. As caixas de e-mail destas contas ficam fechadas na demo.</p>
+  <ul class="contas">
+    <li><code>ana.admin@maissorriso.test</code><span>administradora da clínica</span></li>
+    <li><code>bia.recepcao@maissorriso.test</code><span>recepção, na mesma clínica</span></li>
+    <li><code>caio.admin@bemestar.test</code><span>administrador de outra clínica</span></li>
+    <li><code>dani.dentista@bemestar.test</code><span>dentista</span></li>
+    <li><code>gabriel@ortus.test</code><span>dono da plataforma (super admin)</span></li>
+    <li><code>juliano@ortus.test</code><span>dono da plataforma (super admin)</span></li>
+  </ul>
+  <p class="demo-nota">Os donos da plataforma veem o Painel SaaS, com as abas Redes, Assinaturas, Relatos e Operação.</p>
+</section>
+
+<footer>
+  <p>O relatório completo, item por item, está em <code>ortus/docs/RELATORIO-LANCAMENTO.md</code>. Detalhes de apoio em <code>ortus/docs/SEGURANCA.md</code> e <code>ortus/docs/OPERACAO.md</code> (seção 9).</p>
+  <p>Commit <code>5da963b</code>, “Prepara o Ortus para o lançamento”, na branch <code>preparacao-lancamento</code>. Em revisão no <a href="https://github.com/JulianoFVS/Dev/pull/35">PR #35 em JulianoFVS/Dev</a> (vindo do fork nanpluz/Dev).</p>
+  <p class="hash"><code>5da963b072d3d2f30ac81699853e4aad93816d4b</code></p>
+</footer>
+
+</div>
+<script>
+(function(){
+  var b=document.getElementById('alternar');
+  var ds=[].slice.call(document.querySelectorAll('details.tema'));
+  if(!b||!ds.length)return;
+  function todos(){return ds.every(function(d){return d.open;});}
+  function rotulo(){b.textContent=todos()?'Fechar tudo':'Abrir tudo';}
+  b.addEventListener('click',function(){var abrir=!todos();ds.forEach(function(d){d.open=abrir;});rotulo();});
+  ds.forEach(function(d){d.addEventListener('toggle',rotulo);});
+  b.hidden=false;
+  rotulo();
+})();
+</script>
+</body>
+</html>

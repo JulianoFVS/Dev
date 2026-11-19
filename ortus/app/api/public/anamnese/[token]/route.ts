@@ -3,6 +3,7 @@ import { createSupabaseAdmin } from '@/lib/supabaseAdmin';
 import { hashTokenAnamnese } from '@/lib/anamneseLinks';
 import { CONFIG_KEYS } from '@/lib/configKeys';
 import { MODELOS_PADRAO, type ModeloAnamnese } from '@/lib/anamnese';
+import { ERRO_INTERNO, registrarFalha } from '@/lib/registro';
 
 type RouteParams = { params: Promise<{ token: string }> };
 
@@ -47,24 +48,25 @@ export async function GET(_req: Request, { params }: RouteParams) {
     }
 
     const { link } = result;
-    const modelo = await buscarModelo(admin, link.clinica_id ? Number(link.clinica_id) : null, link.modelo_id);
+    // O modelo vem da clínica do PACIENTE, não da coluna do link (que já foi gravável pela API).
+    const { data: paciente } = await admin
+      .from('pacientes')
+      .select('nome, clinica_id')
+      .eq('id', link.paciente_id)
+      .maybeSingle();
+    const modelo = await buscarModelo(admin, paciente?.clinica_id ? Number(paciente.clinica_id) : null, link.modelo_id);
     if (!modelo) {
       return NextResponse.json({ error: 'Modelo de anamnese não encontrado.' }, { status: 404 });
     }
-
-    const { data: paciente } = await admin
-      .from('pacientes')
-      .select('nome')
-      .eq('id', link.paciente_id)
-      .maybeSingle();
 
     return NextResponse.json({
       paciente_nome: paciente?.nome || 'Paciente',
       modelo: { id: modelo.id, nome: modelo.nome, perguntas: modelo.perguntas },
       expires_at: link.expires_at,
     });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message || 'Erro interno.' }, { status: 500 });
+  } catch (err) {
+    await registrarFalha({ origem: 'api/public/anamnese' }, err);
+    return NextResponse.json({ error: ERRO_INTERNO }, { status: 500 });
   }
 }
 
@@ -88,7 +90,8 @@ export async function POST(req: Request, { params }: RouteParams) {
       return NextResponse.json({ error: 'Respostas longas demais.' }, { status: 413 });
     }
 
-    const modelo = await buscarModelo(admin, link.clinica_id ? Number(link.clinica_id) : null, link.modelo_id);
+    const { data: pacienteDoLink } = await admin.from('pacientes').select('clinica_id').eq('id', link.paciente_id).maybeSingle();
+    const modelo = await buscarModelo(admin, pacienteDoLink?.clinica_id ? Number(pacienteDoLink.clinica_id) : null, link.modelo_id);
     if (!modelo) {
       return NextResponse.json({ error: 'Modelo de anamnese não encontrado.' }, { status: 404 });
     }
@@ -118,11 +121,13 @@ export async function POST(req: Request, { params }: RouteParams) {
 
     if (anamErr) {
       await admin.from('anamnese_links').update({ usado_em: null }).eq('id', link.id);
-      return NextResponse.json({ error: anamErr.message }, { status: 500 });
+      await registrarFalha({ origem: 'api/public/anamnese', extra: { etapa: 'gravar' } }, anamErr);
+      return NextResponse.json({ error: ERRO_INTERNO }, { status: 500 });
     }
 
     return NextResponse.json({ ok: true });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message || 'Erro interno.' }, { status: 500 });
+  } catch (err) {
+    await registrarFalha({ origem: 'api/public/anamnese' }, err);
+    return NextResponse.json({ error: ERRO_INTERNO }, { status: 500 });
   }
 }

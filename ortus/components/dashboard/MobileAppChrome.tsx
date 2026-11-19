@@ -11,6 +11,7 @@ import {
   CircleHelp,
   ClipboardList,
   Compass,
+  CreditCard,
   DollarSign,
   House,
   LayoutDashboard,
@@ -23,6 +24,7 @@ import {
   User,
   Users,
 } from 'lucide-react';
+import FaixaAssinatura from '@/components/assinatura/FaixaAssinatura';
 import BentoClinicSwitcher from '@/components/dashboard/BentoClinicSwitcher';
 import type { DashboardSidebarNavOptions } from '@/components/dashboard/DashboardSidebar';
 import { WHATSAPP_ATIVO } from '@/lib/whatsappCliente';
@@ -65,6 +67,7 @@ export default function MobileAppChrome({
   showEquipe = true,
   showTratamentosBase = true,
   showPainelSaas = false,
+  showAssinatura = false,
   tarefasBadge,
   profilePhotoUrl = null,
   profileName = null,
@@ -105,6 +108,7 @@ export default function MobileAppChrome({
     ...(WHATSAPP_ATIVO ? [{ href: '/whatsapp', label: 'WhatsApp', icon: MessageCircle }] : []),
     { href: '/mensagens', label: 'Mensagens', icon: Mail },
     ...(showPainelSaas ? [{ href: '/super-admin', label: 'Painel SaaS', icon: ShieldAlert }] : []),
+    ...(showAssinatura ? [{ href: '/assinatura', label: 'Assinatura', icon: CreditCard }] : []),
     { href: '/configuracoes', label: 'Configurações', icon: Settings },
     { href: '/ajuda', label: 'Ajuda', icon: CircleHelp },
   ];
@@ -151,7 +155,7 @@ export default function MobileAppChrome({
   return (
     <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       <header className={`${pathname === '/dashboard' ? 'hidden' : 'flex'} shrink-0 items-center gap-3 border-b border-black/5 bg-[#f3f4f1] px-4 pb-2.5 pt-[max(0.75rem,env(safe-area-inset-top))] lg:hidden`}>
-        <Link href="/dashboard" aria-label="Visão geral" className="flex shrink-0 items-center gap-2">
+        <Link href="/dashboard" aria-label="Visão geral" className="flex h-10 shrink-0 items-center gap-2">
           <img src="/landing/ortus-mark.svg" alt="" className="h-6 w-6 shrink-0 brightness-0" />
           <img src="/landing/ortus-wordmark.svg" alt="ortus" className="h-4 w-auto brightness-0" />
         </Link>
@@ -159,7 +163,7 @@ export default function MobileAppChrome({
         <Link
           href="/perfil"
           aria-label={profileName ? `Perfil de ${profileName}` : 'Meu perfil'}
-          className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#c8f053] text-neutral-900"
+          className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#c8f053] text-neutral-900"
         >
           {profilePhotoUrl ? (
             <img src={profilePhotoUrl} alt="" className="h-full w-full object-cover" />
@@ -169,7 +173,11 @@ export default function MobileAppChrome({
         </Link>
       </header>
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto overscroll-contain lg:overflow-y-hidden">
+      {/* Fatura vencida ou modo de consulta: fica fixa acima do conteúdo, não rola com a tela. */}
+      <FaixaAssinatura />
+
+      {/* O respiro no fim é a altura da barra flutuante: o último botão de qualquer tela para acima dela. */}
+      <div className="flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto overscroll-contain pb-[calc(4.5rem+env(safe-area-inset-bottom))] lg:overflow-y-hidden lg:pb-0">
         {children}
       </div>
 

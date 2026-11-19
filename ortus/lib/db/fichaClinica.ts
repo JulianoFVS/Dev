@@ -1,4 +1,3 @@
-import { supabase } from '@/lib/supabase';
 import { dados as tabelas } from '@/lib/local/consulta';
 import { atualizar, listar, modoDados } from '@/lib/local/cliente';
 import type { FichaClinicaJson } from '@/lib/db/types';

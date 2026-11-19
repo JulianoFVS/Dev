@@ -162,6 +162,9 @@ function ehExecutavelChrome(nome) {
       ...(binario ? { PUPPETEER_EXECUTABLE_PATH: binario } : {}),
     };
     delete env.PORT; // evita o server.mjs achar que está em PaaS
+    // Na máquina da clínica o gateway nunca sai do 127.0.0.1, nem que o
+    // ambiente do Windows traga a chave do modo exposto (servidor de VM).
+    delete env.WHATSAPP_GATEWAY_EXPOSE;
 
     filho = spawn(process.execPath, [arquivo], {
       cwd,

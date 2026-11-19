@@ -112,7 +112,8 @@ export default function ConviteEquipeCard({ convite, respondendo, onAceitar, onR
                     ) : null}
                 </div>
 
-                <div className="flex w-full flex-col gap-2 sm:flex-row lg:w-auto lg:shrink-0 lg:flex-col xl:flex-row">
+                {/* Celular: os dois lado a lado, metade cada, com 44px. A decisão fica inteira à vista, sem um botão empurrar o outro para baixo. */}
+                <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:flex-row lg:w-auto lg:shrink-0 lg:flex-col xl:flex-row">
                     <button
                         type="button"
                         onClick={() => onAceitar(convite)}

@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { flushSync } from 'react-dom';
 import { createContext, useCallback, useContext, useMemo, useState } from 'react';
-import { supabase } from '@/lib/supabase';
 import { dados as tabelas } from '@/lib/local/consulta';
 import { ExternalLink, X } from 'lucide-react';
 import Modal from '@/components/ui/Modal';
@@ -177,19 +176,22 @@ export function PatientSlideOverProvider({ children }: { children: React.ReactNo
         zIndex={80}
         maxWidth="lg"
         hideCloseButton
-        panelClassName="flex max-h-[85vh] flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white"
+        className="max-sm:p-0"
+        panelClassName="flex max-h-[85vh] flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white max-sm:max-h-[92dvh] max-sm:rounded-b-none max-sm:rounded-t-2xl max-sm:border-x-0 max-sm:border-b-0"
       >
+        {/* Celular: folha de largura inteira presa embaixo; o nome do paciente quebra a linha em vez de ser cortado. */}
         <div className="flex shrink-0 items-start justify-between gap-3 border-b border-black/5 px-5 py-4 sm:px-6">
           <div className="min-w-0">
-            <h2 className="truncate text-lg font-semibold text-neutral-900">{loading ? 'Ficha' : (patient?.nome || 'Paciente')}</h2>
-            <p className="mt-0.5 truncate text-xs font-medium text-neutral-400">{loading ? 'Carregando…' : (subtitulo || 'Resumo do atendimento')}</p>
+            <h2 className="break-words text-lg font-semibold text-neutral-900 sm:truncate">{loading ? 'Ficha' : (patient?.nome || 'Paciente')}</h2>
+            <p className="mt-0.5 break-words text-xs font-medium text-neutral-400 sm:truncate">{loading ? 'Carregando…' : (subtitulo || 'Resumo do atendimento')}</p>
           </div>
-          <button type="button" onClick={closePatient} className="rounded-full p-2 text-neutral-400 hover:bg-neutral-100" aria-label="Fechar">
+          <button type="button" onClick={closePatient} className="-mr-2 -mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-neutral-400 hover:bg-neutral-100 sm:m-0 sm:h-auto sm:w-auto sm:p-2" aria-label="Fechar">
             <X size={18} />
           </button>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 sm:px-6">
+        {/* Celular: a altura mínima evita que a folha, presa embaixo, salte quando os dados chegam. */}
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4 max-sm:min-h-[50dvh] sm:px-6">
           {loading && (
             <div className="grid grid-cols-2 gap-3">
               {Array.from({ length: 4 }).map((_, i) => (
@@ -211,7 +213,7 @@ export function PatientSlideOverProvider({ children }: { children: React.ReactNo
                 </div>
                 <div>
                   <p className="mb-1.5 text-xs font-medium text-neutral-500">E-mail</p>
-                  <p className="truncate text-sm text-neutral-900">{patient.email || 'Sem e-mail'}</p>
+                  <p className="break-all text-sm text-neutral-900 sm:truncate sm:break-normal">{patient.email || 'Sem e-mail'}</p>
                 </div>
                 <div className="sm:col-span-2">
                   <p className="mb-1.5 text-xs font-medium text-neutral-500">Alergias</p>
@@ -228,7 +230,7 @@ export function PatientSlideOverProvider({ children }: { children: React.ReactNo
                   <Link
                     href={`/pacientes/${patient.id}?tab=debitos`}
                     onClick={closePatient}
-                    className="mt-1.5 inline-flex items-center gap-1 text-sm font-medium text-neutral-900 underline-offset-2 hover:underline"
+                    className="mt-2 inline-flex h-10 items-center gap-1 rounded-md border border-neutral-200 px-3 text-sm font-medium text-neutral-900 underline-offset-2 hover:underline sm:mt-1.5 sm:h-auto sm:border-0 sm:px-0"
                   >
                     Débitos
                     <ExternalLink size={13} />
@@ -238,7 +240,7 @@ export function PatientSlideOverProvider({ children }: { children: React.ReactNo
                   <p className="mb-1.5 text-xs font-medium text-neutral-500">Próxima consulta</p>
                   {nextAppointment ? (
                     <>
-                      <p className="truncate text-sm font-medium text-neutral-900">{nextAppointment.procedimento || 'Consulta'}</p>
+                      <p className="break-words text-sm font-medium text-neutral-900 sm:truncate">{nextAppointment.procedimento || 'Consulta'}</p>
                       <p className="mt-0.5 text-xs text-neutral-500">
                         {dateTime(nextAppointment.data_hora)} · {STATUS[nextAppointment.status || ''] || 'Agendado'}
                       </p>
@@ -254,7 +256,7 @@ export function PatientSlideOverProvider({ children }: { children: React.ReactNo
                   <ul className="divide-y divide-black/5 rounded-md border border-neutral-200">
                     {kanbanProstheses.map((item) => (
                       <li key={String(item.id)} className="flex items-center justify-between gap-3 px-3 py-2">
-                        <p className="truncate text-sm text-neutral-900">{item.tipo_protese || 'Prótese'}</p>
+                        <p className="min-w-0 break-words text-sm text-neutral-900 sm:truncate">{item.tipo_protese || 'Prótese'}</p>
                         <p className="shrink-0 text-xs text-neutral-500">{item.etapa}</p>
                       </li>
                     ))}
@@ -269,11 +271,11 @@ export function PatientSlideOverProvider({ children }: { children: React.ReactNo
         </div>
 
         {patient && (
-          <div className="flex shrink-0 justify-end border-t border-black/5 px-5 py-4 sm:px-6">
+          <div className="flex shrink-0 justify-end border-t border-black/5 px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4 sm:px-6 sm:pb-4">
             <Link
               href={`/pacientes/${patient.id}`}
               onClick={closePatient}
-              className="inline-flex h-10 items-center gap-2 rounded-md bg-neutral-900 px-4 text-sm font-medium text-white hover:bg-neutral-800"
+              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-md bg-neutral-900 px-4 text-sm font-medium text-white hover:bg-neutral-800 sm:h-10 sm:w-auto"
             >
               Abrir prontuário
               <ExternalLink size={14} />

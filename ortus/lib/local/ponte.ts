@@ -108,6 +108,7 @@ export type ConflitoSync = {
   versao_remota: Record<string, unknown> | null;
   escolhido: string;
   resolucao: string;
+  motivo?: string | null;
   detectado_em: string;
 };
 

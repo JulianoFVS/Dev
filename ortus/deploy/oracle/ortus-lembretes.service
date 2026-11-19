@@ -1,0 +1,46 @@
+# Ortus — rotina de lembretes de consulta.
+# Disparada por ortus-lembretes.timer. Não tem [Install]: quem liga é o timer.
+#
+# Rodar agora, à mão:  sudo systemctl start ortus-lembretes.service
+# Ver o resultado:     journalctl -u ortus-lembretes.service -n 20 --no-pager
+
+[Unit]
+Description=Ortus - rotina: lembretes de consulta (GET /api/lembretes/processar?enviar=true)
+After=network-online.target ortus.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=ortus
+Group=ortus
+
+# A rota trabalha por cerca de 50 s e devolve "interrompido_por_tempo": true
+# quando sobra lembrete (lib/lembretesServidor.ts). O script chama de novo
+# enquanto vier esse aviso, até este teto. Não duplica envio: cada lembrete é
+# reservado no banco antes de sair (chave única agendamento + canal).
+Environment=ROTINA_REPETICOES=6
+Environment=ROTINA_TEMPO_MAX=120
+
+ExecStart=/usr/local/bin/ortus-chamar-rotina lembretes "/api/lembretes/processar?enviar=true"
+# 6 chamadas de até 120 s, mais a espera pelo site.
+TimeoutStartSec=900
+SyslogIdentifier=ortus-lembretes
+
+# ---- Endurecimento ----
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+CapabilityBoundingSet=
+AmbientCapabilities=
+UMask=0077
+# Este serviço só fala com o próprio site, na própria máquina.
+IPAddressDeny=any
+IPAddressAllow=localhost

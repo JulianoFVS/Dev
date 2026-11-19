@@ -1,4 +1,3 @@
-import { supabase } from '@/lib/supabase';
 import { dados as tabelas } from '@/lib/local/consulta';
 import type { ComissaoRegra } from '@/lib/types/permissions';
 

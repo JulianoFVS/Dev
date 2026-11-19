@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { conferirVerificadorSenha } from '@/desktop/lib/verificadorSenha.cjs';
 import { lerSessaoLocal } from '@/lib/local/ponte';
-import { negarForaDoDesktop } from '@/lib/local/rota';
+import { exigirJanelaLocal } from '@/lib/local/rota';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -14,7 +14,8 @@ export const dynamic = 'force-dynamic';
  * o programa já abre o painel com essa sessão quando ela existe.
  */
 export async function POST(req: Request) {
-  const fora = negarForaDoDesktop();
+  // Esta rota devolve os tokens do Supabase: só a janela do aplicativo chega aqui.
+  const fora = exigirJanelaLocal(req, { json: true });
   if (fora) return fora;
 
   const corpo = (await req.json().catch(() => ({}))) as { email?: string; senha?: string };

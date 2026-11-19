@@ -14,8 +14,6 @@ export const CONFIG_KEYS = {
   horario_profissional_prefix: 'horario_profissional_',
 } as const;
 
-export type ConfigKey = typeof CONFIG_KEYS[keyof typeof CONFIG_KEYS];
-
 export function horarioProfissionalKey(profissionalId: string | number): string {
   return `${CONFIG_KEYS.horario_profissional_prefix}${profissionalId}`;
 }

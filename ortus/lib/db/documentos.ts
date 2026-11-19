@@ -1,4 +1,3 @@
-import { supabase } from '@/lib/supabase';
 import { dados as tabelas } from '@/lib/local/consulta';
 import { rowToDocumento, type DocumentoPaciente } from '@/lib/db/types';
 import { inserir, listar, modoDados, remover } from '@/lib/local/cliente';
@@ -20,7 +19,7 @@ function rowToDocumentoUI(r: Record<string, unknown>): DocumentoPacienteUI {
   const meta = (r.meta as DocumentoMeta) || {};
   return {
     ...base,
-    ...meta,
+    // O meta é gravado por qualquer pessoa da clínica: só os campos abaixo entram na tela, um a um.
     storagePath: base.storage_path || (meta.storagePath as string) || null,
     dataUrl: meta.dataUrl as string | undefined,
     isImg: meta.isImg as boolean | undefined,

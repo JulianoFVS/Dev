@@ -80,13 +80,14 @@ export default function TagInput({
           className="h-full w-full bg-transparent text-sm text-neutral-900 outline-none placeholder:text-neutral-400"
         />
       </div>
+      {/* No celular a lista (no máximo 8) aparece inteira, sem caixa de rolagem dentro da página que já rola. */}
       {showSuggestions && filteredSuggestions.length > 0 && (
-        <ul className="mt-2 max-h-40 shrink-0 overflow-y-auto rounded-md border border-neutral-200 bg-white py-1">
+        <ul className="mt-2 shrink-0 rounded-md border border-neutral-200 bg-white py-1 sm:max-h-40 sm:overflow-y-auto">
           {filteredSuggestions.slice(0, 8).map((s) => (
             <li key={s}>
               <button
                 type="button"
-                className="w-full px-3 py-2 text-left text-sm text-neutral-800 hover:bg-neutral-50"
+                className="w-full px-3 py-2.5 text-left text-sm text-neutral-800 hover:bg-neutral-50 sm:py-2"
                 onMouseDown={(e) => {
                   e.preventDefault();
                   addTag(s);
@@ -102,13 +103,14 @@ export default function TagInput({
         {value.map((tag, i) => (
           <li
             key={`${tag}-${i}`}
-            className="flex items-center justify-between gap-2 rounded-md border border-neutral-100 bg-neutral-50 px-2.5 py-1.5"
+            className="flex items-center justify-between gap-2 rounded-md border border-neutral-100 bg-neutral-50 pl-2.5 sm:px-2.5 sm:py-1.5"
           >
             <span className="min-w-0 truncate text-sm font-medium text-neutral-800">{tag}</span>
+            {/* No celular o X ocupa 40x40 na ponta da etiqueta (a linha fica com 42px); do sm em diante volta a 18px. */}
             <button
               type="button"
               onClick={() => removeTag(i)}
-              className="rounded-md p-0.5 text-neutral-400 hover:bg-white hover:text-neutral-900"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-neutral-400 hover:bg-white hover:text-neutral-900 sm:h-auto sm:w-auto sm:p-0.5"
               aria-label={`Remover ${tag}`}
             >
               <X size={14} />

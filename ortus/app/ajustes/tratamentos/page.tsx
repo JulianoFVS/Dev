@@ -1,9 +1,8 @@
 'use client';
 
-import { FormEvent, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { FormEvent, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { ArrowUpDown, CircleAlert, CircleHelp, CreditCard, MoreHorizontal, Pencil, Plus, User, X } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
 import { dados as tabelas } from '@/lib/local/consulta';
 import { useClinica, getClinicLabel } from '@/app/context/ClinicaContext';
 import { clinicScope, readRouteCache, writeRouteCache } from '@/lib/routeListCache';
@@ -19,9 +18,9 @@ const CACHE_KEY = 'ortus:tratamentos:v2';
 const campo = 'h-10 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm text-neutral-900 outline-none focus:border-neutral-900';
 const campoErro = 'h-10 w-full rounded-md border border-red-500 bg-white px-3 text-sm text-neutral-900 outline-none focus:border-red-500';
 const rotulo = 'mb-1.5 block text-xs font-medium text-neutral-500';
-const btnPrimario = 'inline-flex h-9 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white disabled:opacity-50';
-const btnNeutro = 'inline-flex h-9 items-center gap-1.5 rounded-md border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-700';
-const btnBloqueado = 'inline-flex h-9 cursor-not-allowed items-center gap-1.5 rounded-md bg-neutral-200 px-3 text-sm font-medium text-neutral-400';
+// No celular, 40px de alvo de toque; do sm em diante volta ao tamanho do desktop.
+const btnPrimario = 'inline-flex h-10 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white disabled:opacity-50 sm:h-9';
+const btnNeutro = 'inline-flex h-10 items-center gap-1.5 rounded-md border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-700 sm:h-9';
 
 function Legenda({ texto, children }: { texto: string; children: ReactNode }) {
   const ancora = useRef<HTMLSpanElement>(null);
@@ -176,7 +175,8 @@ export default function TratamentosPage() {
   const [precos, setPrecos] = useState<Preco[]>(() => boot?.precos ?? []);
   const [selecionadoId, setSelecionadoId] = useState<string | null>(() => boot?.selecionadoId ?? null);
   const [espId, setEspId] = useState<string | null>(() => boot?.espId ?? null);
-  const [pronto, setPronto] = useState(() => !!boot);
+  // Clínica de onde vieram as listas em tela: o cache só recebe dados da própria clínica ativa.
+  const [dadosDe, setDadosDe] = useState<number | null>(() => boot?.clinicaId ?? null);
   const [carregando, setCarregando] = useState(() => !boot);
 
   const [espModal, setEspModal] = useState<Especialidade | 'nova' | null>(null);
@@ -226,7 +226,8 @@ export default function TratamentosPage() {
   if (tratModal === 'novo') tituloTratModal.current = 'Novo tratamento';
   else if (tratModal) tituloTratModal.current = ehParticular ? 'Editar tratamento' : tratModal.nome;
 
-  useEffect(() => {
+  // Layout effect: na troca de clínica, as listas são trocadas antes de o navegador pintar a anterior.
+  useLayoutEffect(() => {
     if (clinicLoading) return;
     if (!clinicaId) {
       setPlanos([]);
@@ -234,7 +235,7 @@ export default function TratamentosPage() {
       setTratamentos([]);
       setPrecos([]);
       setSelecionadoId(null);
-      setPronto(false);
+      setDadosDe(null);
       setCarregando(false);
       return;
     }
@@ -246,19 +247,28 @@ export default function TratamentosPage() {
       setPrecos(snap.precos);
       setSelecionadoId(snap.selecionadoId);
       setEspId(snap.espId);
-      setPronto(true);
+      setDadosDe(clinicaId);
       setCarregando(false);
-    } else if (!boot || boot.clinicaId !== clinicaId) {
+    } else if (dadosDe !== clinicaId) {
+      // Clínica nova sem cache: o catálogo da anterior sai da tela e entra o esqueleto até carregar.
+      setPlanos([]);
+      setEspecialidades([]);
+      setTratamentos([]);
+      setPrecos([]);
+      setSelecionadoId(null);
+      setEspId(null);
+      setDadosDe(null);
       setCarregando(true);
     }
     const ticket = ++geracao.current;
     void carregar(clinicaId, ticket);
-    // boot só hidrata o primeiro paint
+    // dadosDe só é lido na troca de clínica; carregar descarta resposta velha pelo ticket
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clinicLoading, clinicaId]);
 
   useEffect(() => {
-    if (!pronto || !clinicaId) return;
+    // No render da troca as listas ainda são da clínica anterior: não gravar no cache da nova.
+    if (!clinicaId || dadosDe !== clinicaId) return;
     writeRouteCache(CACHE_KEY, clinicScope(String(clinicaId)), {
       clinicaId,
       planos,
@@ -268,7 +278,7 @@ export default function TratamentosPage() {
       selecionadoId,
       espId,
     } satisfies Snap);
-  }, [pronto, clinicaId, planos, especialidades, tratamentos, precos, selecionadoId, espId]);
+  }, [dadosDe, clinicaId, planos, especialidades, tratamentos, precos, selecionadoId, espId]);
 
   async function carregar(id: number, ticket: number) {
     try {
@@ -308,7 +318,7 @@ export default function TratamentosPage() {
       setTratamentos((trRes.data || []) as Tratamento[]);
       setPrecos(linhas);
       setSelecionadoId((atual) => (atual && ordem.some((p) => p.id === atual) ? atual : ordem[0]?.id ?? null));
-      setPronto(true);
+      setDadosDe(id);
     } catch (err) {
       if (ticket !== geracao.current) return;
       showAlert(mensagemErro(err, 'Não foi possível carregar os tratamentos.'), { type: 'error' });
@@ -808,7 +818,7 @@ export default function TratamentosPage() {
       <div className="mb-3 shrink-0">
         <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 md:text-[2rem]">
           Tratamentos
-          <span className="text-neutral-400"> · {clinicLabel}</span>
+          <span className="hidden text-neutral-400 md:inline"> · {clinicLabel}</span>
         </h1>
       </div>
 
@@ -832,7 +842,7 @@ export default function TratamentosPage() {
                   <button
                     type="button"
                     onClick={() => setSelecionadoId(plano.id)}
-                    className={`flex min-w-0 flex-1 items-center gap-2 px-3 py-2 text-left text-sm leading-snug lg:gap-2.5 lg:py-2.5 ${ativo ? 'font-medium text-white' : plano.tipo === 'particular' ? 'font-semibold text-neutral-900' : 'font-medium text-neutral-600'}`}
+                    className={`flex min-h-[40px] min-w-0 flex-1 items-center gap-2 px-3 py-2 text-left text-sm leading-snug sm:min-h-0 lg:gap-2.5 lg:py-2.5 ${ativo ? 'font-medium text-white' : plano.tipo === 'particular' ? 'font-semibold text-neutral-900' : 'font-medium text-neutral-600'}`}
                   >
                     <Icone size={16} className="shrink-0" />
                     <span className="truncate">{nome}</span>
@@ -856,7 +866,7 @@ export default function TratamentosPage() {
               type="button"
               onClick={() => abrirPlano('novo')}
               disabled={!clinicaId}
-              className="flex w-full shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-medium text-neutral-600 hover:bg-[#f3f4f1] disabled:opacity-40 lg:gap-2.5 lg:py-2.5"
+              className="flex min-h-[40px] w-full shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-medium text-neutral-600 hover:bg-[#f3f4f1] disabled:opacity-40 sm:min-h-0 lg:gap-2.5 lg:py-2.5"
             >
               <Plus size={16} className="shrink-0" />
               Novo plano
@@ -870,7 +880,7 @@ export default function TratamentosPage() {
               <button
                 type="button"
                 onClick={() => setEspId(null)}
-                className={`flex min-w-0 flex-1 items-center px-3 py-2 text-left text-sm leading-snug lg:py-2.5 ${espId === null ? 'font-medium text-white' : 'font-medium text-neutral-600'}`}
+                className={`flex min-h-[40px] min-w-0 flex-1 items-center px-3 py-2 text-left text-sm leading-snug sm:min-h-0 lg:py-2.5 ${espId === null ? 'font-medium text-white' : 'font-medium text-neutral-600'}`}
               >
                 Todas
               </button>
@@ -882,7 +892,7 @@ export default function TratamentosPage() {
                   <button
                     type="button"
                     onClick={() => setEspId(esp.id)}
-                    className={`flex min-w-0 flex-1 items-center px-3 py-2 text-left text-sm leading-snug lg:py-2.5 ${ativo ? 'font-medium text-white' : 'font-medium text-neutral-600'}`}
+                    className={`flex min-h-[40px] min-w-0 flex-1 items-center px-3 py-2 text-left text-sm leading-snug sm:min-h-0 lg:py-2.5 ${ativo ? 'font-medium text-white' : 'font-medium text-neutral-600'}`}
                   >
                     <span className="truncate">{esp.nome}</span>
                   </button>
@@ -911,7 +921,7 @@ export default function TratamentosPage() {
               type="button"
               disabled={!ehParticular}
               onClick={() => abrirEspecialidade('nova')}
-              className={`flex min-w-0 flex-1 items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-medium lg:py-2.5 ${ehParticular ? 'text-neutral-600 hover:bg-[#f3f4f1]' : 'cursor-not-allowed text-neutral-300'}`}
+              className={`flex min-h-[40px] min-w-0 flex-1 items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-medium sm:min-h-0 lg:py-2.5 ${ehParticular ? 'text-neutral-600 hover:bg-[#f3f4f1]' : 'cursor-not-allowed text-neutral-300'}`}
             >
               <Plus size={16} className="shrink-0" />
               Especialidade
@@ -948,10 +958,11 @@ export default function TratamentosPage() {
                     value={buscaLista}
                     onChange={(ev) => setBuscaLista(ev.target.value)}
                     placeholder="Buscar"
-                    className="h-8 w-full rounded-md border border-neutral-200 bg-white px-3 pr-7 text-sm text-neutral-900 outline-none focus:border-neutral-900"
+                    className="h-10 w-full rounded-md border border-neutral-200 bg-white px-3 pr-10 text-sm text-neutral-900 outline-none focus:border-neutral-900 sm:h-8 sm:pr-7"
                   />
+                  {/* alvo-toque dá 44px ao X no toque; o pr-10 tira o texto de baixo dessa área. */}
                   {buscaLista && (
-                    <button type="button" aria-label="Limpar" onClick={() => setBuscaLista('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-900">
+                    <button type="button" aria-label="Limpar" onClick={() => setBuscaLista('')} className="alvo-toque absolute right-2 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-900">
                       <X size={13} />
                     </button>
                   )}
@@ -964,18 +975,18 @@ export default function TratamentosPage() {
                       </span>
                     </Legenda>
                   )}
-                  <button type="button" disabled={!ehParticular} onClick={() => abrirTratamento('novo')} className={ehParticular ? 'inline-flex h-8 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium leading-none text-white disabled:opacity-50' : 'inline-flex h-8 cursor-not-allowed items-center gap-1.5 rounded-md bg-neutral-200 px-3 text-sm font-medium leading-none text-neutral-400'}>
+                  <button type="button" disabled={!ehParticular} onClick={() => abrirTratamento('novo')} className={ehParticular ? 'inline-flex h-10 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium leading-none text-white disabled:opacity-50 sm:h-8' : 'inline-flex h-10 cursor-not-allowed items-center gap-1.5 rounded-md bg-neutral-200 px-3 text-sm font-medium leading-none text-neutral-400 sm:h-8'}>
                     <Plus size={14} /> Novo tratamento
                   </button>
                 </div>
               </div>
 
               <div className="min-h-0 flex-1 overflow-y-auto">
-                <div className="sticky top-0 z-10 grid grid-cols-[minmax(0,1fr)_6rem_4.5rem_2rem] items-center gap-2 border-b border-black/5 bg-white px-1 py-2">
+                <div className="sticky top-0 z-10 flex items-center gap-5 border-b border-black/5 bg-white px-1 py-1 sm:grid sm:grid-cols-[minmax(0,1fr)_6rem_4.5rem_2rem] sm:gap-2 sm:py-2">
                   <button
                     type="button"
                     onClick={() => alternarOrdem('nome')}
-                    className={`inline-flex items-center gap-1 justify-self-start text-xs font-medium hover:text-neutral-900 ${ordenacao.campo === 'nome' ? 'text-neutral-900' : 'text-neutral-400'}`}
+                    className={`inline-flex min-h-[40px] items-center sm:min-h-0 gap-1 justify-self-start text-xs font-medium hover:text-neutral-900 ${ordenacao.campo === 'nome' ? 'text-neutral-900' : 'text-neutral-400'}`}
                   >
                     Nome
                     <ArrowUpDown size={12} />
@@ -983,7 +994,7 @@ export default function TratamentosPage() {
                   <button
                     type="button"
                     onClick={() => alternarOrdem('valor')}
-                    className={`inline-flex items-center justify-end gap-1 justify-self-end text-xs font-medium hover:text-neutral-900 ${ordenacao.campo === 'valor' ? 'text-neutral-900' : 'text-neutral-400'}`}
+                    className={`inline-flex min-h-[40px] items-center sm:min-h-0 justify-end gap-1 justify-self-end text-xs font-medium hover:text-neutral-900 ${ordenacao.campo === 'valor' ? 'text-neutral-900' : 'text-neutral-400'}`}
                   >
                     Valor
                     <ArrowUpDown size={12} />
@@ -991,12 +1002,12 @@ export default function TratamentosPage() {
                   <button
                     type="button"
                     onClick={() => alternarOrdem('status')}
-                    className={`inline-flex items-center justify-center gap-1 justify-self-center text-xs font-medium hover:text-neutral-900 ${ordenacao.campo === 'status' ? 'text-neutral-900' : 'text-neutral-400'}`}
+                    className={`inline-flex min-h-[40px] items-center sm:min-h-0 justify-center gap-1 justify-self-center text-xs font-medium hover:text-neutral-900 ${ordenacao.campo === 'status' ? 'text-neutral-900' : 'text-neutral-400'}`}
                   >
                     Status
                     <ArrowUpDown size={12} />
                   </button>
-                  <span />
+                  <span className="hidden sm:block" />
                 </div>
                 {lista.length === 0 ? (
                   <p className="py-6 text-sm text-neutral-500">
@@ -1011,15 +1022,15 @@ export default function TratamentosPage() {
                     const coberto = ehParticular ? item.ativo : !!linha?.ativo;
                     const especialidade = especialidades.find((esp) => esp.id === item.especialidade_id)?.nome;
                     return (
-                      <div key={item.id} className="grid grid-cols-[minmax(0,1fr)_6rem_4.5rem_2rem] items-center gap-2 border-b border-neutral-100 px-1 py-2">
-                        <span className="min-w-0">
-                          <span className={`block truncate text-sm font-medium ${coberto ? 'text-neutral-900' : 'text-neutral-400'}`}>{item.nome}</span>
-                          <span className="block truncate text-xs text-neutral-500">
+                      <div key={item.id} className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-3 gap-y-1 border-b border-neutral-100 px-1 py-2.5 sm:grid-cols-[minmax(0,1fr)_6rem_4.5rem_2rem] sm:gap-2 sm:py-2">
+                        <span className="col-span-3 min-w-0 sm:col-span-1">
+                          <span className={`block break-words text-sm font-medium sm:truncate ${coberto ? 'text-neutral-900' : 'text-neutral-400'}`}>{item.nome}</span>
+                          <span className="block break-words text-xs text-neutral-500 sm:truncate">
                             {espId === null && especialidade ? `${especialidade} · ` : ''}
                             {(ehParticular ? item.codigo_tuss_padrao : linha?.codigo_tuss) || 'Sem TUSS'}
                           </span>
                         </span>
-                        <span className="justify-self-end text-right text-sm tabular-nums text-neutral-900">{moeda(valor)}</span>
+                        <span className="justify-self-start text-sm font-medium tabular-nums text-neutral-900 sm:justify-self-end sm:text-right sm:font-normal">{moeda(valor)}</span>
                         <span className="justify-self-center">
                           <Switch checked={coberto} onChange={(ligado) => void alternarCobertura(item, ligado)}>
                             <span className="sr-only">{ehParticular ? 'Ativo' : 'Coberto'}</span>
@@ -1029,14 +1040,14 @@ export default function TratamentosPage() {
                           <button
                             type="button"
                             onClick={() => abrirTratamento(item)}
-                            className="inline-flex h-8 w-8 justify-self-end items-center justify-center rounded-md text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900"
+                            className="inline-flex h-10 w-10 justify-self-end items-center justify-center rounded-md text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900 sm:h-8 sm:w-8"
                             aria-label={`Editar ${item.nome}`}
                           >
                             <Pencil size={14} />
                           </button>
                         ) : (
                           <Legenda texto="Só é possível editar se estiver em Particular.">
-                            <span className="inline-flex h-8 w-8 cursor-not-allowed items-center justify-center rounded-md text-neutral-300">
+                            <span className="inline-flex h-10 w-10 cursor-not-allowed items-center justify-center rounded-md text-neutral-300 sm:h-8 sm:w-8">
                               <Pencil size={14} />
                             </span>
                           </Legenda>
@@ -1056,7 +1067,7 @@ export default function TratamentosPage() {
         <form onSubmit={salvarEspecialidade} className="p-3 sm:p-4">
           <div className="mb-3 flex items-start justify-between gap-3">
             <h2 className="text-base font-semibold text-neutral-900">{tituloEspModal.current}</h2>
-            <button type="button" onClick={() => setEspModal(null)} className="text-neutral-400" aria-label="Fechar">
+            <button type="button" onClick={() => setEspModal(null)} className="alvo-toque text-neutral-400" aria-label="Fechar">
               <X size={18} />
             </button>
           </div>
@@ -1076,7 +1087,7 @@ export default function TratamentosPage() {
         <form onSubmit={salvarPlano} className="flex max-h-[90vh] flex-col">
           <div className="flex items-start justify-between gap-3 border-b border-neutral-200 px-3 py-3 sm:px-4">
             <h2 className="text-base font-semibold text-neutral-900">{tituloPlanoModal.current}</h2>
-            <button type="button" onClick={() => setPlanoModal(null)} className="text-neutral-400" aria-label="Fechar">
+            <button type="button" onClick={() => setPlanoModal(null)} className="alvo-toque text-neutral-400" aria-label="Fechar">
               <X size={18} />
             </button>
           </div>
@@ -1115,17 +1126,17 @@ export default function TratamentosPage() {
                         value={buscaEscolha}
                         onChange={(ev) => setBuscaEscolha(ev.target.value)}
                         placeholder="Buscar"
-                        className={`${campo} pr-8`}
+                        className={`${campo} pr-10 sm:pr-8`}
                       />
                       {buscaEscolha && (
-                        <button type="button" aria-label="Limpar" onClick={() => setBuscaEscolha('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-900">
+                        <button type="button" aria-label="Limpar" onClick={() => setBuscaEscolha('')} className="alvo-toque absolute right-2 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-900">
                           <X size={14} />
                         </button>
                       )}
                     </div>
                     <button
                       type="button"
-                      className="shrink-0 text-xs font-medium text-neutral-900"
+                      className="alvo-toque shrink-0 text-xs font-medium text-neutral-900"
                       onClick={() => {
                         const ativos = tratamentos.filter((t) => t.ativo).map((t) => t.id);
                         setEscolhidos(escolhidos.length === ativos.length ? [] : ativos);
@@ -1137,7 +1148,7 @@ export default function TratamentosPage() {
                 </div>
                 <div className="mt-1 grid max-h-40 grid-cols-1 gap-1 overflow-y-auto sm:max-h-48 sm:grid-cols-2">
                   {escolhaVisivel.map((t) => (
-                    <label key={t.id} className="flex items-center gap-2 rounded-md border border-neutral-200 px-2 py-1.5 text-sm text-neutral-900">
+                    <label key={t.id} className="flex min-h-[40px] items-center gap-2 rounded-md border border-neutral-200 px-2 py-1.5 text-sm text-neutral-900 sm:min-h-0">
                       <input
                         type="checkbox"
                         className="accent-neutral-900"
@@ -1165,7 +1176,7 @@ export default function TratamentosPage() {
               <h2 className="text-base font-semibold text-neutral-900">{tituloTratModal.current}</h2>
               {!ehParticular && <p className="text-xs text-neutral-500">{tituloPlano}</p>}
             </div>
-            <button type="button" onClick={() => setTratModal(null)} className="text-neutral-400" aria-label="Fechar">
+            <button type="button" onClick={() => setTratModal(null)} className="alvo-toque text-neutral-400" aria-label="Fechar">
               <X size={18} />
             </button>
           </div>
@@ -1222,7 +1233,7 @@ export default function TratamentosPage() {
               </Switch>
               <div className={`mt-2 grid max-h-28 grid-cols-1 gap-1 overflow-y-auto sm:grid-cols-2 ${form.todosPlanos ? 'pointer-events-none opacity-40' : ''}`}>
                 {outrosPlanos.map((plano) => (
-                  <label key={plano.id} className="flex items-center gap-2 rounded-md border border-neutral-200 px-2 py-1.5 text-sm text-neutral-900">
+                  <label key={plano.id} className="flex min-h-[40px] items-center gap-2 rounded-md border border-neutral-200 px-2 py-1.5 text-sm text-neutral-900 sm:min-h-0">
                     <input
                       type="checkbox"
                       className="accent-neutral-900"
@@ -1238,7 +1249,7 @@ export default function TratamentosPage() {
           )}
           <div className="mt-3 flex items-center justify-between gap-2">
             {ehParticular && tratModal && tratModal !== 'novo' ? (
-              <button type="button" onClick={() => { const item = tratModal; setTratModal(null); void excluirTratamento(item); }} className="inline-flex h-9 items-center px-1 text-sm font-medium text-red-600 hover:text-red-700">Excluir</button>
+              <button type="button" onClick={() => { const item = tratModal; setTratModal(null); void excluirTratamento(item); }} className="inline-flex h-10 items-center px-1 text-sm font-medium text-red-600 hover:text-red-700 sm:h-9">Excluir</button>
             ) : <span />}
             <div className="flex gap-2">
               <button type="button" onClick={() => setTratModal(null)} className={btnNeutro}>Cancelar</button>

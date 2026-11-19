@@ -1,0 +1,4 @@
+# Estes arquivos rodam no Linux. Fim de linha LF em qualquer clone, inclusive
+# no Windows: com CRLF o chamar-rotina.sh não roda (o sistema procura um
+# interpretador chamado "bash\r").
+* text eol=lf

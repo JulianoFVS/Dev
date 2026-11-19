@@ -44,8 +44,6 @@ export function clearAuthCookies() {
   deleteCookie(COOKIE_MODULES);
 }
 
-const SUPER_ADMIN_CACHE = 'ortus_super_admin';
-
 /** Hidrata permissões do cookie no primeiro paint (sidebar sem delay). */
 export function readModuleAccessMapFromCookie(fallback = false): Record<ModuleName, boolean> {
   const map = buildModuleAccessMap(fallback);
@@ -59,20 +57,4 @@ export function readModuleAccessMapFromCookie(fallback = false): Record<ModuleNa
     if (mod in map) map[mod as ModuleName] = true;
   });
   return map;
-}
-
-export function readSuperAdminCache(): boolean {
-  if (typeof sessionStorage === 'undefined') return false;
-  return sessionStorage.getItem(SUPER_ADMIN_CACHE) === '1';
-}
-
-export function writeSuperAdminCache(isSuperAdmin: boolean) {
-  if (typeof sessionStorage === 'undefined') return;
-  if (isSuperAdmin) sessionStorage.setItem(SUPER_ADMIN_CACHE, '1');
-  else sessionStorage.removeItem(SUPER_ADMIN_CACHE);
-}
-
-export function clearSuperAdminCache() {
-  if (typeof sessionStorage === 'undefined') return;
-  sessionStorage.removeItem(SUPER_ADMIN_CACHE);
 }

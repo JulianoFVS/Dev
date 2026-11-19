@@ -23,7 +23,7 @@ module.exports = [
     'node_modules/**',
     'out/**',
     'next-env.d.ts',
-    // Artefatos estáticos (WASM do MediaPipe, modelos, ícones) — não são código do app.
+    // Artefatos estáticos (modelo 3D da arcada, ícones) — não são código do app.
     'public/**',
     'scripts/**',
   ],

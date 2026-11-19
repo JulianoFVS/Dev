@@ -12,7 +12,8 @@ export default function Switch({ checked, onChange, disabled = false, className 
   return (
     <label className={`inline-flex shrink-0 items-center gap-2 ${disabled ? 'cursor-not-allowed opacity-40' : 'cursor-pointer'} ${className}`}>
       {children}
-      <span className="relative inline-flex shrink-0">
+      {/* Sem texto visível o alvo seria só a chave de 36x20: alvo-toque leva o toque a 44px. */}
+      <span className="alvo-toque relative inline-flex shrink-0">
         <input
           type="checkbox"
           role="switch"

@@ -44,7 +44,19 @@ export function criarRepositorioNuvem() {
       body: body === undefined ? undefined : JSON.stringify(body),
     });
     const texto = await resposta.text();
-    if (!resposta.ok) throw new Error(`Supabase ${resposta.status}: ${texto.slice(0, 300)}`);
+    if (!resposta.ok) {
+      // O corpo do erro traz a linha recusada em `details` (nome, telefone e
+      // texto da mensagem). Só o código e a mensagem do banco entram no erro,
+      // que acaba no log do serviço.
+      let resumo = '';
+      try {
+        const corpo = JSON.parse(texto);
+        resumo = [corpo?.code, corpo?.message].filter((parte) => typeof parte === 'string' && parte).join(' ');
+      } catch {
+        /* corpo que não é JSON não é repetido */
+      }
+      throw new Error(`Supabase ${resposta.status}${resumo ? `: ${resumo.slice(0, 200)}` : ''}`);
+    }
     return texto ? JSON.parse(texto) : null;
   }
 
@@ -59,6 +71,13 @@ export function criarRepositorioNuvem() {
     return linhas;
   }
 
+  /** O id chega canônico (só dígitos) do server.mjs. Sem banco configurado não dá para saber: null. */
+  async function clinicaExiste(clinicaId) {
+    if (!configurado) return null;
+    const linhas = await db(`clinicas?id=eq.${clinicaId}&select=id&limit=1`);
+    return Boolean(linhas?.length);
+  }
+
   async function clinica(clinicaId) {
     const linhas = await db(`clinicas?id=eq.${clinicaId}&select=nome,telefone`);
     return linhas?.[0] || {};
@@ -67,6 +86,17 @@ export function criarRepositorioNuvem() {
   async function configAutomacoes(clinicaId) {
     const config = await db(`configuracoes_clinica?clinica_id=eq.${clinicaId}&chave=eq.whatsapp_automacoes&select=valor`);
     return config?.[0]?.valor || null;
+  }
+
+  /**
+   * A clínica pode gravar (assinatura em dia ou em atraso)? Em modo de consulta nada sai em nome
+   * dela. Conta ao vivo no banco (`clinica_aceita_escrita`); erro sobe para o agendador, que
+   * pula a clínica nesta rodada.
+   */
+  async function aceitaEscrita(clinicaId) {
+    const resposta = await db('rpc/clinica_aceita_escrita', { method: 'POST', body: { p_clinica: Number(clinicaId) } });
+    if (typeof resposta !== 'boolean') throw new Error('clinica_aceita_escrita sem resposta booleana');
+    return resposta;
   }
 
   // Nuvem não persiste mensagens: o histórico continua só em memória.
@@ -192,8 +222,10 @@ export function criarRepositorioNuvem() {
     configurado,
     agendadorAtivo: configurado,
     verificar: async () => {},
+    clinicaExiste,
     clinica,
     configAutomacoes,
+    aceitaEscrita,
     salvarMensagem,
     listarMensagens,
     listarConversas,

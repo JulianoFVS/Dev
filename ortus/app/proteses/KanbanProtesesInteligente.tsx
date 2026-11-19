@@ -1,13 +1,12 @@
-﻿'use client';
+'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
 import { dados as tabelas } from '@/lib/local/consulta';
-import { usePatientSlideOver } from '@/components/PatientSlideOver';
 import { useClinica, getClinicLabel } from '@/app/context/ClinicaContext';
 import { carregarConfig, salvarConfig } from '@/lib/configClinica';
-import { ChevronDown, ChevronRight, CircleDot, ClipboardList, Eye, Filter, FlaskConical, Gem, Heart, Loader2, Package, Paintbrush, Pipette, Plus, Scissors, Search, Shield, Smile, Sparkles, Star, Truck, Wrench, X, Zap } from 'lucide-react';
+import { fraseDeErro } from '@/lib/fraseDeErro';
+import { Check, ChevronDown, ChevronRight, CircleDot, ClipboardList, Eye, Filter, FlaskConical, Gem, Heart, Package, Paintbrush, Pipette, Plus, Scissors, Search, Shield, Smile, Sparkles, Star, Truck, Wrench, X, Zap } from 'lucide-react';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
 import CustomSelect from '@/components/ui/CustomSelect';
 import Modal from '@/components/ui/Modal';
@@ -17,8 +16,6 @@ import MenuPontos from '@/components/ui/MenuPontos';
 import ModalPedidoProtese from '@/components/proteses/ModalPedidoProtese';
 
 type ColumnTitle = 'Solicitado' | 'No Laboratório' | 'Em Prova Clínica' | 'Aguardando Ajuste' | 'Finalizado / Entregue';
-type Category = 'Removível' | 'Fixa' | '';
-type Position = 'Superior' | 'Inferior' | 'Ambas' | '';
 type ChecklistItem = { tarefa: string; feito: boolean };
 type Column = { id: number; titulo: string; ordem: number; clinica_id?: string | null; icone?: string | null; checklist_ativo?: boolean };
 type PatientOption = { id: string | number; nome: string; telefone?: string | null; clinica_id?: string | null };
@@ -42,18 +39,6 @@ type Card = {
   status?: StatusKey | null;
 };
 
-type CardForm = {
-  paciente_id: string | null;
-  paciente_nome: string;
-  categoria: Category;
-  tipo_protese: string;
-  cor_dente: string;
-  cor_gengiva: string;
-  posicao: Position;
-  descricao: string;
-  status: StatusKey;
-};
-
 const STANDARD_COLUMNS: ColumnTitle[] = [
   'Solicitado',
   'No Laboratório',
@@ -61,21 +46,6 @@ const STANDARD_COLUMNS: ColumnTitle[] = [
   'Aguardando Ajuste',
   'Finalizado / Entregue',
 ];
-
-const REMOVABLE_TYPES = ['PPR (Com grampo)', 'PPR (Sem grampo)', 'PT', 'Flexível'];
-const FIXED_TYPES = ['Coroa sobre dente', 'Coroa sobre implante', 'Protocolo', 'Fixa adesiva'];
-
-const EMPTY_FORM: CardForm = {
-  paciente_id: null,
-  paciente_nome: '',
-  categoria: '',
-  tipo_protese: '',
-  cor_dente: '',
-  cor_gengiva: '',
-  posicao: '',
-  descricao: '',
-  status: 'espera',
-};
 
 const BOARD_CACHE_KEY = 'ortus:proteses-board';
 const cardShell = 'rounded-xl bg-white';
@@ -132,31 +102,6 @@ function normalizeClinicId(value: string | null) {
   return value;
 }
 
-function buildChecklist(tipo: string): ChecklistItem[] {
-  if (tipo === 'PPR (Com grampo)') {
-    return [
-      { tarefa: 'Prova do Grampo', feito: false },
-      { tarefa: 'Prova do Dente', feito: false },
-    ];
-  }
-
-  if (tipo === 'PPR (Sem grampo)') {
-    return [
-      { tarefa: 'Prova da Cera', feito: false },
-      { tarefa: 'Prova do Dente', feito: false },
-    ];
-  }
-
-  if (tipo === 'PT' || tipo === 'Protocolo') {
-    return [
-      { tarefa: 'Prova dos Dentes', feito: false },
-      { tarefa: 'Prova da Barra/Estrutura', feito: false },
-    ];
-  }
-
-  return [{ tarefa: 'Prova da Peça', feito: false }];
-}
-
 function isChecklistDone(checklist?: ChecklistItem[] | null) {
   const items = Array.isArray(checklist) ? checklist : [];
   return items.length === 0 || items.every((item) => item.feito);
@@ -179,6 +124,11 @@ const STATUS_TOKENS: Record<StatusKey, { label: string }> = {
 
 const COLUMN_SHELL = 'rounded-xl border border-neutral-200 bg-white text-neutral-800';
 
+/** Quantas etapas o resumo do fluxo mostra no celular antes de "+N etapas". */
+const ETAPAS_VISIVEIS_CELULAR = 6;
+/** Escolha por toque aberta a partir de um cartão: para qual etapa mover ou qual status marcar. */
+type FolhaCartao = { tipo: 'etapa' | 'status'; cardId: number };
+
 function dedupeColumnsByTitle(items: Column[]) {
   const seen = new Set<string>();
   return items.filter((column) => {
@@ -192,13 +142,15 @@ function dedupeColumnsByTitle(items: Column[]) {
 export default function KanbanProtesesInteligente() {
   const searchParams = useSearchParams();
   const pacientePreSelecionado = searchParams?.get('paciente');
-  const { openPatient } = usePatientSlideOver();
   const { activeClinicId, activeClinic, loading: clinicLoading } = useClinica();
   const { showConfirm } = useCustomAlert();
   const clinicKeyBoot = normalizeClinicId(
     activeClinicId === 'all' || !activeClinicId ? null : activeClinicId,
   );
-  const boardCacheRef = useRef(readBoardCache(clinicKeyBoot));
+  // "Todas as clínicas" (ou nenhuma escolhida): cada clínica tem as próprias etapas, então não há um quadro só para mostrar.
+  const semClinica = !clinicLoading && clinicKeyBoot === null;
+  // Sem clínica não há quadro: um cache sem clínica seria resto de carga antiga sem filtro.
+  const boardCacheRef = useRef(clinicKeyBoot ? readBoardCache(clinicKeyBoot) : null);
   const [columns, setColumns] = useState<Column[]>(() => boardCacheRef.current?.columns ?? []);
   const [cards, setCards] = useState<Card[]>(() => boardCacheRef.current?.cards ?? []);
   const [patients, setPatients] = useState<PatientOption[]>(() => boardCacheRef.current?.patients ?? []);
@@ -208,6 +160,8 @@ export default function KanbanProtesesInteligente() {
   const preservarCoresRef = useRef(false);
   const [loading, setLoading] = useState(() => !(boardCacheRef.current?.columns?.length));
   const jaCarregou = useRef(!!boardCacheRef.current?.columns?.length);
+  // Cada carga do quadro ganha um número e só a mais recente chega à tela: trocar de clínica no meio de uma carga não mistura as duas.
+  const cargaRef = useRef(0);
   const [saving, setSaving] = useState(false);
   const [clinicId, setClinicId] = useState<string | null>(null);
   const [draggedCard, setDraggedCard] = useState<Card | null>(null);
@@ -220,12 +174,17 @@ export default function KanbanProtesesInteligente() {
   const [editingColumn, setEditingColumn] = useState<Column | null>(null);
   const [columnTitle, setColumnTitle] = useState('');
   const [toast, setToast] = useState<{ type: 'warning' | 'success'; message: string } | null>(null);
+  const toastTimer = useRef<number | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [periodFilter, setPeriodFilter] = useState<'all' | '7d' | '30d' | '90d'>('all');
   const [statusFilter, setStatusFilter] = useState<StatusKey | 'all'>('all');
   const [flowDropdownOpen, setFlowDropdownOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const filtersActive = periodFilter !== 'all' || statusFilter !== 'all';
+  const [etapasAbertas, setEtapasAbertas] = useState(false);
+  // `folha` guarda a última escolha mesmo fechada: o popup ainda é desenhado durante a animação de saída.
+  const [folha, setFolha] = useState<FolhaCartao | null>(null);
+  const [folhaAberta, setFolhaAberta] = useState(false);
 
   // Mapa de ícones por slug (persiste no DB como string)
   const ICON_MAP: Record<string, React.ReactNode> = {
@@ -282,10 +241,12 @@ export default function KanbanProtesesInteligente() {
   useEffect(() => {
     if (clinicLoading) return;
     const nextClinicId = normalizeClinicId(activeClinicId === 'all' ? null : activeClinicId ?? null);
-    if (prevClinicRef.current === nextClinicId && columns.length > 0) return;
+    // Compara antes de gravar no ref: depois dele a comparação dava sempre "mesma clínica".
+    const mesmaClinica = prevClinicRef.current === nextClinicId;
+    if (mesmaClinica && columns.length > 0) return;
     prevClinicRef.current = nextClinicId;
     setClinicId(nextClinicId);
-    const cached = readBoardCache(nextClinicId);
+    const cached = nextClinicId ? readBoardCache(nextClinicId) : null;
     if (cached?.columns?.length) {
       boardCacheRef.current = cached;
       setColumns(cached.columns);
@@ -294,9 +255,23 @@ export default function KanbanProtesesInteligente() {
       setCoresQuadro(cached.cores || {});
       jaCarregou.current = true;
       setLoading(false);
+    } else if (!mesmaClinica) {
+      // O cache guarda uma clínica só. Sem ele, o quadro na tela é da clínica anterior: sai (volta o esqueleto) até a carga
+      // desta chegar. Antes ele ficava, e "Avançar" num pedido dele gravava na clínica nova sem mudar nada.
+      boardCacheRef.current = null;
+      setColumns([]);
+      setCards([]);
+      setPatients([]);
+      setCoresQuadro({});
+      jaCarregou.current = false;
     }
-    const silent = jaCarregou.current && prevClinicRef.current === nextClinicId;
-    loadBoard(nextClinicId, { silent });
+    if (!nextClinicId) {
+      // "Todas as clínicas": nada a carregar. Descarta a carga que ainda estiver a caminho.
+      cargaRef.current += 1;
+      setLoading(false);
+      return;
+    }
+    loadBoard(nextClinicId, { silent: jaCarregou.current });
   }, [clinicLoading, activeClinicId]);
 
   useEffect(() => {
@@ -322,21 +297,26 @@ export default function KanbanProtesesInteligente() {
   function isChecklistColumn(column: Column) { return column.checklist_ativo || column.id === provaClinicaColumn?.id; }
 
   async function loadBoard(nextClinicId: string | null, opts?: { silent?: boolean }) {
+    // Sem clínica não há etapas para ler nem para criar (etapa sem clínica a RLS recusa). E só a clínica da tela:
+    // uma recarga pedida antes da troca (ao fim de uma gravação) não pode trazer de volta o quadro da anterior.
+    if (!nextClinicId || nextClinicId !== prevClinicRef.current) return;
+    const carga = ++cargaRef.current;
     if (!opts?.silent) setLoading(true);
     const syncedColumns = await ensureStandardColumns(nextClinicId);
 
-    let cardsQuery = tabelas.from('kanban_cartoes').select('*').order('created_at', { ascending: false });
-    if (nextClinicId) cardsQuery = cardsQuery.eq('clinica_id', nextClinicId);
-
-    let patientsQuery = tabelas.from('pacientes').select('id, nome, telefone, clinica_id').order('nome', { ascending: true });
-    if (nextClinicId) patientsQuery = patientsQuery.eq('clinica_id', nextClinicId);
-
-    const coresPromise = nextClinicId
-      ? carregarConfig<Record<string, string>>(nextClinicId, 'kanban_cores_quadros', undefined, {})
-      : Promise.resolve({} as Record<string, string>);
+    const cardsQuery = tabelas.from('kanban_cartoes').select('*').order('created_at', { ascending: false }).eq('clinica_id', nextClinicId);
+    const patientsQuery = tabelas.from('pacientes').select('id, nome, telefone, clinica_id').order('nome', { ascending: true }).eq('clinica_id', nextClinicId);
+    const coresPromise = carregarConfig<Record<string, string>>(nextClinicId, 'kanban_cores_quadros', undefined, {});
     const [{ data: cardsData, error: cardsError }, { data: patientsData }, coresRaw] = await Promise.all([cardsQuery, patientsQuery, coresPromise]);
 
-    if (cardsError) showToast('warning', 'Não foi possível carregar os cartões: ' + cardsError.message);
+    // Outra carga começou depois desta (troca de clínica, gravação): esta chegou tarde e não mexe na tela.
+    if (carga !== cargaRef.current) return;
+    if (!syncedColumns || cardsError) {
+      // Leitura falhou: o quadro na tela (do cache ou da última carga) fica como está, em vez de virar um quadro vazio.
+      showToast('warning', fraseDeErro(cardsError, 'Não foi possível carregar o quadro. Confira a internet e tente de novo.'));
+      setLoading(false);
+      return;
+    }
 
     const nextColumns = dedupeColumnsByTitle(syncedColumns);
     const nextCards = (cardsData || []) as Card[];
@@ -354,12 +334,13 @@ export default function KanbanProtesesInteligente() {
     setLoading(false);
   }
 
-  async function ensureStandardColumns(nextClinicId: string | null) {
-    let query = tabelas.from('kanban_colunas').select('*').order('ordem', { ascending: true });
-    if (nextClinicId) query = query.eq('clinica_id', nextClinicId);
-    else query = query.is('clinica_id', null);
+  /** Etapas da clínica, criando as padrão na primeira vez. `null` quando a leitura falhou. */
+  async function ensureStandardColumns(nextClinicId: string): Promise<Column[] | null> {
+    const query = tabelas.from('kanban_colunas').select('*').order('ordem', { ascending: true }).eq('clinica_id', nextClinicId);
 
-    const { data: existingData } = await query;
+    const { data: existingData, error: readError } = await query;
+    // Sem conseguir ler não dá para saber se faltam etapas: criar agora duplicaria as que já existem.
+    if (readError) return null;
     const existing = (existingData || []) as Column[];
     const missing = existing.length === 0 ? STANDARD_COLUMNS : [];
 
@@ -371,14 +352,12 @@ export default function KanbanProtesesInteligente() {
       }));
 
       const { error } = await tabelas.from('kanban_colunas').insert(payload);
-      if (error) showToast('warning', 'Não foi possível criar as etapas padrão: ' + error.message);
+      if (error) showToast('warning', fraseDeErro(error, 'Não foi possível criar as etapas padrão.'));
     }
 
-    let refreshedQuery = tabelas.from('kanban_colunas').select('*').order('ordem', { ascending: true });
-    if (nextClinicId) refreshedQuery = refreshedQuery.eq('clinica_id', nextClinicId);
-    else refreshedQuery = refreshedQuery.is('clinica_id', null);
-
-    const { data: refreshedData } = await refreshedQuery;
+    const refreshedQuery = tabelas.from('kanban_colunas').select('*').order('ordem', { ascending: true }).eq('clinica_id', nextClinicId);
+    const { data: refreshedData, error: refreshError } = await refreshedQuery;
+    if (refreshError) return null;
     const refreshed = (refreshedData || []) as Column[];
 
     return dedupeColumnsByTitle(refreshed);
@@ -428,36 +407,64 @@ export default function KanbanProtesesInteligente() {
     setColumnModalOpen(true);
   }
 
-  async function gravarCorQuadro(id: number | string, hex: string) {
+  /**
+   * Grava a cor do quadro nas configurações da clínica, que só o administrador altera (membro comum cria quadro, mas não pinta).
+   * Devolve null quando gravou. Se o banco recusar, a cor volta à anterior na tela e volta a frase do motivo, para quem chamou avisar.
+   */
+  async function gravarCorQuadro(id: number | string, hex: string): Promise<string | null> {
+    const chave = String(id);
+    const corAnterior = coresQuadroRef.current[chave];
     const next = { ...coresQuadroRef.current };
-    if (hex) next[String(id)] = hex;
-    else delete next[String(id)];
+    if (hex) next[chave] = hex;
+    else delete next[chave];
     coresQuadroRef.current = next;
     setCoresQuadro(next);
-    if (clinicId) await salvarConfig(clinicId, 'kanban_cores_quadros', next);
-    return next;
+    if (!clinicId) return null;
+    try {
+      await salvarConfig(clinicId, 'kanban_cores_quadros', next);
+      return null;
+    } catch (erro) {
+      // Desfaz só a cor deste quadro: a tela não mostra cor que o banco não guardou.
+      const desfeito = { ...coresQuadroRef.current };
+      if (corAnterior) desfeito[chave] = corAnterior;
+      else delete desfeito[chave];
+      coresQuadroRef.current = desfeito;
+      setCoresQuadro(desfeito);
+      // salvarConfig guarda o retorno do banco em `cause`: é ele que diz se foi recusa de permissão.
+      const causa = erro instanceof Error && erro.cause ? erro.cause : erro;
+      if ((causa as { code?: unknown } | null)?.code === '42501') return 'Só o administrador da clínica muda as cores dos quadros.';
+      return fraseDeErro(causa, 'Tente de novo em instantes.');
+    }
   }
 
   async function saveColumn() {
     const title = columnTitle.trim();
     if (!title) return showToast('warning', 'Informe o nome do quadro.');
+    // Etapa sem clínica a RLS recusa: em "Todas as clínicas" o botão já fica desligado, isto é a segunda trava.
+    if (!clinicId) return showToast('warning', 'Selecione uma clínica para criar o quadro.');
+    // Quadros de mesmo nome são fundidos na leitura (dedupeColumnsByTitle): o segundo sumiria depois de salvo.
+    const repetido = columns.some((column) => column.id !== editingColumn?.id && column.titulo.trim().toLowerCase() === title.toLowerCase());
+    if (repetido) return showToast('warning', 'Já existe um quadro com esse nome.');
     if (!editingColumn && columns.length >= 40) return showToast('warning', 'Limite de 40 quadros atingido.');
 
+    // O botão fica desligado até a cor também terminar: antes ele voltava no meio e um segundo toque gravava outro quadro.
     setSaving(true);
-    const payload = { titulo: title, icone: columnIcon, checklist_ativo: columnChecklist };
-    const { data, error } = editingColumn
-      ? await tabelas.from('kanban_colunas').update(payload).eq('id', editingColumn.id).select('id').single()
-      : await tabelas.from('kanban_colunas').insert([{ ...payload, ordem: columns.length + 1, clinica_id: clinicId }]).select('id').single();
-    setSaving(false);
+    try {
+      const payload = { titulo: title, icone: columnIcon, checklist_ativo: columnChecklist };
+      const { data, error } = editingColumn
+        ? await tabelas.from('kanban_colunas').update(payload).eq('id', editingColumn.id).eq('clinica_id', clinicId).select('id').single()
+        : await tabelas.from('kanban_colunas').insert([{ ...payload, ordem: columns.length + 1, clinica_id: clinicId }]).select('id').single();
 
-    if (error) return showToast('warning', 'Não foi possível salvar o quadro: ' + error.message);
-    const savedId = data?.id ?? editingColumn?.id;
-    if (savedId != null) {
-      await gravarCorQuadro(savedId, columnCor);
-      preservarCoresRef.current = true;
-    }
+      // Recusa do banco, ou edição que não achou o quadro nesta clínica (zero linhas): o popup fica aberto com o aviso.
+      const savedId = data?.id;
+      if (error || savedId == null) return showToast('warning', fraseDeErro(error, 'Não foi possível salvar o quadro.'));
 
-    if (savedId != null) {
+      // A cor só vai ao banco quando mudou. Antes ia sempre, e a recusa (membro comum) derrubava o salvamento:
+      // o quadro ficava gravado, o popup aberto, e tocar de novo gravava outro igual.
+      const corMudou = columnCor !== (coresQuadroRef.current[String(savedId)] || '');
+      const motivoCor = corMudou ? await gravarCorQuadro(savedId, columnCor) : null;
+      if (corMudou && !motivoCor) preservarCoresRef.current = true;
+
       setColumns((atual) => {
         const nextColumns = editingColumn
           ? atual.map((column) => column.id === savedId ? { ...column, ...payload } : column)
@@ -465,12 +472,18 @@ export default function KanbanProtesesInteligente() {
         writeBoardCache({ clinicId, columns: nextColumns, cards, patients, cores: coresQuadroRef.current });
         return nextColumns;
       });
-    }
 
-    setColumnModalOpen(false);
-    setEditingColumn(null);
-    setColumnTitle('');
-    showToast('success', editingColumn ? 'Quadro atualizado.' : 'Novo quadro criado.');
+      // O quadro foi salvo, então o popup fecha. Se só a cor ficou de fora, o aviso diz por quê.
+      setColumnModalOpen(false);
+      setEditingColumn(null);
+      setColumnTitle('');
+      const feito = editingColumn ? 'Quadro atualizado' : 'Novo quadro criado';
+      showToast(motivoCor ? 'warning' : 'success', motivoCor ? `${feito}, mas a cor não foi salva. ${motivoCor}` : `${feito}.`);
+    } catch (erro) {
+      showToast('warning', fraseDeErro(erro, 'Não foi possível salvar o quadro.'));
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function deleteColumn(column: Column) {
@@ -480,18 +493,31 @@ export default function KanbanProtesesInteligente() {
       : `Remover o quadro "${column.titulo}"?`;
 
     if (!(await showConfirm(message, { title: 'Remover Quadro', type: 'warning', confirmLabel: 'Remover' }))) return;
+    if (!clinicId) return;
 
-    const { error } = await tabelas.from('kanban_colunas').delete().eq('id', column.id);
-    if (error) return showToast('warning', 'Não foi possível remover o quadro: ' + error.message);
+    // Pede de volta o que apagou: zero linhas (quadro de outra clínica ou já removido) não é "Quadro removido".
+    const { data, error } = await tabelas.from('kanban_colunas').delete().eq('id', column.id).eq('clinica_id', clinicId).select('id');
+    if (error) return showToast('warning', fraseDeErro(error, 'Não foi possível remover o quadro.'));
+    if (!Array.isArray(data) || data.length === 0) {
+      showToast('warning', 'Não foi possível remover: este quadro já não existe nesta clínica. A tela foi atualizada.');
+      await loadBoard(clinicId, { silent: true });
+      return;
+    }
 
-    await gravarCorQuadro(column.id, '');
+    // O banco apagou a etapa e os pedidos dela (ON DELETE CASCADE): a tela acompanha já, e a recarga confirma.
+    setColumns((atual) => atual.filter((item) => item.id !== column.id));
+    setCards((atual) => atual.filter((card) => card.coluna_id !== column.id));
     showToast('success', 'Quadro removido.');
-    loadBoard(clinicId);
+    // Limpa a cor que ele tinha. Se o banco recusar (membro comum), sobra só a cor de um quadro que não existe mais: nada a avisar.
+    if (coresQuadroRef.current[String(column.id)]) await gravarCorQuadro(column.id, '');
+    await loadBoard(clinicId, { silent: true });
   }
 
   function showToast(type: 'warning' | 'success', message: string) {
     setToast({ type, message });
-    window.setTimeout(() => setToast(null), 4200);
+    // Um aviso logo depois do outro (dois "Avançar" seguidos) não pode ser apagado pelo relógio do anterior.
+    if (toastTimer.current) window.clearTimeout(toastTimer.current);
+    toastTimer.current = window.setTimeout(() => setToast(null), 4200);
   }
 
   const filteredCards = useMemo(() => {
@@ -525,22 +551,69 @@ export default function KanbanProtesesInteligente() {
   function canMoveToColumn(card: Card, column: Column) {
     if (column.titulo !== 'Finalizado / Entregue') return true;
     if (isChecklistDone(card.checklist)) return true;
-    showToast('warning', 'Conclua todos os itens do checklist antes de finalizar a prótese.');
+    showToast('warning', 'Marque todas as provas do pedido (em Editar) antes de finalizar a prótese.');
     return false;
   }
 
-  async function moveCard(card: Card, column: Column) {
+  async function moveCard(card: Card, column: Column, opts?: { avisar?: boolean }) {
     if (card.coluna_id === column.id) return;
     if (!canMoveToColumn(card, column)) return;
 
-    const previousCards = cards;
     setCards((current) => current.map((item) => item.id === card.id ? { ...item, coluna_id: column.id } : item));
 
-    const { error } = await tabelas.from('kanban_cartoes').update({ coluna_id: column.id }).eq('id', card.id);
-    if (error) {
-      setCards(previousCards);
-      showToast('warning', 'Não foi possível mover o cartão: ' + error.message);
+    let query = tabelas.from('kanban_cartoes').update({ coluna_id: column.id }).eq('id', card.id);
+    if (clinicId) query = query.eq('clinica_id', clinicId);
+    // Pede a linha de volta: com o filtro da clínica, um pedido de fora dela volta vazio, sem erro, e não pode virar "movido".
+    const { data, error } = await query.select('id');
+    if (error || !Array.isArray(data) || data.length === 0) {
+      // Desfaz só este pedido: a lista pode ter sido recarregada (outra clínica) enquanto a gravação ia.
+      setCards((current) => current.map((item) => item.id === card.id ? { ...item, coluna_id: card.coluna_id } : item));
+      showToast('warning', error ? fraseDeErro(error, 'Não foi possível mover o pedido.') : 'O pedido não foi movido: ele não está mais nesta clínica.');
+      if (!error) void loadBoard(clinicId, { silent: true });
+      return;
     }
+    // Arrastando, o gesto já mostra o destino. Pelo toque o cartão some da etapa, então a tela diz para onde ele foi.
+    if (opts?.avisar) showToast('success', `Pedido movido para ${column.titulo}.`);
+  }
+
+  async function mudarStatus(card: Card, status: StatusKey) {
+    if (cardStatus(card) === status) return;
+
+    setCards((current) => current.map((item) => item.id === card.id ? { ...item, status } : item));
+
+    let query = tabelas.from('kanban_cartoes').update({ status }).eq('id', card.id);
+    if (clinicId) query = query.eq('clinica_id', clinicId);
+    // Como em moveCard: zero linhas gravadas é falha, não "Status do pedido…".
+    const { data, error } = await query.select('id');
+    if (error || !Array.isArray(data) || data.length === 0) {
+      setCards((current) => current.map((item) => item.id === card.id ? { ...item, status: card.status } : item));
+      showToast('warning', error ? fraseDeErro(error, 'Não foi possível mudar o status.') : 'O status não mudou: este pedido não está mais nesta clínica.');
+      if (!error) void loadBoard(clinicId, { silent: true });
+      return;
+    }
+    showToast('success', `Status do pedido: ${STATUS_TOKENS[status].label}.`);
+  }
+
+  const ultimoAvanco = useRef(0);
+  function avancar(card: Card, column: Column) {
+    // Ao avançar, o cartão sai da etapa e o de baixo sobe para o mesmo lugar: sem esta trava, um toque duplo moveria os dois.
+    const agora = Date.now();
+    if (agora - ultimoAvanco.current < 600) return;
+    ultimoAvanco.current = agora;
+    void moveCard(card, column, { avisar: true });
+  }
+
+  function abrirFolha(tipo: FolhaCartao['tipo'], card: Card) {
+    setFolha({ tipo, cardId: card.id });
+    setFolhaAberta(true);
+  }
+
+  function irParaColuna(columnId: number) {
+    const alvo = document.getElementById(`coluna-${columnId}`);
+    if (!alvo) return;
+    // Empilhadas (celular), a etapa sobe para o topo da página; lado a lado, ela vem para o meio do quadro.
+    const empilhado = window.matchMedia('(max-width: 767px)').matches;
+    alvo.scrollIntoView({ behavior: 'smooth', inline: 'center', block: empilhado ? 'start' : 'nearest' });
   }
 
   function handleDrop(event: React.DragEvent<HTMLDivElement>, column: Column) {
@@ -551,60 +624,77 @@ export default function KanbanProtesesInteligente() {
     setDraggedCard(null);
   }
 
-  async function toggleChecklist(card: Card, index: number) {
-    const checklist = Array.isArray(card.checklist) ? card.checklist : [];
-    const nextChecklist = checklist.map((item, itemIndex) => itemIndex === index ? { ...item, feito: !item.feito } : item);
-    const previousCards = cards;
-
-    setCards((current) => current.map((item) => item.id === card.id ? { ...item, checklist: nextChecklist } : item));
-    const { error } = await tabelas.from('kanban_cartoes').update({ checklist: nextChecklist }).eq('id', card.id);
-
-    if (error) {
-      setCards(previousCards);
-      showToast('warning', 'Não foi possível atualizar o checklist: ' + error.message);
-    }
-  }
-
   async function deleteCard(cardId: number) {
     if (!(await showConfirm('Excluir este pedido de prótese?', { title: 'Excluir', type: 'error', confirmLabel: 'Excluir' }))) return;
     const previousCards = cards;
     setCards((current) => current.filter((card) => card.id !== cardId));
 
-    const { error } = await tabelas.from('kanban_cartoes').delete().eq('id', cardId);
+    let query = tabelas.from('kanban_cartoes').delete().eq('id', cardId);
+    if (clinicId) query = query.eq('clinica_id', clinicId);
+    const { data, error } = await query.select('id');
     if (error) {
       setCards(previousCards);
-      showToast('warning', 'Não foi possível excluir: ' + error.message);
+      showToast('warning', fraseDeErro(error, 'Não foi possível excluir o pedido.'));
+      return;
     }
+    // Zero linhas apagadas: o pedido já não está nesta clínica (excluído em outro lugar). Não é "excluído"; a recarga acerta a tela.
+    if (!Array.isArray(data) || data.length === 0) {
+      showToast('warning', 'Este pedido já não está nesta clínica. A tela foi atualizada.');
+      void loadBoard(clinicId, { silent: true });
+      return;
+    }
+    showToast('success', 'Pedido excluído.');
   }
 
-  function patientIdByName(name: string) {
-    return patients.find((patient) => patient.nome === name)?.id;
-  }
+  // Com uma etapa só de sobra não vale esconder: o botão "+1" ocuparia a mesma linha que ela.
+  const fluxoRecolhe = columns.length > ETAPAS_VISIVEIS_CELULAR + 1;
+  const cardDaFolha = folha ? cards.find((card) => card.id === folha.cardId) ?? null : null;
+  const opcoesFolha: { id: string; label: string; atual: boolean; escolher: () => Promise<void> }[] = !folha || !cardDaFolha
+    ? []
+    : folha.tipo === 'etapa'
+      ? columns.map((column) => ({
+          id: String(column.id),
+          label: column.titulo,
+          atual: column.id === cardDaFolha.coluna_id,
+          escolher: () => moveCard(cardDaFolha, column, { avisar: true }),
+        }))
+      : VALID_STATUS.map((status) => ({
+          id: status,
+          label: STATUS_TOKENS[status].label,
+          atual: cardStatus(cardDaFolha) === status,
+          escolher: () => mudarStatus(cardDaFolha, status),
+        }));
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden px-2.5 py-2.5 font-poppins sm:px-3 sm:py-3 md:px-4 md:py-3.5">
+    // Celular (abaixo de md): as etapas ficam empilhadas na altura do conteúdo e a página inteira rola.
+    // De md para cima a tela cabe na viewport e só o quadro rola, como sempre foi.
+    <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-x-hidden overflow-y-auto px-2.5 py-2.5 font-poppins sm:px-3 sm:py-3 md:overflow-hidden md:px-4 md:py-3.5">
       <div className="flex shrink-0 flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 md:text-[2rem]">
             Laboratório
-            <span className="text-neutral-400"> · {activeClinic ? getClinicLabel(activeClinic) : 'Todas as clínicas'}</span>
+            <span className="hidden text-neutral-400 md:inline"> · {activeClinic ? getClinicLabel(activeClinic) : 'Todas as clínicas'}</span>
           </h1>
           <p className="mt-1 text-sm text-neutral-500 sm:text-base">
-            {filteredCards.length} pedido(s) · fluxo de próteses · arraste entre colunas
+            {semClinica ? 'Fluxo de próteses' : `${filteredCards.length} pedido(s) · fluxo de próteses`}
+            {!semClinica && <span className="hidden md:inline"> · arraste entre colunas</span>}
           </p>
         </div>
+        {/* Sem clínica escolhida não há onde gravar etapa nem pedido (a RLS recusa sem clínica). */}
         <div className="flex w-full gap-2 sm:w-auto">
           <button
             type="button"
             onClick={openNewColumn}
-            className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-md border border-neutral-200 bg-white px-4 py-0 text-sm font-medium leading-none text-neutral-800 hover:bg-neutral-50 sm:flex-none"
+            disabled={semClinica}
+            className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-md border border-neutral-200 bg-white px-4 py-0 text-sm font-medium leading-none text-neutral-800 hover:bg-neutral-50 disabled:cursor-not-allowed disabled:bg-white disabled:text-neutral-400 sm:h-10 sm:flex-none"
           >
             <Plus size={16} /> Quadro
           </button>
           <button
             type="button"
             onClick={() => openNewOrder()}
-            className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-md bg-neutral-900 px-4 py-0 text-sm font-medium leading-none text-white hover:bg-neutral-800 sm:flex-none"
+            disabled={semClinica}
+            className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-md bg-neutral-900 px-4 py-0 text-sm font-medium leading-none text-white hover:bg-neutral-800 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400 sm:h-10 sm:flex-none"
           >
             <Plus size={16} /> Novo pedido
           </button>
@@ -613,22 +703,35 @@ export default function KanbanProtesesInteligente() {
 
       <Aviso mensagem={toast?.message ?? null} />
 
-      <div className={`${cardShell} flex shrink-0 flex-col gap-2 p-3 sm:flex-row sm:items-center sm:p-4`}>
-        <div className="flex min-w-0 flex-1 flex-col gap-2 lg:flex-row lg:items-center">
+      <div className={`${cardShell} flex shrink-0 flex-col gap-2 p-3 sm:p-4`}>
+       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
           <div className="relative min-w-0 flex-1 lg:max-w-md">
             <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
+            {/* Ao lado do botão de filtros, a dica longa aparecia cortada no celular: lá o campo usa a curta. */}
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Buscar"
+              aria-label="Buscar paciente, tipo ou cor"
+              className="h-10 w-full rounded-md border border-neutral-200 bg-white py-2 pl-10 pr-9 text-sm text-neutral-900 outline-none placeholder:text-neutral-400 focus:border-neutral-900 md:hidden"
+            />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Buscar paciente, tipo, cor…"
-              className="h-10 w-full rounded-md border border-neutral-200 bg-white py-2 pl-10 pr-9 text-sm text-neutral-900 outline-none placeholder:text-neutral-400 focus:border-neutral-900"
+              aria-label="Buscar paciente, tipo ou cor"
+              className="hidden h-10 w-full rounded-md border border-neutral-200 bg-white py-2 pl-10 pr-9 text-sm text-neutral-900 outline-none placeholder:text-neutral-400 focus:border-neutral-900 md:block"
             />
             {searchQuery && (
               <button
+                type="button"
                 onClick={() => setSearchQuery('')}
-                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700"
+                className="alvo-toque absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700"
                 title="Limpar busca"
+                aria-label="Limpar busca"
               >
                 <X size={14} />
               </button>
@@ -669,71 +772,103 @@ export default function KanbanProtesesInteligente() {
             )}
           </div>
 
-          <div className="relative shrink-0 lg:hidden">
-            <button
-              type="button"
-              onClick={() => setFiltersOpen(!filtersOpen)}
-              className={`inline-flex h-10 items-center gap-2 rounded-md px-3 text-sm font-medium transition-colors ${filtersOpen || filtersActive ? 'bg-neutral-900 text-white' : 'border border-neutral-200 text-neutral-700 hover:bg-neutral-50'}`}
-            >
-              <Filter size={16} />
-              Filtros
-              {filtersActive && <span className="h-1.5 w-1.5 rounded-full bg-[#c8f053]" />}
-              <ChevronDown size={13} className={`transition-transform ${filtersOpen ? 'rotate-180' : ''}`} />
-            </button>
-            {filtersOpen && (
-              <>
-                <button type="button" aria-label="Fechar filtros" className="fixed inset-0 z-40" onClick={() => setFiltersOpen(false)} />
-                <div className="absolute top-full left-0 z-50 mt-2 min-w-[260px] space-y-3 rounded-xl border border-neutral-200 bg-white p-4 shadow-xl">
-                  <div>
-                    <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-neutral-400">Período</label>
-                    <CustomSelect
-                      value={periodFilter}
-                      onChange={(v) => setPeriodFilter(v as typeof periodFilter)}
-                      options={[
-                        { value: 'all', label: 'Todos os períodos' },
-                        { value: '7d', label: 'Últimos 7 dias' },
-                        { value: '30d', label: 'Últimos 30 dias' },
-                        { value: '90d', label: 'Últimos 90 dias' },
-                      ]}
-                      size="sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-neutral-400">Status</label>
-                    <CustomSelect
-                      value={statusFilter}
-                      onChange={(v) => setStatusFilter(v as StatusKey | 'all')}
-                      options={[
-                        { value: 'all', label: 'Todos os status' },
-                        ...(['espera', 'lab', 'clinica', 'feito'] as StatusKey[]).map(k => ({ value: k, label: STATUS_TOKENS[k].label })),
-                      ]}
-                      size="sm"
-                    />
-                  </div>
-                  {filtersActive && (
-                    <button
-                      type="button"
-                      onClick={() => { setPeriodFilter('all'); setStatusFilter('all'); }}
-                      className="flex w-full items-center justify-center gap-1 pt-1 text-xs font-bold text-slate-400 hover:text-neutral-600"
-                    >
-                      <X size={13} /> Limpar filtros
-                    </button>
-                  )}
-                </div>
-              </>
-            )}
-          </div>
+          <button
+            type="button"
+            onClick={() => setFiltersOpen(!filtersOpen)}
+            aria-expanded={filtersOpen}
+            className={`inline-flex h-10 shrink-0 items-center gap-2 rounded-md px-3 text-sm font-medium transition-colors lg:hidden ${filtersOpen || filtersActive ? 'bg-neutral-900 text-white' : 'border border-neutral-200 text-neutral-700 hover:bg-neutral-50'}`}
+          >
+            <Filter size={16} />
+            Filtros
+            {filtersActive && <span className="h-1.5 w-1.5 rounded-full bg-[#c8f053]" />}
+            <ChevronDown size={13} className={`transition-transform ${filtersOpen ? 'rotate-180' : ''}`} />
+          </button>
         </div>
 
-        <div className="ml-auto w-36 shrink-0 text-right text-xs font-medium tabular-nums text-neutral-400 sm:text-sm">
+        {/* No celular o subtítulo da página já traz a contagem filtrada. */}
+        <div className="ml-auto hidden w-36 shrink-0 text-right text-xs font-medium tabular-nums text-neutral-400 sm:block sm:text-sm">
           {filteredCards.length} de {cards.length} pedido(s)
         </div>
+       </div>
+
+        {/* Os filtros abrem dentro do cartão: a caixa flutuante de antes saía pela lateral da tela do celular. */}
+        {filtersOpen && (
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:hidden">
+            <label className="min-w-0">
+              <span className="mb-1.5 block text-xs font-medium text-neutral-500">Período</span>
+              <CustomSelect
+                value={periodFilter}
+                onChange={(v) => setPeriodFilter(v as typeof periodFilter)}
+                options={[
+                  { value: 'all', label: 'Todos os períodos' },
+                  { value: '7d', label: 'Últimos 7 dias' },
+                  { value: '30d', label: 'Últimos 30 dias' },
+                  { value: '90d', label: 'Últimos 90 dias' },
+                ]}
+                size="sm"
+              />
+            </label>
+            <label className="min-w-0">
+              <span className="mb-1.5 block text-xs font-medium text-neutral-500">Status</span>
+              <CustomSelect
+                value={statusFilter}
+                onChange={(v) => setStatusFilter(v as StatusKey | 'all')}
+                options={[
+                  { value: 'all', label: 'Todos os status' },
+                  ...(['espera', 'lab', 'clinica', 'feito'] as StatusKey[]).map(k => ({ value: k, label: STATUS_TOKENS[k].label })),
+                ]}
+                size="sm"
+              />
+            </label>
+            {filtersActive && (
+              <button
+                type="button"
+                onClick={() => { setPeriodFilter('all'); setStatusFilter('all'); }}
+                className="inline-flex h-10 items-center justify-center gap-1 text-sm font-medium text-neutral-500 hover:text-neutral-900 sm:col-span-2"
+              >
+                <X size={14} /> Limpar filtros
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
-      {columns.length > 0 && (
-        <div className={`${cardShell} shrink-0 px-4 py-3 sm:py-2.5`}>
+      {!semClinica && columns.length > 0 && (
+        <div className={`${cardShell} shrink-0 px-3 py-3 sm:py-2.5 md:px-4`}>
           <p className="mb-2 text-xs font-medium text-neutral-500">Fluxo do processo</p>
-          <div ref={flowBarRef} className="flex items-center gap-1 flex-wrap">
+
+          {/* Celular: todas as etapas com o nome inteiro e a contagem, em duas colunas. Tocar leva até a etapa.
+              A barra do computador só cabia com ícones soltos e escondia o resto atrás de "+3 etapas". */}
+          <div className="grid grid-cols-2 gap-1.5 md:hidden">
+            {(etapasAbertas || !fluxoRecolhe ? columns : columns.slice(0, ETAPAS_VISIVEIS_CELULAR)).map((col) => {
+              const tinta = tintaQuadro(coresQuadro[String(col.id)]);
+              return (
+                <button
+                  key={col.id}
+                  type="button"
+                  onClick={() => irParaColuna(col.id)}
+                  className="flex min-h-[44px] min-w-0 items-center gap-2 rounded-md border border-neutral-200 bg-white px-2.5 py-1.5 text-left active:bg-neutral-50"
+                >
+                  <span className="shrink-0 text-neutral-500" style={tinta ? { color: tinta.marca } : undefined}>{getColumnIcon(col)}</span>
+                  <span className="min-w-0 flex-1 break-words text-[13px] font-medium leading-tight text-neutral-800">{col.titulo}</span>
+                  <span className="shrink-0 text-sm font-semibold tabular-nums text-neutral-900">{cardsByColumn(col.id).length}</span>
+                </button>
+              );
+            })}
+            {fluxoRecolhe && (
+              <button
+                type="button"
+                onClick={() => setEtapasAbertas((v) => !v)}
+                aria-expanded={etapasAbertas}
+                className="col-span-2 inline-flex h-10 items-center justify-center gap-1.5 rounded-md border border-neutral-200 bg-[#f3f4f1] px-3 text-[13px] font-medium text-neutral-800"
+              >
+                {etapasAbertas ? 'Mostrar menos' : `+${columns.length - ETAPAS_VISIVEIS_CELULAR} etapas`}
+                <ChevronDown size={14} className={`transition-transform ${etapasAbertas ? 'rotate-180' : ''}`} />
+              </button>
+            )}
+          </div>
+
+          <div ref={flowBarRef} className="hidden flex-wrap items-center gap-1 md:flex">
             {columns.slice(0, maxVisibleFlow).map((col, idx) => {
               const count = cardsByColumn(col.id).length;
               const tinta = tintaQuadro(coresQuadro[String(col.id)]);
@@ -741,7 +876,7 @@ export default function KanbanProtesesInteligente() {
                 <div key={col.id} className="flex items-center">
                   <button
                     type="button"
-                    onClick={() => document.getElementById(`coluna-${col.id}`)?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })}
+                    onClick={() => irParaColuna(col.id)}
                     className="flex items-center gap-2 rounded-md border border-transparent px-3 py-2 text-xs font-medium text-neutral-600 transition-colors hover:border-neutral-200 hover:bg-[#f3f4f1] hover:text-neutral-900"
                   >
                     <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-600" style={tinta ? { color: tinta.marca } : undefined}>{getColumnIcon(col)}</span>
@@ -775,7 +910,7 @@ export default function KanbanProtesesInteligente() {
                             key={col.id}
                             type="button"
                             onClick={() => {
-                              document.getElementById(`coluna-${col.id}`)?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+                              irParaColuna(col.id);
                               setFlowDropdownOpen(false);
                             }}
                             className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm font-medium text-neutral-700 transition-colors hover:bg-[#f3f4f1] hover:text-neutral-900"
@@ -796,19 +931,26 @@ export default function KanbanProtesesInteligente() {
         </div>
       )}
 
-      <div className={`${cardShell} flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden`}>
-        {loading && !jaCarregou.current ? (
-          <div className="kanban-scrollbar flex min-h-0 flex-1 gap-3 overflow-x-auto px-3 pb-2 pt-3 sm:px-4 sm:pt-4">
+      {/* No celular o quadro perde a moldura branca e a altura fixa: cada etapa é um bloco da página, sem rolagem própria. */}
+      <div className="flex min-w-0 flex-none flex-col md:min-h-0 md:flex-1 md:overflow-hidden md:rounded-xl md:bg-white">
+        {semClinica ? (
+          // Antes tentava criar etapas sem clínica (a RLS recusa, e o texto cru do banco ia para a tela) e o quadro ficava vazio.
+          <div className="flex min-h-[10rem] flex-1 items-center justify-center rounded-xl bg-white px-4 py-10">
+            <p className="text-center text-sm text-neutral-500">Selecione uma clínica no menu para ver as etapas e os pedidos de prótese.</p>
+          </div>
+        ) : loading && !jaCarregou.current ? (
+          <div className="kanban-scrollbar flex flex-col gap-3 md:min-h-0 md:flex-1 md:flex-row md:overflow-x-auto md:px-4 md:pb-2 md:pt-4">
             {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="h-full min-h-[280px] w-72 shrink-0 animate-pulse rounded-xl bg-neutral-100 sm:min-h-0" />
+              <div key={i} className="h-40 w-full animate-pulse rounded-xl bg-white md:h-full md:min-h-0 md:w-72 md:shrink-0 md:bg-neutral-100" />
             ))}
           </div>
         ) : (
-          <div className="kanban-scrollbar min-h-0 flex-1 overflow-x-auto overflow-y-hidden px-3 pb-3 pt-3 sm:px-4 sm:pb-4 sm:pt-4">
-            <div className="flex h-full min-h-[280px] min-w-min flex-col gap-4 sm:min-h-0 sm:flex-row sm:items-stretch">
-              {columns.map((column) => {
+          <div className="kanban-scrollbar md:min-h-0 md:flex-1 md:overflow-x-auto md:overflow-y-hidden md:px-4 md:pb-4 md:pt-4">
+            <div className="flex flex-col gap-3 md:h-full md:min-h-0 md:min-w-min md:flex-row md:items-stretch md:gap-4">
+              {columns.map((column, columnIndex) => {
                 const columnCards = cardsByColumn(column.id);
                 const hasChecklist = isChecklistColumn(column);
+                const proximaColuna = columns[columnIndex + 1];
                 const corAtiva = columnModalOpen && editingColumn && String(editingColumn.id) === String(column.id)
                   ? columnCor
                   : coresQuadro[String(column.id)];
@@ -819,13 +961,13 @@ export default function KanbanProtesesInteligente() {
                     key={column.id}
                     id={`coluna-${column.id}`}
                     style={tinta ? { backgroundColor: tinta.fundo, borderColor: tinta.borda, boxShadow: `inset 0 2px 0 ${tinta.marca}` } : undefined}
-                    className={`flex h-full min-h-[280px] w-full flex-col sm:min-h-0 sm:w-80 sm:flex-none ${COLUMN_SHELL}`}
+                    className={`flex w-full scroll-mt-2 flex-col md:h-full md:min-h-0 md:w-80 md:flex-none ${COLUMN_SHELL}`}
                   >
                     <div className="flex items-start justify-between gap-3 border-b border-black/5 p-4" style={tinta ? { borderColor: tinta.borda } : undefined}>
                       <div className="min-w-0">
-                        <h2 className="flex items-center gap-2 truncate text-sm font-semibold text-neutral-900">
+                        <h2 className="flex items-center gap-2 text-sm font-semibold text-neutral-900 md:truncate">
                           {tinta ? <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: tinta.marca }} /> : null}
-                          <span className="truncate">{column.titulo}</span>
+                          <span className="min-w-0 break-words md:truncate">{column.titulo}</span>
                         </h2>
                         <p className="mt-0.5 text-xs text-neutral-500">{columnCards.length} pedido(s)</p>
                       </div>
@@ -835,10 +977,16 @@ export default function KanbanProtesesInteligente() {
                         )}
                         <MenuPontos
                           tamanho={14}
-                          className="rounded-md p-1.5 text-neutral-400 hover:bg-white hover:text-neutral-900"
+                          className="-my-1.5 -mr-2 inline-flex h-10 w-10 items-center justify-center rounded-md text-neutral-400 hover:bg-white hover:text-neutral-900 md:m-0 md:h-auto md:w-auto md:p-1.5"
                           itens={[
                             { id: 'editar', label: 'Editar quadro', onClick: () => openEditColumn(column) },
-                            { id: 'remover', label: 'Remover quadro', perigo: true, onClick: () => deleteColumn(column) },
+                            {
+                              id: 'remover',
+                              label: 'Remover quadro',
+                              perigo: true,
+                              // O menu não espera a promessa: uma falha inesperada vira aviso, não erro solto.
+                              onClick: () => { deleteColumn(column).catch((erro) => showToast('warning', fraseDeErro(erro, 'Não foi possível remover o quadro.'))); },
+                            },
                           ]}
                         />
                       </div>
@@ -851,7 +999,7 @@ export default function KanbanProtesesInteligente() {
                       }}
                       onDragLeave={() => setDragOverColumn(null)}
                       onDrop={(event) => handleDrop(event, column)}
-                      className={`custom-scrollbar flex-1 space-y-3 overflow-y-auto bg-white p-3 transition-colors ${dragOverColumn === column.id ? 'ring-2 ring-neutral-300 ring-inset' : ''}`}
+                      className={`custom-scrollbar flex flex-1 flex-col gap-3 rounded-b-xl bg-white p-3 transition-colors md:block md:space-y-3 md:overflow-y-auto ${dragOverColumn === column.id ? 'ring-2 ring-neutral-300 ring-inset' : ''}`}
                     >
                       {columnCards.map((card) => {
                         const status = cardStatus(card);
@@ -869,19 +1017,22 @@ export default function KanbanProtesesInteligente() {
                         >
                           <div className="mb-1 flex items-start justify-between gap-2">
                             <div className="min-w-0">
-                              <p className="truncate text-sm font-semibold text-neutral-900">{card.paciente_nome}</p>
-                              <p className="mt-0.5 truncate text-xs font-medium text-neutral-500">
+                              <p className="break-words text-sm font-semibold text-neutral-900 md:truncate">{card.paciente_nome}</p>
+                              <p className="mt-0.5 break-words text-xs font-medium text-neutral-500 md:truncate">
                                 {card.tipo_protese || card.categoria || 'Prótese'}
                                 {card.cor_dente ? ` · ${card.cor_dente}` : ''}
                               </p>
                             </div>
                             <div className="flex shrink-0 items-center gap-1" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
-                              <span className="rounded-md bg-neutral-100 px-1.5 py-0.5 text-xs font-medium text-neutral-600">{tokens.label}</span>
+                              {/* No celular o status aparece no botão de baixo, que também serve para trocá-lo. */}
+                              <span className="hidden rounded-md bg-neutral-100 px-1.5 py-0.5 text-xs font-medium text-neutral-600 md:inline">{tokens.label}</span>
                               <MenuPontos
                                 tamanho={14}
-                                className="rounded-md p-1 text-neutral-400 hover:bg-neutral-50 hover:text-neutral-900"
+                                className="-mr-2 -mt-2 inline-flex h-10 w-10 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-50 hover:text-neutral-900 md:m-0 md:h-auto md:w-auto md:p-1"
                                 itens={[
                                   { id: 'editar', label: 'Editar', onClick: () => openEditOrder(card) },
+                                  { id: 'mover', label: 'Mover para…', onClick: () => abrirFolha('etapa', card) },
+                                  { id: 'status', label: 'Mudar status…', onClick: () => abrirFolha('status', card) },
                                   { id: 'excluir', label: 'Excluir', perigo: true, onClick: () => deleteCard(card.id) },
                                 ]}
                               />
@@ -893,16 +1044,40 @@ export default function KanbanProtesesInteligente() {
                               Provas: {card.checklist.filter(i => i.feito).length}/{card.checklist.length}
                             </p>
                           ) : card.descricao ? (
-                            <p className="line-clamp-1 text-xs text-neutral-500">{card.descricao}</p>
+                            <p className="line-clamp-2 break-words text-xs text-neutral-500 md:line-clamp-1">{card.descricao}</p>
                           ) : null}
+
+                          {/* Celular: arrastar com o dedo não funciona bem, então o cartão traz o status e o passo seguinte como botões. */}
+                          <div className="mt-2.5 flex flex-wrap items-center gap-2 md:hidden">
+                            <button
+                              type="button"
+                              onClick={() => abrirFolha('status', card)}
+                              aria-label={`Status: ${tokens.label}. Tocar para mudar.`}
+                              className="inline-flex h-10 min-w-0 items-center gap-1.5 rounded-md border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-700 active:bg-neutral-50"
+                            >
+                              <span className="truncate">{tokens.label}</span>
+                              <ChevronDown size={14} className="shrink-0 text-neutral-400" />
+                            </button>
+                            {proximaColuna && (
+                              <button
+                                type="button"
+                                onClick={() => avancar(card, proximaColuna)}
+                                aria-label={`Avançar para ${proximaColuna.titulo}`}
+                                className="ml-auto inline-flex h-10 items-center justify-center gap-1 rounded-full bg-neutral-900 pl-4 pr-3 text-sm font-medium text-white active:bg-neutral-700"
+                              >
+                                Avançar <ChevronRight size={16} />
+                              </button>
+                            )}
+                          </div>
                         </article>
                         );
                       })}
 
+                      {/* O convite para arrastar só vale no computador. No celular o cabeçalho já diz "0 pedido(s)" e a etapa vazia fica curta. */}
                       {columnCards.length === 0 && (
-                        <div className="flex h-32 items-center justify-center rounded-xl border border-dashed border-neutral-100 bg-white text-xs font-medium text-neutral-300">Arraste pedidos para cá</div>
+                        <div className="hidden h-32 items-center justify-center rounded-xl border border-dashed border-neutral-100 bg-white text-xs font-medium text-neutral-300 md:flex">Arraste pedidos para cá</div>
                       )}
-                      <button type="button" onClick={() => openNewOrder(column.id)} className="flex w-full items-center justify-center gap-1 rounded-md border border-dashed border-neutral-200 bg-white py-2.5 text-xs font-medium text-neutral-400 transition-colors hover:bg-neutral-50">
+                      <button type="button" onClick={() => openNewOrder(column.id)} className="flex h-10 w-full items-center justify-center gap-1 rounded-md border border-dashed border-neutral-200 bg-white text-xs font-medium text-neutral-400 transition-colors hover:bg-neutral-50 md:h-auto md:py-2.5">
                         <Plus size={13} /> Adicionar pedido
                       </button>
                     </div>
@@ -928,36 +1103,64 @@ export default function KanbanProtesesInteligente() {
         onPatientCreated={(paciente) => setPatients((current) => [...current, paciente].sort((a, b) => a.nome.localeCompare(b.nome)))}
         onAviso={showToast}
       />
-      <Modal open={columnModalOpen} onClose={() => setColumnModalOpen(false)} maxWidth="md" zIndex={86} closeOnBackdrop={false} hideCloseButton panelClassName="flex max-h-[85vh] flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white">
-          <div className="flex shrink-0 items-start justify-between gap-4 border-b border-neutral-200 p-5">
+
+      {/* Caminho por toque para o que no computador se faz arrastando: escolher a etapa (ou o status) numa lista. */}
+      <Modal open={folhaAberta} onClose={() => setFolhaAberta(false)} maxWidth="sm" zIndex={86} hideCloseButton panelClassName="flex !max-h-[calc(100dvh-1rem)] flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white sm:!max-h-[90dvh]">
+          <div className="flex shrink-0 items-start justify-between gap-3 border-b border-neutral-200 px-4 py-3">
+            <div className="min-w-0">
+              <h2 className="text-base font-semibold text-neutral-900">{folha?.tipo === 'status' ? 'Status do pedido' : 'Mover para'}</h2>
+              <p className="mt-0.5 break-words text-sm text-neutral-500">{cardDaFolha?.paciente_nome}</p>
+            </div>
+            <button type="button" onClick={() => setFolhaAberta(false)} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-100 sm:h-8 sm:w-8" aria-label="Fechar"><X size={16} /></button>
+          </div>
+          <div className="min-h-0 flex-1 space-y-0.5 overflow-y-auto p-2">
+            {opcoesFolha.map((opcao) => (
+              <button
+                key={opcao.id}
+                type="button"
+                disabled={opcao.atual}
+                onClick={() => { setFolhaAberta(false); void opcao.escolher(); }}
+                className={`flex min-h-[44px] w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm font-medium ${opcao.atual ? 'bg-neutral-100 text-neutral-900' : 'text-neutral-700 hover:bg-neutral-50 active:bg-neutral-100'}`}
+              >
+                <span className="min-w-0 flex-1 break-words">{opcao.label}</span>
+                {opcao.atual && (
+                  <span className="inline-flex shrink-0 items-center gap-1 text-xs text-neutral-500"><Check size={14} /> Atual</span>
+                )}
+              </button>
+            ))}
+          </div>
+      </Modal>
+
+      <Modal open={columnModalOpen} onClose={() => setColumnModalOpen(false)} maxWidth="md" zIndex={86} closeOnBackdrop={false} hideCloseButton panelClassName="flex !max-h-[calc(100dvh-1rem)] flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white sm:!max-h-[90dvh]">
+          <div className="flex shrink-0 items-start justify-between gap-4 border-b border-neutral-200 p-4 sm:p-5">
               <div>
                 <p className="text-xs font-medium text-neutral-500">{editingColumn ? 'Editar quadro' : 'Novo quadro'}</p>
                 <h2 className="text-base font-semibold text-neutral-900">{editingColumn ? 'Configurar etapa' : 'Criar nova etapa'}</h2>
               </div>
-              <button onClick={() => setColumnModalOpen(false)} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-100" aria-label="Fechar"><X size={16} /></button>
+              <button type="button" onClick={() => setColumnModalOpen(false)} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-100 sm:h-8 sm:w-8" aria-label="Fechar"><X size={16} /></button>
             </div>
 
-            <div className="flex-1 space-y-5 overflow-y-auto p-5">
+            <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-4 sm:p-5">
               <div>
-                <label className="text-xs font-medium text-neutral-500">Nome do quadro</label>
-                <input autoFocus value={columnTitle} onChange={(event) => setColumnTitle(event.target.value)} className="mt-1.5 h-10 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-900 outline-none focus:border-neutral-900" placeholder="Ex: Ajuste final, Polimento..." />
+                <label htmlFor="quadro-nome" className="text-xs font-medium text-neutral-500">Nome do quadro <span className="text-red-500">*</span></label>
+                <input id="quadro-nome" autoFocus value={columnTitle} onChange={(event) => setColumnTitle(event.target.value)} className="mt-1.5 h-10 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-900 outline-none focus:border-neutral-900" placeholder="Ex: Ajuste final, Polimento..." />
               </div>
 
               <div>
                 <label className="mb-2 block text-xs font-medium text-neutral-500">Cor</label>
                 <div className="flex flex-wrap gap-1.5">
-                  <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setColumnCor(''); }} className={`h-7 w-7 rounded-md border bg-[#f3f4f1] ${columnCor ? 'border-neutral-200' : 'border-neutral-900'}`} aria-label="Sem cor" />
+                  <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setColumnCor(''); }} className={`h-10 w-10 rounded-md border bg-[#f3f4f1] sm:h-7 sm:w-7 ${columnCor ? 'border-neutral-200' : 'border-neutral-900'}`} aria-label="Sem cor" />
                   {CORES_QUADRO.map((hex) => (
                     <button
                       key={hex}
                       type="button"
                       onClick={(e) => { e.preventDefault(); e.stopPropagation(); setColumnCor(hex); }}
-                      className={`h-7 w-7 rounded-md border-2 ${columnCor === hex ? 'border-neutral-900' : 'border-transparent'}`}
+                      className={`h-10 w-10 rounded-md border-2 sm:h-7 sm:w-7 ${columnCor === hex ? 'border-neutral-900' : 'border-transparent'}`}
                       style={{ backgroundColor: hex }}
                       aria-label={hex}
                     />
                   ))}
-                  <label className={`relative flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-md border-2 ${columnCor && !CORES_QUADRO.includes(columnCor) ? 'border-neutral-900' : 'border-neutral-200'}`} style={{ background: columnCor && !CORES_QUADRO.includes(columnCor) ? columnCor : 'conic-gradient(#94a3b8, #60a5fa, #34d399, #fbbf24, #fb7185, #a78bfa, #94a3b8)' }} aria-label="Cor personalizada">
+                  <label className={`relative flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-md border-2 sm:h-7 sm:w-7 ${columnCor && !CORES_QUADRO.includes(columnCor) ? 'border-neutral-900' : 'border-neutral-200'}`} style={{ background: columnCor && !CORES_QUADRO.includes(columnCor) ? columnCor : 'conic-gradient(#94a3b8, #60a5fa, #34d399, #fbbf24, #fb7185, #a78bfa, #94a3b8)' }} aria-label="Cor personalizada">
                     <input type="color" value={/^#[0-9a-fA-F]{6}$/.test(columnCor) ? columnCor : '#94a3b8'} onChange={(event) => setColumnCor(event.target.value)} onClick={(event) => event.stopPropagation()} className="absolute inset-0 h-full w-full cursor-pointer opacity-0" />
                     {columnCor && !CORES_QUADRO.includes(columnCor) && <Pipette size={12} className="pointer-events-none text-white mix-blend-difference" />}
                   </label>
@@ -966,13 +1169,16 @@ export default function KanbanProtesesInteligente() {
 
               <div>
                 <label className="mb-2 block text-xs font-medium text-neutral-500">Ícone do quadro</label>
-                <div className="grid grid-cols-8 gap-1.5">
+                {/* Oito ícones de 36px por linha não cabem no popup do celular: lá são seis por linha, com 40px de altura. */}
+                <div className="grid grid-cols-6 gap-1.5 sm:grid-cols-8">
                   {ICON_PICKER_OPTIONS.map((slug) => (
                     <button
                       key={slug}
                       type="button"
                       onClick={() => setColumnIcon(slug)}
-                      className={`flex h-9 w-9 items-center justify-center rounded-md ${columnIcon === slug ? 'bg-neutral-900 text-white' : 'border border-neutral-200 bg-white text-neutral-500 hover:bg-neutral-50'}`}
+                      aria-label={`Ícone ${slug}`}
+                      aria-pressed={columnIcon === slug}
+                      className={`flex h-10 w-full items-center justify-center rounded-md sm:h-9 sm:w-9 ${columnIcon === slug ? 'bg-neutral-900 text-white' : 'border border-neutral-200 bg-white text-neutral-500 hover:bg-neutral-50'}`}
                     >
                       {ICON_MAP[slug]}
                     </button>
@@ -980,18 +1186,18 @@ export default function KanbanProtesesInteligente() {
                 </div>
               </div>
 
-              <div className="flex items-center justify-between rounded-xl border border-neutral-200 bg-white p-4">
-                <div>
-                  <p className="text-sm font-semibold text-neutral-900">Checklist clínico</p>
-                  <p className="mt-0.5 text-xs font-medium text-neutral-500">Exibir checklist nos cards desta coluna</p>
-                </div>
-                <Switch checked={columnChecklist} onChange={setColumnChecklist} />
-              </div>
+              {/* A linha inteira é o rótulo do switch: o trilho sozinho tem 20px de altura, pouco para o dedo. */}
+              <Switch checked={columnChecklist} onChange={setColumnChecklist} className="!flex w-full justify-between gap-3 rounded-xl border border-neutral-200 bg-white p-4">
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold text-neutral-900">Checklist clínico</span>
+                  <span className="mt-0.5 block text-xs font-medium text-neutral-500">Exibir checklist nos cards desta coluna</span>
+                </span>
+              </Switch>
             </div>
 
-            <div className="flex shrink-0 gap-2 border-t border-neutral-200 p-5">
-              <button type="button" onClick={() => setColumnModalOpen(false)} className="h-9 rounded-md px-3 text-sm font-medium text-neutral-500 hover:bg-neutral-50">Cancelar</button>
-              <button type="button" onClick={saveColumn} disabled={saving || !columnTitle.trim()} className="h-9 flex-1 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:bg-neutral-100 disabled:text-neutral-400">
+            <div className="flex shrink-0 gap-2 border-t border-neutral-200 p-4 sm:p-5">
+              <button type="button" onClick={() => setColumnModalOpen(false)} className="h-11 rounded-md px-3 text-sm font-medium text-neutral-500 hover:bg-neutral-50 sm:h-9">Cancelar</button>
+              <button type="button" onClick={saveColumn} disabled={saving || !columnTitle.trim()} className="h-11 flex-1 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:bg-neutral-100 disabled:text-neutral-400 sm:h-9">
                 {editingColumn ? 'Salvar Quadro' : 'Criar Quadro'}
               </button>
             </div>

@@ -23,6 +23,7 @@ import {
   diasAtraso,
   digitarMoeda,
   digitosParaCentavos,
+  faturaEmDivida,
   faturaVencida,
   formatarCompetencia,
   formatarData,
@@ -31,12 +32,14 @@ import {
   moeda,
   OPCOES_STATUS_FATURA,
   pluralizar,
+  STATUS_FATURA_META,
   vencimentoSugerido,
   type FaturaSaaS,
   type RedeComercialSaaS,
   type StatusFaturaSaaS,
 } from '@/lib/saas';
 import { ChipStatusFatura } from './StatusChips';
+import { motivoDoPagamento } from '@/lib/assinaturas';
 import { ErroInline, EstadoVazio } from './Feedback';
 
 type FiltroFatura = 'todas' | 'abertas' | 'vencidas' | 'pagas';
@@ -108,6 +111,12 @@ function FormularioFatura({
   const [form, setForm] = useState<FormFatura>(() => formularioInicial(rede, fatura));
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  // Estornada e contestada vêm do provedor: só aparecem quando já são a situação
+  // desta fatura, e salvar sem trocar manda a mesma (o banco aceita mantê-las).
+  const opcoesStatus =
+    fatura && (fatura.status === 'estornada' || fatura.status === 'contestada')
+      ? [...OPCOES_STATUS_FATURA, { value: fatura.status, label: STATUS_FATURA_META[fatura.status].label }]
+      : OPCOES_STATUS_FATURA;
 
   function atualizar<C extends keyof FormFatura>(campo: C, valor: FormFatura[C]) {
     setForm((atual) => ({ ...atual, [campo]: valor }));
@@ -221,7 +230,7 @@ function FormularioFatura({
         <CustomSelect
           value={form.status}
           onChange={(valor) => atualizar('status', valor as StatusFaturaSaaS)}
-          options={OPCOES_STATUS_FATURA}
+          options={opcoesStatus}
           placeholder="Selecione..."
           triggerClassName="!h-11"
           size="md"
@@ -299,12 +308,13 @@ export default function RedeFaturas({ rede, faturas, onAtualizar }: Props) {
     formularioRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }, [formAberto, faturaEditando]);
 
+  // Estornada e contestada voltam a ser dívida: entram em "Em aberto", "Vencido" e nos filtros.
   const resumo = useMemo(() => {
     let aberto = 0;
     let vencido = 0;
     let pago = 0;
     for (const fatura of faturas) {
-      if (fatura.status === 'aberta') {
+      if (faturaEmDivida(fatura)) {
         aberto += fatura.valor_centavos;
         if (faturaVencida(fatura)) vencido += fatura.valor_centavos;
       } else if (fatura.status === 'paga') {
@@ -316,7 +326,7 @@ export default function RedeFaturas({ rede, faturas, onAtualizar }: Props) {
 
   const filtradas = useMemo(() => {
     if (filtro === 'todas') return faturas;
-    if (filtro === 'abertas') return faturas.filter((fatura) => fatura.status === 'aberta');
+    if (filtro === 'abertas') return faturas.filter(faturaEmDivida);
     if (filtro === 'vencidas') return faturas.filter(faturaVencida);
     return faturas.filter((fatura) => fatura.status === 'paga');
   }, [faturas, filtro]);
@@ -481,6 +491,8 @@ export default function RedeFaturas({ rede, faturas, onAtualizar }: Props) {
             const vencida = faturaVencida(fatura);
             const atraso = diasAtraso(fatura.vencimento);
             const ocupado = processandoId === fatura.id;
+            // Estornada e contestada também podem ser quitadas (ou canceladas) à mão, como a aberta.
+            const emDivida = faturaEmDivida(fatura);
             return (
               <li
                 key={fatura.id}
@@ -510,6 +522,17 @@ export default function RedeFaturas({ rede, faturas, onAtualizar }: Props) {
                   <span className="text-base font-semibold tabular-nums text-neutral-900">
                     {moeda(fatura.valor_centavos)}
                   </span>
+                  {fatura.origem && fatura.origem !== 'manual' && (
+                    <span className="text-[11px] text-neutral-500">
+                      {fatura.origem === 'checkout' ? 'Assinatura pela página' : 'Cobrança automática'}
+                    </span>
+                  )}
+                  {fatura.pagamento_status && fatura.pagamento_status !== 'aprovado' && fatura.status !== 'paga' && (
+                    <span className="text-[11px] font-medium text-amber-700">
+                      Pagamento {fatura.pagamento_status}
+                      {motivoDoPagamento(fatura.pagamento_detalhe) ? ` — ${motivoDoPagamento(fatura.pagamento_detalhe)}` : ''}
+                    </span>
+                  )}
                   {fatura.status === 'paga' && fatura.pago_em && (
                     <span className="text-[11px] text-neutral-500">
                       Pago em {formatarData(fatura.pago_em)}
@@ -525,7 +548,7 @@ export default function RedeFaturas({ rede, faturas, onAtualizar }: Props) {
                 )}
 
                 <div className="mt-3 grid grid-cols-2 gap-2">
-                  {fatura.status === 'aberta' && (
+                  {emDivida && (
                     <button
                       type="button"
                       onClick={() => alterarStatus(fatura, 'paga')}
@@ -544,11 +567,11 @@ export default function RedeFaturas({ rede, faturas, onAtualizar }: Props) {
                     type="button"
                     onClick={() => abrirEdicao(fatura)}
                     disabled={ocupado}
-                    className={`${BOTAO_ACAO} ${fatura.status === 'aberta' ? '' : 'col-span-2'} border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50`}
+                    className={`${BOTAO_ACAO} ${emDivida ? '' : 'col-span-2'} border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50`}
                   >
                     <Pencil size={13} /> Editar
                   </button>
-                  {fatura.status === 'aberta' && (
+                  {emDivida && (
                     <button
                       type="button"
                       onClick={() => alterarStatus(fatura, 'cancelada')}

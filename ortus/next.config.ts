@@ -41,11 +41,6 @@ const nextConfig: NextConfig = {
         headers: CABECALHOS_SEGURANCA,
       },
       {
-        // Áudio/imagem do MediaPipe e modelos são imutáveis: cache longo.
-        source: '/mediapipe/:path*',
-        headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }],
-      },
-      {
         // Rotas de dados nunca devem ser cacheadas por intermediários.
         source: '/api/:path*',
         headers: [{ key: 'Cache-Control', value: 'private, no-store, max-age=0' }],

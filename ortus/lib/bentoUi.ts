@@ -1,23 +1,10 @@
 /** Tokens visuais compartilhados — shell Bento (#f3f4f1, cards brancos, pills neutral-900). */
 
 export const bentoCard = 'rounded-[1.35rem] bg-white sm:rounded-[1.5rem]';
-/** Card com borda e padding padrão de seção */
-export const bentoSection = `${bentoCard} border border-black/10 p-4 sm:p-6`;
-export const bentoPagePad = 'px-2.5 py-2.5 pb-12 sm:px-3 sm:py-3 md:px-4 md:py-3.5';
+/** O respiro da barra flutuante do celular é da casca (MobileAppChrome), não de cada página. */
+export const bentoPagePad = 'px-2.5 py-2.5 sm:px-3 sm:py-3 md:px-4 md:py-3.5';
 export const bentoInput =
   'box-border h-10 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm text-neutral-900 outline-none focus:border-neutral-900';
-
-export function bentoPill(ativo: boolean) {
-  return `shrink-0 rounded-full px-3 py-2 text-xs font-medium transition-colors sm:px-4 sm:text-sm ${
-    ativo ? 'bg-neutral-900 text-white' : 'border border-black/10 bg-white text-neutral-600 hover:bg-neutral-50'
-  }`;
-}
-
-export function bentoTab(ativo: boolean) {
-  return `shrink-0 border-b-2 pb-3 px-2 text-sm font-medium transition-colors whitespace-nowrap ${
-    ativo ? 'border-neutral-900 text-neutral-900' : 'border-transparent text-neutral-500 hover:text-neutral-800'
-  }`;
-}
 
 export const bentoPrimaryBtn =
   'inline-flex items-center justify-center gap-2 rounded-full bg-neutral-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-60';
@@ -48,5 +35,3 @@ export function bentoChipOutline(ativo: boolean) {
 export const bentoToggleTrackOn = 'bg-neutral-900';
 export const bentoToggleTrackOff = 'bg-neutral-300';
 
-export const bentoChartBar = 'rounded-t-lg bg-neutral-800 transition-colors hover:bg-neutral-950';
-export const bentoChartFill = 'h-full rounded-full bg-neutral-800 transition-all';

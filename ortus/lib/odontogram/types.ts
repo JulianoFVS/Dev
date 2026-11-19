@@ -16,4 +16,3 @@ export interface LegacyToothState {
   cond: OdontoToothStatus;
 }
 
-export const ODONTO_FACES: OdontoFace[] = ['V', 'M', 'D', 'L', 'O'];

@@ -1,9 +1,15 @@
 import { NextResponse } from 'next/server';
-import { estadoSync, sincronizarAgora } from '@/lib/local/ponte';
-import { exigirSessaoLocal } from '@/lib/local/rota';
+import { estadoSync, sincronizarAgora, type EstadoSync } from '@/lib/local/ponte';
+import { exigirSessaoLocal, falhaLocal } from '@/lib/local/rota';
+import { ERRO_INTERNO } from '@/lib/registro';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+
+/** O último erro do sincronizador traz a resposta crua da nuvem: fica no log, a tela recebe a frase fixa. */
+function paraTela(estado: EstadoSync): EstadoSync {
+  return { ...estado, ultimoErro: estado.ultimoErro ? ERRO_INTERNO : null };
+}
 
 /** Estado do backup na nuvem (usado pelo indicador fixo do shell). */
 export async function GET(req: Request) {
@@ -11,9 +17,9 @@ export async function GET(req: Request) {
   if ('resposta' in sessao) return sessao.resposta;
 
   try {
-    return NextResponse.json(await estadoSync());
+    return NextResponse.json(paraTela(await estadoSync()));
   } catch (err) {
-    return NextResponse.json({ erro: err instanceof Error ? err.message : 'Falha ao ler o estado.' }, { status: 500 });
+    return falhaLocal('api/local/sync', err);
   }
 }
 
@@ -23,8 +29,8 @@ export async function POST(req: Request) {
   if ('resposta' in sessao) return sessao.resposta;
 
   try {
-    return NextResponse.json(await sincronizarAgora());
+    return NextResponse.json(paraTela(await sincronizarAgora()));
   } catch (err) {
-    return NextResponse.json({ erro: err instanceof Error ? err.message : 'Falha ao sincronizar.' }, { status: 500 });
+    return falhaLocal('api/local/sync', err);
   }
 }

@@ -13,8 +13,10 @@
  *   agendadorAtivo: boolean         liga/desliga rodarAgendador
  *   verificar(): Promise<void>      teste de saúde no boot (nuvem é no-op)
  *
+ *   clinicaExiste(clinicaId) → boolean|null   null = sem banco neste processo
  *   clinica(clinicaId) → { nome, telefone }
  *   configAutomacoes(clinicaId) → objeto|null
+ *   aceitaEscrita(clinicaId) → boolean      false = modo de consulta: nada sai em nome dela
  *
  *   salvarMensagem(clinicaId, mensagem) → linha|null
  *   listarMensagens(clinicaId, chatId, limite) → mensagem[]

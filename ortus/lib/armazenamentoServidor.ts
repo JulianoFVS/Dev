@@ -3,6 +3,7 @@ import { createSupabaseAdmin } from '@/lib/supabaseAdmin';
 import {
   CAMINHO_AVATAR,
   CAMINHO_CLINICA,
+  CAMINHO_FOTO_PACIENTE,
   CAMINHO_PACIENTE,
   ehCaminhoClinica,
   ehCaminhoPublico,
@@ -10,8 +11,10 @@ import {
   tipoSeguroParaServir,
   urlProxyPublica,
 } from '@/lib/caminhosArquivo';
-import { apagarDoR2, inicioNoR2, lerDoR2, r2Configurado, tamanhoNoR2, urlDeEnvio, urlPublicaR2 } from '@/lib/r2';
+import { apagarCopiaAntiga, apagarDoR2, inicioNoR2, lerDoR2, r2Configurado, tamanhoNoR2, urlDeEnvio, urlPublicaR2 } from '@/lib/r2';
 import { BYTES_INSPECAO, conteudoConfere, extensaoConfere, tipoLimpo } from '@/lib/assinaturaArquivo';
+import { ERRO_INTERNO, registrarFalha } from '@/lib/registro';
+import { escritaBarrada } from '@/lib/escritaLiberada';
 
 type Admin = ReturnType<typeof createSupabaseAdmin>;
 type Profissional = { id: number; is_super_admin: boolean | null };
@@ -45,8 +48,10 @@ function negar(recusa: Recusa) {
   return NextResponse.json({ erro: recusa.erro }, { status: recusa.status });
 }
 
-function falha(err: unknown, padrao: string) {
-  return NextResponse.json({ erro: err instanceof Error ? err.message : padrao }, { status: 500 });
+/** O detalhe (texto do banco, do R2 ou do Node) vai só para o registro; a tela recebe frase fixa. */
+async function falha(err: unknown, etapa: string) {
+  await registrarFalha({ origem: 'api/armazenamento', extra: { etapa } }, err);
+  return NextResponse.json({ erro: ERRO_INTERNO }, { status: 500 });
 }
 
 async function temAcesso(admin: Admin, prof: Profissional, clinicaId: number) {
@@ -98,6 +103,16 @@ async function autorizar(sessao: Sessao, caminho: string): Promise<Recusa | { cl
     return recusa ?? { clinicaId: null };
   }
   return autorizarClinica(sessao, caminho);
+}
+
+/**
+ * Em modo de consulta o arquivo da clínica não sobe nem é apagado: aqui se grava
+ * com a chave de serviço, que passa pelo gatilho do banco. Foto de perfil (sem
+ * clínica) segue livre, como o perfil no banco.
+ */
+async function barradaPelaAssinatura(sessao: Sessao, clinicaId: number | null) {
+  if (clinicaId == null) return null;
+  return escritaBarrada(sessao.admin, clinicaId, 'erro');
 }
 
 async function usoDaClinica(admin: Admin, clinicaId: number) {
@@ -280,6 +295,8 @@ async function preparar(sessao: Sessao, body: Corpo) {
 
   const acesso = await autorizar(sessao, caminho);
   if ('erro' in acesso) return negar(acesso);
+  const barrada = await barradaPelaAssinatura(sessao, acesso.clinicaId);
+  if (barrada) return barrada;
 
   try {
     if (r2Configurado()) await assentarPendentes(sessao.admin).catch(() => undefined);
@@ -292,7 +309,7 @@ async function preparar(sessao: Sessao, body: Corpo) {
   if (!r2Configurado()) {
     if (CAMINHO_AVATAR.test(caminho)) return NextResponse.json({ modo: 'supabase-avatar', urlPublica: urlProxyPublica(caminho) });
     const { data, error } = await sessao.admin.storage.from('arquivos_ortus').createSignedUploadUrl(caminho, { upsert: body.upsert === true });
-    if (error || !data) return NextResponse.json({ erro: error?.message || 'Não foi possível liberar o envio.' }, { status: 500 });
+    if (error || !data) return falha(error ?? new Error('link de envio vazio'), 'Falha ao liberar o envio.');
     return NextResponse.json({
       modo: 'supabase',
       caminho: data.path,
@@ -317,13 +334,14 @@ async function confirmar(sessao: Sessao, body: Corpo) {
 
   const acesso = await autorizar(sessao, caminho);
   if ('erro' in acesso) return negar(acesso);
+  // O modo de consulta já foi conferido em preparar (o link vale 60 s); recusar aqui não tiraria o arquivo do R2.
 
   const { data: reserva, error: reservaErr } = await sessao.admin
     .from('armazenamento_objetos')
     .select('bytes, confirmado')
     .eq('caminho', caminho)
     .maybeSingle();
-  if (reservaErr) return falha(new Error(reservaErr.message), 'Falha ao conferir o envio.');
+  if (reservaErr) return falha(reservaErr, 'Falha ao conferir o envio.');
   if (!reserva) return NextResponse.json({ erro: 'Envio não encontrado. Tente de novo.' }, { status: 400 });
 
   let real = 0;
@@ -354,7 +372,12 @@ async function confirmar(sessao: Sessao, body: Corpo) {
     .from('armazenamento_objetos')
     .update({ bytes: real, confirmado: true, atualizado_em: new Date().toISOString() })
     .eq('caminho', caminho);
-  if (error) return falha(new Error(error.message), 'Falha ao registrar o arquivo.');
+  if (error) return falha(error, 'Falha ao registrar o arquivo.');
+
+  // A foto nova já está no privado: a cópia de antes da mudança não fica aberta no bucket público.
+  if (CAMINHO_FOTO_PACIENTE.test(caminho)) {
+    await apagarCopiaAntiga(caminho).catch((err) => registrarFalha({ origem: 'api/armazenamento', extra: { etapa: 'apagar cópia pública da foto' } }, err));
+  }
 
   return NextResponse.json({ urlPublica: ehCaminhoPublico(caminho) ? urlPublicaR2(caminho) : null });
 }
@@ -366,6 +389,8 @@ async function apagar(sessao: Sessao, body: Corpo) {
   for (const caminho of caminhos) {
     const acesso = await autorizar(sessao, caminho);
     if ('erro' in acesso) return negar(acesso);
+    const barrada = await barradaPelaAssinatura(sessao, acesso.clinicaId);
+    if (barrada) return barrada;
 
     if (r2Configurado()) {
       try {
@@ -397,15 +422,18 @@ export async function lerArquivoPrivado(sessao: Sessao, caminho: string): Promis
 
 export async function lerArquivoPublico(caminho: string): Promise<Recusa | Lido> {
   if (!ehCaminhoPublico(caminho)) return { erro: 'Não encontrado.', status: 404 };
-  const lido = await lerBytes(createSupabaseAdmin(), caminho);
+  const lido = await lerBytes(createSupabaseAdmin(), caminho, true);
   if ('erro' in lido) return lido;
   const tipo = tipoSeguroParaServir(caminho, lido.contentType);
   if (!tipo) return { erro: 'Não encontrado.', status: 404 };
   return { bytes: lido.bytes, contentType: tipo };
 }
 
-/** Só toca o R2 quando o banco diz que o arquivo está lá: caminho inventado não gera leitura paga. */
-async function lerBytes(admin: Admin, caminho: string): Promise<Recusa | Lido> {
+/**
+ * Só toca o R2 quando o banco diz que o arquivo está lá: caminho inventado não gera leitura paga.
+ * Na rota pública (visitante sem login), sem registro também não há download do Supabase.
+ */
+async function lerBytes(admin: Admin, caminho: string, publico = false): Promise<Recusa | Lido> {
   if (r2Configurado()) {
     const { data: registro } = await admin
       .from('armazenamento_objetos')
@@ -413,12 +441,14 @@ async function lerBytes(admin: Admin, caminho: string): Promise<Recusa | Lido> {
       .eq('caminho', caminho)
       .maybeSingle();
     if (registro && !registro.confirmado) return { erro: 'Arquivo indisponível.', status: 404 };
+    if (!registro && publico) return { erro: 'Não encontrado.', status: 404 };
     if (registro) {
       try {
         const arquivo = await lerDoR2(caminho);
         if (arquivo) return arquivo;
       } catch (err) {
-        return { erro: err instanceof Error ? err.message : 'Falha ao ler o arquivo.', status: 500 };
+        await registrarFalha({ origem: 'api/armazenamento/ler', extra: { publico } }, err);
+        return { erro: ERRO_INTERNO, status: 500 };
       }
     }
   }

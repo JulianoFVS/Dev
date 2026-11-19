@@ -9,7 +9,16 @@
 #   - a configuração pública do Supabase (config.json)
 #
 # O que NÃO vai: SUPABASE_SERVICE_ROLE_KEY, DATABASE_URL e nenhum .env.
+# Quem garante é o desktop/afterpack.cjs, que varre a pasta final com o
+# scripts/desktop-verificar.mjs e derruba o build se achar segredo.
 # =====================================================================
+
+# Assinatura digital do Windows: calculada a partir do ambiente, na hora do
+# build (ORTUS_ASSINATURA + segredos). Nada de certificado neste arquivo.
+# O que este yml define vale por cima do que o arquivo-mãe devolve, então
+# NÃO declare aqui `forceCodeSigning`, `win.signtoolOptions`,
+# `win.azureSignOptions` nem `win.signExecutable`.
+extends: desktop/assinatura.cjs
 
 appId: br.com.ortus.desktop
 productName: Ortus
@@ -75,7 +84,8 @@ win:
       arch:
         - x64
   artifactName: Ortus-Setup-${version}.${ext}
-  # Sem assinatura nesta fase; ao publicar, configure certificateFile.
+  # Ícone, nome e versão gravados no .exe. A assinatura em si vem de
+  # desktop/assinatura.cjs (ver o comentário do `extends`, no topo).
   signAndEditExecutable: true
 
 mac:

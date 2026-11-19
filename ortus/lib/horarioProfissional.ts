@@ -1,4 +1,3 @@
-import { supabase } from '@/lib/supabase';
 import { dados as tabelas } from '@/lib/local/consulta';
 
 import { carregarConfig, salvarConfig } from '@/lib/configClinica';

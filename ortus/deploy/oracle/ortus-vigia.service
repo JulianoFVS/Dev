@@ -1,0 +1,41 @@
+# Ortus — vigia da operação (confere gateway do WhatsApp, rotinas e banco, e
+# avisa os donos por e-mail quando algo para).
+# Disparado por ortus-vigia.timer. Não tem [Install]: quem liga é o timer.
+#
+# Rodar agora, à mão:  sudo systemctl start ortus-vigia.service
+# Ver o resultado:     journalctl -u ortus-vigia.service -n 20 --no-pager
+
+[Unit]
+Description=Ortus - rotina: vigia da operação (GET /api/saude/vigia)
+After=network-online.target ortus.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=ortus
+Group=ortus
+
+Environment=ROTINA_TEMPO_MAX=60
+
+ExecStart=/usr/local/bin/ortus-chamar-rotina vigia "/api/saude/vigia"
+TimeoutStartSec=180
+SyslogIdentifier=ortus-vigia
+
+# ---- Endurecimento ----
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+CapabilityBoundingSet=
+AmbientCapabilities=
+UMask=0077
+# Este serviço só fala com o próprio site, na própria máquina.
+IPAddressDeny=any
+IPAddressAllow=localhost

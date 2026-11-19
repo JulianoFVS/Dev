@@ -2,12 +2,11 @@ import { NextResponse } from 'next/server';
 import {
   consultarLocal,
   contarLocal,
-  desktopAtivo,
   gravarLocal,
   type FiltroLocal,
   type OrdemLocal,
 } from '@/lib/local/ponte';
-import { exigirSessaoLocal } from '@/lib/local/rota';
+import { exigirJanelaLocal, exigirSessaoLocal, falhaLocal } from '@/lib/local/rota';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -110,7 +109,7 @@ async function gravarVarias(
  * enfileirar a escrita para a nuvem.
  */
 export async function POST(req: Request) {
-  const sessao = await exigirSessaoLocal(req);
+  const sessao = await exigirSessaoLocal(req, { json: true });
   if ('resposta' in sessao) return sessao.resposta;
 
   const corpo = (await req.json().catch(() => ({}))) as Corpo;
@@ -151,14 +150,12 @@ export async function POST(req: Request) {
         return NextResponse.json({ erro: 'Operação inválida.' }, { status: 400 });
     }
   } catch (err) {
-    const mensagem = err instanceof Error ? err.message : 'Falha no banco local.';
-    return NextResponse.json({ erro: mensagem }, { status: 500 });
+    return falhaLocal('api/local/db', err);
   }
 }
 
-export async function GET() {
-  if (!desktopAtivo()) {
-    return NextResponse.json({ erro: 'Recurso do aplicativo desktop.' }, { status: 404 });
-  }
+export async function GET(req: Request) {
+  const fora = exigirJanelaLocal(req);
+  if (fora) return fora;
   return NextResponse.json({ ok: true, tabelas: 'use POST' });
 }

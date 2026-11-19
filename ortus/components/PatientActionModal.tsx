@@ -1,16 +1,17 @@
 'use client';
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
-import { supabase } from '@/lib/supabase';
 import { dados as tabelas } from '@/lib/local/consulta';
-import { AlertCircle, Camera, CheckCircle2, Loader2, User, X } from 'lucide-react';
+import { AlertCircle, Camera, Loader2, User, X } from 'lucide-react';
 import { useClinica } from '@/app/context/ClinicaContext';
 import { validarPaciente, isMenorDeIdade } from '@/lib/pacienteValidation';
 import Modal from '@/components/ui/Modal';
+import Aviso from '@/components/ui/Aviso';
 import CustomSelect from '@/components/ui/CustomSelect';
 import { PARENTESCO_OPTIONS, SEXO_OPTIONS, UF_OPTIONS } from '@/lib/formOptions';
 import { prepararFotoPaciente } from '@/lib/prepararFotoPaciente';
-import { enviarArquivoClinica } from '@/lib/armazenamento';
+import { enviarFotoPaciente } from '@/lib/armazenamento';
+import { guardarFotoPaciente } from '@/hooks/useFotoPaciente';
 import { cpfValido, mascaraCep, mascaraCpf, mascaraNumero, mascaraTelefone, variantesCpf } from '@/lib/mascaras';
 import CampoData from '@/components/ui/CampoData';
 import { atualizar, inserir, listar, modoDados } from '@/lib/local/cliente';
@@ -88,6 +89,7 @@ export function PatientActionModalProvider({ children }: { children: React.React
   const [qcSaving, setQcSaving] = useState(false);
   const [qcError, setQcError] = useState<string | null>(null);
   const [qcCpfExistente, setQcCpfExistente] = useState<{ id: string; nome: string } | null>(null);
+  const [qcDuplicado, setQcDuplicado] = useState<{ chave: string; aviso: string } | null>(null);
   const [qcFotoBlob, setQcFotoBlob] = useState<Blob | null>(null);
   const [qcFotoPreview, setQcFotoPreview] = useState<string | null>(null);
   const [qcFotoErro, setQcFotoErro] = useState<string | null>(null);
@@ -164,6 +166,7 @@ export function PatientActionModalProvider({ children }: { children: React.React
     setQcPlanoId('');
     setQcError(null);
     setQcCpfExistente(null);
+    setQcDuplicado(null);
     setQcSaving(false);
     limparFotoCadastro();
     setQuickCapture(true);
@@ -197,7 +200,11 @@ export function PatientActionModalProvider({ children }: { children: React.React
           limite: 1,
         });
       } else {
-        const { data } = await tabelas.from('pacientes').select('id, nome, cpf').in('cpf', variantesCpf(cpf)).limit(1);
+        // A procura fica nas clínicas do usuário (as do contexto), como na lista de pacientes.
+        const ids = clinics.map((c) => c.id);
+        let consulta = tabelas.from('pacientes').select('id, nome, cpf').in('cpf', variantesCpf(cpf));
+        if (ids.length > 0) consulta = consulta.or(`clinica_id.in.(${ids.join(',')}),clinica_id.is.null`);
+        const { data } = await consulta.limit(1);
         encontrados = (data || []) as Array<{ id: string | number; nome?: string | null }>;
       }
       const achado = encontrados[0];
@@ -206,6 +213,29 @@ export function PatientActionModalProvider({ children }: { children: React.React
       setQcCpfExistente(null);
     }
   }
+
+  /** Paciente da mesma clínica com este CPF ou este nome. Devolve o aviso pronto, ou null se não houver. */
+  async function buscarDuplicado(nome: string, cpf: string, clinicaId: string): Promise<string | null> {
+    try {
+      if (cpfValido(cpf)) {
+        const { data } = await tabelas.from('pacientes').select('id, nome').eq('clinica_id', clinicaId).in('cpf', variantesCpf(cpf)).limit(1);
+        const mesmoCpf = (data as Array<{ nome?: string | null }> | null)?.[0];
+        if (mesmoCpf) return `Este CPF já está cadastrado nesta clínica, em nome de ${mesmoCpf.nome || 'outro paciente'}.`;
+      }
+      // % e * são curingas na busca; trocados por _ (um caractere qualquer) a comparação continua sendo do nome inteiro.
+      const { data } = await tabelas.from('pacientes').select('id, nome').eq('clinica_id', clinicaId).ilike('nome', nome.replace(/[%*\\]/g, '_')).limit(1);
+      const mesmoNome = (data as Array<{ nome?: string | null }> | null)?.[0];
+      if (mesmoNome) return `Já existe um paciente chamado ${mesmoNome.nome || nome} nesta clínica.`;
+    } catch {
+      /* sem conferência (offline ou falha na consulta): o cadastro segue */
+    }
+    return null;
+  }
+
+  // Identifica o cadastro em edição: se nome, CPF ou clínica mudarem, o aviso de duplicidade deixa de valer.
+  const chaveCadastro = `${qcClinicaId}|${qcNome.trim().toLowerCase()}|${qcCpf.replace(/\D/g, '')}`;
+  const duplicado = qcDuplicado?.chave === chaveCadastro ? qcDuplicado : null;
+  const responsavelObrigatorio = isMenorDeIdade(qcDataNascimento);
 
   async function submitQuickCapture() {
     const payload = {
@@ -235,6 +265,17 @@ export function PatientActionModalProvider({ children }: { children: React.React
 
     setQcSaving(true);
     setQcError(null);
+
+    // Nome ou CPF repetido na clínica quase sempre é o mesmo paciente cadastrado de novo: o popup fica aberto com o aviso.
+    // Homônimo existe, e criança costuma usar o CPF do responsável; por isso o segundo toque, sem mudar os dados, cadastra.
+    if (qcDuplicado?.chave !== chaveCadastro) {
+      const avisoDuplicado = await buscarDuplicado(payload.nome, qcCpf, qcClinicaId);
+      if (avisoDuplicado) {
+        setQcDuplicado({ chave: chaveCadastro, aviso: avisoDuplicado });
+        setQcSaving(false);
+        return;
+      }
+    }
 
     const insertPayload: Record<string, unknown> = {
       nome: payload.nome,
@@ -295,20 +336,15 @@ export function PatientActionModalProvider({ children }: { children: React.React
         avisoFoto = ' A foto não foi salva porque o aplicativo está sem internet.';
       } else {
         try {
-          const caminho = `pacientes/${data.id}/avatar.jpg`;
-          const publicUrl = await enviarArquivoClinica(caminho, qcFotoBlob, {
-            contentType: 'image/jpeg',
-            upsert: true,
-            cacheControl: '3600',
-          });
-          if (publicUrl) {
-            if (modo === 'local') {
-              await atualizar('pacientes', data.id, { foto_url: publicUrl });
-            } else {
-              const { error: updErr } = await tabelas.from('pacientes').update({ foto_url: publicUrl }).eq('id', data.id);
-              if (updErr) avisoFoto = ' A foto não foi salva.';
-            }
+          // A foto do paciente é privada: foto_url guarda o caminho interno com a versão, não um link aberto.
+          const fotoUrl = await enviarFotoPaciente(String(data.id), qcFotoBlob);
+          if (modo === 'local') {
+            await atualizar('pacientes', data.id, { foto_url: fotoUrl });
+          } else {
+            const { error: updErr } = await tabelas.from('pacientes').update({ foto_url: fotoUrl }).eq('id', data.id);
+            if (updErr) avisoFoto = ' A foto não foi salva.';
           }
+          if (!avisoFoto) guardarFotoPaciente(String(data.id), fotoUrl, qcFotoBlob);
         } catch (err) {
           avisoFoto = modo === 'local'
             ? ' A foto não foi salva (sem conexão com o armazenamento).'
@@ -366,10 +402,14 @@ export function PatientActionModalProvider({ children }: { children: React.React
     <PatientActionModalContext.Provider value={value}>
       {children}
 
-      <Modal open={open} onClose={closePatientActions} maxWidth="4xl" zIndex={80} hideCloseButton panelClassName="overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-2xl">
+      {/* Cabeçalho e rodapé ficam fixos e só os campos rolam: num bloco único o formulário passava da altura do popup,
+          era cortado sem rolagem e o botão Cadastrar sumia. No celular ocupa a tela inteira: são 17 campos, e sem fundo
+          à mostra um toque fora do formulário não fecha o cadastro pela metade. */}
+      <Modal open={open} onClose={closePatientActions} maxWidth="4xl" zIndex={80} hideCloseButton className="max-sm:p-0" panelClassName="flex flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-2xl max-sm:h-[100dvh] max-sm:max-h-[100dvh] max-sm:rounded-none max-sm:border-0">
             {quickCapture && (
-              <div className="px-5 py-4 sm:px-6 sm:py-5">
-                <div className="mb-5 flex items-center justify-between gap-4 border-b border-black/5 pb-4">
+              <>
+              <div className="shrink-0 px-5 pt-[max(1rem,env(safe-area-inset-top))] sm:px-6 sm:pt-5">
+                <div className="flex items-center justify-between gap-4 border-b border-black/5 pb-4">
                   <div className="flex min-w-0 items-center gap-3.5">
                     <label className="relative h-16 w-16 shrink-0 cursor-pointer">
                       <input ref={qcFotoInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={escolherFotoCadastro} />
@@ -389,16 +429,18 @@ export function PatientActionModalProvider({ children }: { children: React.React
                       <div className={`mt-0.5 text-xs font-medium ${qcFotoErro ? 'text-red-600' : 'text-neutral-400'}`}>
                         {qcFotoErro || 'Foto opcional. JPG, PNG ou WebP, até 8 MB — a imagem é reduzida antes de enviar.'}
                         {qcFotoPreview && (
-                          <button type="button" onClick={limparFotoCadastro} className="ml-2 text-neutral-700 underline">Remover</button>
+                          <button type="button" onClick={limparFotoCadastro} className="alvo-toque ml-2 text-neutral-700 underline">Remover</button>
                         )}
                       </div>
                     </div>
                   </div>
-                  <button type="button" onClick={closePatientActions} className="rounded-full p-2 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-800" aria-label="Fechar">
+                  <button type="button" onClick={closePatientActions} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-neutral-400 hover:bg-neutral-100 hover:text-neutral-800 sm:h-auto sm:w-auto sm:p-2" aria-label="Fechar">
                     <X size={18} />
                   </button>
                 </div>
+              </div>
 
+              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-5 pt-5 sm:px-6">
                 <section>
                   <h3 className={qcSection}>Identificação</h3>
                   <div className="grid grid-cols-1 gap-x-3 gap-y-2.5 sm:grid-cols-2 lg:grid-cols-4">
@@ -453,9 +495,10 @@ export function PatientActionModalProvider({ children }: { children: React.React
                   <h3 className={qcSection}>Endereço</h3>
                   <div className="grid grid-cols-1 gap-x-3 gap-y-2.5 sm:grid-cols-2 lg:grid-cols-4">
                   <label className="min-w-0">
-                    <span className={qcLabel}>CEP</span>
+                    <span className={qcLabel}>CEP <span className="text-red-500">*</span></span>
                     <input
                       type="text"
+                      inputMode="numeric"
                       value={qcCep}
                       onChange={(e) => {
                         const cep = mascaraCep(e.target.value);
@@ -468,11 +511,11 @@ export function PatientActionModalProvider({ children }: { children: React.React
                     />
                   </label>
                   <label className="min-w-0">
-                    <span className={qcLabel}>Rua / avenida {qcBuscandoCep && <Loader2 size={12} className="ml-1 inline animate-spin" />}</span>
+                    <span className={qcLabel}>Rua / avenida <span className="text-red-500">*</span>{qcBuscandoCep && <Loader2 size={12} className="ml-1 inline animate-spin" />}</span>
                     <input type="text" value={qcRua} onChange={(e) => setQcRua(e.target.value)} placeholder="Rua / Avenida" className={qcInput} />
                   </label>
                   <label className="min-w-0">
-                    <span className={qcLabel}>Número</span>
+                    <span className={qcLabel}>Número <span className="text-red-500">*</span></span>
                     <input type="text" inputMode="numeric" value={qcNumero} onChange={(e) => setQcNumero(mascaraNumero(e.target.value))} placeholder="Nº" className={qcInput} />
                   </label>
                   <label className="min-w-0">
@@ -480,77 +523,75 @@ export function PatientActionModalProvider({ children }: { children: React.React
                     <input type="text" value={qcComplemento} onChange={(e) => setQcComplemento(e.target.value)} placeholder="Apto, bloco, sala" className={qcInput} />
                   </label>
                   <label className="min-w-0">
-                    <span className={qcLabel}>Bairro</span>
+                    <span className={qcLabel}>Bairro <span className="text-red-500">*</span></span>
                     <input type="text" value={qcBairro} onChange={(e) => setQcBairro(e.target.value)} placeholder="Bairro" className={qcInput} />
                   </label>
                   <label className="min-w-0">
-                    <span className={qcLabel}>Cidade</span>
+                    <span className={qcLabel}>Cidade <span className="text-red-500">*</span></span>
                     <input type="text" value={qcCidade} onChange={(e) => setQcCidade(e.target.value)} placeholder="Cidade" className={qcInput} />
                   </label>
                   <label className="min-w-0">
-                    <span className={qcLabel}>UF</span>
+                    <span className={qcLabel}>UF <span className="text-red-500">*</span></span>
                     <CustomSelect value={qcUf} onChange={setQcUf} options={UF_OPTIONS} size="md" />
                   </label>
                   </div>
                 </section>
 
                 <section className="mt-5 border-t border-black/5 pt-4">
-                  <h3 className={qcSection}>Responsável {isMenorDeIdade(qcDataNascimento) && <span className="text-xs font-medium text-red-500">obrigatório para menor de 18 anos</span>}</h3>
+                  <h3 className={qcSection}>Responsável {responsavelObrigatorio && <span className="text-xs font-medium text-red-500">obrigatório para menor de 18 anos</span>}</h3>
                   <div className="grid grid-cols-1 gap-x-3 gap-y-2.5 sm:grid-cols-2 lg:grid-cols-4">
                   <label className="min-w-0">
-                    <span className={qcLabel}>Nome</span>
+                    <span className={qcLabel}>Nome{responsavelObrigatorio && <span className="text-red-500"> *</span>}</span>
                     <input type="text" value={qcResponsavelNome} onChange={(e) => setQcResponsavelNome(e.target.value)} placeholder="Nome do responsável" className={qcInput} />
                   </label>
                   <label className="min-w-0">
-                    <span className={qcLabel}>Parentesco</span>
+                    <span className={qcLabel}>Parentesco{responsavelObrigatorio && <span className="text-red-500"> *</span>}</span>
                     <CustomSelect value={qcResponsavelParentesco} onChange={setQcResponsavelParentesco} options={PARENTESCO_OPTIONS} size="md" />
                   </label>
                   <label className="min-w-0">
-                    <span className={qcLabel}>Telefone</span>
+                    <span className={qcLabel}>Telefone{responsavelObrigatorio && <span className="text-red-500"> *</span>}</span>
                     <input type="tel" inputMode="numeric" value={qcResponsavelTelefone} onChange={(e) => setQcResponsavelTelefone(mascaraTelefone(e.target.value))} placeholder="(00)9 0000-0000" className={qcInput} />
                   </label>
                   </div>
                 </section>
+              </div>
 
-                {qcError && (
-                  <p className="mt-4 flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-sm font-medium text-red-700">
-                    <AlertCircle size={16} className="shrink-0" />
-                    {qcError}
+              {/* O aviso fica no rodapé fixo: no fim dos campos ele saía da tela no celular. */}
+              <div className="shrink-0 px-5 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-6 sm:pb-5">
+                {(qcError || duplicado) && (
+                  <p role="alert" className={`-mt-1 mb-5 flex items-start gap-2 rounded-xl border px-3 py-2.5 text-sm font-medium ${qcError ? 'border-red-200 bg-red-50 text-red-700' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
+                    <AlertCircle size={16} className="mt-0.5 shrink-0" />
+                    {qcError || `${duplicado?.aviso ?? ''} Confira antes de continuar; se for outra pessoa, use “Cadastrar mesmo assim”.`}
                   </p>
                 )}
 
-                <div className="mt-5 flex items-center justify-end gap-3 border-t border-black/5 pt-4">
+                <div className="flex items-center justify-end gap-3 border-t border-black/5 pt-4">
                   <button
                     type="button"
                     onClick={closePatientActions}
                     disabled={qcSaving}
-                    className="h-10 px-3 text-sm font-medium text-neutral-500 hover:text-neutral-900 disabled:opacity-40"
+                    className="h-11 px-3 text-sm font-medium text-neutral-500 hover:text-neutral-900 disabled:opacity-40 sm:h-10"
                   >
                     Cancelar
                   </button>
                   <button
                     onClick={submitQuickCapture}
                     disabled={qcSaving || !qcNome.trim() || !qcClinicaId}
-                    className="inline-flex h-10 shrink-0 items-center gap-2 rounded-md bg-neutral-900 px-5 text-sm font-medium text-white hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-40"
+                    className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-md bg-neutral-900 px-5 text-sm font-medium text-white hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-40 sm:h-10 sm:flex-none"
                   >
                     {qcSaving && <Loader2 size={15} className="animate-spin" />}
-                    {qcSaving ? 'Cadastrando...' : 'Cadastrar'}
+                    {qcSaving ? 'Cadastrando...' : duplicado ? 'Cadastrar mesmo assim' : 'Cadastrar'}
                   </button>
                 </div>
               </div>
+              </>
             )}
 
 
       </Modal>
 
-      {toast && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[90] animate-in slide-in-from-bottom duration-200">
-          <div className="px-5 py-3 rounded-2xl bg-slate-900 text-white font-bold text-sm shadow-2xl flex items-center gap-3 border border-slate-700">
-            <CheckCircle2 size={18} className="text-emerald-400" />
-            {toast.message}
-          </div>
-        </div>
-      )}
+      {/* Mesmo aviso das outras telas, no topo: o antigo ficava embaixo, atrás da barra de navegação do celular. */}
+      <Aviso mensagem={toast?.message ?? null} />
     </PatientActionModalContext.Provider>
   );
 }

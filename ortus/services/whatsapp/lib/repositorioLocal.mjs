@@ -5,6 +5,7 @@
  * gravam no banco da própria clínica, sem Supabase e sem service role.
  *
  * Contrato consumido pelo server.mjs — igual ao de repositorioNuvem.mjs:
+ *   sessões:       clinicaExiste
  *   mensagens:     salvarMensagem, listarMensagens, listarConversas
  *   agendador:     clinica, configAutomacoes, agendadasPendentes,
  *                  reservarAgendada, concluirAgendada, reservarEnvio,
@@ -286,6 +287,17 @@ async function listarConversas(clinicaId) {
 // Agendador
 // ---------------------------------------------------------------------
 
+/** A clínica existe neste computador? null = sem banco local configurado. */
+async function clinicaExiste(clinicaId) {
+  if (!dbLocalConfigurado()) return null;
+  const id = idClinica(clinicaId);
+  if (id == null) return false;
+  const procurar = (tabela, col) => localConsultar(tabela, { filtros: [{ col, op: 'eq', valor: id }], limite: 1 });
+  if ((await procurar('clinicas', 'id')).length) return true;
+  // A referência `clinicas` desce no pull; até lá, um vínculo nesta máquina também prova a clínica.
+  return (await procurar('profissionais_clinicas', 'clinica_id')).length > 0;
+}
+
 /**
  * Nome/telefone da clínica. O SQLite não tem a tabela `clinicas`; o nome que
  * a clínica preencheu em Configurações fica em `configuracoes_clinica`
@@ -546,8 +558,12 @@ export function criarRepositorioLocal() {
     configurado,
     agendadorAtivo: configurado,
     verificar: () => localSaude(),
+    clinicaExiste,
     clinica,
     configAutomacoes,
+    // O banco local não conhece a assinatura: no aplicativo de computador quem barra é a nuvem,
+    // na sincronização. Aqui a clínica sempre "pode gravar".
+    aceitaEscrita: async () => true,
     salvarMensagem,
     listarMensagens,
     listarConversas,

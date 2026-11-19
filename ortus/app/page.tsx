@@ -1,9 +1,11 @@
 'use client';
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { CheckCircle, Calendar, DollarSign, Users } from 'lucide-react';
 import LandingNavbar from '@/components/landing/LandingNavbar';
 import HeroOrtus from '@/components/landing/HeroOrtus';
+import { PLANOS_VITRINE, type PlanoPublico } from '@/lib/assinaturas';
+import { numerosSuporte } from '@/lib/suporte';
 
 export default function LandingPage() {
   const scrollToTop = () => {
@@ -15,6 +17,28 @@ export default function LandingPage() {
     html.classList.add('landing-scroll');
     return () => html.classList.remove('landing-scroll');
   }, []);
+
+  // Planos e preços: a página pinta a vitrine e confirma no servidor, que é
+  // quem cobra. `disponivel` = o pagamento pela internet está configurado.
+  const [planos, setPlanos] = useState<PlanoPublico[]>(PLANOS_VITRINE);
+  const [disponivel, setDisponivel] = useState<boolean | null>(null);
+  useEffect(() => {
+    let cancelado = false;
+    fetch('/api/public/assinatura/planos', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { disponivel?: boolean; planos?: PlanoPublico[] } | null) => {
+        if (cancelado) return;
+        if (d?.planos?.length) setPlanos(d.planos);
+        setDisponivel(d ? d.disponivel === true : false);
+      })
+      .catch(() => {
+        if (!cancelado) setDisponivel(false);
+      });
+    return () => {
+      cancelado = true;
+    };
+  }, []);
+  const contato = numerosSuporte()[0] ?? null;
 
   return (
     <div className="min-h-screen bg-white font-sans text-slate-900 selection:bg-sky-100">
@@ -46,9 +70,27 @@ export default function LandingPage() {
             Planos flexíveis
           </h2>
           <div className="mx-auto grid max-w-5xl grid-cols-1 gap-8 md:grid-cols-3">
-            <CardPreco titulo="Básico" valor="97" recursos={['1 Profissional', 'Agenda', 'Prontuário Simples']} />
-            <CardPreco destaque titulo="Profissional" valor="197" recursos={['Até 3 Profissionais', 'Financeiro Completo', 'Anamnese Personalizada', 'Suporte Prioritário']} />
-            <CardPreco titulo="Clínica" valor="297" recursos={['Profissionais Ilimitados', 'Multi-Clínicas', 'Gestão Avançada', 'API de Integração']} />
+            {planos.map((plano) => (
+              <CardPreco
+                key={plano.codigo}
+                destaque={plano.destaque}
+                titulo={plano.nome}
+                // Com centavos, sempre duas casas (149,90, como o checkout cobra); sem, só o inteiro (97).
+                valor={(plano.valor_centavos / 100).toLocaleString('pt-BR', {
+                  minimumFractionDigits: plano.valor_centavos % 100 ? 2 : 0,
+                  maximumFractionDigits: 2,
+                })}
+                recursos={plano.recursos}
+                // Sem pagamento configurado a página não oferece assinatura: leva ao contato.
+                acao={
+                  disponivel === false
+                    ? contato
+                      ? { rotulo: 'Falar com a gente', href: `https://wa.me/${contato.digitos}`, externo: true }
+                      : null
+                    : { rotulo: 'Assinar Agora', href: `/checkout?plano=${plano.codigo}`, externo: false }
+                }
+              />
+            ))}
           </div>
         </div>
       </section>
@@ -80,7 +122,8 @@ function CardRecurso({ icon, titulo, desc, cor }: { icon: ReactNode; titulo: str
   );
 }
 
-function CardPreco({ titulo, valor, recursos, destaque }: { titulo: string; valor: string; recursos: string[]; destaque?: boolean }) {
+function CardPreco({ titulo, valor, recursos, destaque, acao }: { titulo: string; valor: string; recursos: string[]; destaque?: boolean; acao: { rotulo: string; href: string; externo: boolean } | null }) {
+  const classeBotao = `w-full rounded-xl py-4 text-center font-bold transition-colors ${destaque ? 'bg-ortus-blue text-white hover:bg-ortus-blueDark' : 'bg-slate-100 text-slate-800 hover:bg-slate-200'}`;
   return (
     <div className={`flex flex-col rounded-3xl border p-8 ${destaque ? 'z-10 scale-105 border-slate-800 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-800'}`}>
       <h3 className={`mb-2 text-sm font-bold uppercase tracking-wider ${destaque ? 'text-sky-300' : 'text-slate-400'}`}>{titulo}</h3>
@@ -95,12 +138,19 @@ function CardPreco({ titulo, valor, recursos, destaque }: { titulo: string; valo
           </li>
         ))}
       </ul>
-      <Link
-        href={`/checkout?plano=${titulo}&valor=${valor}`}
-        className={`w-full rounded-xl py-4 text-center font-bold transition-colors ${destaque ? 'bg-ortus-blue text-white hover:bg-ortus-blueDark' : 'bg-slate-100 text-slate-800 hover:bg-slate-200'}`}
-      >
-        Assinar Agora
-      </Link>
+      {acao === null ? (
+        <p className={`w-full rounded-xl py-4 text-center text-sm font-bold ${destaque ? 'bg-white/10 text-slate-300' : 'bg-slate-50 text-slate-500'}`}>
+          Assinatura pela internet em breve
+        </p>
+      ) : acao.externo ? (
+        <a href={acao.href} target="_blank" rel="noopener noreferrer" className={classeBotao}>
+          {acao.rotulo}
+        </a>
+      ) : (
+        <Link href={acao.href} className={classeBotao}>
+          {acao.rotulo}
+        </Link>
+      )}
     </div>
   );
 }

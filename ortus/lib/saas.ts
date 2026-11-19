@@ -13,7 +13,7 @@ export type StatusFinanceiroSaaS =
   | 'suspensa'
   | 'sem_fatura';
 
-export type StatusFaturaSaaS = 'aberta' | 'paga' | 'cancelada';
+export type StatusFaturaSaaS = 'aberta' | 'paga' | 'cancelada' | 'estornada' | 'contestada';
 
 export type StatusConviteSaaS = 'pendente' | 'aceito' | 'recusado' | 'cancelado' | 'expirado';
 
@@ -112,6 +112,148 @@ export type FaturaSaaS = {
   pago_em: string | null;
   metodo: string | null;
   observacao: string | null;
+  /** manual = lançada no painel; automatica = rotina do mês; checkout = 1ª mensalidade da assinatura. */
+  origem?: 'manual' | 'automatica' | 'checkout' | null;
+  pagamento_status?: 'pendente' | 'aprovado' | 'recusado' | 'estornado' | 'contestado' | 'cancelado' | null;
+  pagamento_detalhe?: string | null;
+  pagamento_em?: string | null;
+  estornado_em?: string | null;
+  contestado_em?: string | null;
+  tem_link?: boolean;
+};
+
+/** Estado da assinatura de uma rede, como o banco calcula (assinatura_estado). */
+export type EstadoAssinaturaSaaS = 'sem_cobranca' | 'ativa' | 'em_atraso' | 'bloqueada' | 'suspensa' | 'cancelada';
+
+export type ResumoAssinaturaRedeSaaS = {
+  estado: EstadoAssinaturaSaaS;
+  cobranca_automatica: boolean;
+  divida_desde: string | null;
+  bloqueio_suspenso_ate: string | null;
+  proxima_cobranca: string | null;
+  ultimo_pagamento_em: string | null;
+};
+
+export type ResumoAssinaturasSaaS = {
+  redes: Record<string, ResumoAssinaturaRedeSaaS>;
+  totais: {
+    cobranca_automatica: number;
+    em_atraso: number;
+    modo_consulta: number;
+    compras_aguardando: number;
+    compras_com_erro: number;
+    pagamentos_revisar: number;
+    avisos_com_erro: number;
+    recebido_30d_centavos: number;
+  };
+};
+
+export type PagamentoEventoSaaS = {
+  id: number;
+  criado_em: string;
+  atualizado_em?: string;
+  vezes: number;
+  origem?: string;
+  pagamento_ref: string;
+  referencia?: string | null;
+  estado: 'pendente' | 'aprovado' | 'recusado' | 'estornado' | 'contestado' | 'cancelado';
+  detalhe: string | null;
+  valor_centavos: number | null;
+  meio: string | null;
+  alvo: 'pedido' | 'fatura' | 'desconhecido';
+  pedido_id?: string | null;
+  fatura_id: number | null;
+  rede_id?: string | null;
+  rede_nome?: string | null;
+  resultado?: 'aplicado' | 'ignorado' | 'revisar';
+  motivo: string | null;
+  resolvido_em?: string | null;
+  resolucao?: string | null;
+};
+
+export type AvisoCobrancaSaaS = {
+  id: number;
+  criado_em: string;
+  tipo: 'fatura_gerada' | 'fatura_atrasada' | 'acesso_bloqueado' | 'acesso_reaberto';
+  rede_id?: string;
+  rede_nome?: string | null;
+  fatura_id?: number | null;
+  enviado_em?: string | null;
+  destinatarios?: number | null;
+  tentativas: number;
+  erro: string | null;
+};
+
+export type PedidoAssinaturaSaaS = {
+  id: string;
+  criado_em: string;
+  status: 'aguardando_pagamento' | 'pago' | 'provisionado' | 'expirado' | 'estornado' | 'contestado' | 'cancelado';
+  plano_nome: string;
+  valor_centavos: number;
+  clinica_nome?: string;
+  responsavel_nome: string;
+  email: string;
+  pagamento_status?: string | null;
+  pagamento_detalhe?: string | null;
+  pagamento_meio: string | null;
+  pagamento_em: string | null;
+  rede_id?: string | null;
+  provisionado_em: string | null;
+  provisionamento_erro?: string | null;
+  provisionamento_tentativas?: number;
+  email_acesso_em: string | null;
+  email_acesso_erro: string | null;
+};
+
+export type AssinaturaRedeSaaS = {
+  estado: EstadoAssinaturaSaaS;
+  plano: string | null;
+  plano_nome: string | null;
+  valor_centavos: number;
+  dia_vencimento: number;
+  ativa: boolean;
+  cobranca_automatica: boolean;
+  inicio: string | null;
+  divida_desde: string | null;
+  bloqueio_em: string | null;
+  bloqueada_em: string | null;
+  bloqueio_suspenso_ate: string | null;
+  cancelada_em: string | null;
+  cancelamento_motivo: string | null;
+  tolerancia_dias: number;
+  proxima_cobranca: string | null;
+  hoje: string;
+  planos: { codigo: string; nome: string; valor_centavos: number; publico: boolean }[];
+  pagamentos: PagamentoEventoSaaS[];
+  avisos: AvisoCobrancaSaaS[];
+  pedido: PedidoAssinaturaSaaS | null;
+};
+
+export type PendenciasAssinaturaSaaS = {
+  pedidos: PedidoAssinaturaSaaS[];
+  revisar: PagamentoEventoSaaS[];
+  avisos_com_erro: AvisoCobrancaSaaS[];
+};
+
+/** Por que um pagamento ficou para conferência humana (pagamento_aplicar). */
+export const MOTIVO_REVISAR: Record<string, string> = {
+  valor_divergente: 'Valor pago diferente do cobrado',
+  duplicado: 'Pagamento em duplicidade',
+  sem_alvo: 'Pagamento sem compra ou fatura correspondente',
+  fatura_cancelada: 'Pago depois de a fatura ser cancelada',
+  estorno_parcial: 'Estorno parcial',
+  // O e-mail ganhou conta por outro caminho (convite, outra compra) antes do pagamento: não nasce outra conta.
+  email_em_uso: 'E-mail da compra já tinha conta: estornar o pagamento',
+  contestacao_atualizada: 'Contestação mudou de fase: conferir no Mercado Pago',
+  pagamento_de_teste: 'Pagamento de teste no servidor de produção: conferir a credencial do Mercado Pago',
+};
+
+/** Por que a conta de uma compra paga não foi criada (assinatura_pedidos.provisionamento_erro). */
+export const MOTIVO_CONTA_NAO_CRIADA: Record<string, string> = {
+  email_em_uso: 'o e-mail da compra já tem conta no Ortus',
+  falha_no_login: 'o serviço de login não criou o usuário',
+  falha_ao_criar_clinica: 'o banco não criou a rede e a clínica',
+  erro_inesperado: 'erro inesperado no servidor (ver Operação → falhas)',
 };
 
 export type ConviteSaaS = {
@@ -218,11 +360,24 @@ export const STATUS_FATURA_META: Record<StatusFaturaSaaS, MetaStatus> = {
     chip: 'border-neutral-200 bg-neutral-100 text-neutral-500',
     ponto: 'bg-neutral-400',
   },
+  estornada: {
+    label: 'Estornada',
+    chip: 'border-rose-200 bg-rose-50 text-rose-700',
+    ponto: 'bg-rose-500',
+  },
+  contestada: {
+    label: 'Contestada',
+    chip: 'border-rose-200 bg-rose-50 text-rose-700',
+    ponto: 'bg-rose-500',
+  },
 };
 
+/** Mesmos códigos do catálogo `planos_saas`. Os três primeiros são os da página pública. */
 export const PLANOS_SAAS: { value: string; label: string }[] = [
-  { value: 'essencial', label: 'Essencial' },
+  { value: 'basico', label: 'Básico' },
   { value: 'profissional', label: 'Profissional' },
+  { value: 'clinica', label: 'Clínica' },
+  { value: 'essencial', label: 'Essencial' },
   { value: 'rede', label: 'Rede multiunidade' },
   { value: 'enterprise', label: 'Enterprise' },
 ];
@@ -352,7 +507,24 @@ function paraISOData(data: Date): string {
   return `${data.getFullYear()}-${mes}-${dia}`;
 }
 
+let formatoBrasilia: Intl.DateTimeFormat | null = null;
+
+/** Hoje no dia de Brasília (o mesmo `hoje_br()` do banco), seja qual for o fuso do navegador. */
 export function hojeISO(): string {
+  try {
+    formatoBrasilia ??= new Intl.DateTimeFormat('pt-BR', {
+      timeZone: 'America/Sao_Paulo',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+    const partes = formatoBrasilia.formatToParts(new Date());
+    const parte = (tipo: string) => partes.find((p) => p.type === tipo)?.value ?? '';
+    const iso = `${parte('year')}-${parte('month')}-${parte('day')}`;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) return iso;
+  } catch {
+    /* navegador sem o fuso: fica o dia local */
+  }
   return paraISOData(new Date());
 }
 
@@ -374,18 +546,24 @@ export function vencimentoSugerido(diaVencimento: number): string {
   return paraISOData(alvo);
 }
 
+/** Dias desde o vencimento, contados no dia de Brasília (0 se ainda não venceu). */
 export function diasAtraso(vencimento?: string | null): number {
   if (!vencimento) return 0;
-  const data = new Date(`${vencimento.slice(0, 10)}T12:00:00`);
-  if (Number.isNaN(data.getTime())) return 0;
-  const hoje = new Date();
-  const hojeZerado = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
-  const diferenca = Math.floor((hojeZerado.getTime() - data.getTime()) / 86_400_000);
+  const [a, m, d] = vencimento.slice(0, 10).split('-').map(Number);
+  const [ha, hm, hd] = hojeISO().split('-').map(Number);
+  if (!a || !m || !d) return 0;
+  const diferenca = Math.round((Date.UTC(ha, hm - 1, hd) - Date.UTC(a, m - 1, d)) / 86_400_000);
   return diferenca > 0 ? diferenca : 0;
 }
 
+/** Em dívida (aberta, estornada ou contestada) e com vencimento antes de hoje. */
 export function faturaVencida(fatura: Pick<FaturaSaaS, 'status' | 'vencimento'>): boolean {
-  return fatura.status === 'aberta' && diasAtraso(fatura.vencimento) > 0;
+  return faturaEmDivida(fatura) && diasAtraso(fatura.vencimento) > 0;
+}
+
+/** Fatura que ainda conta como dívida: aberta, estornada ou contestada. */
+export function faturaEmDivida(fatura: Pick<FaturaSaaS, 'status'>): boolean {
+  return fatura.status === 'aberta' || fatura.status === 'estornada' || fatura.status === 'contestada';
 }
 
 export function percentualArmazenamento(

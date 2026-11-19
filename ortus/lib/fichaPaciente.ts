@@ -4,7 +4,6 @@ import { listarEvolucoes } from '@/lib/db/evolucoes';
 import { carregarFichaClinica } from '@/lib/db/fichaClinica';
 import { listarTratamentos } from '@/lib/db/tratamentos';
 import { legacyJsonToProntuario, type ProntuarioPaciente } from '@/lib/db/types';
-import { supabase } from '@/lib/supabase';
 import { dados as tabelas } from '@/lib/local/consulta';
 
 /** Carrega prontuário completo (tabelas relacionais + JSON clínico). */

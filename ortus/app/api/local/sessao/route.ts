@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { criarVerificadorSenha } from '@/desktop/lib/verificadorSenha.cjs';
 import { lerSessaoLocal, salvarSessaoLocal, type SessaoLocal } from '@/lib/local/ponte';
-import { negarForaDoDesktop } from '@/lib/local/rota';
+import { exigirJanelaLocal } from '@/lib/local/rota';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -26,9 +26,12 @@ function expiraDoToken(token: string): number | undefined {
  * - `POST` grava a sessão do Supabase depois do login online (é o que o
  *   sincronizador vai usar como JWT).
  * - `DELETE` limpa (logout).
+ *
+ * As três exigem a prova de janela: gravar a sessão troca o JWT que o
+ * sincronizador usa, e apagar desloga a clínica.
  */
-export async function GET() {
-  const fora = negarForaDoDesktop();
+export async function GET(req: Request) {
+  const fora = exigirJanelaLocal(req);
   if (fora) return fora;
 
   const sessao = await lerSessaoLocal();
@@ -45,7 +48,7 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const fora = negarForaDoDesktop();
+  const fora = exigirJanelaLocal(req, { json: true });
   if (fora) return fora;
 
   const corpo = (await req.json().catch(() => ({}))) as { dados?: SessaoLocal | null; senha?: string };
@@ -74,8 +77,8 @@ export async function POST(req: Request) {
   return NextResponse.json({ ok: true });
 }
 
-export async function DELETE() {
-  const fora = negarForaDoDesktop();
+export async function DELETE(req: Request) {
+  const fora = exigirJanelaLocal(req);
   if (fora) return fora;
 
   await salvarSessaoLocal(null);

@@ -19,7 +19,6 @@ import {
   readModuleAccessMapFromCookie,
   setAuthMarkerCookie,
   syncModuleAccessCookie,
-  writeSuperAdminCache,
 } from '@/lib/authCookies';
 import {
   PROFILE_PATCH_EVENT,
@@ -27,8 +26,8 @@ import {
   writeProfileSession,
   type ProfileSessionSnapshot,
 } from '@/lib/profileSession';
-
-const ROTAS_PUBLICAS = ['/login', '/', '/site', '/termos', '/checkout', '/cadastro', '/teste-3d'];
+import { ehPaginaPublica, ehTelaSemCasca } from '@/lib/rotasPublicas';
+import { limparRastrosDaSessao } from '@/lib/sessao';
 
 function hasAuthCookie(): boolean {
   if (typeof document === 'undefined') return false;
@@ -49,7 +48,11 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
   // Header switcher (consome o ClinicaProvider global multi-tenant)
-  const { clinics: ctxClinics, activeClinic: ctxActive, activeClinicId: ctxActiveId, loading: clinicLoading } = useClinica();
+  const { clinics: ctxClinics, activeClinic: ctxActive, activeClinicId: ctxActiveId, loading: clinicLoading, convidadoAqui } = useClinica();
+  // Administrador é por clínica: quem entrou por convite de outra rede é
+  // membro comum aqui, mesmo sendo administrador na clínica de origem.
+  // A regra de verdade está no banco (user_is_clinic_admin); isto só alinha a tela.
+  const adminAqui = perfil?.is_super_admin === true || (perfil?.nivel_acesso === 'admin' && !convidadoAqui);
   const sessaoPronta = useRef(false);
   const perfilRef = useRef<any>(null);
   perfilRef.current = perfil;
@@ -68,7 +71,10 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (clinicLoading) return;
-    if (['/selecao', '/primeiro-acesso', '/login'].includes(pathname)) return;
+    // Telas públicas (login, link de acesso, "Esqueci a senha") e telas sem casca (seleção,
+    // primeiro acesso, nova senha) não pedem clínica: quem tem várias clínicas e chegou pelo
+    // link do e-mail termina de criar a senha antes de escolher a unidade.
+    if (ehPaginaPublica(pathname) || ehTelaSemCasca(pathname)) return;
     if (ctxClinics.length > 1 && !ctxActiveId) {
       router.replace('/selecao');
     }
@@ -76,23 +82,22 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (loading || !session || !perfil) return;
-    if (perfil.nivel_acesso === 'admin' || perfil.is_super_admin) return;
+    if (adminAqui) return;
     if (!permissoesResolvidas) return;
     if (pathname === '/dashboard' || pathname.startsWith('/dashboard')) return;
-    const rotaPublica = ['/login', '/', '/site', '/termos', '/checkout', '/cadastro', '/selecao', '/primeiro-acesso', '/teste-3d'].includes(pathname) || pathname.startsWith('/super-admin');
-    if (rotaPublica) return;
+    if (ehPaginaPublica(pathname) || ehTelaSemCasca(pathname) || pathname.startsWith('/super-admin')) return;
     const modulo = moduleForPath(pathname);
     if (modulo && !moduleAccess[modulo]) {
       router.replace('/dashboard?acesso=negado');
     }
-  }, [loading, session, perfil, pathname, moduleAccess, router, permissoesResolvidas]);
+  }, [loading, session, perfil, pathname, moduleAccess, router, permissoesResolvidas, adminAqui]);
 
   useEffect(() => {
     if (!perfil?.id) return;
     let cancelado = false;
 
     async function sincronizarPermissoes() {
-      if (perfil.nivel_acesso === 'admin' || perfil.is_super_admin) {
+      if (adminAqui) {
         setModuleAccess(buildModuleAccessMap(true));
         syncModuleAccessCookie('all');
         setPermissoesResolvidas(true);
@@ -129,7 +134,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
 
     sincronizarPermissoes();
     return () => { cancelado = true; };
-  }, [perfil?.id, perfil?.nivel_acesso, perfil?.is_super_admin, ctxActive?.id]);
+  }, [perfil?.id, adminAqui, ctxActive?.id]);
 
   // Backup automático
   useEffect(() => {
@@ -138,7 +143,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
 
   const carregarPerfil = useCallback(async () => {
     const path = pathnameRef.current;
-    if (ROTAS_PUBLICAS.includes(path)) {
+    if (ehPaginaPublica(path)) {
       setLoading(false);
       return;
     }
@@ -173,7 +178,8 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     if (carga !== cargaRef.current) return;
 
     if (!sess) {
-      if (hasAuthCookie()) {
+      // A tela de nova senha mostra o próprio aviso de link vencido, com "Pedir outro link".
+      if (hasAuthCookie() || path === '/redefinir-senha') {
         setLoading(false);
         return;
       }
@@ -195,11 +201,9 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
       const cache = await lerSessaoCacheUI();
       const perfilCache = cache?.perfil as Record<string, unknown> | null | undefined;
       if (perfilCache) {
-        const saas = perfilCache.is_super_admin === true;
         perfilRef.current = perfilCache;
         setPerfil(perfilCache);
         sessaoPronta.current = true;
-        writeSuperAdminCache(saas);
       } else {
         console.error('[AuthGuard] profissionais:', error);
       }
@@ -209,7 +213,6 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
 
     if (prof) {
       const saas = prof.is_super_admin === true;
-      writeSuperAdminCache(saas);
       const foto = prof.foto_url || readProfileSession()?.foto_url || null;
       const proximo = { ...prof, is_super_admin: saas, foto_url: foto };
       writeProfileSession({
@@ -261,6 +264,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
         })();
       }
       if (event === 'SIGNED_OUT') {
+        limparRastrosDaSessao();
         sessaoPronta.current = false;
         perfilRef.current = null;
         setPerfil(null);
@@ -268,7 +272,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
         return;
       }
       if (event === 'INITIAL_SESSION' && !sess) {
-        if (ROTAS_PUBLICAS.includes(pathnameRef.current)) return;
+        if (ehPaginaPublica(pathnameRef.current) || pathnameRef.current === '/redefinir-senha') return;
         void (async () => {
           if ((await modoDados()) === 'local' && await prepararSessaoLocal()) {
             const { data } = await supabase.auth.getSession();
@@ -340,7 +344,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener(PROFILE_PATCH_EVENT, onPatch);
   }, []);
 
-  if (['/login', '/', '/site', '/termos', '/checkout', '/cadastro', '/teste-3d', '/selecao', '/primeiro-acesso'].includes(pathname)) return <>{children}</>;
+  if (ehPaginaPublica(pathname) || ehTelaSemCasca(pathname)) return <>{children}</>;
   // Mostra spinner bloqueante APENAS se não temos cookie de auth (primeiro acesso)
   if (loading) return <div className="flex h-screen w-screen items-center justify-center bg-[#f3f4f1]"><div className="h-8 w-8 animate-spin rounded-full border-2 border-neutral-200 border-t-neutral-900" /></div>;
   // Se validação em background ainda não terminou mas já temos cookie, continua renderizando
@@ -352,7 +356,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
       return <>{children}</>;
   }
 
-  const isPerfilAdmin = perfil?.nivel_acesso === 'admin' || perfil?.is_super_admin;
+  const isPerfilAdmin = adminAqui;
 
   const canAccessModule = (module?: ModuleName) => {
       if (!module) return true;
@@ -372,6 +376,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
               // O cache em sessionStorage é apenas otimização de pintura e
               // nunca decide sozinho.
               showPainelSaas: perfil?.is_super_admin === true,
+              showAssinatura: isPerfilAdmin,
               tarefasBadge: tarefasPendentes,
               profilePhotoUrl: fotoPerfil,
               profileName: perfil?.nome ?? null,

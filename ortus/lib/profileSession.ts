@@ -55,14 +55,3 @@ export function patchProfileSession(patch: ProfileSessionSnapshot) {
   }
 }
 
-export function mergeProfilFromSession<T extends ProfileSessionSnapshot>(prof: T | null): T | null {
-  if (!prof) return prof;
-  const boot = readProfileSession();
-  if (!boot) return prof;
-  return {
-    ...prof,
-    foto_url: boot.foto_url ?? prof.foto_url,
-    nome: boot.nome ?? prof.nome,
-    cargo: boot.cargo ?? prof.cargo,
-  };
-}

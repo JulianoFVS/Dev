@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { avisarMudancaNaAssinatura } from '@/lib/assinaturaCliente';
 import { dados as tabelas } from '@/lib/local/consulta';
 import { rowToAnamnese, type AnamnesePaciente } from '@/lib/db/types';
 import { atualizar, inserir, listar, modoDados, remover } from '@/lib/local/cliente';
@@ -125,6 +126,8 @@ export async function gerarLinkAnamnesePaciente(
   });
 
   const body = await res.json().catch(() => ({}));
+  // 402 = modo de consulta: a faixa de assinatura confere de novo e aparece na hora.
+  if (res.status === 402) avisarMudancaNaAssinatura();
   if (!res.ok) throw new Error(body.error || 'Erro ao gerar link.');
   return { url: body.url, expires_at: body.expires_at };
 }

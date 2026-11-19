@@ -12,13 +12,23 @@ const log = require('./log.cjs');
  *  - `db`       protege a API de dados local (Electron ⇄ Next).
  *  - `whatsapp` protege o gateway do WWebJS (Next ⇄ servidor do WhatsApp).
  *
- * Nenhum deles vai para o renderer nem para a rede da clínica.
+ * Nenhum deles vai para o renderer nem para a rede da clínica: seguem só por
+ * variável de ambiente para os processos filhos (Next local e WhatsApp).
+ *
+ * O segredo da prova de janela não mora aqui: ele nasce a cada execução, em
+ * `main.cjs`, e nunca é gravado em disco.
  */
 
 let cache = null;
 
+/** 32 bytes aleatórios, em hexadecimal (64 caracteres). */
 function gerar() {
   return crypto.randomBytes(32).toString('hex');
+}
+
+/** Só aceita o formato que `gerar()` produz; qualquer outra coisa é trocada. */
+function valido(segredo) {
+  return /^[0-9a-f]{64}$/.test(String(segredo || ''));
 }
 
 function ler(app) {
@@ -36,11 +46,11 @@ function ler(app) {
   }
 
   let mudou = false;
-  if (cache.db.length < 32) {
+  if (!valido(cache.db)) {
     cache.db = gerar();
     mudou = true;
   }
-  if (cache.whatsapp.length < 32) {
+  if (!valido(cache.whatsapp)) {
     cache.whatsapp = gerar();
     mudou = true;
   }

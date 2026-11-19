@@ -1,0 +1,19 @@
+# Ortus — quando a rotina de lembretes roda.
+# Todo dia às 13:00 UTC (10h de Brasília): o mesmo horário do cron do
+# vercel.json ("0 13 * * *").
+#
+# Ligar:  sudo systemctl enable --now ortus-lembretes.timer
+# Ver:    systemctl list-timers 'ortus-*' --no-pager
+
+[Unit]
+Description=Ortus - agenda dos lembretes de consulta (todo dia 13:00 UTC)
+
+[Timer]
+OnCalendar=*-*-* 13:00:00 UTC
+# Se a máquina estava desligada na hora, roda assim que ligar.
+Persistent=true
+AccuracySec=1min
+Unit=ortus-lembretes.service
+
+[Install]
+WantedBy=timers.target

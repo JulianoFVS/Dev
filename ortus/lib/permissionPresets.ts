@@ -80,8 +80,7 @@ export const ROUTE_MODULE_MAP: { prefix: string; module: ModuleName }[] = [
   { prefix: '/ajustes/tratamentos', module: 'configuracoes' },
   { prefix: '/configuracoes', module: 'configuracoes' },
   { prefix: '/planos', module: 'configuracoes' },
-  { prefix: '/inbox', module: 'marketing' },
-  { prefix: '/mensagens', module: 'marketing' },
+  // /mensagens fica de fora de propósito: é onde qualquer pessoa vê e aceita convite de equipe.
   { prefix: '/whatsapp', module: 'ficha_paciente' },
 ];
 

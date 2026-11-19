@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { supabase } from '@/lib/supabase';
 import { dados as tabelas } from '@/lib/local/consulta';
 import { clinicScope, readRouteCache, writeRouteCache } from '@/lib/routeListCache';
 import { carregarConfig } from '@/lib/configClinica';
@@ -96,7 +95,11 @@ const VAZIO: Snap = {
 
 type Atalho = 'hoje' | '7d' | 'mes' | 'trimestre' | 'ano';
 type Modo = 'atalho' | 'intervalo';
-type Secao = { titulo: string; nota?: string; colunas: string[]; linhas: string[][] };
+/**
+ * `principal` e `destaque` só valem no celular, onde cada linha vira um item de duas linhas:
+ * a coluna principal é o título (padrão: a primeira) e a de destaque fica à direita (padrão: a última).
+ */
+type Secao = { titulo: string; nota?: string; colunas: string[]; linhas: string[][]; principal?: number; destaque?: number };
 type Kpi = { id: ReportId; titulo: string; valor: string; detalhe: string; antes: string; delta: string };
 
 const NOMES: Record<Exclude<ReportId, 'painel'>, string> = {
@@ -193,7 +196,8 @@ function pct(n: number) {
 
 function dataBR(iso?: string | null) {
     if (!iso) return '—';
-    const d = new Date(iso);
+    // Data pura (AAAA-MM-DD) lida direto por Date vira meia-noite UTC e, no Brasil, aparecia como o dia anterior.
+    const d = new Date(iso.length <= 10 ? `${iso}T12:00:00` : iso);
     if (Number.isNaN(d.getTime())) return '—';
     return d.toLocaleDateString('pt-BR');
 }
@@ -296,6 +300,42 @@ function deltaPct(atual: number, anterior: number) {
     const p = Math.round(((atual - anterior) / Math.abs(anterior)) * 100);
     if (!Number.isFinite(p) || p === 0) return '';
     return `${p > 0 ? '+' : ''}${p}%`;
+}
+
+/** Celular: a tabela de até seis colunas não cabe sem rolar para o lado. Cada linha vira título + valor em cima e o resto, com o nome da coluna, embaixo. */
+function ListaCelular({ secao }: { secao: Secao }) {
+    const principal = secao.principal ?? 0;
+    const destaque = secao.colunas.length > 1 ? secao.destaque ?? secao.colunas.length - 1 : -1;
+    const resto = secao.colunas.map((_, i) => i).filter((i) => i !== principal && i !== destaque);
+    return (
+        <div className="md:hidden">
+            <div className="flex items-center justify-between gap-3 border-b border-black/5 px-4 py-2 text-xs font-medium text-neutral-400">
+                <span className="min-w-0">{secao.colunas[principal]}</span>
+                {destaque >= 0 && <span className="shrink-0 text-right">{secao.colunas[destaque]}</span>}
+            </div>
+            <ul className="divide-y divide-black/5">
+                {secao.linhas.map((row, i) => (
+                    <li key={i} className="px-4 py-3">
+                        <div className="flex items-start justify-between gap-3">
+                            <span className="min-w-0 flex-1 break-words text-sm font-medium text-neutral-900">{row[principal]}</span>
+                            {destaque >= 0 && (
+                                <span className="max-w-[55%] shrink-0 break-words text-right text-sm font-semibold tabular-nums text-neutral-900">{row[destaque]}</span>
+                            )}
+                        </div>
+                        {resto.length > 0 && (
+                            <p className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-neutral-600">
+                                {resto.map((j) => (
+                                    <span key={j} className="min-w-0 break-words">
+                                        <span className="text-neutral-400">{secao.colunas[j]}</span> {row[j]}
+                                    </span>
+                                ))}
+                            </p>
+                        )}
+                    </li>
+                ))}
+            </ul>
+        </div>
+    );
 }
 
 export default function Relatorios() {
@@ -502,26 +542,28 @@ export default function Relatorios() {
         });
     }
 
+    // 40px de toque no celular; no computador o filtro continua com 36px.
     const pill = (ativo: boolean) =>
-        `h-9 rounded-md px-3 text-sm font-medium transition-colors ${ativo ? 'bg-neutral-900 text-white' : 'border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50'}`;
+        `h-10 rounded-md px-3 text-sm font-medium transition-colors md:h-9 ${ativo ? 'bg-neutral-900 text-white' : 'border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50'}`;
 
     return (
-        <div className="w-full space-y-3 px-2.5 py-2.5 pb-12 font-poppins sm:px-3 sm:py-3 md:px-4 md:py-3.5">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-                <div>
+        <div className="w-full space-y-3 px-2.5 py-2.5 font-poppins sm:px-3 sm:py-3 md:px-4 md:py-3.5">
+            {/* Em linha desde o celular: o PDF fica ao lado de "voltar" em vez de ocupar uma linha só para ele. */}
+            <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
                     {tipo !== 'painel' && (
-                        <button type="button" onClick={() => setTipo('painel')} className="mb-2 inline-flex items-center gap-1 text-sm font-medium text-neutral-500 hover:text-neutral-900">
+                        <button type="button" onClick={() => setTipo('painel')} className="inline-flex h-10 items-center gap-1 text-sm font-medium text-neutral-500 hover:text-neutral-900 md:mb-2 md:h-auto">
                             <ArrowLeft size={16} /> Relatórios
                         </button>
                     )}
                     <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 md:text-[2rem]">
                         {titulo}
-                        <span className="text-neutral-400"> · {activeClinic ? getClinicLabel(activeClinic) : 'Todas as suas clínicas'}</span>
+                        <span className="hidden text-neutral-400 md:inline"> · {activeClinic ? getClinicLabel(activeClinic) : 'Todas as suas clínicas'}</span>
                     </h1>
                     <p className="mt-1 text-sm text-neutral-500 sm:text-base">{periodo.label}</p>
                 </div>
                 {tipo !== 'painel' && (
-                    <button type="button" onClick={imprimir} className="inline-flex h-10 items-center justify-center gap-2 self-start rounded-md border border-neutral-200 bg-white px-4 text-sm font-medium text-neutral-800 hover:bg-neutral-50">
+                    <button type="button" onClick={imprimir} aria-label="Imprimir ou salvar em PDF" className="inline-flex h-10 w-10 shrink-0 items-center justify-center gap-2 rounded-md border border-neutral-200 bg-white text-sm font-medium text-neutral-800 hover:bg-neutral-50 sm:w-auto sm:px-4">
                         <Printer size={16} /> <span className="hidden sm:inline">PDF</span>
                     </button>
                 )}
@@ -535,33 +577,34 @@ export default function Relatorios() {
             )}
 
             <section className={`${cardShell} space-y-3 p-3 sm:p-4`}>
-                <div className="flex flex-wrap gap-2">
+                {/* Celular: seis atalhos em grade de três, para não sobrar um botão sozinho na segunda linha. */}
+                <div className="grid grid-cols-3 gap-2 sm:flex sm:flex-wrap">
                     {([
                         ['hoje', 'Hoje'], ['7d', '7 dias'], ['mes', 'Mês'], ['trimestre', 'Trimestre'], ['ano', 'Ano'],
                     ] as const).map(([id, label]) => (
-                        <button key={id} type="button" onClick={() => { setModo('atalho'); setAtalho(id); }} className={pill(modo === 'atalho' && atalho === id)}>{label}</button>
+                        <button key={id} type="button" onClick={() => { setModo('atalho'); setAtalho(id); }} aria-pressed={modo === 'atalho' && atalho === id} className={pill(modo === 'atalho' && atalho === id)}>{label}</button>
                     ))}
-                    <button type="button" onClick={() => setModo('intervalo')} className={pill(modo === 'intervalo')}>Intervalo</button>
+                    <button type="button" onClick={() => setModo('intervalo')} aria-pressed={modo === 'intervalo'} className={pill(modo === 'intervalo')}>Intervalo</button>
                 </div>
                 {modo === 'intervalo' && (
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto_1fr] sm:items-end">
-                        <label>
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-[1fr_auto_1fr] sm:items-end sm:gap-3">
+                        <label className="min-w-0">
                             <span className="mb-1.5 block text-xs font-medium text-neutral-500">De</span>
                             <CampoData value={dataInicio} onChange={setDataInicio} />
                         </label>
                         <span className="hidden pb-2 text-sm text-neutral-400 sm:block">até</span>
-                        <label>
+                        <label className="min-w-0">
                             <span className="mb-1.5 block text-xs font-medium text-neutral-500">Até</span>
                             <CampoData value={dataFim} onChange={setDataFim} />
                         </label>
                     </div>
                 )}
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                    <button type="button" onClick={() => setComparar((v) => !v)} className={pill(comparar)}>
+                <div className="flex items-center gap-2">
+                    <button type="button" onClick={() => setComparar((v) => !v)} aria-pressed={comparar} className={`${pill(comparar)} shrink-0`}>
                         Comparar
                     </button>
                     {USA_PROF.has(tipo) && (
-                        <div className="min-w-0 sm:w-64">
+                        <div className="min-w-0 flex-1 sm:w-64 sm:flex-none">
                             <CustomSelect
                                 value={filtroProf}
                                 onChange={setFiltroProf}
@@ -586,12 +629,13 @@ export default function Relatorios() {
                                             key={id}
                                             type="button"
                                             onClick={() => setTipo(id)}
-                                            className="flex w-full items-center gap-3 border-t border-black/5 px-4 py-3.5 text-left transition-colors hover:bg-[#f8f8f6] sm:px-5"
+                                            className="flex min-h-[48px] w-full items-center gap-3 border-t border-black/5 px-4 py-3.5 text-left transition-colors hover:bg-[#f8f8f6] sm:px-5"
                                         >
-                                            <span className="min-w-0 flex-1 truncate text-sm font-medium text-neutral-900 sm:text-[15px]">{NOMES[id]}</span>
+                                            {/* No celular o nome do relatório quebra em duas linhas em vez de cortar, e a variação desce para baixo do valor. */}
+                                            <span className="min-w-0 flex-1 break-words text-sm font-medium text-neutral-900 sm:text-[15px] md:truncate">{NOMES[id]}</span>
                                             {kpi && kpiLoading ? <span className="h-4 w-16 animate-pulse rounded-md bg-neutral-100" /> : null}
                                             {kpi && !kpiLoading ? (
-                                                <span className="flex shrink-0 items-baseline gap-2">
+                                                <span className="flex shrink-0 flex-col items-end md:flex-row md:items-baseline md:gap-2">
                                                     <span className="text-sm font-semibold tabular-nums text-neutral-900">{kpi.valor}</span>
                                                     {comparar && kpi.delta ? <span className="text-[11px] tabular-nums text-neutral-400">{kpi.delta}</span> : null}
                                                 </span>
@@ -617,7 +661,9 @@ export default function Relatorios() {
                             {s.linhas.length === 0 ? (
                                 <p className="px-4 py-10 text-center text-sm text-neutral-400">Nada neste recorte.</p>
                             ) : (
-                                <div className="overflow-x-auto">
+                                <>
+                                <ListaCelular secao={s} />
+                                <div className="hidden overflow-x-auto md:block">
                                     <table className="min-w-[640px] w-full text-left text-sm">
                                         <thead>
                                             <tr className="border-b border-black/5 text-xs font-medium text-neutral-400">
@@ -635,6 +681,7 @@ export default function Relatorios() {
                                         </tbody>
                                     </table>
                                 </div>
+                                </>
                             )}
                         </section>
                     ))}
@@ -678,6 +725,7 @@ function montarSecoes(tipo: ReportId, ctx: {
                 titulo: 'Lista nominal',
                 nota: lista.length < ag.length ? `Mostrando ${lista.length} de ${ag.length}.` : undefined,
                 colunas: ['Data', 'Paciente', 'Procedimento', 'Profissional', 'Situação'],
+                principal: 1,
                 linhas: lista.map((a) => [dataBR(a.data_hora), nomePac(a), a.procedimento || '—', nomeProf(a.profissional_id), rotuloStatus(a.status)]),
             },
         ];
@@ -733,6 +781,7 @@ function montarSecoes(tipo: ReportId, ctx: {
         return [{
             titulo: 'Produção',
             colunas: ['Profissional', 'Consultas', 'Faltas', 'Faturamento', 'Ticket'],
+            destaque: 3,
             linhas: [...mapa.entries()].map(([id, r]) => [nomeProf(Number(id) || null), String(r.vis), String(r.faltas), brl(r.fat), brl(r.vis ? r.fat / r.vis : 0)]),
         }];
     }
@@ -750,7 +799,7 @@ function montarSecoes(tipo: ReportId, ctx: {
         const linhas = [...mapa.entries()].sort((a, b) => b[1].valor - a[1].valor).map(([nome, r]) => [
             nome, String(r.qtd), brl(r.valor), brl(r.qtd ? r.valor / r.qtd : 0), pct((r.valor / total) * 100),
         ]);
-        return [{ titulo: 'Ranking', colunas: ['Procedimento', 'Qtd', 'Valor', 'Ticket', 'Participação'], linhas }];
+        return [{ titulo: 'Ranking', colunas: ['Procedimento', 'Qtd', 'Valor', 'Ticket', 'Participação'], destaque: 2, linhas }];
     }
 
     if (tipo === 'novos') {
@@ -831,6 +880,7 @@ function montarSecoes(tipo: ReportId, ctx: {
             titulo: curto ? 'Por dia' : 'Por mês',
             nota: 'Realizado é consulta concluída. Previsto é o que ainda está na agenda ou em fiado, dentro do período.',
             colunas: ['Quando', 'Realizado', 'Previsto'],
+            destaque: 1,
             linhas: [...mapa.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([k, r]) => [curto ? dataBR(k) : k, brl(r.real), brl(r.prev)]),
         }];
     }
@@ -879,6 +929,7 @@ function montarSecoes(tipo: ReportId, ctx: {
             titulo: 'Mix',
             nota: 'A forma só aparece quando foi registrada na taxa da maquininha. O restante fica como não informado.',
             colunas: ['Forma', 'Qtd', 'Bruto', 'Taxa', 'Líquido', 'Participação'],
+            destaque: 4,
             linhas: [...mapa.entries()].sort((a, b) => b[1].liquido - a[1].liquido).map(([nome, r]) => [
                 nome, String(r.qtd), brl(r.bruto), brl(Math.max(0, r.bruto - r.liquido)), brl(r.liquido), pct((r.liquido / total) * 100),
             ]),
@@ -977,6 +1028,7 @@ function montarSecoes(tipo: ReportId, ctx: {
             titulo: 'A pagar',
             nota: 'Só entram comissões que o sistema já lançou. A baixa continua fora desta tela.',
             colunas: ['Profissional', 'A pagar', 'Já pago'],
+            destaque: 1,
             linhas: [...mapa.entries()].map(([id, r]) => [nomeProf(Number(id) || null), brl(r.pagar), brl(r.pago)]),
         }];
     }

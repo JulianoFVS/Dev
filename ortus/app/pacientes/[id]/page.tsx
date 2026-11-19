@@ -3,27 +3,32 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import type { MouseEvent } from 'react';
 import { supabase } from '@/lib/supabase';
 import { dados as tabelas, usuarioDaSessao } from '@/lib/local/consulta';
-import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { User, Phone, Edit, ArrowLeft, Save, Loader2, FileText, Clock, Trash2, Calendar, CalendarPlus, Pill, AlertTriangle, Stethoscope, X, Check, Building2, Printer, Smile, Plus, Eraser, CheckCircle, ClipboardList, FolderOpen, AlertCircle, Upload, Download, Image as ImageIcon, DollarSign, Settings, Sparkles, Camera, Bell, ShieldCheck, Zap, Link2, Copy, ChevronDown, LayoutGrid, List, ArrowUpDown, Search } from 'lucide-react';
+import { useParams, useSearchParams } from 'next/navigation';
+import { User, Edit, ArrowLeft, Save, Loader2, FileText, Clock, Trash2, Calendar, CalendarPlus, X, Check, Printer, Smile, Plus, Eraser, CheckCircle, ClipboardList, FolderOpen, Upload, Download, DollarSign, Settings, Sparkles, Camera, ShieldCheck, Zap, Link2, Copy, ChevronDown, LayoutGrid, List, ArrowUpDown, Search, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
-import { carregarModelos, formatarRespostaAnamnese, respostaInicial, type ModeloAnamnese, type RespostaAnamnese, type RespostaSimNaoTexto } from '@/lib/anamnese';
+import { carregarModelos, carregarModelosAsync, formatarRespostaAnamnese, respostaInicial, type ModeloAnamnese, type RespostaAnamnese, type RespostaSimNaoTexto } from '@/lib/anamnese';
 // teeth-data lib no longer needed — using PNG images from /assets/dentes/
 import { fetchUserClinicas } from '@/lib/clinicScoped';
 import { useClinica } from '@/app/context/ClinicaContext';
 import { registrarAudit } from '@/lib/auditLog';
+import { fraseDeErro } from '@/lib/fraseDeErro';
 import TabEvolucao from './TabEvolucao';
+import EsqueletoFicha from './loading';
 import CustomSelect from '@/components/ui/CustomSelect';
 import SegmentedControl from '@/components/ui/SegmentedControl';
 import TagInput from '@/components/ui/TagInput';
 import Modal from '@/components/ui/Modal';
 import Switch from '@/components/ui/Switch';
+import MenuPontos from '@/components/ui/MenuPontos';
 import { MEDICAMENTOS_CATALOGO } from '@/lib/medicamentosCatalogo';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
 import { validarPaciente, isMenorDeIdade } from '@/lib/pacienteValidation';
 import { cpfValido, mascaraCep, mascaraCpf, mascaraNumero, mascaraTelefone, variantesCpf } from '@/lib/mascaras';
 import { prepararFotoPaciente } from '@/lib/prepararFotoPaciente';
-import { apagarArquivosClinica, baixarArquivoClinica, enviarArquivoClinica, extrairCaminhoArquivo } from '@/lib/armazenamento';
+import { apagarArquivosClinica, baixarArquivoClinica, enviarArquivoClinica, enviarFotoPaciente, extrairCaminhoArquivo } from '@/lib/armazenamento';
 import { tipoPorExtensao } from '@/lib/assinaturaArquivo';
+import { origemDoDocumento, tipoSeguroParaServir, vistaDoDocumento, type VistaDocumento } from '@/lib/caminhosArquivo';
+import { guardarFotoPaciente, useFotoPaciente } from '@/hooks/useFotoPaciente';
 import CampoData from '@/components/ui/CampoData';
 import HofPreviewRosto from '@/components/clinico/HofPreviewRosto';
 import { carregarConfig } from '@/lib/configClinica';
@@ -33,7 +38,7 @@ import PatientContactButtons from '@/components/PatientContactButtons';
 import { carregarTaxasAtivas, type ParteRecebimento } from '@/lib/recebimentoAgendamento';
 import { criarDebitoManual, listarDebitosPaciente, listarOpcoesMarcarNaoPago, marcarAgendamentoNaoPago, receberDebito, type DebitoPaciente } from '@/lib/debitosPaciente';
 import { calcularValorLiquido, normalizarTaxasMaquininha, TAXAS_MAQUININHA_PADRAO, type TaxaMaquininha } from '@/lib/configDefaults';
-import { registrarComissaoTratamentoFinalizado } from '@/lib/comissao';
+import { registrarComissaoDebitoRecebido, registrarComissaoTratamentoFinalizado } from '@/lib/comissao';
 import { carregarProntuario } from '@/lib/fichaPaciente';
 import { criarAnamnese, listarAnamneses, atualizarAnamnese, excluirAnamnese as excluirAnamneseDb, gerarLinkAnamnesePaciente as gerarLinkAnamnesePacienteApi } from '@/lib/db/anamneses';
 import { criarDocumento, listarDocumentos, excluirDocumento as excluirDocumentoDb } from '@/lib/db/documentos';
@@ -42,7 +47,7 @@ import { listarEvolucoes } from '@/lib/db/evolucoes';
 import ModalNovoAgendamento from '@/components/agenda/ModalNovoAgendamento';
 import { atualizarTratamento, criarTratamento, listarTratamentos, excluirTratamento as excluirTratamentoDb } from '@/lib/db/tratamentos';
 import { legacyJsonToProntuario, type ProntuarioPaciente, type TratamentoPaciente } from '@/lib/db/types';
-import { atualizar, inserir, listar, modoDados, remover } from '@/lib/local/cliente';
+import { atualizar, inserir, listar, modoDados } from '@/lib/local/cliente';
 import { FACE_COLORS, FACE_LABELS, ODONTO_TOOLS } from '@/lib/odontogram/constants';
 import type { LegacyToothState, OdontoFace, OdontoFaceStatus, OdontoToothStatus } from '@/lib/odontogram/types';
 import {
@@ -82,6 +87,25 @@ function campoClass(editing: boolean) {
 
 function semConexao(): boolean {
   return typeof navigator !== 'undefined' && navigator.onLine === false;
+}
+
+// Alvo de toque: 40px no celular, tamanho de antes a partir de sm.
+const botaoFecharModal = '-mr-2 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-100 sm:mr-0 sm:h-8 sm:w-8';
+const botaoIconeLinha = 'inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-100 sm:h-auto sm:w-auto sm:p-1.5';
+
+const ROTULO_STATUS_TRATAMENTO: Record<string, string> = {
+  planejado: 'Planejado',
+  andamento: 'Em andamento',
+  concluido: 'Concluído',
+};
+
+/** Quem rola a ficha de fato. No celular é a casca de /pacientes; no computador a ficha cabe na tela e ninguém rola. */
+function rolagemDaPagina(el: HTMLElement | null): HTMLElement | null {
+  for (let no = el?.parentElement ?? null; no; no = no.parentElement) {
+    const { overflowY } = getComputedStyle(no);
+    if ((overflowY === 'auto' || overflowY === 'scroll') && no.scrollHeight > no.clientHeight) return no;
+  }
+  return null;
 }
 
 const PATIENT_NAV_SECTIONS = [
@@ -159,7 +183,8 @@ function documentoEhPdf(d: { isPdf?: boolean; tipo?: string; nome?: string }) {
 
 const EXTENSOES_DOCUMENTO = new Set(['jpg', 'jpeg', 'png', 'webp', 'gif', 'pdf', 'doc', 'docx', 'txt']);
 const EXTENSOES_BLOQUEADAS = new Set(['bat', 'cmd', 'com', 'exe', 'msi', 'dll', 'scr', 'ps1', 'vbs', 'js', 'jse', 'jar', 'sh', 'bash', 'apk', 'html', 'htm', 'svg', 'hta', 'reg', 'iso', 'zip', 'rar', '7z', 'gz', 'php', 'py']);
-const TAMANHO_MAX_DOCUMENTO = 8 * 1024 * 1024;
+// O mesmo limite de lib/caminhosArquivo.ts (regraDoCaminho), conferido de novo no servidor.
+const TAMANHO_MAX_DOCUMENTO = 10 * 1024 * 1024;
 
 function validarArquivoDocumento(file: File): string | null {
   const partes = file.name.toLowerCase().split('.').filter(Boolean);
@@ -174,7 +199,7 @@ function validarArquivoDocumento(file: File): string | null {
     return 'Esse tipo de arquivo não pode ser enviado.';
   }
   if (file.size <= 0) return 'O arquivo está vazio.';
-  if (file.size > TAMANHO_MAX_DOCUMENTO) return 'Arquivo muito grande. O limite é 8 MB.';
+  if (file.size > TAMANHO_MAX_DOCUMENTO) return 'Arquivo muito grande. O limite é 10 MB.';
   return null;
 }
 
@@ -323,7 +348,7 @@ function ToothLateral({ num, state }: { num: number; state: ToothState; isUpper:
 }
 
 // Vista oclusal - quadrado dividido em X com 5 zonas (igual à referência)
-function ToothOcclusal({ num, state, ferramenta, onApply }: { num: number; state: ToothState; ferramenta: string; onApply: (face: Face) => void }) {
+function ToothOcclusal({ num, state, ferramenta, onApply, amplo }: { num: number; state: ToothState; ferramenta: string; onApply: (face: Face) => void; amplo?: boolean }) {
   const [hoverFace, setHoverFace] = useState<Face | null>(null);
   const cond = state.cond;
   const isAusente = cond === 'ausente';
@@ -336,7 +361,8 @@ function ToothOcclusal({ num, state, ferramenta, onApply }: { num: number; state
 
   return (
     <div className="relative">
-      <svg viewBox="0 0 60 60" width="48" height="48" className={`${isAusente ? 'opacity-25' : ''} block`}>
+      {/* Tela de toque: recorta a margem do desenho, e o quadrado passa de 26px para 47px sem alargar o dente. */}
+      <svg viewBox={amplo ? '11 11 38 38' : '0 0 60 60'} width={amplo ? 56 : 48} height={amplo ? 56 : 48} className={`${isAusente ? 'opacity-25' : ''} block`}>
         {/* Quadrado externo */}
         <rect x={o.x} y={o.y} width={o.w} height={o.h} rx="3" ry="3" fill="transparent" stroke={isCoroa ? '#f59e0b' : STROKE} strokeWidth="1" strokeLinejoin="round"/>
 
@@ -378,19 +404,19 @@ function ToothOcclusal({ num, state, ferramenta, onApply }: { num: number; state
   );
 }
 
-function Tooth({ num, state, ferramenta, onApply, isUpper, esquematico }: { num: number; state: ToothState; ferramenta: string; onApply: (face: Face | null) => void; isUpper: boolean; esquematico?: boolean }) {
+function Tooth({ num, state, ferramenta, onApply, isUpper, esquematico, toque }: { num: number; state: ToothState; ferramenta: string; onApply: (face: Face | null) => void; isUpper: boolean; esquematico?: boolean; toque?: boolean }) {
   return (
     <div className="flex flex-col items-center select-none w-[56px] shrink-0">
       {isUpper ? (
         <>
           {!esquematico && <><ToothLateral num={num} state={state} isUpper={true}/><div className="h-1"/></>}
-          <ToothOcclusal num={num} state={state} ferramenta={ferramenta} onApply={(f) => onApply(f)}/>
+          <ToothOcclusal num={num} state={state} ferramenta={ferramenta} onApply={(f) => onApply(f)} amplo={toque}/>
           <div className="mt-1 text-[11px] font-semibold tabular-nums text-neutral-600">{num}</div>
         </>
       ) : (
         <>
           <div className="mb-1 text-[11px] font-semibold tabular-nums text-neutral-600">{num}</div>
-          <ToothOcclusal num={num} state={state} ferramenta={ferramenta} onApply={(f) => onApply(f)}/>
+          <ToothOcclusal num={num} state={state} ferramenta={ferramenta} onApply={(f) => onApply(f)} amplo={toque}/>
           {!esquematico && <><div className="h-1"/><ToothLateral num={num} state={state} isUpper={false}/></>}
         </>
       )}
@@ -412,7 +438,6 @@ function readPacienteCache(id: string): any | null {
 export default function PacienteDetalhe() {
   const params = useParams();
   const id = typeof params.id === 'string' ? params.id : Array.isArray(params.id) ? (params.id[0] ?? '') : '';
-  const router = useRouter();
   const searchParams = useSearchParams();
   const rawTab = searchParams?.get('tab') || 'dados';
   const initialTab = rawTab === 'evolucao' ? 'tratamentos' : rawTab;
@@ -434,6 +459,45 @@ export default function PacienteDetalhe() {
       if (!historicoSel) return;
       document.getElementById(`linha-${historicoSel}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
   }, [historicoSel]);
+
+  // ===== Celular: a página rola inteira e a faixa de abas fica presa no topo =====
+  const raizRef = useRef<HTMLDivElement | null>(null);
+  const cabecalhoRef = useRef<HTMLDivElement | null>(null);
+  const abasRef = useRef<HTMLElement | null>(null);
+  const abaJaCentralizada = useRef(false);
+  const jaTrocouDeAba = useRef(false);
+
+  // A faixa de abas rola de lado: ao abrir (inclusive por ?tab=) e ao trocar, a aba ativa fica à vista.
+  // `loading` entra nas dependências porque a faixa só existe depois que o esqueleto sai.
+  useEffect(() => {
+      const faixa = abasRef.current;
+      const ativa = faixa?.querySelector<HTMLElement>('[aria-current="true"]');
+      if (!faixa || !ativa) return;
+      // Mexe só no scrollLeft da faixa: scrollIntoView rolaria a página junto.
+      const centro = ativa.getBoundingClientRect().left - faixa.getBoundingClientRect().left + faixa.scrollLeft - (faixa.clientWidth - ativa.offsetWidth) / 2;
+      faixa.scrollTo({ left: Math.max(0, centro), behavior: abaJaCentralizada.current ? 'smooth' : 'auto' });
+      abaJaCentralizada.current = true;
+  }, [abaAtiva, loading]);
+
+  // Na chegada a ficha abre do topo. Nas trocas de aba com a página rolada, recua só até a faixa de abas,
+  // para o conteúdo novo começar do início sem esconder as abas.
+  useEffect(() => {
+      const rolagem = rolagemDaPagina(raizRef.current);
+      const limite = jaTrocouDeAba.current ? (cabecalhoRef.current?.offsetHeight ?? 0) : 0;
+      jaTrocouDeAba.current = true;
+      if (rolagem && rolagem.scrollTop > limite) rolagem.scrollTop = limite;
+  }, [abaAtiva]);
+
+  // Abaixo de 1024px a ficha é usada com o dedo: o odontograma não encolhe para caber, rola de lado na própria caixa.
+  const [telaToque, setTelaToque] = useState(false);
+  useEffect(() => {
+      const consulta = window.matchMedia('(max-width: 1023px)');
+      const aplicar = () => setTelaToque(consulta.matches);
+      aplicar();
+      consulta.addEventListener('change', aplicar);
+      return () => consulta.removeEventListener('change', aplicar);
+  }, []);
+
   const previewsDocumento = useRef<string[]>([]);
   const odontogramaFromServer = useRef(true);
   const fichaFromServer = useRef(true);
@@ -499,7 +563,9 @@ export default function PacienteDetalhe() {
   const [mostrar3D, setMostrar3D] = useState(false);
   const [odontoLargura, setOdontoLargura] = useState(0);
   const odontoObserverRef = useRef<ResizeObserver | null>(null);
+  const odontoCaixaRef = useRef<HTMLDivElement | null>(null);
   const medirOdonto = useCallback((el: HTMLDivElement | null) => {
+    odontoCaixaRef.current = el;
     odontoObserverRef.current?.disconnect();
     odontoObserverRef.current = null;
     if (!el) return;
@@ -507,6 +573,14 @@ export default function PacienteDetalhe() {
     observer.observe(el);
     odontoObserverRef.current = observer;
   }, []);
+
+  // Tela de toque: a arcada rola de lado e abre centrada na linha média, com os incisivos à vista.
+  // `loading` entra nas dependências porque a caixa só existe depois que o esqueleto sai.
+  useEffect(() => {
+    const caixa = odontoCaixaRef.current;
+    if (!telaToque || !caixa) return;
+    caixa.scrollLeft = Math.max(0, (caixa.scrollWidth - caixa.clientWidth) / 2);
+  }, [telaToque, abaAtiva, tipoArcada, visaoOdonto, loading]);
 
   // ANAMNESE
   const [modelosAnamnese, setModelosAnamnese] = useState<ModeloAnamnese[]>([]);
@@ -525,25 +599,31 @@ export default function PacienteDetalhe() {
       let vivo = true;
       // Offline os arquivos não estão acessíveis: evita uma enxurrada de downloads que vão falhar.
       if (semConexao()) return;
-      const pendentes = documentos.filter((d) => (documentoEhImagem(d) || documentoEhPdf(d)) && !d.previewUrl);
+      const pendentes = documentos.filter((d) => (documentoEhImagem(d) || documentoEhPdf(d)) && !d.previewVista);
       if (!pendentes.length) return;
       (async () => {
-          const porId = new Map<string, string>();
+          const porId = new Map<string, { url?: string; vista: VistaDocumento }>();
           await Promise.all(pendentes.map(async (d) => {
               try {
                   const blob = await blobDoDocumento(d);
                   if (!vivo) return;
+                  // A miniatura segue o tipo do Blob montado aqui; o isPdf/isImg da linha só decide se vale tentar.
+                  const vista = vistaDoDocumento(blob.type);
+                  if (vista === 'baixar') {
+                      porId.set(String(d.id), { vista });
+                      return;
+                  }
                   const url = URL.createObjectURL(blob);
                   previewsDocumento.current.push(url);
-                  porId.set(String(d.id), url);
+                  porId.set(String(d.id), { url, vista });
               } catch {
                   /* preview opcional */
               }
           }));
           if (!vivo || porId.size === 0) return;
           setDocumentos((atual) => atual.map((d) => {
-              const url = porId.get(String(d.id));
-              return url ? { ...d, previewUrl: url } : d;
+              const previa = porId.get(String(d.id));
+              return previa ? { ...d, previewUrl: previa.url, previewVista: previa.vista } : d;
           }));
       })();
       return () => { vivo = false; };
@@ -598,6 +678,13 @@ export default function PacienteDetalhe() {
   const [hofVista, setHofVista] = useState<'mapa' | 'demo' | 'frontal'>('mapa');
   const [agendaHof, setAgendaHof] = useState<{ procedimento: string; observacoes: string; data?: string } | null>(null);
   const hofSurfaceRef = useRef<HTMLDivElement | null>(null);
+  // objectURLs de foto de HOF criados nesta aba a partir do arquivo; só eles entram na impressão.
+  const urlsHofDaSessao = useRef(new Set<string>());
+  function urlHofDaSessao(blob: Blob) {
+      const url = URL.createObjectURL(blob);
+      urlsHofDaSessao.current.add(url);
+      return url;
+  }
 
   async function comprimirImagem(file: File, maxDim = 1200, qualidade = 0.8): Promise<Blob> {
       return new Promise((resolve, reject) => {
@@ -665,6 +752,7 @@ export default function PacienteDetalhe() {
   const [responsavelAberto, setResponsavelAberto] = useState(true);
   const [cpfEncontrado, setCpfEncontrado] = useState<{ id: string; nome: string } | null>(null);
   const [enviandoFotoPerfil, setEnviandoFotoPerfil] = useState(false);
+  const fotoPaciente = useFotoPaciente(id, form.foto_url);
 
   async function buscarPacientePorCpf(cpf: string) {
       if (!cpfValido(cpf)) { setCpfEncontrado(null); return; }
@@ -697,16 +785,16 @@ export default function PacienteDetalhe() {
       setEnviandoFotoPerfil(true);
       try {
           const blob = await prepararFotoPaciente(arquivo);
-          const caminho = `pacientes/${id}/avatar.jpg`;
-          const publicUrl = await enviarArquivoClinica(caminho, blob, { contentType: 'image/jpeg', upsert: true, cacheControl: '3600' });
-          if (!publicUrl) throw new Error('Não foi possível salvar a foto.');
+          // A foto fica privada: foto_url guarda o caminho interno com a versão, e a tela lê pela rota autenticada.
+          const fotoUrl = await enviarFotoPaciente(String(id), blob);
           if (modo === 'local') {
-              await atualizar('pacientes', String(id), { foto_url: publicUrl });
+              await atualizar('pacientes', String(id), { foto_url: fotoUrl });
           } else {
-              const { error: updErr } = await tabelas.from('pacientes').update({ foto_url: publicUrl }).eq('id', id);
+              const { error: updErr } = await tabelas.from('pacientes').update({ foto_url: fotoUrl }).eq('id', id);
               if (updErr) throw updErr;
           }
-          setForm((atual: any) => ({ ...atual, foto_url: publicUrl }));
+          guardarFotoPaciente(String(id), fotoUrl, blob);
+          setForm((atual: any) => ({ ...atual, foto_url: fotoUrl }));
       } catch (erro) {
           const mensagem = erro instanceof Error ? erro.message : '';
           await showAlert(
@@ -737,10 +825,11 @@ export default function PacienteDetalhe() {
   async function hidratarHofFotos(fotos: HofFoto[]) {
       return Promise.all(fotos.map(async (f) => {
           const path = caminhoBucket(f.dataUrl, f.storagePath);
-          if (!path) return { ...f, dataUrl: f.dataUrl?.startsWith('blob:') ? f.dataUrl : '' };
+          // dataUrl que veio do banco nunca vale como imagem: a foto sai só do arquivo, pela rota autenticada.
+          if (!path) return { ...f, dataUrl: '' };
           try {
               const data = await baixarArquivoClinica(path);
-              return { ...f, storagePath: path, dataUrl: URL.createObjectURL(data) };
+              return { ...f, storagePath: path, dataUrl: urlHofDaSessao(data) };
           } catch {
               return { ...f, storagePath: path, dataUrl: '' };
           }
@@ -950,7 +1039,20 @@ export default function PacienteDetalhe() {
               data_pagamento: new Date().toISOString(),
           });
           if (!salvo) throw new Error('Agendamento não encontrado no banco local.');
-          return { valorLiquido: debito.valor, comissaoLancamentos: 0 };
+          // Igual ao "Tratamento finalizado": com internet, a comissão do recebimento também é lançada no aplicativo.
+          let comissaoLancamentos = 0;
+          if (!semConexao() && debito.clinica_id) {
+              const linha = salvo as Record<string, unknown>;
+              comissaoLancamentos = (await registrarComissaoDebitoRecebido({
+                  id: agendamentoId,
+                  clinica_id: debito.clinica_id,
+                  profissional_id: (linha.profissional_id as number | null | undefined) ?? debito.profissional_id ?? null,
+                  paciente_id: String(id),
+                  procedimento: debito.descricao,
+                  valor_final: debito.valor,
+              }, debito.valor)).lancamentos;
+          }
+          return { valorLiquido: debito.valor, comissaoLancamentos };
       }
       return receberDebito(debito, taxaId, taxas, partes);
   }
@@ -1057,7 +1159,8 @@ export default function PacienteDetalhe() {
                   ? fotosHof.map((foto) => ({ ...foto, dataUrl: '' }))
                   : await hidratarHofFotos(fotosHof));
               setAnamnesesAnteriores(prontuario.anamneses);
-              setDocumentos(prontuario.documentos);
+              // O meta da linha entra no objeto (lib/db/documentos): prévia só vale se for montada nesta aba.
+              setDocumentos(prontuario.documentos.map((d) => ({ ...d, previewUrl: undefined, previewVista: undefined })));
               setEvolucoes(prontuario.evolucoes);
 
               // Planos + modelos de documentos da clínica — não bloqueiam o restante da tela
@@ -1092,7 +1195,13 @@ export default function PacienteDetalhe() {
           setDebitos(debitosLista);
           setRegistrosDebito(registrosDebito);
 
+          // Modelos de anamnese da clínica do paciente, lidos do banco: a cópia do navegador pode ser
+          // de outra pessoa ou de outra unidade. Sem resposta, fica a cópia local (modelos padrão).
+          const clinicaDoPaciente = (data as { clinica_id?: string | number | null } | null)?.clinica_id ?? null;
           setModelosAnamnese(carregarModelos());
+          if (clinicaDoPaciente) {
+              carregarModelosAsync(clinicaDoPaciente).then(setModelosAnamnese).catch(() => undefined);
+          }
           prontuarioIdCarregado.current = String(id);
       } catch (erro) {
           setLoading(false);
@@ -1101,6 +1210,11 @@ export default function PacienteDetalhe() {
       } finally {
           setLoading(false);
       }
+  }
+
+  function cancelarEdicao() {
+      setModoEdicao(false);
+      carregar();
   }
 
   async function salvarTudo() {
@@ -1279,6 +1393,10 @@ export default function PacienteDetalhe() {
       try {
           const modo = await modoDados();
           const { agendarNaAgenda, horaAgendamento, pagamentoPendente, ...tratSemAgenda } = tratEdit;
+          // Status antes desta gravação: a comissão de "tratamento finalizado" sai só quando ele passa a concluído.
+          const statusAnterior = tratSemAgenda.id
+              ? tratamentos.find((t) => String(t.id) === String(tratSemAgenda.id))?.status ?? null
+              : null;
           let salvo: TratamentoPaciente;
           if (tratSemAgenda.id) {
               salvo = await atualizarTratamento(String(tratSemAgenda.id), {
@@ -1304,7 +1422,8 @@ export default function PacienteDetalhe() {
 
           // Comissões vivem apenas na nuvem. Offline o tratamento é salvo localmente e sincronizado.
           const registrarComissao = modo !== 'local' || !semConexao();
-          if (registrarComissao && tratSemAgenda.status === 'concluido' && form.clinica_id) {
+          const passouAConcluido = tratSemAgenda.status === 'concluido' && statusAnterior !== 'concluido';
+          if (registrarComissao && passouAConcluido && form.clinica_id) {
               const user = await usuarioDaSessao();
               let profId: string | number | null = null;
               if (user) {
@@ -1470,7 +1589,7 @@ export default function PacienteDetalhe() {
               );
               setEnviandoFoto(null); e.target.value = ''; return;
           }
-          const nova: HofFoto = { id: Date.now().toString(), sessao: hofSessaoAtiva, angulo, dataUrl: URL.createObjectURL(blobComprimido), storagePath: caminhoArquivo, criado_em: new Date().toISOString() };
+          const nova: HofFoto = { id: Date.now().toString(), sessao: hofSessaoAtiva, angulo, dataUrl: urlHofDaSessao(blobComprimido), storagePath: caminhoArquivo, criado_em: new Date().toISOString() };
           const novasFotos = [...hofFotos, nova];
           setHofFotos(novasFotos);
           try {
@@ -1510,7 +1629,14 @@ export default function PacienteDetalhe() {
                   /* sem internet: o registro local sai agora e o arquivo remoto pode ser removido depois */
               }
           } else {
-              await apagarArquivosClinica([foto.storagePath]);
+              // Na nuvem, se o servidor recusar (modo de consulta, sem permissão, sem conexão), a foto
+              // fica onde está e a pessoa fica sabendo; nada de rejeição solta.
+              try {
+                  await apagarArquivosClinica([foto.storagePath]);
+              } catch (e) {
+                  showAlert(fraseDeErro(e, 'Não foi possível excluir a foto agora. Tente de novo.'), { type: 'error' });
+                  return;
+              }
           }
       }
       const novasFotos = hofFotos.filter(f => f.id !== fid);
@@ -1519,8 +1645,7 @@ export default function PacienteDetalhe() {
           const fichaAtualizada = await salvarFichaClinica(String(id), { marcacoes_hof: marcacoesHof, hof_fotos: fotosHofParaSalvar(novasFotos) }, ficha);
           setFicha({ ...ficha, ...fichaAtualizada });
       } catch (e) {
-          const mensagem = e instanceof Error ? e.message : String(e);
-          showAlert('Erro ao excluir foto: ' + mensagem, { type: 'error' });
+          showAlert(fraseDeErro(e, 'Não foi possível excluir a foto agora. Tente de novo.'), { type: 'error' });
       }
   }
 
@@ -1691,15 +1816,15 @@ export default function PacienteDetalhe() {
           <path d="M120 260 Q150 278 180 260" fill="none" stroke="#94a3b8" stroke-width="1.2" stroke-linecap="round"/>
           ${marcacoesHof.map(m => {
               const ti = hofTipoInfo(m.tipo);
-              return `<circle cx="${m.x * 3}" cy="${m.y * 4}" r="6" fill="${ti.color}" stroke="white" stroke-width="2"/>`;
+              return `<circle cx="${escapePrintHtml(Number(m.x) * 3)}" cy="${escapePrintHtml(Number(m.y) * 4)}" r="6" fill="${escapePrintHtml(ti.color)}" stroke="white" stroke-width="2"/>`;
           }).join('')}
       </svg>`;
 
       const rows = marcacoesHof.map((m) => {
           const ti = hofTipoInfo(m.tipo);
           return [
-              `<span class="ortus-dot" style="background:${ti.color}"></span>`,
-              `<strong style="color:${ti.color}">${escapePrintHtml(ti.label)}</strong>`,
+              `<span class="ortus-dot" style="background:${escapePrintHtml(ti.color)}"></span>`,
+              `<strong style="color:${escapePrintHtml(ti.color)}">${escapePrintHtml(ti.label)}</strong>`,
               escapePrintHtml(m.texto),
               escapePrintHtml(m.dosagem ? `${m.dosagem} ${m.unidade}` : '—'),
               escapePrintHtml(m.produto || '—'),
@@ -1708,15 +1833,17 @@ export default function PacienteDetalhe() {
       });
 
       const legend = HOF_TIPOS.filter(t => marcacoesHof.some(m => m.tipo === t.key)).map(t =>
-          `<span class="ortus-legend-item"><span class="ortus-dot" style="background:${t.color}"></span>${escapePrintHtml(t.label)}</span>`
+          `<span class="ortus-legend-item"><span class="ortus-dot" style="background:${escapePrintHtml(t.color)}"></span>${escapePrintHtml(t.label)}</span>`
       ).join('');
 
-      const fotosHtml = hofFotos.length > 0 ? `
+      // A janela de impressão herda a origem do Ortus: só entra foto cujo objectURL foi criado nesta aba.
+      const fotosImpressao = hofFotos.filter((f) => urlsHofDaSessao.current.has(f.dataUrl));
+      const fotosHtml = fotosImpressao.length > 0 ? `
           <div class="page-break"></div>
           <div class="ortus-section-title">Registro Fotográfico</div>
           <div class="ortus-photo-grid">
-              ${hofFotos.map(f => `<div class="ortus-photo-card">
-                  <img src="${f.dataUrl}" alt="${escapePrintHtml(f.angulo)}"/>
+              ${fotosImpressao.map(f => `<div class="ortus-photo-card">
+                  <img src="${escapePrintHtml(f.dataUrl)}" alt="${escapePrintHtml(f.angulo)}"/>
                   <div class="ortus-photo-cap">${escapePrintHtml(f.angulo)} — ${escapePrintHtml(new Date(f.sessao + 'T12:00:00').toLocaleDateString('pt-BR'))}</div>
               </div>`).join('')}
           </div>` : '';
@@ -2052,9 +2179,11 @@ export default function PacienteDetalhe() {
               storage_path: caminhoArquivo,
               meta: { isImg, isPdf, tamanho: blob.size },
           });
-          const previewUrl = isImg || isPdf ? URL.createObjectURL(blob) : undefined;
+          // Prévia com o tipo da lista segura, não com o que o navegador declarou para o arquivo escolhido.
+          const previewVista = vistaDoDocumento(contentType);
+          const previewUrl = previewVista !== 'baixar' ? URL.createObjectURL(new Blob([blob], { type: contentType })) : undefined;
           if (previewUrl) previewsDocumento.current.push(previewUrl);
-          setDocumentos([...documentos, { ...salvo, isImg, isPdf, previewUrl }]);
+          setDocumentos([...documentos, { ...salvo, isImg, isPdf, previewUrl, previewVista }]);
       } catch (err) {
           const mensagem = err instanceof Error ? err.message : String(err);
           showAlert('Erro ao processar arquivo: ' + mensagem, { type: 'error' });
@@ -2089,25 +2218,29 @@ export default function PacienteDetalhe() {
       }
   }
 
-  async function blobDoDocumento(d: any) {
-      const path = d.storagePath || d.storage_path;
-      if (path) {
-          return await baixarArquivoClinica(path);
+  /**
+   * Arquivo do documento com tipo decidido aqui. A linha do banco é gravada por
+   * qualquer membro: o tipo nunca vem dela nem da resposta, e nada é buscado por
+   * URL livre (um data:text/html virando Blob rodaria script na origem do Ortus).
+   */
+  async function blobDoDocumento(d: any): Promise<Blob> {
+      const origem = origemDoDocumento(d);
+      if (origem && 'caminho' in origem) {
+          const recebido = await baixarArquivoClinica(origem.caminho);
+          return new Blob([recebido], { type: tipoSeguroParaServir(origem.caminho, recebido.type) || 'application/octet-stream' });
       }
-      if (d.dataUrl && !String(d.dataUrl).startsWith('blob:')) {
-          const resposta = await fetch(d.dataUrl);
-          if (resposta.ok) return await resposta.blob();
-      }
-      throw new Error('Arquivo indisponível');
+      if (origem) return new Blob([origem.imagem.bytes], { type: origem.imagem.tipo });
+      throw new Error('Arquivo indisponível.');
   }
 
   async function abrirDocumento(d: any) {
       try {
           const blob = await blobDoDocumento(d);
+          const vista = vistaDoDocumento(blob.type);
           const url = URL.createObjectURL(blob);
           setDocAberto((atual) => {
               if (atual?.url) URL.revokeObjectURL(atual.url);
-              return { nome: d.nome || 'Arquivo', url, isImg: !!d.isImg, isPdf: !!d.isPdf };
+              return { nome: d.nome || 'Arquivo', url, isImg: vista === 'imagem', isPdf: vista === 'pdf' };
           });
       } catch (e) {
           const mensagem = e instanceof Error ? e.message : '';
@@ -2233,8 +2366,8 @@ export default function PacienteDetalhe() {
           const msgComissao = comissaoLancamentos > 0 ? ` Comissão registrada (${comissaoLancamentos} regra(s)).` : '';
           showAlert(`Pagamento registrado.${msgComissao}`, { type: 'success' });
       } catch (e) {
-          const mensagem = e instanceof Error ? e.message : String(e);
-          showAlert('Erro ao registrar: ' + mensagem, { type: 'error' });
+          // Modo de consulta e "já recebido" têm frase própria; o resto vira frase fixa.
+          showAlert(fraseDeErro(e, 'Não foi possível registrar o pagamento. Confira a conexão e tente de novo.'), { type: 'error' });
       } finally {
           setRecebendo(false);
       }
@@ -2314,29 +2447,6 @@ export default function PacienteDetalhe() {
       setFicha((prev: Record<string, unknown>) => ({ ...prev, medicamentos }));
   }
 
-  async function excluir() {
-      if(!(await showConfirm('Cuidado: Isso apagará o paciente e todo o histórico. Continuar?', { title: 'Excluir Paciente', type: 'error', confirmLabel: 'Excluir' }))) return;
-      try {
-          const modo = await modoDados();
-          if (modo === 'local') {
-              const agendamentosPaciente = await listar<{ id: number }>('agendamentos', {
-                  filtros: [{ col: 'paciente_id', op: 'eq', valor: String(id) }],
-              });
-              for (const agendamento of agendamentosPaciente) {
-                  await remover('agendamentos', agendamento.id);
-              }
-              await remover('pacientes', String(id));
-          } else {
-              await tabelas.from('agendamentos').delete().eq('paciente_id', id);
-              await tabelas.from('pacientes').delete().eq('id', id);
-          }
-          router.push('/pacientes');
-      } catch (erro) {
-          const mensagem = erro instanceof Error ? erro.message : String(erro);
-          await showAlert('Não foi possível excluir o paciente. ' + mensagem, { type: 'error' });
-      }
-  }
-
   function buildCtxDocumento() {
       const clinica = clinicas.find((c: any) => String(c.id) === String(form.clinica_id));
       const plano = planos.find((p: any) => p.id === form.plano_id);
@@ -2413,34 +2523,42 @@ export default function PacienteDetalhe() {
 
   // Só bloqueia com skeleton se não há NADA em cache (acesso direto/link, sem passar pela lista)
   if (loading && prontuarioIdCarregado.current !== id && !pacienteCache.current) {
-    return (
-      <div className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden bg-white">
-        <div className="h-14 shrink-0 border-b border-black/10 bg-[#f8f8f6]" />
-        <div className="flex min-h-0 flex-1">
-          <div className="w-[12.75rem] shrink-0 border-r border-black/10 sm:w-56" />
-          <div className="min-w-0 flex-1 bg-white" />
-        </div>
-      </div>
-    );
+    return <EsqueletoFicha />;
   }
 
+  // Alertas clínicos no topo do celular. Antes de o prontuário responder, vale a ficha que veio no cache da lista.
+  const alertasPaciente = getCondicoesFromFicha(Object.keys(ficha).length > 0 ? ficha : (form.ficha_medica || {}));
+  const modeloAnamneseAtual = modelosAnamnese.find((m) => m.id === anamneseAtual.modelo_id);
+  const anamnesePorLink = anamneseAtual.preenchido_por === 'paciente' && !!anamneseAtual.modelo_id && !anamneseAtual.id;
+
   return (
-    <div className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden bg-white font-poppins">
-        <div className="flex shrink-0 items-center justify-between gap-2 border-b border-black/10 px-3 py-2.5 sm:gap-3 sm:px-4">
-            <div className="flex min-w-0 flex-1 items-center gap-2.5">
-                <Link href="/pacientes" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-black/10 bg-[#f8f8f6] text-neutral-600 transition-colors hover:bg-white"><ArrowLeft size={16}/></Link>
+    // Celular: a ficha cresce com o conteúdo (grow + shrink-0) e quem rola é a casca de /pacientes.
+    // Computador: cabe na tela (flex-1 + min-h-0) e rola por dentro.
+    <div ref={raizRef} className="flex w-full shrink-0 grow flex-col overflow-x-clip bg-white font-poppins lg:h-full lg:min-h-0 lg:flex-1 lg:overflow-hidden">
+        {/* Celular (abaixo de md): nome inteiro na primeira linha, alertas e ações embaixo. A partir de md volta a ser uma linha só. */}
+        <div ref={cabecalhoRef} className="flex shrink-0 flex-col gap-2 border-b border-black/10 px-3 py-2.5 sm:px-4 md:flex-row md:items-center md:justify-between md:gap-3">
+            <div className="flex min-w-0 items-center gap-2.5 md:flex-1">
+                <Link href="/pacientes" aria-label="Voltar para pacientes" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-black/10 bg-[#f8f8f6] text-neutral-600 transition-colors hover:bg-white sm:h-8 sm:w-8"><ArrowLeft size={16}/></Link>
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-neutral-900 text-[11px] font-semibold text-white">
-                    {form.foto_url ? <img src={form.foto_url} alt="" className="h-full w-full object-cover" /> : (form.nome || 'P').trim().split(/\s+/).slice(0, 2).map((parte: string) => parte[0] || '').join('').toUpperCase()}
+                    {fotoPaciente ? <img src={fotoPaciente} alt="" className="h-full w-full object-cover" /> : (form.nome || 'P').trim().split(/\s+/).slice(0, 2).map((parte: string) => parte[0] || '').join('').toUpperCase()}
                 </div>
                 <div className="min-w-0">
-                    <h1 className="truncate text-lg font-semibold text-neutral-900">{form.nome}</h1>
+                    <h1 className="break-words text-lg font-semibold leading-snug text-neutral-900 md:truncate md:leading-7">{form.nome}</h1>
                     <p className="text-[11px] font-medium text-neutral-400">Prontuário digital</p>
                 </div>
             </div>
+            {alertasPaciente.length > 0 && (
+                <p className="relative flex items-start gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs font-medium text-amber-800 md:hidden">
+                    <AlertTriangle size={14} className="mt-px shrink-0" aria-hidden />
+                    <span className="min-w-0 break-words"><span className="sr-only">Condições da ficha médica: </span>{alertasPaciente.join(' · ')}</span>
+                </p>
+            )}
             <div className="flex shrink-0 items-center justify-end gap-1.5">
-                {form.nome && <button onClick={handleExportarDados} className="inline-flex h-8 items-center justify-center gap-1.5 rounded-full border border-black/10 bg-white text-xs font-medium text-neutral-700 hover:bg-neutral-50 max-sm:w-8 sm:px-3" title="Exportar prontuário (LGPD)" aria-label="Exportar prontuário (LGPD)"><Download size={14}/> <span className="max-sm:hidden">LGPD</span></button>}
+                {form.telefone && <span className="mr-auto min-w-0 break-words text-sm font-medium tabular-nums text-neutral-700 md:hidden">{form.telefone}</span>}
+                {form.nome && <button onClick={handleExportarDados} className="inline-flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-full border border-black/10 bg-white text-xs font-medium text-neutral-700 hover:bg-neutral-50 max-sm:w-10 sm:h-8 sm:px-3" title="Exportar prontuário (LGPD)" aria-label="Exportar prontuário (LGPD)"><Download size={14}/> <span className="max-sm:hidden">LGPD</span></button>}
                 <PatientContactButtons
                     variant="buttons"
+                    className="shrink-0"
                     telefone={form.telefone}
                     email={form.email}
                     nome={form.nome}
@@ -2453,11 +2571,12 @@ export default function PacienteDetalhe() {
         </div>
 
         {/* MODAL DE DOCUMENTOS */}
-        <Modal open={modalDoc} onClose={() => setModalDoc(false)} maxWidth="2xl" hideCloseButton panelClassName="flex h-[32rem] max-h-[85vh] flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white">
+        {/* max-sm:max-h-[92dvh] nos modais: no celular a altura acompanha a barra do navegador, e o topo do modal não sai da tela. */}
+        <Modal open={modalDoc} onClose={() => setModalDoc(false)} maxWidth="2xl" hideCloseButton panelClassName="flex h-[32rem] max-h-[85vh] flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white max-sm:max-h-[92dvh]">
                 <div className="flex h-full min-h-0 flex-col p-5">
                     <div className="mb-4 flex shrink-0 items-center justify-between">
                         <h3 className="text-base font-semibold text-neutral-900">Emitir documento</h3>
-                        <button type="button" onClick={() => setModalDoc(false)} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-100" aria-label="Fechar"><X size={16}/></button>
+                        <button type="button" onClick={() => setModalDoc(false)} className={botaoFecharModal} aria-label="Fechar"><X size={16}/></button>
                     </div>
 
                     <SegmentedControl
@@ -2490,28 +2609,30 @@ export default function PacienteDetalhe() {
                     <div className="flex min-h-0 flex-1 flex-col">
                         <div className="mb-1.5 flex shrink-0 items-center justify-between">
                             <label className="text-xs font-medium text-neutral-500">Conteúdo</label>
-                            <button type="button" onClick={() => setTextoDoc('')} className="text-xs font-medium text-neutral-500 hover:text-neutral-900">Limpar</button>
+                            <button type="button" onClick={() => setTextoDoc('')} className="alvo-toque text-xs font-medium text-neutral-500 hover:text-neutral-900">Limpar</button>
                         </div>
                         <textarea
                             value={textoDoc}
                             onChange={(e) => setTextoDoc(e.target.value)}
-                            className="min-h-0 w-full flex-1 resize-none rounded-md border border-neutral-200 bg-white p-3 text-sm leading-relaxed text-neutral-900 outline-none focus:border-neutral-900"
+                            className="min-h-0 w-full flex-1 resize-none rounded-md border border-neutral-200 bg-white p-3 text-sm leading-relaxed text-neutral-900 outline-none focus:border-neutral-900 max-sm:text-base"
                         />
                         <p className="mt-1.5 shrink-0 text-right text-xs text-neutral-400">O cabeçalho e o rodapé da clínica entram na impressão.</p>
                     </div>
 
                     <div className="mt-3 flex shrink-0 justify-end">
-                        <button type="button" onClick={imprimirDocumento} className="inline-flex h-9 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800">
+                        <button type="button" onClick={imprimirDocumento} className="inline-flex h-10 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 sm:h-9">
                             <Printer size={14}/> Imprimir
                         </button>
                     </div>
                 </div>
         </Modal>
 
-        <Modal open={!!modalReceber} onClose={() => setModalReceber(null)} maxWidth="xl" hideCloseButton panelClassName="!overflow-y-auto rounded-xl border border-neutral-200 bg-white">
-                <div className="p-5">
+        <Modal open={!!modalReceber} onClose={() => setModalReceber(null)} maxWidth="xl" hideCloseButton panelClassName="flex flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white max-sm:max-h-[92dvh]">
+                <div className="shrink-0 px-5 pt-5">
                     <h3 className="text-base font-semibold text-neutral-900">Registrar recebimento</h3>
-                    <p className="mt-1 text-sm text-neutral-500">{modalReceber?.procedimento}</p>
+                    <p className="mt-1 break-words text-sm text-neutral-500">{modalReceber?.descricao || modalReceber?.procedimento}</p>
+                </div>
+                <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-1">
                     {(() => {
                         const bruto = Number(modalReceber?.valor_final ?? modalReceber?.valor) || 0;
                         const linhas = partesPagamento.map((parte) => {
@@ -2532,7 +2653,7 @@ export default function PacienteDetalhe() {
                                 <div className="space-y-2">
                                     <div className="mb-1 flex items-center justify-between gap-3">
                                         <span className="text-xs font-medium text-neutral-500">Formas de pagamento</span>
-                                        <Switch checked={repassarTaxas} onChange={setRepassarTaxas} className="text-xs font-medium text-neutral-500">
+                                        <Switch checked={repassarTaxas} onChange={setRepassarTaxas} className="text-xs font-medium text-neutral-500 max-sm:min-h-[40px]">
                                             Repassar taxas
                                         </Switch>
                                     </div>
@@ -2574,7 +2695,7 @@ export default function PacienteDetalhe() {
                                             <button
                                                 type="button"
                                                 onClick={() => setPartesPagamento((atual) => atual.length > 1 ? atual.filter((item) => item.key !== parte.key) : atual)}
-                                                className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-500 hover:bg-neutral-50 hover:text-neutral-900 disabled:text-neutral-300"
+                                                className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-500 hover:bg-neutral-50 hover:text-neutral-900 disabled:text-neutral-300 sm:h-9 sm:w-9"
                                                 disabled={partesPagamento.length < 2}
                                                 aria-label="Remover forma"
                                             >
@@ -2584,7 +2705,7 @@ export default function PacienteDetalhe() {
                                         );
                                     })}
                                     {partesPagamento.length < 5 && (
-                                        <button type="button" onClick={adicionarPartePagamento} className="inline-flex h-8 items-center gap-1.5 text-xs font-medium text-neutral-600 hover:text-neutral-900">
+                                        <button type="button" onClick={adicionarPartePagamento} className="inline-flex h-10 items-center gap-1.5 text-xs font-medium text-neutral-600 hover:text-neutral-900 sm:h-8">
                                             <Plus size={12} /> Adicionar forma
                                         </button>
                                     )}
@@ -2601,17 +2722,18 @@ export default function PacienteDetalhe() {
                             </>
                         );
                     })()}
-                    <div className="mt-4 flex justify-end gap-2">
-                        <button type="button" onClick={() => setModalReceber(null)} disabled={recebendo} className="h-9 rounded-md px-3 text-sm font-medium text-neutral-500 hover:bg-neutral-50">Cancelar</button>
-                        <button type="button" onClick={confirmarRecebimento} disabled={recebendo} className="inline-flex h-9 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800">
+                </div>
+                <div className="flex shrink-0 justify-end gap-2 px-5 pb-5 pt-3">
+                        <button type="button" onClick={() => setModalReceber(null)} disabled={recebendo} className="h-10 rounded-md px-3 text-sm font-medium text-neutral-500 hover:bg-neutral-50 sm:h-9">Cancelar</button>
+                        <button type="button" onClick={confirmarRecebimento} disabled={recebendo} className="inline-flex h-10 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 sm:h-9">
                             {recebendo ? <Loader2 size={14} className="animate-spin"/> : <CheckCircle size={14}/>} Confirmar
                         </button>
-                    </div>
                 </div>
         </Modal>
 
         <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-            <nav aria-label="Seções do prontuário" className="flex shrink-0 gap-1 overflow-x-auto border-b border-black/10 px-2 py-2 lg:w-56 lg:flex-col lg:overflow-visible lg:border-b-0 lg:border-r">
+            {/* Celular: faixa que rola de lado e fica presa no topo enquanto a página rola. Computador: coluna fixa à esquerda. */}
+            <nav ref={abasRef} aria-label="Seções do prontuário" className="sticky top-0 z-10 flex shrink-0 gap-1 overflow-x-auto border-b border-black/10 bg-white px-2 py-2 [scrollbar-width:none] lg:static lg:z-auto lg:w-56 lg:flex-col lg:overflow-visible lg:border-b-0 lg:border-r [&::-webkit-scrollbar]:hidden">
                 {PATIENT_NAV_SECTIONS.map((section) => {
                     const Icon = section.icon;
                     const active = abaAtiva === section.key;
@@ -2625,8 +2747,9 @@ export default function PacienteDetalhe() {
                         <button
                             key={section.key}
                             type="button"
+                            aria-current={active ? 'true' : undefined}
                             onClick={() => setAbaAtiva(section.key)}
-                            className={`flex shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-left text-sm leading-snug lg:w-full lg:gap-2.5 lg:py-2.5 ${active ? 'bg-neutral-900 font-medium text-white' : 'font-medium text-neutral-600 hover:bg-[#f3f4f1]'}`}
+                            className={`flex h-10 shrink-0 items-center gap-2 rounded-xl px-3 text-left text-sm leading-snug lg:h-auto lg:w-full lg:gap-2.5 lg:py-2.5 ${active ? 'bg-neutral-900 font-medium text-white' : 'font-medium text-neutral-600 hover:bg-[#f3f4f1]'}`}
                         >
                             <Icon size={16} className="shrink-0" />
                             <span className="whitespace-nowrap lg:min-w-0 lg:flex-1 lg:whitespace-normal">{section.label}</span>
@@ -2638,19 +2761,22 @@ export default function PacienteDetalhe() {
                 })}
             </nav>
 
-            <div className={abaAtiva === 'dados' || abaAtiva === 'anamnese' || abaAtiva === 'odontograma' ? 'flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden' : 'min-h-0 min-w-0 flex-1 overflow-y-auto px-3 pb-24 pt-3 sm:px-5 sm:pt-4 lg:pb-4'}>
+            {/* A rolagem por dentro (min-h-0 + overflow) só vale no computador; no celular o conteúdo tem a altura que precisar.
+                `isolate` mantém marcadores e dicas com z-index abaixo da faixa de abas presa no topo. */}
+            <div className={abaAtiva === 'dados' || abaAtiva === 'anamnese' || abaAtiva === 'odontograma' ? 'isolate flex min-w-0 flex-1 flex-col lg:min-h-0 lg:overflow-hidden' : 'isolate min-w-0 flex-1 px-3 pb-4 pt-3 sm:px-5 sm:pt-4 lg:min-h-0 lg:overflow-y-auto'}>
                 {abaAtiva === 'dados' && (
-                    <div className="flex h-full min-h-0 flex-col overflow-y-auto px-3 pb-24 pt-3 sm:px-5 sm:pt-4 lg:pb-4">
+                    <div className="flex flex-col px-3 pb-4 pt-3 sm:px-5 sm:pt-4 lg:h-full lg:min-h-0 lg:overflow-y-auto">
                         <div className="mb-3 flex shrink-0 items-center justify-between gap-2">
                             <h3 className="text-base font-semibold text-neutral-900">Informações do paciente</h3>
                             <div className="flex gap-1.5">
                                 {modoEdicao ? (
+                                    // Abaixo de lg, Cancelar e Salvar ficam na barra presa ao pé da aba (fim deste bloco).
                                     <>
-                                        <button onClick={() => { setModoEdicao(false); carregar(); }} className="h-8 rounded-md px-2.5 text-xs font-medium text-neutral-500 hover:bg-neutral-50">Cancelar</button>
-                                        <button onClick={salvarTudo} className="inline-flex h-8 items-center gap-1.5 rounded-md bg-neutral-900 px-2.5 text-xs font-medium text-white hover:bg-neutral-800"><Save size={14}/> Salvar</button>
+                                        <button onClick={cancelarEdicao} className="h-8 rounded-md px-2.5 text-xs font-medium text-neutral-500 hover:bg-neutral-50 max-lg:hidden">Cancelar</button>
+                                        <button onClick={salvarTudo} className="inline-flex h-8 items-center gap-1.5 rounded-md bg-neutral-900 px-2.5 text-xs font-medium text-white hover:bg-neutral-800 max-lg:hidden"><Save size={14}/> Salvar</button>
                                     </>
                                 ) : (
-                                    <button onClick={() => setModoEdicao(true)} className="inline-flex h-8 items-center gap-1.5 rounded-md border border-neutral-200 bg-white px-2.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"><Edit size={14}/> Editar</button>
+                                    <button onClick={() => setModoEdicao(true)} className="inline-flex h-10 items-center gap-1.5 rounded-md border border-neutral-200 bg-white px-3 text-xs font-medium text-neutral-700 hover:bg-neutral-50 sm:h-8 sm:px-2.5"><Edit size={14}/> Editar</button>
                                 )}
                             </div>
                         </div>
@@ -2658,17 +2784,18 @@ export default function PacienteDetalhe() {
                         <div className="space-y-5">
                             <section>
                                 <h4 className="mb-2 text-sm font-semibold text-neutral-900">Identificação</h4>
-                                <div className="flex flex-col items-start gap-4 sm:flex-row">
+                                {/* Celular: foto centrada e campos em uma coluna de largura total (com items-start a grade encolhia até o conteúdo). */}
+                                <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-start">
                                 <label className="group relative h-28 w-28 shrink-0 cursor-pointer sm:h-36 sm:w-36">
                                     <input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={(e) => { const arquivo = e.target.files?.[0]; e.target.value = ''; trocarFotoPaciente(arquivo); }} />
                                     <span className="flex h-28 w-28 items-center justify-center overflow-hidden rounded-md border border-neutral-200 bg-neutral-50 text-2xl font-semibold text-neutral-700 sm:h-36 sm:w-36">
-                                        {form.foto_url ? <img src={form.foto_url} alt="" className="h-full w-full object-cover" /> : (form.nome || 'P').trim().split(/\s+/).slice(0, 2).map((parte: string) => parte[0] || '').join('').toUpperCase()}
+                                        {fotoPaciente ? <img src={fotoPaciente} alt="" className="h-full w-full object-cover" /> : (form.nome || 'P').trim().split(/\s+/).slice(0, 2).map((parte: string) => parte[0] || '').join('').toUpperCase()}
                                     </span>
-                                    <span className="absolute bottom-1.5 right-1.5 flex h-7 w-7 items-center justify-center rounded-md bg-neutral-900 text-white">
+                                    <span className="absolute -bottom-2 -right-2 flex h-10 w-10 items-center justify-center rounded-full bg-neutral-900 text-white ring-2 ring-white sm:bottom-1.5 sm:right-1.5 sm:h-7 sm:w-7 sm:rounded-md sm:ring-0">
                                         {enviandoFotoPerfil ? <Loader2 size={14} className="animate-spin" /> : <Camera size={14} />}
                                     </span>
                                 </label>
-                                <div className="grid min-w-0 flex-1 grid-cols-1 gap-x-3 gap-y-2.5 sm:grid-cols-2 lg:grid-cols-4">
+                                <div className="grid w-full min-w-0 flex-1 grid-cols-1 gap-x-3 gap-y-2.5 sm:w-auto sm:grid-cols-2 lg:grid-cols-4">
                                     <label className="min-w-0">
                                         <span className={campoLabel}>Nome completo</span>
                                         <input disabled={!modoEdicao} className={campoClass(modoEdicao)} value={form.nome || ''} onChange={e => setForm({...form, nome: e.target.value})} />
@@ -2739,7 +2866,7 @@ export default function PacienteDetalhe() {
                                                             }
                                                         }
                                                     }}
-                                                    className="font-medium text-neutral-900 hover:underline"
+                                                    className="alvo-toque font-medium text-neutral-900 hover:underline"
                                                 >
                                                     Buscar
                                                 </button>
@@ -2775,7 +2902,7 @@ export default function PacienteDetalhe() {
                             </section>
 
                             <section className="border-t border-neutral-200 pt-4">
-                                <button type="button" onClick={() => setResponsavelAberto((aberto) => !aberto)} className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-neutral-900">
+                                <button type="button" onClick={() => setResponsavelAberto((aberto) => !aberto)} aria-expanded={responsavelAberto} className="alvo-toque mb-2 flex items-center gap-1.5 text-left text-sm font-semibold text-neutral-900">
                                     <ChevronDown size={16} className={`transition-transform ${responsavelAberto ? '' : '-rotate-90'}`} />
                                     Responsável
                                     {menorDeIdade && <span className="text-xs font-medium text-red-500">obrigatório para menor de 18 anos</span>}
@@ -2799,28 +2926,35 @@ export default function PacienteDetalhe() {
                         {form.endereco && !form.rua && (
                             <p className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">Endereço antigo: {form.endereco}</p>
                         )}
+                        {/* Celular e tablet: o formulário é longo e a página rola inteira, então salvar fica preso ao pé da tela, logo acima da barra de navegação. */}
+                        {modoEdicao && (
+                            <div className="sticky bottom-0 z-10 -mx-3 -mb-4 mt-4 flex gap-2 border-t border-neutral-200 bg-white px-3 py-2.5 sm:-mx-5 sm:justify-end sm:px-5 lg:hidden">
+                                <button type="button" onClick={cancelarEdicao} className="h-11 flex-1 rounded-md border border-neutral-200 bg-white px-4 text-sm font-medium text-neutral-700 hover:bg-neutral-50 sm:h-10 sm:flex-none">Cancelar</button>
+                                <button type="button" onClick={salvarTudo} className="inline-flex h-11 flex-1 items-center justify-center gap-1.5 rounded-md bg-neutral-900 px-4 text-sm font-medium text-white hover:bg-neutral-800 sm:h-10 sm:flex-none"><Save size={16}/> Salvar</button>
+                            </div>
+                        )}
                     </div>
                 )}
 
                 {abaAtiva === 'anamnese' && (
-                    <div className="flex h-full min-h-0 flex-col overflow-y-auto px-3 pb-24 pt-3 sm:px-5 sm:pt-4 lg:overflow-hidden lg:pb-4">
+                    <div className="flex flex-col px-3 pb-4 pt-3 sm:px-5 sm:pt-4 lg:h-full lg:min-h-0 lg:overflow-hidden">
                         <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-2">
                             <h3 className="text-base font-semibold text-neutral-900">Anamnese</h3>
                             <div className="flex items-center gap-2">
-                                <Link href="/configuracoes?aba=anamnese" className="inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-xs font-medium text-neutral-500 hover:bg-neutral-50 hover:text-neutral-900"><Settings size={14}/> Modelos</Link>
-                                <button type="button" onClick={abrirNovaAnamnese} className="inline-flex h-8 items-center gap-1.5 rounded-md bg-neutral-900 px-2.5 text-xs font-medium text-white hover:bg-neutral-800"><Plus size={14}/> Nova anamnese</button>
+                                <Link href="/configuracoes?aba=anamnese" className="inline-flex h-10 items-center gap-1.5 rounded-md px-2 text-xs font-medium text-neutral-500 hover:bg-neutral-50 hover:text-neutral-900 sm:h-8"><Settings size={14}/> Modelos</Link>
+                                <button type="button" onClick={abrirNovaAnamnese} className="inline-flex h-10 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-xs font-medium text-white hover:bg-neutral-800 sm:h-8 sm:px-2.5"><Plus size={14}/> Nova anamnese</button>
                             </div>
                         </div>
 
-                        <Modal open={modalAnamnese} onClose={() => setModalAnamnese(false)} maxWidth="3xl" hideCloseButton panelClassName="max-h-[85vh] overflow-y-auto rounded-xl border border-neutral-200 bg-white">
-                        <div className="p-5">
-                            <div className="mb-4 flex items-center justify-between gap-3">
+                        {/* Cabeçalho e ações ficam parados; só as perguntas rolam. */}
+                        <Modal open={modalAnamnese} onClose={() => setModalAnamnese(false)} maxWidth="3xl" hideCloseButton panelClassName="flex max-h-[85vh] flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white max-sm:max-h-[92dvh]">
+                            <div className="flex shrink-0 items-center justify-between gap-3 px-5 pb-4 pt-5">
                                 <h3 className="text-base font-semibold text-neutral-900">
                                     {anamneseAtual.id ? 'Editar anamnese' : 'Nova anamnese'}
                                 </h3>
-                                <button type="button" onClick={() => setModalAnamnese(false)} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-100" aria-label="Fechar"><X size={16}/></button>
+                                <button type="button" onClick={() => setModalAnamnese(false)} className={botaoFecharModal} aria-label="Fechar"><X size={16}/></button>
                             </div>
-
+                        <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-5">
                             <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-3">
                                 <div>
                                     <label className={campoLabel}>Modelo</label>
@@ -2839,6 +2973,7 @@ export default function PacienteDetalhe() {
                                             if (modo === 'profissional') setLinkAnamnesePaciente(null);
                                         }}
                                         size="sm"
+                                        className="max-sm:h-10"
                                         options={[
                                             { value: 'profissional', label: 'Profissional' },
                                             { value: 'paciente', label: 'Paciente' },
@@ -2847,19 +2982,19 @@ export default function PacienteDetalhe() {
                                 </div>
                             </div>
 
-                            {anamneseAtual.preenchido_por === 'paciente' && anamneseAtual.modelo_id && !anamneseAtual.id ? (
+                            {anamnesePorLink ? (
                                 <div className="space-y-3 border-t border-neutral-200 pt-4">
                                     <p className="text-sm font-medium text-neutral-800">Link para o paciente preencher no celular.</p>
                                     {linkAnamnesePaciente ? (
                                         <div className="space-y-2">
                                             <div className="flex gap-2">
-                                                <input readOnly value={linkAnamnesePaciente.url} className="h-10 flex-1 rounded-md border border-neutral-200 bg-white px-3 font-mono text-xs text-neutral-700"/>
-                                                <button type="button" onClick={copiarLinkAnamnese} className="inline-flex h-10 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800"><Copy size={14}/> Copiar</button>
+                                                <input readOnly value={linkAnamnesePaciente.url} className="h-10 min-w-0 flex-1 rounded-md border border-neutral-200 bg-white px-3 font-mono text-xs text-neutral-700"/>
+                                                <button type="button" onClick={copiarLinkAnamnese} className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800"><Copy size={14}/> Copiar</button>
                                             </div>
                                             <p className="text-xs text-neutral-500">Válido até {formatarDataAnamnese(linkAnamnesePaciente.expires_at)}</p>
                                         </div>
                                     ) : (
-                                        <button type="button" onClick={gerarLinkAnamnesePaciente} disabled={gerandoLinkAnamnese} className="inline-flex h-9 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50">
+                                        <button type="button" onClick={gerarLinkAnamnesePaciente} disabled={gerandoLinkAnamnese} className="inline-flex h-10 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50 sm:h-9">
                                             {gerandoLinkAnamnese ? <Loader2 size={14} className="animate-spin"/> : <Link2 size={14}/>} Gerar link
                                         </button>
                                     )}
@@ -2877,12 +3012,12 @@ export default function PacienteDetalhe() {
                                                 </label>
                                                 <div className="ml-7">
                                                     {p.tipo === 'texto' && (
-                                                        <textarea value={anamneseAtual.respostas[p.id] || ''} onChange={e => setAnamneseAtual({...anamneseAtual, respostas: {...anamneseAtual.respostas, [p.id]: e.target.value}})} className="w-full resize-none rounded-md border border-neutral-200 bg-white p-2.5 text-sm text-neutral-900 outline-none focus:border-neutral-900" rows={2} placeholder="Resposta"/>
+                                                        <textarea value={anamneseAtual.respostas[p.id] || ''} onChange={e => setAnamneseAtual({...anamneseAtual, respostas: {...anamneseAtual.respostas, [p.id]: e.target.value}})} className="w-full resize-none rounded-md border border-neutral-200 bg-white p-2.5 text-sm text-neutral-900 outline-none focus:border-neutral-900 max-sm:text-base" rows={2} placeholder="Resposta"/>
                                                     )}
                                                     {p.tipo === 'sim_nao' && (
-                                                        <div className="flex h-8 w-fit overflow-hidden rounded-md border border-neutral-200 bg-white">
+                                                        <div className="flex h-10 w-fit overflow-hidden rounded-md border border-neutral-200 bg-white sm:h-8">
                                                             {['Sim','Não'].map(opt => (
-                                                                <button key={opt} type="button" onClick={() => setAnamneseAtual({...anamneseAtual, respostas: {...anamneseAtual.respostas, [p.id]: opt}})} className={`h-8 border-r border-neutral-200 px-3 text-xs font-medium last:border-r-0 ${anamneseAtual.respostas[p.id] === opt ? 'bg-neutral-900 text-white' : 'text-neutral-600 hover:bg-neutral-50'}`}>{opt}</button>
+                                                                <button key={opt} type="button" onClick={() => setAnamneseAtual({...anamneseAtual, respostas: {...anamneseAtual.respostas, [p.id]: opt}})} className={`h-full border-r border-neutral-200 px-4 text-xs font-medium last:border-r-0 sm:px-3 ${anamneseAtual.respostas[p.id] === opt ? 'bg-neutral-900 text-white' : 'text-neutral-600 hover:bg-neutral-50'}`}>{opt}</button>
                                                             ))}
                                                         </div>
                                                     )}
@@ -2890,13 +3025,13 @@ export default function PacienteDetalhe() {
                                                         const atual = (anamneseAtual.respostas[p.id] as RespostaSimNaoTexto) || { sim_nao: '', texto: '' };
                                                         return (
                                                             <div className="space-y-2">
-                                                                <div className="flex h-8 w-fit overflow-hidden rounded-md border border-neutral-200 bg-white">
+                                                                <div className="flex h-10 w-fit overflow-hidden rounded-md border border-neutral-200 bg-white sm:h-8">
                                                                     {['Sim','Não'].map(opt => (
-                                                                        <button key={opt} type="button" onClick={() => setAnamneseAtual({...anamneseAtual, respostas: {...anamneseAtual.respostas, [p.id]: { ...atual, sim_nao: opt, texto: opt === 'Não' ? '' : atual.texto }}})} className={`h-8 border-r border-neutral-200 px-3 text-xs font-medium last:border-r-0 ${atual.sim_nao === opt ? 'bg-neutral-900 text-white' : 'text-neutral-600 hover:bg-neutral-50'}`}>{opt}</button>
+                                                                        <button key={opt} type="button" onClick={() => setAnamneseAtual({...anamneseAtual, respostas: {...anamneseAtual.respostas, [p.id]: { ...atual, sim_nao: opt, texto: opt === 'Não' ? '' : atual.texto }}})} className={`h-full border-r border-neutral-200 px-4 text-xs font-medium last:border-r-0 sm:px-3 ${atual.sim_nao === opt ? 'bg-neutral-900 text-white' : 'text-neutral-600 hover:bg-neutral-50'}`}>{opt}</button>
                                                                     ))}
                                                                 </div>
                                                                 {atual.sim_nao === 'Sim' && (
-                                                                    <textarea value={atual.texto || ''} onChange={e => setAnamneseAtual({...anamneseAtual, respostas: {...anamneseAtual.respostas, [p.id]: { ...atual, texto: e.target.value }}})} className="w-full resize-none rounded-md border border-neutral-200 bg-white p-2.5 text-sm text-neutral-900 outline-none focus:border-neutral-900" rows={2} placeholder="Especifique"/>
+                                                                    <textarea value={atual.texto || ''} onChange={e => setAnamneseAtual({...anamneseAtual, respostas: {...anamneseAtual.respostas, [p.id]: { ...atual, texto: e.target.value }}})} className="w-full resize-none rounded-md border border-neutral-200 bg-white p-2.5 text-sm text-neutral-900 outline-none focus:border-neutral-900 max-sm:text-base" rows={2} placeholder="Especifique"/>
                                                                 )}
                                                             </div>
                                                         );
@@ -2904,19 +3039,13 @@ export default function PacienteDetalhe() {
                                                     {p.tipo === 'multipla' && (
                                                         <div className="flex flex-wrap gap-1.5">
                                                             {(p.opcoes || []).map(opt => (
-                                                                <button key={opt} type="button" onClick={() => setAnamneseAtual({...anamneseAtual, respostas: {...anamneseAtual.respostas, [p.id]: opt}})} className={`h-8 rounded-md border px-2.5 text-xs font-medium ${anamneseAtual.respostas[p.id] === opt ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50'}`}>{opt}</button>
+                                                                <button key={opt} type="button" onClick={() => setAnamneseAtual({...anamneseAtual, respostas: {...anamneseAtual.respostas, [p.id]: opt}})} className={`h-10 rounded-md border px-3 text-xs font-medium sm:h-8 sm:px-2.5 ${anamneseAtual.respostas[p.id] === opt ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50'}`}>{opt}</button>
                                                             ))}
                                                         </div>
                                                     )}
                                                 </div>
                                             </div>
                                         ))}
-
-                                        <div className="flex flex-wrap gap-2 border-t border-neutral-200 pt-4">
-                                            <button type="button" onClick={salvarAnamnese} className="inline-flex h-9 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800"><Save size={14}/> {anamneseAtual.id ? 'Atualizar' : 'Salvar'}</button>
-                                            <button type="button" onClick={() => emitirAnamnese()} className="inline-flex h-9 items-center gap-1.5 rounded-md border border-neutral-200 px-3 text-sm font-medium text-neutral-700 hover:bg-neutral-50"><Printer size={14}/> Imprimir</button>
-                                            <button type="button" onClick={() => { setAnamneseAtual({ id: null, modelo_id: '', data: new Date().toISOString().split('T')[0], preenchido_por: 'profissional', respostas: {} }); setLinkAnamnesePaciente(null); }} className="h-9 rounded-md px-3 text-sm font-medium text-neutral-500 hover:bg-neutral-50">Limpar</button>
-                                        </div>
                                     </div>
                                 );
                             })() : (
@@ -2925,12 +3054,20 @@ export default function PacienteDetalhe() {
                                 </p>
                             )}
                         </div>
+                            {!anamnesePorLink && modeloAnamneseAtual && (
+                                <div className="flex shrink-0 flex-wrap gap-2 border-t border-neutral-200 px-5 py-4">
+                                    <button type="button" onClick={salvarAnamnese} className="inline-flex h-10 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 sm:h-9"><Save size={14}/> {anamneseAtual.id ? 'Atualizar' : 'Salvar'}</button>
+                                    <button type="button" onClick={() => emitirAnamnese()} className="inline-flex h-10 items-center gap-1.5 rounded-md border border-neutral-200 px-3 text-sm font-medium text-neutral-700 hover:bg-neutral-50 sm:h-9"><Printer size={14}/> Imprimir</button>
+                                    <button type="button" onClick={() => { setAnamneseAtual({ id: null, modelo_id: '', data: new Date().toISOString().split('T')[0], preenchido_por: 'profissional', respostas: {} }); setLinkAnamnesePaciente(null); }} className="h-10 rounded-md px-3 text-sm font-medium text-neutral-500 hover:bg-neutral-50 sm:h-9">Limpar</button>
+                                </div>
+                            )}
                         </Modal>
 
                         <div className="grid shrink-0 grid-cols-1 gap-3 md:grid-cols-2 lg:min-h-0 lg:flex-1 lg:shrink lg:grid-cols-[minmax(0,2fr)_minmax(0,1.5fr)_minmax(0,1.5fr)]">
-                        <section className="flex max-h-80 min-h-0 flex-col overflow-hidden rounded-xl border border-neutral-200 p-3 md:col-span-2 lg:col-span-1 lg:max-h-none">
+                        {/* A lista só rola por dentro no computador; no celular a página já rola, e uma caixa com rolagem própria atrapalharia. */}
+                        <section className="flex flex-col rounded-xl border border-neutral-200 p-3 md:col-span-2 lg:col-span-1 lg:min-h-0 lg:overflow-hidden">
                             <h3 className="mb-2 shrink-0 text-base font-semibold text-neutral-900">Anamneses salvas ({anamnesesAnteriores.length})</h3>
-                            <div className="min-h-0 flex-1 overflow-y-auto">
+                            <div className="lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
                             {anamnesesAnteriores.length === 0 ? (
                                 <p className="py-6 text-sm text-neutral-400">Nenhuma anamnese salva.</p>
                             ) : (
@@ -2942,10 +3079,11 @@ export default function PacienteDetalhe() {
                                             tabIndex={0}
                                             onClick={() => setAnamnesePreview(a)}
                                             onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setAnamnesePreview(a); } }}
-                                            className="flex cursor-pointer items-center gap-3 border-b border-neutral-100 py-2.5"
+                                            className="flex cursor-pointer flex-wrap items-center gap-x-3 border-b border-neutral-100 py-2.5 sm:flex-nowrap"
                                         >
-                                            <div className="min-w-0 flex-1">
-                                                <div className="truncate text-sm font-medium text-neutral-900">{a.modelo_nome}</div>
+                                            {/* Celular: nome e datas na largura toda; as três ações descem para uma linha própria, com 40px cada. */}
+                                            <div className="min-w-0 flex-1 basis-full sm:basis-0">
+                                                <div className="break-words text-sm font-medium text-neutral-900 sm:truncate">{a.modelo_nome}</div>
                                                 <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[11px] text-neutral-500">
                                                     <span>{a.data ? new Date(a.data).toLocaleDateString('pt-BR') : '—'}</span>
                                                     <span>{a.preenchido_por === 'paciente' ? 'Paciente' : 'Profissional'}</span>
@@ -2953,16 +3091,16 @@ export default function PacienteDetalhe() {
                                                     {a.atualizado_em && a.atualizado_em !== a.criado_em && <span>Atualizado {formatarDataAnamnese(a.atualizado_em)}</span>}
                                                 </div>
                                             </div>
-                                            <button type="button" onClick={(e) => { e.stopPropagation(); editarAnamnese(a); }} className="rounded-md p-1.5 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-900" aria-label="Editar"><Edit size={14}/></button>
-                                            <button type="button" onClick={(e) => { e.stopPropagation(); emitirAnamnese(a); }} className="rounded-md p-1.5 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-900" aria-label="Imprimir"><Printer size={14}/></button>
-                                            <button type="button" onClick={(e) => { e.stopPropagation(); excluirAnamnese(a.id); }} className="rounded-md p-1.5 text-neutral-400 hover:bg-neutral-100 hover:text-rose-600" aria-label="Excluir"><Trash2 size={14}/></button>
+                                            <button type="button" onClick={(e) => { e.stopPropagation(); editarAnamnese(a); }} className={`${botaoIconeLinha} ml-auto hover:text-neutral-900 sm:ml-0`} aria-label="Editar"><Edit size={14}/></button>
+                                            <button type="button" onClick={(e) => { e.stopPropagation(); emitirAnamnese(a); }} className={`${botaoIconeLinha} hover:text-neutral-900`} aria-label="Imprimir"><Printer size={14}/></button>
+                                            <button type="button" onClick={(e) => { e.stopPropagation(); excluirAnamnese(a.id); }} className={`${botaoIconeLinha} hover:text-rose-600`} aria-label="Excluir"><Trash2 size={14}/></button>
                                         </div>
                                     ))}
                                 </div>
                             )}
                             </div>
                         </section>
-                            <section className="flex min-h-0 flex-col overflow-y-auto rounded-xl border border-neutral-200 p-3">
+                            <section className="flex flex-col rounded-xl border border-neutral-200 p-3 lg:min-h-0 lg:overflow-y-auto">
                                 <h3 className="text-base font-semibold text-neutral-900">Ficha médica</h3>
                                 <p className="mb-2 h-4 text-xs text-neutral-500">Digite a condição e pressione Enter.</p>
                                 <TagInput
@@ -2972,7 +3110,7 @@ export default function PacienteDetalhe() {
                                     placeholder="Ex: Diabetes, Hipertensão..."
                                 />
                             </section>
-                            <section className="flex min-h-0 flex-col overflow-y-auto rounded-xl border border-neutral-200 p-3">
+                            <section className="flex flex-col rounded-xl border border-neutral-200 p-3 lg:min-h-0 lg:overflow-y-auto">
                                 <h3 className="text-base font-semibold text-neutral-900">Medicamentos em uso</h3>
                                 <p className="mb-2 h-4 text-xs text-neutral-500">Digite o medicamento e pressione Enter.</p>
                                 <TagInput
@@ -2985,7 +3123,7 @@ export default function PacienteDetalhe() {
                         </div>
                         <section className="mt-3 flex h-44 shrink-0 flex-col overflow-hidden rounded-xl border border-neutral-200 p-3">
                             <h3 className="mb-2 shrink-0 text-base font-semibold text-neutral-900">Observações clínicas</h3>
-                            <textarea value={form.anamnese || ''} onChange={e => setForm({...form, anamnese: e.target.value})} className="min-h-0 w-full flex-1 resize-none overflow-y-auto rounded-md border border-neutral-200 bg-white p-3 text-sm text-neutral-900 outline-none focus:border-neutral-900" placeholder="Histórico, queixas e evolução" />
+                            <textarea value={form.anamnese || ''} onChange={e => setForm({...form, anamnese: e.target.value})} className="min-h-0 w-full flex-1 resize-none overflow-y-auto rounded-md border border-neutral-200 bg-white p-3 text-sm text-neutral-900 outline-none focus:border-neutral-900 max-sm:text-base" placeholder="Histórico, queixas e evolução" />
                         </section>
                     </div>
                 )}
@@ -2993,10 +3131,10 @@ export default function PacienteDetalhe() {
                 {abaAtiva === 'tratamentos' && (
                     <div className="animate-in fade-in space-y-4">
                             <TabEvolucao id={id as string} form={form} ficha={ficha} setFicha={setFicha} evolucoes={evolucoes} setEvolucoes={setEvolucoes}/>
-                        <div className="rounded-xl border border-neutral-200 bg-white p-4">
+                        <div className="rounded-xl border border-neutral-200 bg-white p-3 sm:p-4">
                             <div className="mb-3 flex items-center justify-between gap-3">
                                 <h3 className="text-base font-semibold text-neutral-900">Tratamentos realizados</h3>
-                                <button type="button" onClick={() => abrirNovoTratamento()} className="inline-flex h-8 items-center gap-1.5 rounded-md bg-neutral-900 px-2.5 text-xs font-medium text-white hover:bg-neutral-800"><Plus size={14}/> Novo</button>
+                                <button type="button" onClick={() => abrirNovoTratamento()} className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-xs font-medium text-white hover:bg-neutral-800 sm:h-8 sm:px-2.5"><Plus size={14}/> Novo</button>
                             </div>
 
                             {tratamentos.length === 0 ? (
@@ -3006,7 +3144,7 @@ export default function PacienteDetalhe() {
                                         <p className="mt-2 text-xs text-neutral-600">
                                             Há {marcacoesPendentes.length} dente{marcacoesPendentes.length === 1 ? '' : 's'} marcado{marcacoesPendentes.length === 1 ? '' : 's'} no odontograma
                                             {' '}({marcacoesPendentes.map((m) => `#${m.num}`).join(', ')}).{' '}
-                                            <button type="button" onClick={() => abrirNovoTratamento()} className="font-semibold text-neutral-900 underline underline-offset-2">
+                                            <button type="button" onClick={() => abrirNovoTratamento()} className="alvo-toque inline-block font-semibold text-neutral-900 underline underline-offset-2">
                                                 Incluir no novo tratamento
                                             </button>
                                         </p>
@@ -3015,21 +3153,24 @@ export default function PacienteDetalhe() {
                             ) : (
                                 <div className="space-y-2">
                                     {[...tratamentos].sort((a,b) => (b.data||'').localeCompare(a.data||'')).map((t:any) => (
-                                        <div key={t.id} className="flex items-center gap-3 border-b border-neutral-100 py-2.5">
-                                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-neutral-200 text-xs font-medium text-neutral-800">{t.dente || '—'}</div>
+                                        // Celular: cartão empilhado. Procedimento e observação quebram em vez de cortar, e o valor ganha destaque.
+                                        <div key={t.id} className="flex items-start gap-3 border-b border-neutral-100 py-2.5 sm:items-center">
+                                            <div title={t.dente || undefined} className="h-8 min-w-[2rem] max-w-[5.5rem] shrink-0 truncate rounded-md border border-neutral-200 px-1.5 text-center text-xs font-medium leading-[1.875rem] text-neutral-800">{t.dente || '—'}</div>
                                             <div className="flex-1 min-w-0">
-                                                <div className="flex items-center gap-2 flex-wrap">
-                                                    <span className="truncate text-sm font-medium text-neutral-900">{t.procedimento}</span>
-                                                    <span className="text-[11px] font-medium text-neutral-500">{t.status}</span>
+                                                <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 sm:gap-2">
+                                                    <span className="min-w-0 break-words text-sm font-medium text-neutral-900 sm:truncate">{t.procedimento}</span>
+                                                    <span className="text-[11px] font-medium text-neutral-500">{ROTULO_STATUS_TRATAMENTO[t.status] || t.status}</span>
                                                 </div>
-                                                <div className="flex min-w-0 items-center gap-3 text-[11px] text-neutral-500">
+                                                <div className="flex min-w-0 flex-wrap items-center gap-x-3 text-[11px] text-neutral-500 sm:flex-nowrap">
                                                     <span className="flex shrink-0 items-center gap-1"><Calendar size={11}/> {t.data ? new Date(t.data).toLocaleDateString('pt-BR') : '-'}</span>
-                                                    {t.valor && <span className="shrink-0 font-medium text-neutral-700">R$ {parseFloat(t.valor).toFixed(2)}</span>}
-                                                    {t.observacoes && <span className="min-w-0 truncate italic">"{t.observacoes}"</span>}
+                                                    {t.valor && <span className="shrink-0 text-xs font-semibold text-neutral-900 sm:text-[11px] sm:font-medium sm:text-neutral-700">{formatarMoeda(parseFloat(t.valor) || 0)}</span>}
+                                                    {t.observacoes && <span className="min-w-0 basis-full break-words italic sm:basis-auto sm:truncate">&quot;{t.observacoes}&quot;</span>}
                                                 </div>
                                             </div>
-                                            <button onClick={() => { setTratEdit(t); setModalTrat(true); }} className="rounded-md p-1.5 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-900"><Edit size={14}/></button>
-                                            <button onClick={() => excluirTratamento(t.id)} className="rounded-md p-1.5 text-neutral-400 hover:bg-neutral-100 hover:text-red-600"><Trash2 size={14}/></button>
+                                            <div className="flex shrink-0 items-center sm:gap-3">
+                                                <button type="button" onClick={() => { setTratEdit(t); setModalTrat(true); }} className={`${botaoIconeLinha} hover:text-neutral-900`} aria-label="Editar tratamento"><Edit size={14}/></button>
+                                                <button type="button" onClick={() => excluirTratamento(t.id)} className={`${botaoIconeLinha} hover:text-red-600`} aria-label="Excluir tratamento"><Trash2 size={14}/></button>
+                                            </div>
                                         </div>
                                     ))}
                                 </div>
@@ -3048,14 +3189,14 @@ export default function PacienteDetalhe() {
                 )}
 
                 {abaAtiva === 'odontograma' && (
-                    <div className="flex h-full min-h-0 flex-col overflow-y-auto px-3 pb-24 pt-3 sm:px-5 sm:pt-4 lg:overflow-hidden lg:pb-4">
+                    <div className="flex flex-col px-3 pb-4 pt-3 sm:px-5 sm:pt-4 lg:h-full lg:min-h-0 lg:overflow-hidden">
                         <div className="mb-3 grid shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 sm:flex sm:flex-wrap">
                             <h3 className="text-base font-semibold text-neutral-900">Odontograma</h3>
                             <SegmentedControl
                                 value={visaoOdonto}
                                 onChange={setVisaoOdonto}
                                 size="sm"
-                                className="col-span-2 row-start-2 w-full sm:order-1 sm:ml-auto sm:w-fit"
+                                className="col-span-2 row-start-2 w-full max-sm:h-10 sm:order-1 sm:ml-auto sm:w-fit"
                                 options={[
                                     { value: 'anatomica', label: 'Anatômica' },
                                     { value: 'esquematica', label: 'Esquemática' },
@@ -3064,14 +3205,14 @@ export default function PacienteDetalhe() {
                             />
                             <div className="flex items-center justify-end gap-1.5 sm:order-2 sm:gap-2">
                                 {savingOdo && <span className="flex items-center gap-1 text-xs font-medium text-neutral-400"><Loader2 size={12} className="animate-spin"/> <span className="max-sm:hidden">Salvando</span></span>}
-                                <button type="button" onClick={imprimirOrcamento} aria-label="PDF" className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-neutral-200 bg-white text-xs font-medium text-neutral-700 hover:bg-neutral-50 max-sm:w-8 sm:px-2.5"><Printer size={14}/> <span className="max-sm:hidden">PDF</span></button>
+                                <button type="button" onClick={imprimirOrcamento} aria-label="PDF" className="inline-flex h-10 items-center justify-center gap-1.5 rounded-md border border-neutral-200 bg-white text-xs font-medium text-neutral-700 hover:bg-neutral-50 max-sm:w-10 sm:h-8 sm:px-2.5"><Printer size={14}/> <span className="max-sm:hidden">PDF</span></button>
                                 <button
                                     type="button"
                                     aria-label="Limpar odontograma"
                                     onClick={async () => {
                                         if (await showConfirm('Limpar todo o odontograma?', { title: 'Limpar', type: 'warning', confirmLabel: 'Limpar' })) resetOdontogramAll();
                                     }}
-                                    className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-neutral-200 bg-white text-xs font-medium text-neutral-700 hover:bg-neutral-50 max-sm:w-8 sm:px-2.5"
+                                    className="inline-flex h-10 items-center justify-center gap-1.5 rounded-md border border-neutral-200 bg-white text-xs font-medium text-neutral-700 hover:bg-neutral-50 max-sm:w-10 sm:h-8 sm:px-2.5"
                                 >
                                     <Eraser size={14}/> <span className="max-sm:hidden">Limpar</span>
                                 </button>
@@ -3083,13 +3224,14 @@ export default function PacienteDetalhe() {
                                     <textarea
                                         value={textoOdontogramaLivre}
                                         onChange={e => setTextoOdontogramaLivre(e.target.value)}
-                                        className="min-h-[16rem] w-full flex-1 resize-none rounded-md border border-neutral-200 bg-white p-3 text-sm leading-relaxed text-neutral-900 outline-none focus:border-neutral-900"
+                                        className="min-h-[16rem] w-full flex-1 resize-none rounded-md border border-neutral-200 bg-white p-3 text-sm leading-relaxed text-neutral-900 outline-none focus:border-neutral-900 max-sm:text-base"
                                         placeholder="Observações e plano de tratamento"
                                     />
                                     <p className="mt-2 shrink-0 text-xs text-neutral-400">Salvo junto ao odontograma e incluído no PDF.</p>
                                 </div>
                             ) : (
                             <>
+                            {/* Ferramentas em faixa própria, fora da caixa da arcada: rolar os dentes de lado não leva as ações junto. */}
                             <div className="-mx-3 mb-2 flex shrink-0 items-center gap-1.5 overflow-x-auto px-3 [scrollbar-width:none] sm:mx-0 sm:px-0 [&::-webkit-scrollbar]:hidden">
                                 <div className="w-32 shrink-0 sm:w-36">
                                     <CustomSelect
@@ -3097,14 +3239,16 @@ export default function PacienteDetalhe() {
                                         onChange={(v) => setTipoArcada(v as 'permanente' | 'leite')}
                                         options={[{ value: 'permanente', label: 'Permanentes' }, { value: 'leite', label: 'De leite' }]}
                                         size="xs"
+                                        triggerClassName="max-sm:h-10"
                                     />
                                 </div>
                                 {TOOLS.map(t => (
                                     <button
                                         key={t.key}
                                         type="button"
+                                        aria-pressed={ferramenta === t.key}
                                         onClick={() => setFerramenta(t.key)}
-                                        className={`inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium ${ferramenta === t.key ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50'}`}
+                                        className={`inline-flex h-10 shrink-0 items-center gap-1.5 rounded-md border px-3 text-xs font-medium sm:h-8 sm:px-2.5 ${ferramenta === t.key ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50'}`}
                                     >
                                         <span className="h-2 w-2 rounded-full" style={{ background: t.color, boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.12)' }} />
                                         {t.label}
@@ -3114,7 +3258,7 @@ export default function PacienteDetalhe() {
                                     <button
                                         type="button"
                                         onClick={() => setMostrar3D(true)}
-                                        className="inline-flex h-8 shrink-0 items-center rounded-md border border-neutral-200 bg-white px-2.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
+                                        className="inline-flex h-10 shrink-0 items-center rounded-md border border-neutral-200 bg-white px-3 text-xs font-medium text-neutral-700 hover:bg-neutral-50 sm:h-8 sm:px-2.5"
                                     >
                                         Vista 3D
                                     </button>
@@ -3122,7 +3266,9 @@ export default function PacienteDetalhe() {
                             </div>
 
                             <div className={`shrink-0 ${mostrar3D ? 'grid grid-cols-1 items-stretch gap-2 lg:min-h-0 lg:flex-1 lg:shrink lg:grid-cols-[minmax(0,7fr)_minmax(0,3fr)] lg:overflow-hidden' : ''}`}>
-                            <div ref={medirOdonto} className="flex min-h-0 min-w-0 items-center justify-center overflow-hidden rounded-xl border border-neutral-200 bg-white px-1 py-2 sm:py-3">
+                            {/* Tela de toque: a arcada fica em tamanho real e rola de lado só dentro desta caixa (precisão do toque antes de caber).
+                                Sem justify-center nesse modo, senão a metade esquerda ficaria fora do alcance da rolagem; o mx-auto do filho centra quando sobra espaço. */}
+                            <div ref={medirOdonto} className={`flex min-h-0 min-w-0 rounded-xl border border-neutral-200 bg-white px-1 py-2 sm:py-3 ${telaToque ? 'overflow-x-auto overflow-y-hidden overscroll-x-contain' : 'items-center justify-center overflow-hidden'}`}>
                                 {(() => {
                                     const isEsq = visaoOdonto === 'esquematica';
                                     const quad = tipoArcada === 'permanente' ? QUAD_PERM : QUAD_LEITE;
@@ -3131,13 +3277,13 @@ export default function PacienteDetalhe() {
                                     const larguraArcada = larguraQuadrante * 2 + 20;
                                     const disponivel = Math.max(0, odontoLargura - 8);
                                     const zoomArcada = disponivel ? Math.min(0.92, disponivel / larguraArcada) : 0.72;
-                                    const porQuadrante = disponivel > 0 && zoomArcada < 0.6;
-                                    const zoom = porQuadrante ? Math.min(1, disponivel / larguraQuadrante) : zoomArcada;
-                                    const dentes = (lista: number[], isUpper: boolean) => lista.map(n => <Tooth key={n} num={n} isUpper={isUpper} esquematico={isEsq} state={odontograma[n] || { faces: {}, cond: 'normal' }} ferramenta={ferramenta} onApply={(f) => aplicarFerramenta(n, f)} />);
+                                    const porQuadrante = !telaToque && disponivel > 0 && zoomArcada < 0.6;
+                                    const zoom = telaToque ? 1 : porQuadrante ? Math.min(1, disponivel / larguraQuadrante) : zoomArcada;
+                                    const dentes = (lista: number[], isUpper: boolean) => lista.map(n => <Tooth key={n} num={n} isUpper={isUpper} esquematico={isEsq} toque={telaToque} state={odontograma[n] || { faces: {}, cond: 'normal' }} ferramenta={ferramenta} onApply={(f) => aplicarFerramenta(n, f)} />);
                                     const alinharSup = isEsq ? 'items-center' : 'items-end';
                                     const alinharInf = isEsq ? 'items-center' : 'items-start';
                                     return (
-                                        <div className="origin-center" style={{ zoom }}>
+                                        <div className={telaToque ? 'mx-auto shrink-0' : 'origin-center'} style={{ zoom }}>
                                             {porQuadrante ? (
                                                 <div className="inline-flex min-w-max select-none flex-col items-center">
                                                     <div className={`flex justify-center ${alinharSup}`}>{dentes(quad.sup[0], true)}</div>
@@ -3167,6 +3313,10 @@ export default function PacienteDetalhe() {
                                     );
                                 })()}
                             </div>
+                            {/* 112 = dois quadrantes de dentes de 56px; 20 = a linha média. */}
+                            {telaToque && odontoLargura > 0 && odontoLargura < (tipoArcada === 'permanente' ? QUAD_PERM : QUAD_LEITE).sup[0].length * 112 + 20 && (
+                                <p className="mt-1.5 text-[11px] text-neutral-400">Arraste para o lado para ver os outros dentes.</p>
+                            )}
 
                             {mostrar3D && (
                                 <div className="flex h-[22rem] min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border border-neutral-200 bg-[#f8f8f6] p-2 lg:h-auto">
@@ -3175,7 +3325,7 @@ export default function PacienteDetalhe() {
                                         <button
                                             type="button"
                                             onClick={() => setMostrar3D(false)}
-                                            className="inline-flex h-8 items-center justify-center rounded-md border border-neutral-200 bg-white px-2.5 text-xs font-medium text-neutral-700"
+                                            className="inline-flex h-10 items-center justify-center rounded-md border border-neutral-200 bg-white px-3 text-xs font-medium text-neutral-700 sm:h-8 sm:px-2.5"
                                         >
                                             Fechar
                                         </button>
@@ -3198,7 +3348,7 @@ export default function PacienteDetalhe() {
                                         <button
                                             type="button"
                                             onClick={() => abrirNovoTratamento()}
-                                            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md bg-neutral-900 px-2.5 text-xs font-medium text-white hover:bg-neutral-800"
+                                            className="inline-flex h-10 items-center justify-center gap-1.5 rounded-md bg-neutral-900 px-3 text-xs font-medium text-white hover:bg-neutral-800 sm:h-8 sm:px-2.5"
                                         >
                                             <Plus size={12} /> Tratar marcações
                                         </button>
@@ -3217,11 +3367,11 @@ export default function PacienteDetalhe() {
                                         {[marcacoesOdonto.slice(0, Math.ceil(marcacoesOdonto.length / 2)), marcacoesOdonto.slice(Math.ceil(marcacoesOdonto.length / 2))].filter((fatia) => fatia.length > 0).map((fatia) => (
                                             <div key={fatia[0].num} className="overflow-hidden rounded-xl border border-neutral-200">
                                                 {fatia.map((m) => (
-                                                    <div key={m.num} className={`grid grid-cols-[3.5rem_minmax(0,1fr)_auto] items-center gap-2 border-b border-neutral-100 px-3 py-2 last:border-b-0 ${m.precisaTratamento ? 'bg-amber-50/70' : 'bg-white'}`}>
+                                                    <div key={m.num} className={`grid grid-cols-[3.5rem_minmax(0,1fr)_auto] items-center gap-2 border-b border-neutral-100 py-1 pl-3 pr-1 last:border-b-0 sm:px-3 sm:py-2 ${m.precisaTratamento ? 'bg-amber-50/70' : 'bg-white'}`}>
                                                         <button
                                                             type="button"
                                                             onClick={() => abrirNovoTratamento([m.num])}
-                                                            className="text-left text-sm font-semibold text-neutral-900"
+                                                            className="min-h-[40px] text-left text-sm font-semibold text-neutral-900 sm:min-h-0"
                                                             title="Abrir tratamento deste dente"
                                                         >
                                                             #{m.num}
@@ -3236,7 +3386,7 @@ export default function PacienteDetalhe() {
                                                                 </span>
                                                             ))}
                                                         </div>
-                                                        <button type="button" onClick={() => limparDente(m.num)} className="inline-flex h-7 w-7 items-center justify-center rounded-md text-neutral-400 hover:bg-white hover:text-rose-600" aria-label={`Limpar dente ${m.num}`}><X size={14}/></button>
+                                                        <button type="button" onClick={() => limparDente(m.num)} className="inline-flex h-10 w-10 items-center justify-center rounded-md text-neutral-400 hover:bg-white hover:text-rose-600 sm:h-7 sm:w-7" aria-label={`Limpar dente ${m.num}`}><X size={14}/></button>
                                                     </div>
                                                 ))}
                                             </div>
@@ -3244,7 +3394,7 @@ export default function PacienteDetalhe() {
                                     </div>
                                 )}
                                 {marcacoesPendentes.length > 0 && (
-                                    <p className="mt-2 text-[11px] text-neutral-500">Clique em um dente para abrir o tratamento só dele, ou em Tratar marcações para incluir todos.</p>
+                                    <p className="mt-2 text-[11px] text-neutral-500">{telaToque ? 'Toque' : 'Clique'} em um dente para abrir o tratamento só dele, ou em Tratar marcações para incluir todos.</p>
                                 )}
                             </div>
                             </>
@@ -3256,19 +3406,19 @@ export default function PacienteDetalhe() {
                     <div>
                         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                             <h3 className="text-base font-semibold text-neutral-900">Documentos</h3>
-                            <div className="flex flex-wrap items-center gap-2">
+                            <div className="flex flex-wrap items-center gap-2 max-sm:w-full">
                                 <SegmentedControl
                                     value={visualDocs}
                                     onChange={setVisualDocs}
                                     size="sm"
-                                    className="w-fit shrink-0"
+                                    className="w-fit shrink-0 max-sm:h-10 max-sm:w-24"
                                     options={[
                                         { value: 'bloco', label: <LayoutGrid size={14} />, ariaLabel: 'Blocos' },
                                         { value: 'lista', label: <List size={14} />, ariaLabel: 'Lista' },
                                     ]}
                                 />
-                                <button type="button" onClick={() => setModalDoc(true)} className="inline-flex h-8 items-center gap-1.5 rounded-md border border-neutral-200 px-2.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50"><Printer size={14}/> Emitir</button>
-                                <label className={`inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md bg-neutral-900 px-2.5 text-xs font-medium text-white hover:bg-neutral-800 ${uploadingDoc ? 'pointer-events-none opacity-50' : ''}`}>
+                                <button type="button" onClick={() => setModalDoc(true)} className="inline-flex h-10 items-center justify-center gap-1.5 rounded-md border border-neutral-200 px-2.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50 max-sm:flex-1 sm:h-8"><Printer size={14}/> Emitir</button>
+                                <label className={`inline-flex h-10 cursor-pointer items-center justify-center gap-1.5 rounded-md bg-neutral-900 px-2.5 text-xs font-medium text-white hover:bg-neutral-800 max-sm:flex-1 sm:h-8 ${uploadingDoc ? 'pointer-events-none opacity-50' : ''}`}>
                                     {uploadingDoc ? <Loader2 size={14} className="animate-spin"/> : <Upload size={14}/>} Enviar
                                     <input type="file" className="hidden" onChange={uploadDocumento} disabled={uploadingDoc} accept=".jpg,.jpeg,.png,.webp,.gif,.pdf,.doc,.docx,.txt,image/jpeg,image/png,image/webp,image/gif,application/pdf"/>
                                 </label>
@@ -3276,28 +3426,32 @@ export default function PacienteDetalhe() {
                         </div>
 
                         {documentos.length === 0 ? (
-                            <p className="py-8 text-center text-sm text-neutral-400">Nenhum documento. JPG, PNG, WEBP, GIF, PDF, DOC ou TXT, até 8 MB.</p>
+                            <p className="py-8 text-center text-sm text-neutral-400">Nenhum documento. JPG, PNG, WEBP, GIF, PDF, DOC ou TXT, até 10 MB.</p>
                         ) : (
                             <div>
-                                <div className="grid grid-cols-[minmax(0,1fr)_4.5rem] items-center gap-3 pb-2 text-xs font-medium text-neutral-400 sm:grid-cols-[minmax(0,1.6fr)_7rem_6rem_5.5rem]">
+                                {/* Celular: as três ordenações viram uma linha de botões de 40px; data e tamanho descem para baixo do nome. */}
+                                <div className="flex items-center gap-4 pb-1 text-xs font-medium text-neutral-400 sm:grid sm:grid-cols-[minmax(0,1.6fr)_7rem_6rem_5.5rem] sm:gap-3 sm:pb-2">
                                     {([['nome', 'Nome'], ['data', 'Data'], ['tamanho', 'Tamanho']] as const).map(([campo, rotulo]) => (
-                                        <button key={campo} type="button" onClick={() => alternarOrdemDocs(campo)} className={`${campo === 'nome' ? 'inline-flex' : 'hidden sm:inline-flex'} items-center gap-1 text-left hover:text-neutral-900`}>
+                                        <button key={campo} type="button" onClick={() => alternarOrdemDocs(campo)} className="inline-flex min-h-[40px] items-center gap-1 text-left hover:text-neutral-900 sm:min-h-0">
                                             {rotulo}
                                             <ArrowUpDown size={12} className={ordemDocs.campo === campo ? 'text-neutral-900' : 'text-neutral-300'} />
                                         </button>
                                     ))}
-                                    <span className="text-right">Ações</span>
+                                    <span className="hidden text-right sm:block">Ações</span>
                                 </div>
                                 {visualDocs === 'lista' ? (
                                     <div>
                                         {documentosOrdenados().map(d => (
-                                            <div key={d.id} className="grid grid-cols-[minmax(0,1fr)_4.5rem] items-center gap-3 border-t border-neutral-100 py-2.5 sm:grid-cols-[minmax(0,1.6fr)_7rem_6rem_5.5rem]">
-                                                <button type="button" onClick={() => abrirDocumento(d)} className="min-w-0 truncate text-left text-sm font-medium text-neutral-900 hover:underline">{d.nome}</button>
+                                            <div key={d.id} className="flex items-center gap-2 border-t border-neutral-100 py-1.5 sm:grid sm:grid-cols-[minmax(0,1.6fr)_7rem_6rem_5.5rem] sm:gap-3 sm:py-2.5">
+                                                <button type="button" onClick={() => abrirDocumento(d)} className="min-h-[40px] min-w-0 flex-1 text-left text-sm font-medium text-neutral-900 hover:underline sm:min-h-0 sm:truncate">
+                                                    <span className="block break-words sm:inline">{d.nome}</span>
+                                                    <span className="block text-xs font-normal text-neutral-500 sm:hidden">{d.criado_em ? new Date(d.criado_em).toLocaleDateString('pt-BR') : '—'}{d.tamanho ? ` · ${(d.tamanho / 1024).toFixed(0)} KB` : ''}</span>
+                                                </button>
                                                 <span className="hidden text-xs text-neutral-500 sm:block">{d.criado_em ? new Date(d.criado_em).toLocaleDateString('pt-BR') : '—'}</span>
                                                 <span className="hidden text-xs text-neutral-500 sm:block">{d.tamanho ? `${(d.tamanho / 1024).toFixed(0)} KB` : '—'}</span>
-                                                <div className="flex justify-end">
-                                                    <button type="button" onClick={() => baixarDocumento(d)} className="rounded-md p-1.5 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-900" aria-label="Baixar"><Download size={14}/></button>
-                                                    <button type="button" onClick={() => excluirDocumento(d.id)} className="rounded-md p-1.5 text-neutral-400 hover:bg-neutral-100 hover:text-rose-600" aria-label="Excluir"><Trash2 size={14}/></button>
+                                                <div className="flex shrink-0 justify-end">
+                                                    <button type="button" onClick={() => baixarDocumento(d)} className={`${botaoIconeLinha} hover:text-neutral-900`} aria-label="Baixar"><Download size={14}/></button>
+                                                    <button type="button" onClick={() => excluirDocumento(d.id)} className={`${botaoIconeLinha} hover:text-rose-600`} aria-label="Excluir"><Trash2 size={14}/></button>
                                                 </div>
                                             </div>
                                         ))}
@@ -3307,9 +3461,9 @@ export default function PacienteDetalhe() {
                                         {documentosOrdenados().map(d => (
                                             <div key={d.id} className="overflow-hidden rounded-xl border border-neutral-200">
                                                 <button type="button" onClick={() => abrirDocumento(d)} className="relative flex h-32 w-full flex-col items-center justify-center gap-2 overflow-hidden bg-neutral-50 text-neutral-500">
-                                                    {d.previewUrl && documentoEhImagem(d) ? (
+                                                    {d.previewUrl && d.previewVista === 'imagem' ? (
                                                         <img src={d.previewUrl} alt="" className="h-full w-full object-cover" />
-                                                    ) : d.previewUrl && documentoEhPdf(d) ? (
+                                                    ) : d.previewUrl && d.previewVista === 'pdf' ? (
                                                         <iframe src={`${d.previewUrl}#toolbar=0&navpanes=0&scrollbar=0&page=1&view=FitH`} title="" scrolling="no" className="pointer-events-none absolute left-0 top-0 h-48 w-[calc(100%+20px)] border-0 bg-white" />
                                                     ) : (
                                                         <>
@@ -3318,10 +3472,18 @@ export default function PacienteDetalhe() {
                                                         </>
                                                     )}
                                                 </button>
-                                                <div className="flex items-center gap-2 border-t border-neutral-100 px-3 py-2">
-                                                    <button type="button" onClick={() => abrirDocumento(d)} className="min-w-0 flex-1 truncate text-left text-xs font-medium text-neutral-800">{d.nome}</button>
-                                                    <button type="button" onClick={() => baixarDocumento(d)} className="rounded-md p-1 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-900" aria-label="Baixar"><Download size={13}/></button>
-                                                    <button type="button" onClick={() => excluirDocumento(d.id)} className="rounded-md p-1 text-neutral-400 hover:bg-neutral-100 hover:text-rose-600" aria-label="Excluir"><Trash2 size={13}/></button>
+                                                <div className="flex items-center gap-1 border-t border-neutral-100 py-1 pl-2.5 pr-1 sm:gap-2 sm:px-3 sm:py-2">
+                                                    <button type="button" onClick={() => abrirDocumento(d)} className="min-h-[40px] min-w-0 flex-1 text-left text-xs font-medium text-neutral-800 sm:min-h-0 sm:truncate"><span className="break-words max-sm:line-clamp-2">{d.nome}</span></button>
+                                                    {/* Celular: baixar e excluir vão para um menu. Dois ícones de 40px ao lado do nome não cabem num cartão de meia tela. */}
+                                                    <MenuPontos
+                                                        className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-neutral-500 hover:bg-neutral-100 sm:hidden"
+                                                        itens={[
+                                                            { id: 'baixar', label: 'Baixar', onClick: () => { void baixarDocumento(d); } },
+                                                            { id: 'excluir', label: 'Excluir', perigo: true, onClick: () => { void excluirDocumento(d.id); } },
+                                                        ]}
+                                                    />
+                                                    <button type="button" onClick={() => baixarDocumento(d)} className="rounded-md p-1 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-900 max-sm:hidden" aria-label="Baixar"><Download size={13}/></button>
+                                                    <button type="button" onClick={() => excluirDocumento(d.id)} className="rounded-md p-1 text-neutral-400 hover:bg-neutral-100 hover:text-rose-600 max-sm:hidden" aria-label="Excluir"><Trash2 size={13}/></button>
                                                 </div>
                                             </div>
                                         ))}
@@ -3341,25 +3503,26 @@ export default function PacienteDetalhe() {
                                     {debitos.length === 0 ? 'Nada em aberto' : `${debitos.length} em aberto · ${formatarMoeda(debitos.reduce((s, d) => s + (d.valor || 0), 0))}`}
                                 </p>
                             </div>
-                            <button type="button" onClick={abrirModalDebitoManual} className="inline-flex h-8 items-center gap-1.5 rounded-md bg-neutral-900 px-2.5 text-xs font-medium text-white hover:bg-neutral-800"><Plus size={14}/> Adicionar</button>
+                            <button type="button" onClick={abrirModalDebitoManual} className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-xs font-medium text-white hover:bg-neutral-800 sm:h-8 sm:px-2.5"><Plus size={14}/> Adicionar</button>
                         </div>
 
                         {debitos.length === 0 ? (
                             <p className="py-8 text-center text-sm text-neutral-400">Nenhum débito em aberto.</p>
                         ) : (
-                            <div className="overflow-hidden rounded-xl border border-neutral-200">
+                            // Celular: um cartão por débito, com a descrição inteira em cima e valor + Receber embaixo. A partir de sm volta a ser uma lista de linhas.
+                            <div className="space-y-2 sm:space-y-0 sm:overflow-hidden sm:rounded-xl sm:border sm:border-neutral-200">
                                 {debitos.map(d => (
-                                    <div key={d.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-neutral-100 px-3 py-2.5 last:border-b-0 sm:flex-nowrap">
+                                    <div key={d.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-neutral-200 p-3 sm:flex-nowrap sm:rounded-none sm:border-x-0 sm:border-t-0 sm:border-neutral-100 sm:px-3 sm:py-2.5 sm:last:border-b-0">
                                         <div className="min-w-0 flex-1 basis-full sm:basis-auto">
-                                            <div className="truncate text-sm font-medium text-neutral-900">{d.descricao || d.procedimento}</div>
+                                            <div className="break-words text-sm font-medium text-neutral-900 sm:truncate">{d.descricao || d.procedimento}</div>
                                             <p className="mt-0.5 text-xs text-neutral-500">
                                                 {d.data_hora ? new Date(d.data_hora).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : d.created_at ? new Date(d.created_at).toLocaleDateString('pt-BR') : '—'}
                                                 {d.profissionais?.nome ? ` · ${d.profissionais.nome}` : ''}
                                                 {' · '}{d.origem === 'manual' ? 'Manual' : 'Atendimento'}
                                             </p>
                                         </div>
-                                        <p className="shrink-0 text-sm font-semibold text-neutral-900">{formatarMoeda(d.valor || 0)}</p>
-                                        <button type="button" onClick={() => marcarComoPago(d.id)} className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-neutral-900 px-2.5 text-xs font-medium text-white hover:bg-neutral-800"><CheckCircle size={13}/> Receber</button>
+                                        <p className="mr-auto shrink-0 text-base font-semibold text-neutral-900 sm:mr-0 sm:text-sm">{formatarMoeda(d.valor || 0)}</p>
+                                        <button type="button" onClick={() => marcarComoPago(d.id)} className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-xs font-medium text-white hover:bg-neutral-800 sm:h-8 sm:px-2.5"><CheckCircle size={13}/> Receber</button>
                                     </div>
                                 ))}
                             </div>
@@ -3376,7 +3539,7 @@ export default function PacienteDetalhe() {
                         />
                         <div className="mb-3 flex items-center justify-between gap-2">
                             <h3 className="text-base font-semibold text-neutral-900">Harmonização</h3>
-                            <button type="button" aria-label="Limpar marcações" onClick={async () => { if(marcacoesHof.length && await showConfirm('Limpar todas as marcações?', { title: 'Limpar', type: 'warning', confirmLabel: 'Limpar' })) setMarcacoesHof([]); }} className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-neutral-200 bg-white text-xs font-medium text-neutral-700 hover:bg-neutral-50 max-sm:w-8 sm:px-2.5"><Eraser size={14}/> <span className="max-sm:hidden">Limpar</span></button>
+                            <button type="button" aria-label="Limpar marcações" onClick={async () => { if(marcacoesHof.length && await showConfirm('Limpar todas as marcações?', { title: 'Limpar', type: 'warning', confirmLabel: 'Limpar' })) setMarcacoesHof([]); }} className="inline-flex h-10 items-center justify-center gap-1.5 rounded-md border border-neutral-200 bg-white text-xs font-medium text-neutral-700 hover:bg-neutral-50 max-sm:w-10 sm:h-8 sm:px-2.5"><Eraser size={14}/> <span className="max-sm:hidden">Limpar</span></button>
                         </div>
                         <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(18rem,0.85fr)]">
                         <div className="min-w-0">
@@ -3385,7 +3548,7 @@ export default function PacienteDetalhe() {
                                 value={faceHofAtiva}
                                 onChange={setFaceHofAtiva}
                                 size="sm"
-                                className="w-full sm:w-auto"
+                                className="w-full max-sm:h-10 sm:w-auto"
                                 options={[
                                     { value: 'feminina', label: 'Feminino' },
                                     { value: 'masculina', label: 'Masculino' },
@@ -3395,7 +3558,7 @@ export default function PacienteDetalhe() {
                                 value={hofModo}
                                 onChange={(modo) => { setHofModo(modo); if (modo === 'visualizar') setHofPopover({ x: 0, y: 0, open: false }); }}
                                 size="sm"
-                                className="w-full sm:w-auto"
+                                className="w-full max-sm:h-10 sm:w-auto"
                                 options={[
                                     { value: 'visualizar', label: 'Visualizar' },
                                     { value: 'alterar', label: 'Alterar' },
@@ -3405,7 +3568,7 @@ export default function PacienteDetalhe() {
                                 value={hofVista}
                                 onChange={(vista) => { setHofVista(vista); if (vista !== 'mapa') setHofPopover({ x: 0, y: 0, open: false }); }}
                                 size="sm"
-                                className="col-span-2 w-full sm:w-auto"
+                                className="col-span-2 w-full max-sm:h-10 sm:w-auto"
                                 options={[
                                     { value: 'mapa', label: 'Mapa' },
                                     { value: 'demo', label: 'Demonstração' },
@@ -3413,12 +3576,17 @@ export default function PacienteDetalhe() {
                                 ]}
                             />
                         </div>
-                        <p className="mb-3 text-xs text-neutral-400">{hofVista === 'demo' ? 'Ilustração na foto fixa, para demonstrar. Não é o resultado clínico.' : hofVista === 'frontal' ? 'Ilustração na foto frontal desta sessão. Não é o resultado clínico.' : hofModo === 'alterar' ? 'Clique no rosto para marcar.' : 'Visualizar não cria pontos novos.'}</p>
+                        {/* Celular e tablet: a sessão vem antes do mapa, porque cada ponto marcado entra na sessão escolhida aqui. No computador ela fica na coluna ao lado. */}
+                        <div className="mb-3 sm:w-40 lg:hidden">
+                            <label className={campoLabel}>Sessão</label>
+                            <CampoData value={hofSessaoAtiva} onChange={setHofSessaoAtiva} />
+                        </div>
+                        <p className="mb-3 text-xs text-neutral-400">{hofVista === 'demo' ? 'Ilustração na foto fixa, para demonstrar. Não é o resultado clínico.' : hofVista === 'frontal' ? 'Ilustração na foto frontal desta sessão. Não é o resultado clínico.' : hofModo === 'alterar' ? `${telaToque ? 'Toque' : 'Clique'} no rosto para marcar.` : 'Visualizar não cria pontos novos.'}</p>
 
                         {hofVista === 'mapa' && hofModo === 'alterar' && (
                             <div className="-mx-3 mb-3 flex gap-1.5 overflow-x-auto px-3 [scrollbar-width:none] sm:-mx-5 sm:px-5 lg:hidden [&::-webkit-scrollbar]:hidden">
                                 {HOF_TIPOS.map(t => (
-                                    <button key={t.key} type="button" onClick={() => setHofTipoAtivo(t.key)} className={`inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium ${hofTipoAtivo === t.key ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-200 bg-white text-neutral-700'}`}>
+                                    <button key={t.key} type="button" aria-pressed={hofTipoAtivo === t.key} onClick={() => setHofTipoAtivo(t.key)} className={`inline-flex h-10 shrink-0 items-center gap-1.5 rounded-md border px-3 text-xs font-medium sm:h-8 sm:px-2.5 ${hofTipoAtivo === t.key ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-200 bg-white text-neutral-700'}`}>
                                         <span className="h-2.5 w-2.5 rounded-sm border border-black/10" style={{ background: t.color }}/>
                                         {t.label}
                                     </button>
@@ -3444,7 +3612,7 @@ export default function PacienteDetalhe() {
                                         <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
                                             <p className="text-sm font-medium text-neutral-800">Envie a foto frontal desta sessão.</p>
                                             <p className="text-xs text-neutral-500">A ilustração usa essa foto. Não é o resultado clínico.</p>
-                                            <label className={`inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-xs font-medium text-white ${enviandoFoto ? 'pointer-events-none opacity-50' : ''}`}>
+                                            <label className={`inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-xs font-medium text-white sm:h-8 ${enviandoFoto ? 'pointer-events-none opacity-50' : ''}`}>
                                                 <Camera size={12}/> Enviar frontal
                                                 <input type="file" accept="image/*" className="hidden" disabled={!!enviandoFoto} onChange={(e) => uploadHofFoto(e, 'Frontal')} />
                                             </label>
@@ -3496,12 +3664,13 @@ export default function PacienteDetalhe() {
                                 })}
 
                                 {/* Popover de inserção expandido */}
+                                {/* --hof-pop é a altura da caixa mais a folga: no celular os campos têm 40px e a caixa fica mais alta (264px contra 232px). */}
                                 {hofPopover.open && (
                                     <div
-                                        className="absolute z-40"
+                                        className="absolute z-40 [--hof-pop:232px] max-sm:[--hof-pop:264px]"
                                         style={hofPopover.y > 45
-                                            ? { left: `clamp(136px, ${hofPopover.x}%, calc(100% - 136px))`, top: `clamp(232px, ${hofPopover.y}%, calc(100% - 8px))`, transform: 'translate(-50%, calc(-100% - 10px))' }
-                                            : { left: `clamp(136px, ${hofPopover.x}%, calc(100% - 136px))`, top: `clamp(8px, ${hofPopover.y}%, calc(100% - 232px))`, transform: 'translate(-50%, 10px)' }}
+                                            ? { left: `clamp(136px, ${hofPopover.x}%, calc(100% - 136px))`, top: `clamp(var(--hof-pop), ${hofPopover.y}%, calc(100% - 8px))`, transform: 'translate(-50%, calc(-100% - 10px))' }
+                                            : { left: `clamp(136px, ${hofPopover.x}%, calc(100% - 136px))`, top: `clamp(8px, ${hofPopover.y}%, calc(100% - var(--hof-pop)))`, transform: 'translate(-50%, 10px)' }}
                                         onClick={e => e.stopPropagation()}
                                     >
                                         <div className="w-64 rounded-xl border border-neutral-200 bg-white p-3">
@@ -3510,20 +3679,20 @@ export default function PacienteDetalhe() {
                                                     <span className="h-2.5 w-2.5 rounded-sm" style={{ background: hofTipoInfo(hofTipoAtivo).color }}/>
                                                     <span className="text-xs font-medium text-neutral-800">{hofTipoInfo(hofTipoAtivo).label}</span>
                                                 </div>
-                                                <button type="button" onClick={() => setHofPopover({x:0,y:0,open:false})} className="rounded-md p-0.5 text-neutral-400 hover:bg-neutral-100"><X size={12}/></button>
+                                                <button type="button" onClick={() => setHofPopover({x:0,y:0,open:false})} aria-label="Fechar" className="-my-2 -mr-2 inline-flex h-10 w-10 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-100 sm:m-0 sm:h-auto sm:w-auto sm:p-0.5"><X size={12}/></button>
                                             </div>
-                                            <textarea value={hofTexto} onChange={e => setHofTexto(e.target.value)} autoFocus placeholder="Observação do procedimento..." className="h-14 w-full resize-none rounded-md border border-neutral-200 p-2 text-xs outline-none focus:border-neutral-900"/>
+                                            <textarea value={hofTexto} onChange={e => setHofTexto(e.target.value)} autoFocus placeholder="Observação do procedimento..." className="h-16 w-full resize-none rounded-md border border-neutral-200 p-2 text-xs outline-none focus:border-neutral-900 max-sm:text-base sm:h-14"/>
                                             <div className="mt-2 grid grid-cols-2 gap-2">
                                                 <div>
                                                     <label className={campoLabel}>Dosagem ({hofTipoInfo(hofTipoAtivo).unidadePadrao || '-'})</label>
-                                                    <input type="text" value={hofDosagem} onChange={e => setHofDosagem(e.target.value)} placeholder={({ U: 'Ex: 20', mL: 'Ex: 1', un: 'Ex: 4', sess: 'Ex: 1' } as Record<string, string>)[hofTipoInfo(hofTipoAtivo).unidadePadrao] || 'Ex: 1'} className="h-8 w-full rounded-md border border-neutral-200 px-2 text-xs outline-none focus:border-neutral-900"/>
+                                                    <input type="text" value={hofDosagem} onChange={e => setHofDosagem(e.target.value)} placeholder={({ U: 'Ex: 20', mL: 'Ex: 1', un: 'Ex: 4', sess: 'Ex: 1' } as Record<string, string>)[hofTipoInfo(hofTipoAtivo).unidadePadrao] || 'Ex: 1'} className="h-10 w-full rounded-md border border-neutral-200 px-2 text-xs outline-none focus:border-neutral-900 sm:h-8"/>
                                                 </div>
                                                 <div>
                                                     <label className={campoLabel}>Produto</label>
-                                                    <input type="text" value={hofProduto} onChange={e => setHofProduto(e.target.value)} placeholder="Ex: Botox" className="h-8 w-full rounded-md border border-neutral-200 px-2 text-xs outline-none focus:border-neutral-900"/>
+                                                    <input type="text" value={hofProduto} onChange={e => setHofProduto(e.target.value)} placeholder="Ex: Botox" className="h-10 w-full rounded-md border border-neutral-200 px-2 text-xs outline-none focus:border-neutral-900 sm:h-8"/>
                                                 </div>
                                             </div>
-                                            <button type="button" onClick={salvarMarcacaoHof} disabled={!hofTexto.trim()} className="mt-2 flex h-8 w-full items-center justify-center gap-1.5 rounded-md bg-neutral-900 text-xs font-medium text-white hover:bg-neutral-800 disabled:opacity-40"><Plus size={12}/> Salvar</button>
+                                            <button type="button" onClick={salvarMarcacaoHof} disabled={!hofTexto.trim()} className="mt-2 flex h-10 w-full items-center justify-center gap-1.5 rounded-md bg-neutral-900 text-xs font-medium text-white hover:bg-neutral-800 disabled:opacity-40 sm:h-8"><Plus size={12}/> Salvar</button>
                                         </div>
                                     </div>
                                 )}
@@ -3560,11 +3729,12 @@ export default function PacienteDetalhe() {
                                 ))}
                             </div>
                             <div className="mt-4 flex flex-wrap items-end gap-2 border-t border-neutral-200 pt-3 lg:mt-auto">
-                                <div className="w-full sm:w-40"><label className={campoLabel}>Sessão</label><CampoData value={hofSessaoAtiva} onChange={setHofSessaoAtiva} /></div>
-                                <button type="button" onClick={() => setModalProtocolo(true)} className="inline-flex h-8 items-center gap-1 rounded-md px-2 text-xs font-medium text-neutral-500 hover:bg-neutral-50"><Zap size={12}/> Protocolos</button>
-                                <button type="button" onClick={gerarTermoConsentimentoHof} className="inline-flex h-8 items-center gap-1 rounded-md px-2 text-xs font-medium text-neutral-500 hover:bg-neutral-50"><ShieldCheck size={12}/> Termo</button>
-                                <button type="button" onClick={imprimirMapaHof} className="inline-flex h-8 items-center gap-1 rounded-md px-2 text-xs font-medium text-neutral-500 hover:bg-neutral-50"><Printer size={12}/> PDF</button>
-                                <button type="button" onClick={salvarHof} disabled={savingHof} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md bg-neutral-900 px-3 text-xs font-medium text-white hover:bg-neutral-800 disabled:opacity-50 max-sm:w-full sm:ml-auto sm:h-8">{savingHof ? <Loader2 size={12} className="animate-spin"/> : <Save size={12}/>} {savingHof ? 'Salvando...' : 'Salvar procedimento HOF'}</button>
+                                {/* Abaixo de lg o campo Sessão fica acima do mapa. */}
+                                <div className="hidden w-40 lg:block"><label className={campoLabel}>Sessão</label><CampoData value={hofSessaoAtiva} onChange={setHofSessaoAtiva} /></div>
+                                <button type="button" onClick={() => setModalProtocolo(true)} className="inline-flex h-10 items-center justify-center gap-1 rounded-md px-2 text-xs font-medium text-neutral-500 hover:bg-neutral-50 max-sm:flex-1 max-sm:border max-sm:border-neutral-200 sm:h-8"><Zap size={12}/> Protocolos</button>
+                                <button type="button" onClick={gerarTermoConsentimentoHof} className="inline-flex h-10 items-center justify-center gap-1 rounded-md px-2 text-xs font-medium text-neutral-500 hover:bg-neutral-50 max-sm:flex-1 max-sm:border max-sm:border-neutral-200 sm:h-8"><ShieldCheck size={12}/> Termo</button>
+                                <button type="button" onClick={imprimirMapaHof} className="inline-flex h-10 items-center justify-center gap-1 rounded-md px-2 text-xs font-medium text-neutral-500 hover:bg-neutral-50 max-sm:flex-1 max-sm:border max-sm:border-neutral-200 sm:h-8"><Printer size={12}/> PDF</button>
+                                <button type="button" onClick={salvarHof} disabled={savingHof} className="inline-flex h-11 items-center justify-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50 max-sm:w-full sm:ml-auto sm:h-8 sm:text-xs">{savingHof ? <Loader2 size={12} className="animate-spin"/> : <Save size={12}/>} {savingHof ? 'Salvando...' : 'Salvar procedimento HOF'}</button>
                             </div>
                         </aside>
                         </div>
@@ -3575,7 +3745,7 @@ export default function PacienteDetalhe() {
                                 <h4 className="text-sm font-semibold text-neutral-900">Fotos da sessão ({hofFotos.filter(f => f.sessao === hofSessaoAtiva).length})</h4>
                                 <div className="flex flex-wrap gap-1.5">
                                     {['Frontal', 'Perfil E', 'Perfil D', '45° E', '45° D'].map(angulo => (
-                                        <label key={angulo} className={`inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md border border-neutral-200 bg-white px-2.5 text-xs font-medium text-neutral-700 hover:bg-neutral-50 ${enviandoFoto === angulo ? 'cursor-wait opacity-60' : enviandoFoto ? 'cursor-not-allowed opacity-40' : ''}`}>
+                                        <label key={angulo} className={`inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-md border border-neutral-200 bg-white px-3 text-xs font-medium text-neutral-700 hover:bg-neutral-50 sm:h-8 sm:px-2.5 ${enviandoFoto === angulo ? 'cursor-wait opacity-60' : enviandoFoto ? 'cursor-not-allowed opacity-40' : ''}`}>
                                             {enviandoFoto === angulo ? <><Loader2 size={12} className="animate-spin"/> Enviando...</> : <><Camera size={12}/> {angulo}</>}
                                             <input type="file" accept="image/*" className="hidden" disabled={!!enviandoFoto} onChange={e => uploadHofFoto(e, angulo)}/>
                                         </label>
@@ -3590,7 +3760,7 @@ export default function PacienteDetalhe() {
                                             <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent p-2">
                                                 <span className="text-[11px] font-medium text-white">{f.angulo}</span>
                                             </div>
-                                            <button type="button" onClick={() => excluirHofFoto(f.id)} className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-neutral-900/80 text-white hover:bg-rose-600 sm:hidden sm:group-hover/foto:flex" aria-label="Excluir foto"><X size={12}/></button>
+                                            <button type="button" onClick={() => excluirHofFoto(f.id)} className="absolute right-1.5 top-1.5 flex h-10 w-10 items-center justify-center rounded-full bg-neutral-900/80 text-white hover:bg-rose-600 sm:hidden sm:h-6 sm:w-6 sm:group-hover/foto:flex" aria-label="Excluir foto"><X size={12}/></button>
                                         </div>
                                     ))}
                                 </div>
@@ -3649,7 +3819,7 @@ export default function PacienteDetalhe() {
                                                                         </div>
                                                                     )}
                                                                 </div>
-                                                                <button type="button" onClick={() => excluirMarcacaoHof(m.id)} className="shrink-0 rounded-md p-1.5 text-neutral-400 transition-opacity hover:bg-neutral-100 hover:text-rose-600 sm:opacity-0 sm:group-hover/item:opacity-100" aria-label="Excluir ponto"><Trash2 size={14}/></button>
+                                                                <button type="button" onClick={() => excluirMarcacaoHof(m.id)} className="-my-1 -mr-1.5 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-neutral-400 transition-opacity hover:bg-neutral-100 hover:text-rose-600 sm:m-0 sm:h-auto sm:w-auto sm:p-1.5 sm:opacity-0 sm:group-hover/item:opacity-100" aria-label="Excluir ponto"><Trash2 size={14}/></button>
                                                             </div>
                                                         );
                                                     })}
@@ -3669,6 +3839,7 @@ export default function PacienteDetalhe() {
                     const lista = historico.filter((h: any) => !termo || String(h.procedimento || '').toLowerCase().includes(termo));
                     const rotuloStatus = (status: string) => status === 'fiado' ? 'Em débito' : status === 'concluido' ? 'Concluído' : status === 'agendado' ? 'Agendado' : status === 'cancelado' ? 'Cancelado' : (status || 'Registrado');
                     const formatarQuando = (valor: string) => new Date(valor).toLocaleString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+                    const formatarQuandoCurto = (valor: string) => new Date(valor).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
                     const marcos: Array<{ id: string; ref: string; ancora?: string; quando: string; titulo: string; detalhe: string; valor?: number }> = [];
                     historico.forEach((h: any) => {
                         const valor = Number(h.valor_final ?? h.valor ?? 0);
@@ -3686,7 +3857,7 @@ export default function PacienteDetalhe() {
                         const pago = h.data_pagamento ? new Date(h.data_pagamento).getTime() : 0;
                         const debitoPosterior = pago > 0 && pago - inicio > 2 * 60 * 1000;
                         if (valor > 0 && (h.status === 'fiado' || debitoPosterior)) {
-                            marcos.push({ id: `add-${h.id}`, ref: String(h.id), quando: h.data_hora, titulo: 'Foi adicionado um débito', detalhe: `${nome} · R$ ${valor.toFixed(2)}`, valor });
+                            marcos.push({ id: `add-${h.id}`, ref: String(h.id), quando: h.data_hora, titulo: 'Foi adicionado um débito', detalhe: `${nome} · ${formatarMoeda(valor)}`, valor });
                         }
                         if (valor > 0 && debitoPosterior) {
                             marcos.push({ id: `out-${h.id}`, ref: String(h.id), quando: h.data_pagamento, titulo: 'Foi retirado um débito', detalhe: nome, valor });
@@ -3696,7 +3867,7 @@ export default function PacienteDetalhe() {
                         if (d.agendamento_id) return;
                         const valor = Number(d.valor) || 0;
                         const nome = d.descricao || 'Débito manual';
-                        if (d.created_at) marcos.push({ id: `man-add-${d.id}`, ref: `deb-${d.id}`, quando: d.created_at, titulo: 'Foi adicionado um débito', detalhe: `${nome}${valor ? ` · R$ ${valor.toFixed(2)}` : ''}`, valor });
+                        if (d.created_at) marcos.push({ id: `man-add-${d.id}`, ref: `deb-${d.id}`, quando: d.created_at, titulo: 'Foi adicionado um débito', detalhe: `${nome}${valor ? ` · ${formatarMoeda(valor)}` : ''}`, valor });
                         if (d.status === 'pago' && d.data_pagamento) marcos.push({ id: `man-out-${d.id}`, ref: `deb-${d.id}`, quando: d.data_pagamento, titulo: 'Foi retirado um débito', detalhe: nome, valor });
                     });
                     marcos.sort((a, b) => String(b.quando || '').localeCompare(String(a.quando || '')));
@@ -3708,7 +3879,7 @@ export default function PacienteDetalhe() {
                                 value={buscaHistorico}
                                 onChange={(evento) => setBuscaHistorico(evento.target.value)}
                                 placeholder="Buscar procedimento"
-                                className="h-9 w-full rounded-md border border-neutral-200 bg-white pl-8 pr-3 text-sm text-neutral-900 outline-none focus:border-neutral-900"
+                                className="h-10 w-full rounded-md border border-neutral-200 bg-white pl-8 pr-3 text-sm text-neutral-900 outline-none focus:border-neutral-900"
                             />
                         </div>
                         <div className="grid min-h-0 items-start gap-4 lg:grid-cols-[2fr_3fr]">
@@ -3717,13 +3888,21 @@ export default function PacienteDetalhe() {
                             {lista.length === 0 ? (
                                 <p className="py-8 text-center text-sm text-neutral-400">{historico.length === 0 ? 'Nenhum atendimento registrado.' : 'Nenhum procedimento encontrado.'}</p>
                             ) : (
-                                <div className="overflow-hidden rounded-xl border border-neutral-200">
+                                // Celular: um cartão por atendimento, já com data, profissional, situação e valor. A partir de sm volta a ser o índice de uma linha.
+                                <div className="space-y-2 sm:space-y-0 sm:overflow-hidden sm:rounded-xl sm:border sm:border-neutral-200">
                                     {lista.map((h: any, indice: number) => {
                                         const ativo = String(historicoSel) === String(h.id);
+                                        const valor = Number(h.valor_final ?? h.valor ?? 0);
                                         return (
-                                            <button key={h.id} type="button" onClick={() => setHistoricoSel(ativo ? null : String(h.id))} className={`flex w-full items-center gap-3 border-b border-neutral-100 px-3 py-2.5 text-left last:border-b-0 ${ativo ? 'bg-neutral-900 text-white' : 'bg-white text-neutral-900 hover:bg-neutral-50'}`}>
-                                                <span className={`w-5 shrink-0 text-xs font-semibold tabular-nums ${ativo ? 'text-white/70' : 'text-neutral-400'}`}>{indice + 1}</span>
-                                                <span className="min-w-0 flex-1 truncate text-sm font-medium">{h.procedimento || 'Atendimento'}</span>
+                                            <button key={h.id} type="button" onClick={() => setHistoricoSel(ativo ? null : String(h.id))} className={`flex w-full items-start gap-3 rounded-xl border px-3 py-2.5 text-left sm:items-center sm:rounded-none sm:border-x-0 sm:border-t-0 sm:border-neutral-100 sm:last:border-b-0 ${ativo ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-200 bg-white text-neutral-900 hover:bg-neutral-50'}`}>
+                                                <span className={`w-5 shrink-0 text-xs font-semibold tabular-nums max-sm:leading-5 ${ativo ? 'text-white/70' : 'text-neutral-400'}`}>{indice + 1}</span>
+                                                <span className="min-w-0 flex-1">
+                                                    <span className="block break-words text-sm font-medium sm:truncate">{h.procedimento || 'Atendimento'}</span>
+                                                    <span className={`mt-0.5 block text-xs sm:hidden ${ativo ? 'text-white/70' : 'text-neutral-500'}`}>
+                                                        {h.data_hora ? formatarQuandoCurto(h.data_hora) : '—'} · {h.profissionais?.nome || 'Profissional'} · {rotuloStatus(h.status)}
+                                                    </span>
+                                                </span>
+                                                {valor > 0 && <span className="shrink-0 text-sm font-semibold sm:hidden">{formatarMoeda(valor)}</span>}
                                             </button>
                                         );
                                     })}
@@ -3735,7 +3914,8 @@ export default function PacienteDetalhe() {
                             {marcos.length === 0 ? (
                                 <p className="py-8 text-center text-sm text-neutral-400">Nenhum evento registrado.</p>
                             ) : (
-                                <div className="relative max-h-[32rem] overflow-y-auto pl-4">
+                                // A caixa com rolagem própria só existe no computador; no celular a linha do tempo segue a rolagem da página.
+                                <div className="relative pl-4 lg:max-h-[32rem] lg:overflow-y-auto">
                                     <div className="absolute bottom-2 left-[7px] top-2 w-px bg-neutral-200" />
                                     {marcos.map((marco) => {
                                         const ativo = !!historicoSel && marco.ref === String(historicoSel);
@@ -3745,7 +3925,7 @@ export default function PacienteDetalhe() {
                                                 <div className={`rounded-xl border px-4 py-3 ${ativo ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-200 bg-white'}`}>
                                                     <div className="flex items-baseline justify-between gap-3">
                                                         <span className="text-sm font-semibold">{marco.titulo}</span>
-                                                        {marco.valor ? <span className="shrink-0 text-sm font-semibold">R$ {marco.valor.toFixed(2)}</span> : null}
+                                                        {marco.valor ? <span className="shrink-0 text-sm font-semibold">{formatarMoeda(marco.valor)}</span> : null}
                                                     </div>
                                                     <p className={`mt-1 text-xs ${ativo ? 'text-white/70' : 'text-neutral-500'}`}>{marco.quando ? formatarQuando(marco.quando) : ''}</p>
                                                     <p className={`mt-1 text-xs ${ativo ? 'text-white/90' : 'text-neutral-700'}`}>{marco.detalhe}</p>
@@ -3765,17 +3945,18 @@ export default function PacienteDetalhe() {
         </div>
 
         {/* MODAL TRATAMENTO */}
-        <Modal open={modalTrat} onClose={() => setModalTrat(false)} maxWidth="lg" hideCloseButton panelClassName="max-h-[90vh] overflow-y-auto rounded-xl border border-neutral-200 bg-white">
-                <div className="p-5">
-                    <div className="mb-4 flex items-center justify-between">
+        {/* Título e botões ficam parados; só os campos rolam. `relative` no miolo faz os checkboxes sr-only rolarem junto com ele. */}
+        <Modal open={modalTrat} onClose={() => setModalTrat(false)} maxWidth="lg" hideCloseButton panelClassName="flex max-h-[90vh] flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white max-sm:max-h-[92dvh]">
+                    <div className="flex shrink-0 items-center justify-between px-5 pb-4 pt-5">
                         <h3 className="text-base font-semibold text-neutral-900">{tratEdit.id ? 'Editar' : 'Novo'} tratamento</h3>
-                        <button type="button" onClick={() => setModalTrat(false)} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-100" aria-label="Fechar"><X size={16}/></button>
+                        <button type="button" onClick={() => setModalTrat(false)} className={botaoFecharModal} aria-label="Fechar"><X size={16}/></button>
                     </div>
-                    <div className="space-y-3">
+                    <div className="relative min-h-0 flex-1 space-y-3 overflow-y-auto px-5 pb-1">
                         {!tratEdit.id && marcacoesOdonto.length > 0 && (
                             <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white">
                                 <p className="border-b border-neutral-100 px-3 py-2 text-xs font-medium text-neutral-500">Do odontograma</p>
-                                <div className="max-h-44 overflow-y-auto">
+                                {/* No celular o miolo do modal já rola: a lista não ganha uma segunda rolagem. */}
+                                <div className="sm:max-h-44 sm:overflow-y-auto">
                                     {marcacoesOdonto.map((m) => {
                                         const ativo = (tratEdit.dentesSelecionados || parseDentesCampo(tratEdit.dente).map(String)).includes(String(m.num));
                                         return (
@@ -3783,15 +3964,16 @@ export default function PacienteDetalhe() {
                                                 key={m.num}
                                                 type="button"
                                                 onClick={() => toggleDenteTratamento(String(m.num))}
-                                                className={`flex w-full items-center gap-3 border-b border-neutral-100 px-3 py-2 text-left last:border-b-0 ${ativo ? 'bg-neutral-900 text-white' : 'bg-white hover:bg-neutral-50'}`}
+                                                aria-pressed={ativo}
+                                                className={`flex w-full items-center gap-3 border-b border-neutral-100 px-3 py-2.5 text-left last:border-b-0 sm:py-2 ${ativo ? 'bg-neutral-900 text-white' : 'bg-white hover:bg-neutral-50'}`}
                                             >
                                                 <span className="w-10 shrink-0 text-sm font-semibold">#{m.num}</span>
-                                                <span className={`min-w-0 flex-1 truncate text-xs font-medium ${ativo ? 'text-white/75' : 'text-neutral-500'}`}>{textoMarcacao(m.cond, m.faces)}</span>
+                                                <span className={`min-w-0 flex-1 break-words text-xs font-medium sm:truncate ${ativo ? 'text-white/75' : 'text-neutral-500'}`}>{textoMarcacao(m.cond, m.faces)}</span>
                                             </button>
                                         );
                                     })}
                                 </div>
-                                <label className="flex cursor-pointer items-start gap-2 border-t border-neutral-100 px-3 py-2.5">
+                                <label className="relative flex cursor-pointer items-start gap-2 border-t border-neutral-100 px-3 py-2.5">
                                     <span className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-md border ${tratEdit.atualizarOdontograma ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-300 bg-white'}`}>
                                         {tratEdit.atualizarOdontograma && <Check size={11} strokeWidth={3} />}
                                     </span>
@@ -3826,11 +4008,11 @@ export default function PacienteDetalhe() {
                         </div>
                         <div>
                             <label className={campoLabel}>Observações</label>
-                            <textarea value={tratEdit.observacoes} onChange={e => setTratEdit({...tratEdit, observacoes: e.target.value})} className="h-20 w-full resize-none rounded-md border border-neutral-200 bg-white p-3 text-sm text-neutral-900 outline-none focus:border-neutral-900" />
+                            <textarea value={tratEdit.observacoes} onChange={e => setTratEdit({...tratEdit, observacoes: e.target.value})} className="h-20 w-full resize-none rounded-md border border-neutral-200 bg-white p-3 text-sm text-neutral-900 outline-none focus:border-neutral-900 max-sm:text-base" />
                         </div>
-                        {/* Agendar na Agenda */}
-                        <div className={`rounded-md border p-3 ${tratEdit.agendarNaAgenda ? 'border-neutral-900 bg-neutral-50' : 'border-neutral-200 bg-white'}`}>
-                            <label className="flex items-center gap-3 cursor-pointer">
+                        {/* Agendar na Agenda — o respiro fica no label, para a caixa inteira (44px) ser o alvo do toque. */}
+                        <div className={`rounded-md border ${tratEdit.agendarNaAgenda ? 'border-neutral-900 bg-neutral-50' : 'border-neutral-200 bg-white'}`}>
+                            <label className="flex cursor-pointer items-center gap-3 p-3">
                                 <div className={`flex h-5 w-5 items-center justify-center rounded-md border ${tratEdit.agendarNaAgenda ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-300 bg-white'}`}>
                                     {tratEdit.agendarNaAgenda && <Check size={14}/>}
                                 </div>
@@ -3841,7 +4023,7 @@ export default function PacienteDetalhe() {
                                 </div>
                             </label>
                             {tratEdit.agendarNaAgenda && (
-                                <div className="mt-3 ml-8">
+                                <div className="pb-3 pl-11 pr-3">
                                     <label className={campoLabel}>Horário</label>
                                     <input type="time" value={tratEdit.horaAgendamento || '09:00'} onChange={e => setTratEdit({...tratEdit, horaAgendamento: e.target.value})} className="box-border h-10 w-full max-w-[160px] rounded-md border border-neutral-200 bg-white px-3 text-sm text-neutral-900 outline-none focus:border-neutral-900"/>
                                     <p className="mt-1.5 text-xs text-neutral-500">Consulta em {tratEdit.data ? new Date(tratEdit.data + 'T12:00:00').toLocaleDateString('pt-BR') : '—'} às {tratEdit.horaAgendamento || '09:00'}.</p>
@@ -3850,8 +4032,8 @@ export default function PacienteDetalhe() {
                         </div>
                         {/* Pagamento pendente */}
                         {parseFloat(tratEdit.valor) > 0 && (
-                        <div className={`rounded-md border p-3 ${tratEdit.pagamentoPendente ? 'border-neutral-900 bg-neutral-50' : 'border-neutral-200 bg-white'}`}>
-                            <label className="flex cursor-pointer items-center gap-3">
+                        <div className={`rounded-md border ${tratEdit.pagamentoPendente ? 'border-neutral-900 bg-neutral-50' : 'border-neutral-200 bg-white'}`}>
+                            <label className="flex cursor-pointer items-center gap-3 p-3">
                                 <div className={`flex h-5 w-5 items-center justify-center rounded-md border ${tratEdit.pagamentoPendente ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-300 bg-white'}`}>
                                     {tratEdit.pagamentoPendente && <Check size={14}/>}
                                 </div>
@@ -3859,41 +4041,41 @@ export default function PacienteDetalhe() {
                                 <span className="text-sm font-medium text-neutral-800">Pagamento pendente</span>
                             </label>
                             {tratEdit.pagamentoPendente && (
-                                <p className="ml-8 mt-2 text-xs text-neutral-500">O valor fica na aba Débitos até ser recebido.</p>
+                                <p className="-mt-1 pb-3 pl-11 pr-3 text-xs text-neutral-500">O valor fica na aba Débitos até ser recebido.</p>
                             )}
                         </div>
                         )}
                     </div>
-                    <div className="flex gap-2 justify-end mt-5">
-                        <button onClick={() => setModalTrat(false)} className="h-9 rounded-md px-3 text-sm font-medium text-neutral-500 hover:bg-neutral-50">Cancelar</button>
-                        <button onClick={salvarTratamento} disabled={salvandoTrat} className="inline-flex h-9 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-60"><Save size={14}/> {salvandoTrat ? 'Salvando...' : 'Salvar'}</button>
+                    <div className="flex shrink-0 justify-end gap-2 px-5 pb-5 pt-4">
+                        <button type="button" onClick={() => setModalTrat(false)} className="h-10 rounded-md px-3 text-sm font-medium text-neutral-500 hover:bg-neutral-50 sm:h-9">Cancelar</button>
+                        <button type="button" onClick={salvarTratamento} disabled={salvandoTrat} className="inline-flex h-10 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-60 sm:h-9"><Save size={14}/> {salvandoTrat ? 'Salvando...' : 'Salvar'}</button>
                     </div>
-                </div>
         </Modal>
 
         {/* MODAL PROTOCOLOS HOF */}
-        <Modal open={modalProtocolo} onClose={() => setModalProtocolo(false)} maxWidth="lg" hideCloseButton panelClassName="max-h-[80vh] overflow-y-auto rounded-xl border border-neutral-200 bg-white">
-                <div className="p-5">
+        <Modal open={modalProtocolo} onClose={() => setModalProtocolo(false)} maxWidth="lg" hideCloseButton panelClassName="flex max-h-[80vh] flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white max-sm:max-h-[92dvh]">
+                    <div className="shrink-0 px-5 pb-4 pt-5">
                     <div className="mb-4 flex items-center justify-between">
                         <h3 className="text-base font-semibold text-neutral-900">Protocolos</h3>
-                        <button type="button" onClick={() => setModalProtocolo(false)} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-100" aria-label="Fechar"><X size={16}/></button>
+                        <button type="button" onClick={() => setModalProtocolo(false)} className={botaoFecharModal} aria-label="Fechar"><X size={16}/></button>
                     </div>
-                    <p className="mb-4 text-xs text-neutral-500">Aplica os pontos na sessão ativa. Doses e produtos continuam editáveis.</p>
-                    <div className="space-y-3">
+                    <p className="text-xs text-neutral-500">Aplica os pontos na sessão ativa. Doses e produtos continuam editáveis.</p>
+                    </div>
+                    <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-5 pb-5">
                         {HOF_PROTOCOLOS.map((proto, idx) => {
                             const tipos = Array.from(new Set(proto.pontos.map(p => p.tipo)));
                             return (
                                 <button key={idx} type="button" onClick={() => aplicarProtocolo(idx)} className="group w-full rounded-md border border-neutral-200 p-3 text-left hover:bg-neutral-50">
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-2">
-                                            <div className="flex -space-x-1">
+                                    <div className="flex items-center justify-between gap-2">
+                                        <div className="flex min-w-0 items-center gap-2">
+                                            <div className="flex shrink-0 -space-x-1">
                                                 {tipos.map(t => <span key={t} className="w-4 h-4 rounded-full border-2 border-white shadow-sm" style={{ background: hofTipoInfo(t).color }}/>)}
                                             </div>
-                                            <span className="text-sm font-medium text-neutral-900">{proto.nome}</span>
+                                            <span className="min-w-0 break-words text-sm font-medium text-neutral-900">{proto.nome}</span>
                                         </div>
-                                        <span className="text-xs text-neutral-400">{proto.pontos.length} pontos</span>
+                                        <span className="shrink-0 text-xs text-neutral-400">{proto.pontos.length} pontos</span>
                                     </div>
-                                    <div className="mt-2 flex gap-3 text-[11px] text-neutral-500">
+                                    <div className="mt-2 flex flex-wrap gap-x-3 text-[11px] text-neutral-500">
                                         {tipos.map(t => {
                                             const ti = hofTipoInfo(t);
                                             const pontosT = proto.pontos.filter(p => p.tipo === t);
@@ -3905,22 +4087,25 @@ export default function PacienteDetalhe() {
                             );
                         })}
                     </div>
-                </div>
         </Modal>
 
-        <Modal open={!!anamnesePreview} onClose={() => setAnamnesePreview(null)} maxWidth="2xl" panelClassName="overflow-hidden rounded-xl border border-neutral-200 bg-white">
+        {/* Fecha pelo X do cabeçalho, igual aos outros modais da ficha (o X padrão do componente tem 32px e cor slate). */}
+        <Modal open={!!anamnesePreview} onClose={() => setAnamnesePreview(null)} maxWidth="2xl" hideCloseButton panelClassName="flex flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white max-sm:max-h-[92dvh]">
             {anamnesePreview && (
-                <div>
-                    <div className="border-b border-neutral-200 p-5">
-                        <h3 className="pr-8 text-base font-semibold text-neutral-900">{anamnesePreview.modelo_nome}</h3>
+                <div className="flex min-h-0 flex-1 flex-col">
+                    <div className="flex shrink-0 items-start justify-between gap-3 border-b border-neutral-200 p-5">
+                        <div className="min-w-0">
+                        <h3 className="break-words text-base font-semibold text-neutral-900">{anamnesePreview.modelo_nome}</h3>
                         <p className="mt-1 text-xs text-neutral-500">
                             {anamnesePreview.data ? new Date(anamnesePreview.data).toLocaleDateString('pt-BR') : '—'}
                             {' · '}
                             {anamnesePreview.preenchido_por === 'paciente' ? 'Paciente' : 'Profissional'}
                             {anamnesePreview.criado_em ? ` · Criado ${formatarDataAnamnese(anamnesePreview.criado_em)}` : ''}
                         </p>
+                        </div>
+                        <button type="button" onClick={() => setAnamnesePreview(null)} className={`${botaoFecharModal} -mt-1.5`} aria-label="Fechar"><X size={16}/></button>
                     </div>
-                    <div className="max-h-[60vh] space-y-3 overflow-y-auto p-5">
+                    <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-5 sm:max-h-[60vh]">
                         {(anamnesePreview.perguntas_snapshot || []).map((p: { id: string; label: string }, i: number) => (
                             <div key={p.id}>
                                 <p className="text-xs font-medium text-neutral-500">{i + 1}. {p.label}</p>
@@ -3930,21 +4115,21 @@ export default function PacienteDetalhe() {
                             </div>
                         ))}
                     </div>
-                    <div className="flex justify-end gap-2 border-t border-neutral-200 p-4">
-                        <button type="button" onClick={() => setAnamnesePreview(null)} className="h-9 rounded-md px-3 text-sm font-medium text-neutral-500 hover:bg-neutral-50">Fechar</button>
-                        <button type="button" onClick={() => { editarAnamnese(anamnesePreview); }} className="inline-flex h-9 items-center gap-1.5 rounded-md border border-neutral-200 px-3 text-sm font-medium text-neutral-700 hover:bg-neutral-50"><Edit size={14}/> Editar</button>
-                        <button type="button" onClick={() => emitirAnamnese(anamnesePreview)} className="inline-flex h-9 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800"><Printer size={14}/> Imprimir</button>
+                    <div className="flex shrink-0 justify-end gap-2 border-t border-neutral-200 p-4">
+                        <button type="button" onClick={() => setAnamnesePreview(null)} className="h-10 rounded-md px-3 text-sm font-medium text-neutral-500 hover:bg-neutral-50 sm:h-9">Fechar</button>
+                        <button type="button" onClick={() => { editarAnamnese(anamnesePreview); }} className="inline-flex h-10 items-center gap-1.5 rounded-md border border-neutral-200 px-3 text-sm font-medium text-neutral-700 hover:bg-neutral-50 sm:h-9"><Edit size={14}/> Editar</button>
+                        <button type="button" onClick={() => emitirAnamnese(anamnesePreview)} className="inline-flex h-10 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 sm:h-9"><Printer size={14}/> Imprimir</button>
                     </div>
                 </div>
             )}
         </Modal>
 
-        <Modal open={modalDebitoManual} onClose={() => setModalDebitoManual(false)} maxWidth="md" hideCloseButton panelClassName="max-h-[90vh] overflow-y-auto rounded-xl border border-neutral-200 bg-white">
-            <div className="border-b border-neutral-200 p-5">
+        <Modal open={modalDebitoManual} onClose={() => setModalDebitoManual(false)} maxWidth="md" hideCloseButton panelClassName="flex max-h-[90vh] flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white max-sm:max-h-[92dvh]">
+            <div className="shrink-0 border-b border-neutral-200 p-5">
                 <h3 className="text-base font-semibold text-neutral-900">Adicionar débito</h3>
                 <p className="mt-1 text-xs text-neutral-500">Descrição livre, ou marque atendimentos e tratamentos como não pagos.</p>
             </div>
-            <div className="space-y-3 p-5">
+            <div className="relative min-h-0 flex-1 space-y-3 overflow-y-auto p-5">
                 <div>
                     <label className={campoLabel}>Descrição</label>
                     <input value={formDebito.descricao} onChange={(e) => setFormDebito({ ...formDebito, descricao: e.target.value })} className={campoClass(true)} placeholder="Restauração, consulta, material" />
@@ -3957,10 +4142,10 @@ export default function PacienteDetalhe() {
                     <div className="space-y-3 border-t border-neutral-200 pt-3">
                         <p className="text-xs font-medium text-neutral-500">Marcar como não pago</p>
                         {debitoOpcoes.agendamentos.length > 0 && (
-                            <div className="max-h-52 space-y-1.5 overflow-y-auto rounded-md border border-neutral-200 p-2">
-                                <p className="sticky top-0 bg-white py-1 text-xs font-medium text-neutral-500">Agendamentos ({debitoOpcoes.agendamentos.length})</p>
+                            <div className="space-y-1.5 rounded-md border border-neutral-200 p-2 sm:max-h-52 sm:overflow-y-auto">
+                                <p className="bg-white py-1 text-xs font-medium text-neutral-500 sm:sticky sm:top-0">Agendamentos ({debitoOpcoes.agendamentos.length})</p>
                                 {debitoOpcoes.agendamentos.map((a) => (
-                                    <label key={a.id} className="flex cursor-pointer items-center gap-2 rounded-md border border-neutral-100 px-2 py-1.5 hover:bg-neutral-50">
+                                    <label key={a.id} className="relative flex min-h-[40px] cursor-pointer items-center gap-2 rounded-md border border-neutral-100 px-2 py-1.5 hover:bg-neutral-50 sm:min-h-0">
                                         <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-md border ${formDebito.agendamentosMarcados.includes(a.id) ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-300 bg-white'}`}>
                                             {formDebito.agendamentosMarcados.includes(a.id) && <Check size={11} strokeWidth={3} />}
                                         </span>
@@ -3975,17 +4160,17 @@ export default function PacienteDetalhe() {
                                                     : prev.agendamentosMarcados.filter((id) => id !== a.id),
                                             }))}
                                         />
-                                        <span className="flex-1 truncate text-xs font-medium text-neutral-800">{a.procedimento}</span>
-                                        <span className="text-[11px] text-neutral-400">R$ {Number(a.valor_final ?? a.valor ?? 0).toFixed(2)}</span>
+                                        <span className="min-w-0 flex-1 break-words text-xs font-medium text-neutral-800 sm:truncate">{a.procedimento}</span>
+                                        <span className="shrink-0 text-[11px] text-neutral-400">{formatarMoeda(Number(a.valor_final ?? a.valor ?? 0))}</span>
                                     </label>
                                 ))}
                             </div>
                         )}
                         {debitoOpcoes.tratamentos.length > 0 && (
-                            <div className="max-h-52 space-y-1.5 overflow-y-auto rounded-md border border-neutral-200 p-2">
-                                <p className="sticky top-0 bg-white py-1 text-xs font-medium text-neutral-500">Tratamentos ({debitoOpcoes.tratamentos.length})</p>
+                            <div className="space-y-1.5 rounded-md border border-neutral-200 p-2 sm:max-h-52 sm:overflow-y-auto">
+                                <p className="bg-white py-1 text-xs font-medium text-neutral-500 sm:sticky sm:top-0">Tratamentos ({debitoOpcoes.tratamentos.length})</p>
                                 {debitoOpcoes.tratamentos.map((t) => (
-                                    <label key={t.id} className="flex cursor-pointer items-center gap-2 rounded-md border border-neutral-100 px-2 py-1.5 hover:bg-neutral-50">
+                                    <label key={t.id} className="relative flex min-h-[40px] cursor-pointer items-center gap-2 rounded-md border border-neutral-100 px-2 py-1.5 hover:bg-neutral-50 sm:min-h-0">
                                         <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-md border ${formDebito.tratamentosMarcados.includes(String(t.id)) ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-300 bg-white'}`}>
                                             {formDebito.tratamentosMarcados.includes(String(t.id)) && <Check size={11} strokeWidth={3} />}
                                         </span>
@@ -4000,8 +4185,8 @@ export default function PacienteDetalhe() {
                                                     : prev.tratamentosMarcados.filter((id) => id !== String(t.id)),
                                             }))}
                                         />
-                                        <span className="flex-1 truncate text-xs font-medium text-neutral-800">{t.procedimento}</span>
-                                        <span className="text-[11px] text-neutral-400">R$ {Number(t.valor ?? 0).toFixed(2)}</span>
+                                        <span className="min-w-0 flex-1 break-words text-xs font-medium text-neutral-800 sm:truncate">{t.procedimento}</span>
+                                        <span className="shrink-0 text-[11px] text-neutral-400">{formatarMoeda(Number(t.valor ?? 0))}</span>
                                     </label>
                                 ))}
                             </div>
@@ -4009,9 +4194,9 @@ export default function PacienteDetalhe() {
                     </div>
                 )}
             </div>
-            <div className="flex justify-end gap-2 border-t border-neutral-200 p-4">
-                <button type="button" onClick={() => setModalDebitoManual(false)} className="h-9 rounded-md px-3 text-sm font-medium text-neutral-500 hover:bg-neutral-50">Cancelar</button>
-                <button type="button" onClick={salvarDebitoManual} disabled={salvandoDebito} className="inline-flex h-9 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50">
+            <div className="flex shrink-0 justify-end gap-2 border-t border-neutral-200 p-4">
+                <button type="button" onClick={() => setModalDebitoManual(false)} className="h-10 rounded-md px-3 text-sm font-medium text-neutral-500 hover:bg-neutral-50 sm:h-9">Cancelar</button>
+                <button type="button" onClick={salvarDebitoManual} disabled={salvandoDebito} className="inline-flex h-10 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50 sm:h-9">
                     {salvandoDebito && <Loader2 size={14} className="animate-spin"/>} Salvar
                 </button>
             </div>
@@ -4027,12 +4212,12 @@ export default function PacienteDetalhe() {
             data={agendaHof?.data}
             onSaved={() => showAlert('Agendamento salvo na agenda.', { type: 'success' })}
         />
-        <Modal open={!!docAberto} onClose={fecharDocumento} maxWidth="4xl" hideCloseButton panelClassName="overflow-hidden rounded-xl border border-neutral-200 bg-white">
-            <div className="flex items-center justify-between gap-3 border-b border-neutral-200 px-4 py-3">
+        <Modal open={!!docAberto} onClose={fecharDocumento} maxWidth="4xl" hideCloseButton panelClassName="flex flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white max-sm:max-h-[92dvh]">
+            <div className="flex shrink-0 items-center justify-between gap-3 border-b border-neutral-200 px-4 py-3">
                 <h3 className="min-w-0 truncate text-base font-semibold text-neutral-900">{docAberto?.nome}</h3>
-                <button type="button" onClick={fecharDocumento} className="inline-flex h-8 w-8 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-100" aria-label="Fechar"><X size={16}/></button>
+                <button type="button" onClick={fecharDocumento} className={botaoFecharModal} aria-label="Fechar"><X size={16}/></button>
             </div>
-            <div className="max-h-[75vh] overflow-auto bg-neutral-50 p-3">
+            <div className="max-h-[75vh] min-h-0 overflow-auto bg-neutral-50 p-3">
                 {docAberto?.isImg ? (
                     <img src={docAberto.url} alt={docAberto.nome} className="mx-auto max-h-[70vh] w-auto max-w-full rounded-md" />
                 ) : docAberto?.isPdf ? (
@@ -4041,7 +4226,7 @@ export default function PacienteDetalhe() {
                     <div className="flex flex-col items-center gap-3 py-10 text-sm text-neutral-600">
                         <FileText size={28} />
                         <p>Este arquivo abre pelo download, sem sair do sistema.</p>
-                        <a href={docAberto.url} download={docAberto.nome} className="inline-flex h-9 items-center rounded-md bg-neutral-900 px-3 text-sm font-medium text-white">Baixar</a>
+                        <a href={docAberto.url} download={docAberto.nome} className="inline-flex h-10 items-center rounded-md bg-neutral-900 px-3 text-sm font-medium text-white sm:h-9">Baixar</a>
                     </div>
                 ) : null}
             </div>
