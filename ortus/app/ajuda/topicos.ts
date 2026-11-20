@@ -719,12 +719,25 @@ const TODOS_OS_TOPICOS: TopicoGuia[] = [
             '**Cancelar lançamento** pede o motivo. O lançamento vai para **Cancelados**, de onde pode ser restaurado ou excluído de vez.',
             'Nos lançamentos em andamento, você conclui um lançamento manual ou registra o recebimento de um fiado. No computador, as ações são os ícones no fim da linha; no celular, o botão do cartão e o menu de três pontos.',
             '**CSV** baixa o extrato com os filtros aplicados.',
+            'Os débitos do paciente que não vêm de uma consulta (o valor de um orçamento aprovado, um débito lançado na ficha) também aparecem em aberto. Receber um deles guarda a forma de pagamento escolhida e a data.',
           ),
           aviso('Receber um fiado por aqui só registra a entrada: a forma de pagamento e a taxa da maquininha não são guardadas, e a comissão não é lançada. Para isso, receba pela aba Débitos do prontuário.'),
         ],
       },
+      {
+        titulo: 'Meta de vendas',
+        blocos: [
+          texto('No modo **Mês**, o cartão **Meta de vendas** mostra quanto já foi aprovado em orçamentos no mês, quanto falta para a meta e o ritmo: quanto era esperado até hoje e quanto o mês fecha se o ritmo continuar. À parte, mostra quanto **entrou no caixa** (consultas pagas, débitos recebidos e entradas manuais, pela data em que o dinheiro entrou).'),
+          passos(
+            'Com uma clínica escolhida no menu, o administrador toca em **Definir meta** (ou **Editar meta**).',
+            'Preencha a meta da clínica e, se quiser, a de cada profissional. Campo vazio tira a meta.',
+            'Toque em **Salvar**.',
+          ),
+          texto('**Por profissional** abre o aprovado de cada um contra a própria meta. O relatório **Metas de vendas**, em Relatórios, mostra os meses anteriores.'),
+        ],
+      },
     ],
-    relacionados: ['prontuario', 'relatorios', 'configuracoes', 'equipe'],
+    relacionados: ['prontuario', 'relatorios', 'configuracoes', 'equipe', 'orcamentos'],
   },
   {
     id: 'relatorios',

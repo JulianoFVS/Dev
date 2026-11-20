@@ -1002,6 +1002,25 @@ try {
   await db.query('ROLLBACK TO SAVEPOINT modulo');
   check(G17, 'permissão aceita os módulos orcamentos e conversas e recusa nome inventado', moduloInvalido && modulosNovos);
 
+  // ==================================================================
+  // 18. Meta de vendas (20261130_metas_vendas)
+  // ==================================================================
+  const G18 = 'Meta de vendas';
+  const metaY = (await um(`INSERT INTO public.metas_vendas (clinica_id, mes, valor) VALUES ($1, date_trunc('month', current_date)::date, 9000) RETURNING id`, [clinY])).id;
+  check(G18, 'administrador define a meta da própria clínica',
+    (await linhas(adminX, `INSERT INTO public.metas_vendas (clinica_id, mes, valor) VALUES ($1, date_trunc('month', current_date)::date, 5000)`, [clinX])) === 1);
+  check(G18, 'membro comum não define meta',
+    await barrado(comumX, `INSERT INTO public.metas_vendas (clinica_id, mes, valor) VALUES ($1, date_trunc('month', current_date)::date, 5000)`, [clinX]));
+  check(G18, 'membro comum lê a meta da clínica',
+    !(await como(comumX, () => rows(`SELECT id FROM public.metas_vendas WHERE clinica_id = $1`, [clinX]))).erro);
+  check(G18, 'ninguém lê a meta de outra clínica',
+    (await como(comumX, () => rows(`SELECT id FROM public.metas_vendas WHERE id = $1`, [metaY]))).length === 0);
+  check(G18, 'meta não aceita profissional de outra clínica',
+    await barrado(adminX, `INSERT INTO public.metas_vendas (clinica_id, mes, profissional_id, valor) VALUES ($1, date_trunc('month', current_date)::date, $2, 100)`, [clinX, adminY.prof]));
+  check(G18, 'meta só no primeiro dia do mês e uma total por mês',
+    await barrado(adminX, `INSERT INTO public.metas_vendas (clinica_id, mes, valor) VALUES ($1, date_trunc('month', current_date)::date + 3, 100)`, [clinX])
+    && await barrado(adminY, `INSERT INTO public.metas_vendas (clinica_id, mes, valor) VALUES ($1, date_trunc('month', current_date)::date, 100)`, [clinY]));
+
 } catch (e) {
   check('Suíte', 'a suíte rodou até o fim', false, e.message);
 } finally {

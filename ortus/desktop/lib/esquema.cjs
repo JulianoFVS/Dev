@@ -229,6 +229,22 @@ const TABELAS = {
     },
   },
 
+  metas_vendas: {
+    nome: 'metas_vendas',
+    pk: 'id',
+    pkTipo: 'uuid',
+    clinicaCol: 'clinica_id',
+    colunas: {
+      id: 'texto',
+      clinica_id: 'inteiro',
+      mes: 'dia',
+      profissional_id: 'inteiro',
+      valor: 'real',
+      created_at: 'data',
+      updated_at: 'data',
+    },
+  },
+
   orcamentos: {
     nome: 'orcamentos',
     pk: 'id',
@@ -823,6 +839,7 @@ const ORDEM_SYNC = [
   'planos_tratamentos',
   'permissoes_modulos',
   'profissionais_horarios',
+  'metas_vendas',
   'pacientes',
   'configuracoes_clinica',
   'agendamentos',

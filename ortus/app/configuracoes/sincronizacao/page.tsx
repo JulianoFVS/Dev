@@ -44,6 +44,7 @@ const ROTULO_TABELA: Record<string, string> = {
   paciente_documentos: 'Documento',
   paciente_debitos: 'Débito',
   orcamentos: 'Orçamento',
+  metas_vendas: 'Meta de vendas',
   orcamento_itens: 'Item de orçamento',
   orcamento_contatos: 'Contato do comercial',
   tarefas: 'Tarefa',

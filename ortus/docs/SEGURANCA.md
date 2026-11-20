@@ -164,7 +164,8 @@ e na tabela do [`README.md`](../README.md). O que importa para a segurança:
       `20261126_painel_assinaturas`,
       `20261127_seguranca_rede`,
       `20261128_ajustes_finais`,
-      `20261129_orcamentos`.
+      `20261129_orcamentos`,
+      `20261130_metas_vendas`.
       Atenção: `20261114_seguranca_total` não pode ser reexecutada depois de
       `20261120` (concede EXECUTE numa assinatura antiga de função).
 - [ ] `npm test` com 100% OK. Com `ORTUS_SUPER_ADMINS="email1,email2"` ela

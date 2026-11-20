@@ -11,6 +11,7 @@ import { carregarConfig, salvarConfig } from '@/lib/configClinica';
 import { fraseDeErro } from '@/lib/fraseDeErro';
 import { FUSO_PADRAO, hojeNoFuso, instanteLocal } from '@/lib/fuso';
 import { receberAgendamento } from '@/lib/recebimentoAgendamento';
+import CartaoMeta from '@/components/metas/CartaoMeta';
 import CustomSelect from '@/components/ui/CustomSelect';
 import SegmentedControl from '@/components/ui/SegmentedControl';
 import CampoData from '@/components/ui/CampoData';
@@ -1179,6 +1180,16 @@ export default function Financeiro() {
           )}
         </section>
       </div>
+
+      {/* Meta de vendas do mês: aprovado em orçamentos, o que falta, o ritmo e, à parte, o caixa. */}
+      {modoData === 'mes' && activeClinicId && (
+        <CartaoMeta
+          className="order-1 md:order-none"
+          clinicaIds={activeClinicId !== 'all' ? [Number(activeClinicId)] : clinics.map((c) => Number(c.id)).filter(Number.isFinite)}
+          clinicaFixa={activeClinicId !== 'all' ? Number(activeClinicId) : null}
+          mes={mesSelecionado}
+        />
+      )}
 
       {/* Celular: os três grupos são abas numa linha só e a lista é uma, no fluxo da página. Três botões empilhados empurravam o extrato para fora da primeira tela. */}
       <div role="tablist" aria-label="Situação dos lançamentos" className="order-3 grid grid-cols-3 gap-1 rounded-xl border border-neutral-200 bg-white p-1 md:hidden">

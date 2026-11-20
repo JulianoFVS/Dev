@@ -1557,6 +1557,8 @@ listados. Reler os pontos citados quando o código estabilizar.
 - `orcamento_contatos` — o que o comercial conversou com o paciente (texto
   livre, pode conter dado de saúde), canal, data do próximo contato e quem
   registrou. Mesma regra de acesso e de exclusão do orçamento.
+- `metas_vendas` — meta de vendas do mês da clínica e de cada profissional
+  (só valores). Lida por quem trabalha na clínica; só o administrador grava.
 - `falhas_servidor` — erro do servidor com o texto passado por
   `limparTexto` (troca JWT, chave, e-mail, CPF, CNPJ, telefone, UUID e URL de
   banco por marcadores). Limpa sozinha depois de 30 dias (vigia da operação).
