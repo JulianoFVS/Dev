@@ -13,6 +13,7 @@ import BentoShell from '@/components/dashboard/BentoShell';
 import { useImagemSdr } from '@/lib/imagemSdr';
 import { useClinica } from '@/app/context/ClinicaContext';
 import { naoLidasPorCanal } from '@/lib/conversas';
+import EmpurraoGoogle from '@/components/google/EmpurraoGoogle';
 import type { ModuleName } from '@/lib/types/permissions';
 import { buildModuleAccessMap } from '@/lib/modules';
 import { moduleForPath } from '@/lib/permissionPresets';
@@ -406,6 +407,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
             {children}
           </BentoShell>
           <Omnibar moduleAccess={moduleAccess} isAdmin={isPerfilAdmin} />
+          <EmpurraoGoogle />
         </PatientActionModalProvider>
       </PatientSlideOverProvider>
     );

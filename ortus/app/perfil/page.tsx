@@ -28,6 +28,7 @@ import {
 } from '@/lib/profileSession';
 import { encerrarSessao } from '@/lib/sessao';
 import { fraseDeErro } from '@/lib/fraseDeErro';
+import SecaoGoogleAgenda from '@/components/google/SecaoGoogleAgenda';
 
 const cardShell = 'rounded-xl border border-neutral-200 bg-white';
 const sectionPad = 'p-4 sm:p-5 md:p-6';
@@ -392,6 +393,8 @@ export default function Perfil() {
           </section>
 
           <ArmazenamentoSecao clinicaId={activeClinicId && activeClinicId !== 'all' ? activeClinicId : null} souDono={perfil?.is_super_admin === true} />
+
+          <SecaoGoogleAgenda className={sectionPad} />
 
           {/* Celular: Sair fecha o cartão, numa linha própria e fácil de achar, longe do título e do Salvar. */}
           <section className="p-2 sm:hidden">

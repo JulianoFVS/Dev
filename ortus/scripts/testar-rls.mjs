@@ -1117,6 +1117,79 @@ try {
   const volta = await como(adminX, () => rows(`UPDATE public.chamadas_tv SET ativo = true WHERE id = $1 RETURNING ativo, revogado_em`, [tvX]));
   check(G20, 'link revogado não volta a valer', !volta.erro && volta[0]?.ativo === false && volta[0]?.revogado_em, JSON.stringify(volta));
 
+
+  // ==================================================================
+  // 21. Google Agenda (20261203_google_agenda)
+  // ==================================================================
+  const G21 = 'Google Agenda';
+  // comumX liga o Google (só trabalha na clínica X); adminX não liga.
+  await db.query(`INSERT INTO public.plataforma_integracoes (chave, ativo, config, segredo_cifrado) VALUES ('rls_teste', true, '{}'::jsonb, 'v1:segredo') ON CONFLICT (chave) DO NOTHING`);
+  await db.query(`INSERT INTO public.google_conexoes (profissional_id, refresh_token_cifrado, email_google) VALUES ($1, 'v1:token-cifrado', 'comum-x@google.test')`, [comumX.prof]);
+  check(G21, 'ninguém lê as credenciais da plataforma pela API, nem o dono',
+    Boolean((await como(dono, () => rows(`SELECT segredo_cifrado FROM public.plataforma_integracoes`))).erro)
+    && Boolean((await como(adminX, () => rows(`SELECT chave FROM public.plataforma_integracoes`))).erro));
+  check(G21, 'nem o próprio profissional lê o token guardado da conexão',
+    Boolean((await como(comumX, () => rows(`SELECT refresh_token_cifrado FROM public.google_conexoes`))).erro));
+  check(G21, 'conexão, estado do OAuth e fila não se escrevem pela API',
+    await barrado(comumX, `INSERT INTO public.google_conexoes (profissional_id, refresh_token_cifrado) VALUES ($1, 'x')`, [adminX.prof])
+    && await barrado(comumX, `UPDATE public.google_conexoes SET ativo = false WHERE profissional_id = $1`, [comumX.prof])
+    && await barrado(comumX, `INSERT INTO public.google_oauth_estados (estado_hash, profissional_id, usuario_id) VALUES ($1, $2, $3)`, ['c'.repeat(64), comumX.prof, comumX.sub])
+    && await barrado(adminX, `INSERT INTO public.google_fila (agendamento_id, clinica_id) VALUES ($1, $2)`, [agX, clinX])
+    && await barrado(dono, `DELETE FROM public.google_fila`));
+  const minha = await como(comumX, () => rows(`SELECT * FROM public.google_minha_conexao()`));
+  check(G21, 'o profissional vê a própria conexão, sem o token',
+    !minha.erro && minha.length === 1 && minha[0].email_google === 'comum-x@google.test' && !('refresh_token_cifrado' in minha[0]), JSON.stringify(minha));
+  const alheia = await como(adminX, () => rows(`SELECT * FROM public.google_minha_conexao()`));
+  check(G21, 'quem não ligou não vê a conexão de outro', !alheia.erro && alheia.length === 0, JSON.stringify(alheia));
+  check(G21, 'visitante sem login não chega a nada do Google',
+    Boolean((await (async () => {
+      await db.query('SAVEPOINT anon');
+      try { await db.query('SET LOCAL ROLE anon'); await db.query('SELECT 1 FROM public.google_eventos LIMIT 1'); return {}; }
+      catch (e) { return { erro: e.message }; }
+      finally { await db.query('ROLLBACK TO SAVEPOINT anon'); await limparClaims(); }
+    })()).erro));
+
+  // Gatilho: só a consulta do profissional conectado, e só o que importa ao Google, entra na fila.
+  const naFila = async (id) => Number((await um(`SELECT count(*)::int AS n FROM public.google_fila WHERE agendamento_id = $1`, [id])).n);
+  const agG = Number((await um(
+    `INSERT INTO public.agendamentos (paciente_id, clinica_id, profissional_id, data_hora, procedimento, status)
+     VALUES ($1, $2, $3, now() + interval '3 days', 'RLS Google', 'agendado') RETURNING id`, [pacX, clinX, comumX.prof])).id);
+  const aoCriar = await naFila(agG);
+  await db.query(`UPDATE public.agendamentos SET observacoes = 'só uma nota' WHERE id = $1`, [agG]);
+  const soNota = await naFila(agG);
+  await db.query(`UPDATE public.agendamentos SET data_hora = data_hora + interval '1 hour' WHERE id = $1`, [agG]);
+  const novaHora = await naFila(agG);
+  await db.query(`UPDATE public.agendamentos SET status = 'cancelado' WHERE id = $1`, [agG]);
+  const aoCancelar = await naFila(agG);
+  check(G21, 'a fila recebe a consulta nova, a mudança de horário e o cancelamento, e ignora a nota',
+    aoCriar === 1 && soNota === 1 && novaHora === 2 && aoCancelar === 3, JSON.stringify({ aoCriar, soNota, novaHora, aoCancelar }));
+  const agSem = Number((await um(
+    `INSERT INTO public.agendamentos (paciente_id, clinica_id, profissional_id, data_hora, procedimento, status)
+     VALUES ($1, $2, $3, now() + interval '3 days', 'RLS sem Google', 'agendado') RETURNING id`, [pacX, clinX, adminX.prof])).id);
+  await db.query(`UPDATE public.agendamentos SET data_hora = data_hora + interval '1 hour' WHERE id = $1`, [agSem]);
+  check(G21, 'consulta de quem não ligou o Google não entra na fila', (await naFila(agSem)) === 0);
+
+  // Estado do envio e horários ocupados.
+  await db.query(`INSERT INTO public.google_eventos (agendamento_id, profissional_id, clinica_id, estado, ultimo_erro) VALUES ($1, $2, $3, 'falha', 'Google fora do ar')`, [agG, comumX.prof, clinX]);
+  const veFalha = await como(adminX, () => rows(`SELECT estado FROM public.google_eventos WHERE agendamento_id = $1`, [agG]));
+  const outraVe = await como(comumY, () => rows(`SELECT estado FROM public.google_eventos WHERE agendamento_id = $1`, [agG]));
+  check(G21, 'a clínica vê que a consulta não foi ao Google; outra clínica não',
+    !veFalha.erro && veFalha[0]?.estado === 'falha' && !outraVe.erro && outraVe.length === 0, JSON.stringify({ veFalha, outraVe }));
+  check(G21, 'ninguém muda o estado do envio pela API',
+    await barrado(adminX, `UPDATE public.google_eventos SET estado = 'enviado' WHERE agendamento_id = $1`, [agG])
+    && await barrado(adminX, `DELETE FROM public.google_eventos WHERE agendamento_id = $1`, [agG]));
+  check(G21, '"tentar de novo" só na clínica da consulta e só para o que falhou',
+    Boolean((await como(comumY, () => rows(`SELECT public.google_tentar_de_novo($1) AS r`, [agG]))).erro)
+    && (await como(adminX, () => rows(`SELECT public.google_tentar_de_novo($1) AS r`, [agG])))[0]?.r === true
+    && (await como(adminX, () => rows(`SELECT public.google_tentar_de_novo($1) AS r`, [agSem])))[0]?.r === false);
+  await db.query(
+    `INSERT INTO public.google_bloqueios (profissional_id, google_event_id, inicio, fim) VALUES ($1, 'externo-rls', now() + interval '4 days', now() + interval '4 days 1 hour')`, [comumX.prof]);
+  const bloqX = await como(adminX, () => rows(`SELECT inicio FROM public.google_bloqueios WHERE profissional_id = $1`, [comumX.prof]));
+  const bloqY = await como(comumY, () => rows(`SELECT inicio FROM public.google_bloqueios WHERE profissional_id = $1`, [comumX.prof]));
+  check(G21, 'o horário ocupado no Google aparece na clínica do profissional; em outra, não',
+    !bloqX.erro && bloqX.length === 1 && !bloqY.erro && bloqY.length === 0, JSON.stringify({ bloqX, bloqY }));
+  check(G21, 'ninguém cria horário ocupado pela API',
+    await barrado(comumX, `INSERT INTO public.google_bloqueios (profissional_id, google_event_id, inicio, fim) VALUES ($1, 'forjado', now(), now() + interval '1 hour')`, [adminX.prof]));
 } catch (e) {
   check('Suíte', 'a suíte rodou até o fim', false, e.message);
 } finally {

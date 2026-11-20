@@ -167,13 +167,19 @@ e na tabela do [`README.md`](../README.md). O que importa para a segurança:
       `20261129_orcamentos`,
       `20261130_metas_vendas`,
       `20261201_conversas`,
-      `20261202_chamadas`.
+      `20261202_chamadas`,
+      `20261203_google_agenda`.
       Atenção: `20261114_seguranca_total` não pode ser reexecutada depois de
       `20261120` (concede EXECUTE numa assinatura antiga de função).
 - [ ] `npm test` com 100% OK. Com `ORTUS_SUPER_ADMINS="email1,email2"` ela
       confere também que só os donos têm `is_super_admin`.
-- [ ] `CRON_SECRET` definido no servidor e o agendador chamando as três rotinas
-      (lembretes, assinaturas e vigia) — ver `docs/ORACLE.md` ou `vercel.json`.
+- [ ] `CRON_SECRET` definido no servidor e o agendador chamando as quatro rotinas
+      (lembretes, assinaturas, vigia e a rápida: Google Agenda e aviso do
+      suporte) — ver `docs/ORACLE.md` ou `vercel.json`.
+- [ ] `ORTUS_CHAVE_CIFRA` definida no servidor (`openssl rand -hex 32`), só lá,
+      e guardada fora da VM. Ela cifra o segredo do Google e os tokens dos
+      profissionais: trocada ou perdida, a tela de Integrações pede o segredo de
+      novo e cada profissional conecta o Google outra vez.
 - [ ] Confirmar que `SUPABASE_SERVICE_ROLE_KEY` existe **apenas** no servidor.
 - [ ] Conferir no painel do Supabase que os buckets estão privados.
 - [ ] SMTP do Supabase Auth apontado para a Resend (confirmação de conta e

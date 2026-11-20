@@ -17,6 +17,7 @@ import { SkeletonBloco } from '@/components/saas/Feedback';
 import PainelAssinaturas from '@/components/saas/PainelAssinaturas';
 import FilaRelatos from '@/components/saas/FilaRelatos';
 import SuporteConversas from '@/components/saas/SuporteConversas';
+import PainelIntegracoes from '@/components/saas/PainelIntegracoes';
 import { listarConversasSuporte, naoLidaPelaOrtus } from '@/lib/conversas';
 import PainelOperacao from '@/components/saas/PainelOperacao';
 import {
@@ -32,13 +33,14 @@ import {
 
 type StatusAcesso = 'verificando' | 'autorizado' | 'negado' | 'erro';
 
-type AbaPainel = 'redes' | 'assinaturas' | 'suporte' | 'relatos' | 'operacao';
+type AbaPainel = 'redes' | 'assinaturas' | 'suporte' | 'relatos' | 'operacao' | 'integracoes';
 const ABAS_PAINEL: { id: AbaPainel; label: string }[] = [
   { id: 'redes', label: 'Redes' },
   { id: 'assinaturas', label: 'Assinaturas' },
   { id: 'suporte', label: 'Suporte' },
   { id: 'relatos', label: 'Relatos' },
   { id: 'operacao', label: 'Operação' },
+  { id: 'integracoes', label: 'Integrações' },
 ];
 
 function compararRedes(a: RedeSaaS, b: RedeSaaS, ordenacao: OrdenacaoSaaS): number {
@@ -93,7 +95,7 @@ export default function SuperAdminPage() {
   const parametros = useSearchParams();
   const abaInicial = parametros.get('aba');
   const [abaPainel, setAbaPainel] = useState<AbaPainel>(
-    abaInicial === 'relatos' || abaInicial === 'assinaturas' || abaInicial === 'operacao' || abaInicial === 'suporte' ? abaInicial : 'redes',
+    abaInicial === 'relatos' || abaInicial === 'assinaturas' || abaInicial === 'operacao' || abaInicial === 'suporte' || abaInicial === 'integracoes' ? abaInicial : 'redes',
   );
   // Conversas de suporte com mensagem da clínica ainda não lida pela Ortus (o número da aba).
   const [suporteNovas, setSuporteNovas] = useState(0);
@@ -536,6 +538,8 @@ export default function SuperAdminPage() {
       )}
 
       {abaPainel === 'operacao' && <PainelOperacao />}
+
+      {abaPainel === 'integracoes' && <PainelIntegracoes />}
 
       {abaPainel === 'suporte' && (
         <div className="flex min-h-0 flex-1 flex-col">

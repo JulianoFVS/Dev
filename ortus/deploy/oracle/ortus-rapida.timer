@@ -1,0 +1,17 @@
+# Ortus — quando a rotina rápida roda (Google Agenda e aviso do suporte).
+# A cada 2 minutos e 2 minutos depois do boot.
+#
+# Ligar:  sudo systemctl enable --now ortus-rapida.timer
+# Ver:    systemctl list-timers 'ortus-*' --no-pager
+
+[Unit]
+Description=Ortus - agenda da rotina rápida (a cada 2 minutos)
+
+[Timer]
+OnCalendar=*:0/2
+OnBootSec=2min
+AccuracySec=15s
+Unit=ortus-rapida.service
+
+[Install]
+WantedBy=timers.target

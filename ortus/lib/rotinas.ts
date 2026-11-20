@@ -9,6 +9,8 @@ export const ROTINAS = {
   lembretes: { rotulo: 'Lembretes de consulta', toleranciaHoras: 26 },
   assinaturas: { rotulo: 'Assinaturas e cobranças', toleranciaHoras: 26 },
   vigia: { rotulo: 'Vigia da operação', toleranciaHoras: 1 },
+  // A cada 2 minutos na VM; na Vercel Hobby só uma vez por dia (daí a folga).
+  rapida: { rotulo: 'Rotina rápida (Google Agenda e aviso do suporte)', toleranciaHoras: 26 },
 } as const;
 
 export type NomeRotina = keyof typeof ROTINAS;

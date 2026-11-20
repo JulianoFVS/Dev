@@ -6,6 +6,8 @@ import { horarioProfissionalKey } from '@/lib/configKeys';
 
 import { contar, listar, modoDados, type FiltroLocal } from '@/lib/local/cliente';
 
+import { bloqueioDoGoogle } from '@/lib/googleBloqueios';
+
 
 
 export type HorarioDia = 'seg' | 'ter' | 'qua' | 'qui' | 'sex' | 'sab' | 'dom';
@@ -439,6 +441,12 @@ export async function validarAgendamentoCompleto(params: {
   const { clinicaId, profissionalId, date, time, excludeAgendamentoId } = params;
 
   if (!profissionalId) return null;
+
+  // Compromisso marcado direto no Google Agenda do profissional ocupa o horário (migration 20261203).
+
+  const ocupadoNoGoogle = await bloqueioDoGoogle(profissionalId, date, time);
+
+  if (ocupadoNoGoogle) return ocupadoNoGoogle;
 
 
 

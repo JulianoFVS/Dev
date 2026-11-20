@@ -584,6 +584,45 @@ const TODOS_OS_TOPICOS: TopicoGuia[] = [
     relacionados: ['agenda'],
   },
   {
+    id: 'google-agenda',
+    grupo: 'Atendimento',
+    titulo: 'Google Agenda',
+    resumo: 'Cada profissional liga a própria agenda do Google: as consultas dele aparecem lá, e o que ele marcar direto no Google ocupa o horário no Ortus.',
+    onde: '**Perfil → Google Agenda** (cada profissional, com a própria conta). A agenda do Ortus avisa quando uma consulta não chegou ao Google.',
+    palavras: 'google agenda calendar calendário sincronizar integração celular compromisso bloqueio horário ocupado',
+    secoes: [
+      {
+        titulo: 'Ligar',
+        blocos: [
+          passos(
+            'Abra o seu **Perfil** e, em **Google Agenda**, toque em **Conectar Google Agenda**.',
+            'Escolha a conta do Google e permita o acesso à agenda. Você volta ao Perfil com a conta conectada.',
+            'Pronto: as consultas em que você é o profissional vão para essa agenda, e as mudanças (remarcar, trocar de profissional, cancelar) seguem sozinhas.',
+          ),
+          texto('No Google o evento leva só o **primeiro nome do paciente e o tipo da consulta**, como "Maria · Limpeza". Sobrenome, telefone, valores e observações não saem do Ortus.'),
+        ],
+      },
+      {
+        titulo: 'Horários ocupados',
+        blocos: [
+          texto('Com **"Compromissos marcados direto no Google ocupam o meu horário no Ortus"** ligado, o que você marcar no Google (fora do Ortus) aparece como ocupado e o Ortus avisa quando alguém tentar marcar por cima. O título do compromisso não vem para o Ortus. Desligue a opção para a agenda do Ortus voltar a ficar livre na hora.'),
+        ],
+      },
+      {
+        titulo: 'Se o Google falhar',
+        blocos: [
+          lista(
+            'A consulta fica **salva no Ortus** do mesmo jeito. A agenda mostra a faixa "não foi enviada ao Google Agenda" e o popup da consulta, o aviso com **Tentar de novo**.',
+            'O Ortus também tenta de novo sozinho, com espera cada vez maior.',
+            'Se o acesso for retirado no Google, o Perfil avisa: toque em **Conectar de novo**.',
+          ),
+          texto('Para parar, toque em **Desligar** no Perfil. As consultas seguintes deixam de ir para o Google, e os eventos que já estão lá ficam.'),
+        ],
+      },
+    ],
+    relacionados: ['agenda', 'perfil'],
+  },
+  {
     id: 'conversas',
     grupo: 'Comunicação',
     titulo: 'Conversas da equipe',
