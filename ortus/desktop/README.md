@@ -388,10 +388,11 @@ uma versão nova — só ao desinstalar, e mesmo assim os dados permanecem
 
 `clinicas`, `profissionais`, `profissionais_clinicas`, `especialidades`,
 `planos`, `tratamentos_base`, `planos_tratamentos`, `permissoes_modulos`,
-`profissionais_horarios`, `pacientes`, `configuracoes_clinica`,
+`profissionais_horarios`, `metas_vendas`, `pacientes`, `configuracoes_clinica`,
 `agendamentos`, `lembretes_agenda`, `despesas`, `kanban_colunas`,
-`kanban_cartoes`, `paciente_tratamentos`, `paciente_anamneses`,
-`paciente_evolucoes`, `paciente_documentos`, `paciente_debitos`, `tarefas`,
+`kanban_cartoes`, `orcamentos`, `paciente_tratamentos`, `paciente_anamneses`,
+`paciente_evolucoes`, `paciente_documentos`, `paciente_debitos`, `orcamento_itens`,
+`orcamento_contatos`, `tarefas`,
 `comissoes_regras`, `comissoes_lancamentos`, `notificacoes`,
 `anamnese_links`, `convites_equipe`, `whatsapp_agendadas`, `whatsapp_envios`,
 `whatsapp_mensagens` — nesta ordem (`ORDEM_SYNC`). `audit_log` fica só no

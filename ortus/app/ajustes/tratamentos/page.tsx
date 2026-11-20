@@ -69,6 +69,8 @@ type Tratamento = {
   codigo_tuss_padrao: string | null;
   aceita_faces: boolean;
   ativo: boolean;
+  /** Consulta/avaliação: entra no funil de oportunidades quando não vira orçamento. */
+  avaliacao?: boolean | null;
 };
 type Plano = {
   id: string;
@@ -104,6 +106,7 @@ type FormTratamento = {
   tuss: string;
   faces: boolean;
   ativo: boolean;
+  avaliacao: boolean;
   aplicar: string[];
   todosPlanos: boolean;
 };
@@ -157,6 +160,7 @@ const formVazio: FormTratamento = {
   tuss: '',
   faces: false,
   ativo: true,
+  avaliacao: false,
   aplicar: [],
   todosPlanos: true,
 };
@@ -286,7 +290,7 @@ export default function TratamentosPage() {
         tabelas.from('planos').select('id, nome, tipo, observacoes, ativo').eq('clinica_id', id).order('nome'),
         tabelas.from('especialidades').select('id, nome, ativo').eq('clinica_id', id).order('nome'),
         tabelas.from('tratamentos_base')
-          .select('id, nome, especialidade_id, valor_sugerido, custo_padrao, codigo_tuss_padrao, aceita_faces, ativo')
+          .select('id, nome, especialidade_id, valor_sugerido, custo_padrao, codigo_tuss_padrao, aceita_faces, ativo, avaliacao')
           .eq('clinica_id', id)
           .order('nome'),
       ]);
@@ -451,6 +455,7 @@ export default function TratamentosPage() {
       tuss: (ehParticular ? item.codigo_tuss_padrao : linha?.codigo_tuss) || '',
       faces: ehParticular ? item.aceita_faces : (linha?.aceita_faces ?? item.aceita_faces),
       ativo: ehParticular ? item.ativo : (linha?.ativo ?? false),
+      avaliacao: Boolean(item.avaliacao),
       aplicar: [],
       todosPlanos: true,
     });
@@ -493,6 +498,7 @@ export default function TratamentosPage() {
         codigo_tuss_padrao: tuss,
         aceita_faces: form.faces,
         ativo: form.ativo,
+        avaliacao: form.avaliacao,
       };
       setTratamentos((atual) => [...atual.filter((t) => t.id !== tempId), item]);
     } else if (editando && planoAtual) {
@@ -515,6 +521,7 @@ export default function TratamentosPage() {
               codigo_tuss_padrao: tuss,
               aceita_faces: form.faces,
               ativo: form.ativo,
+              avaliacao: form.avaliacao,
             })
             .eq('id', id);
           if (error) throw error;
@@ -529,8 +536,9 @@ export default function TratamentosPage() {
               codigo_tuss_padrao: tuss,
               aceita_faces: form.faces,
               ativo: form.ativo,
+              avaliacao: form.avaliacao,
             })
-            .select('id, nome, especialidade_id, valor_sugerido, custo_padrao, codigo_tuss_padrao, aceita_faces, ativo')
+            .select('id, nome, especialidade_id, valor_sugerido, custo_padrao, codigo_tuss_padrao, aceita_faces, ativo, avaliacao')
             .single();
           if (error) throw error;
           id = (data as Tratamento).id;
@@ -1225,6 +1233,11 @@ export default function TratamentosPage() {
             <Switch checked={form.ativo} onChange={(ativo) => setForm({ ...form, ativo })}>
               <span className="text-sm text-neutral-700">{ehParticular ? 'Ativo' : 'Coberto'}</span>
             </Switch>
+            {ehParticular && (
+              <Switch checked={form.avaliacao} onChange={(avaliacao) => setForm({ ...form, avaliacao })}>
+                <span className="text-sm text-neutral-700" title="Atendida e sem orçamento depois, entra nas Oportunidades de Orçamentos">Consulta ou avaliação</span>
+              </Switch>
+            )}
           </div>
           {outrosPlanos.length > 0 && (
             <div className="mt-4 border-t border-neutral-100 pt-3">

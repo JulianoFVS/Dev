@@ -89,6 +89,8 @@ export default function ModalNovoAgendamento({
     date: '',
     time: '08:00',
     title: '',
+    /** Procedimento escolhido no catálogo (o funil de oportunidades reconhece avaliações por ele). */
+    tratamento_base_id: '',
     valor: '0',
     desconto: '0',
     observacoes: '',
@@ -185,6 +187,7 @@ export default function ModalNovoAgendamento({
         date: dataSugerida,
         time: '08:00',
         title: procedimento,
+        tratamento_base_id: '',
         valor: '0',
         desconto: '0',
         observacoes,
@@ -310,6 +313,7 @@ export default function ModalNovoAgendamento({
       profissional_id: form.profissional_id || null,
       data_hora: new Date(`${form.date}T${form.time}:00`).toISOString(),
       procedimento: form.title,
+      tratamento_base_id: form.tratamento_base_id ? Number(form.tratamento_base_id) : null,
       cor: 'blue',
       valor,
       desconto,
@@ -421,7 +425,7 @@ export default function ModalNovoAgendamento({
             <input
               type="text"
               value={form.title}
-              onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))}
+              onChange={(e) => setForm((p) => ({ ...p, title: e.target.value, tratamento_base_id: '' }))}
               className={`${inputClass} placeholder:text-neutral-400`}
               placeholder="Digite o procedimento"
             />
@@ -433,7 +437,7 @@ export default function ModalNovoAgendamento({
               value={form.title}
               onChange={(nome, t) => {
                 const preco = valorNaAgenda(t, planoDoPaciente, linhasPreco);
-                setForm((p) => ({ ...p, title: nome, valor: preco ?? p.valor }));
+                setForm((p) => ({ ...p, title: nome, tratamento_base_id: t ? String(t.id) : '', valor: preco ?? p.valor }));
               }}
               disabled={!form.clinica_id}
             />

@@ -109,7 +109,7 @@ qualquer um. Na VM roda a cada 15 minutos; na Vercel, uma vez por dia
 
 | Chave do alerta | Abre quando | Fecha quando |
 |---|---|---|
-| `rotina:lembretes` e `rotina:assinaturas` | o último batimento em `rotinas_execucoes` não existe, é mais velho que a tolerância (26 h para as duas), terminou com `ok = false`, ou começou há mais de 20 min e não terminou | o último batimento está dentro da tolerância e não falhou |
+| `rotina:lembretes`, `rotina:assinaturas` e `rotina:rapida` | o último batimento em `rotinas_execucoes` não existe, é mais velho que a tolerância (26 h para as três), terminou com `ok = false`, ou começou há mais de 20 min e não terminou | o último batimento está dentro da tolerância e não falhou |
 | `falhas` | mais de 20 linhas em `falhas_servidor` na última hora | 10 ou menos (a folga evita abrir e fechar a cada execução) |
 | `whatsapp` | o `GET /saude` do gateway falha duas vezes seguidas (3 s entre as tentativas, 5 s de limite em cada) | o gateway responde |
 | `email` | falta `RESEND_API_KEY` ou `RESEND_FROM_EMAIL` | as duas existem |
@@ -244,6 +244,7 @@ rodam tudo duas vezes. Ao ligar os timers da VM, desligue os crons da Vercel
 | Lembretes de consulta | `/api/lembretes/processar?enviar=true` | todo dia 13:00 UTC (10h de Brasília) | `ortus-lembretes` |
 | Assinaturas e cobranças | `/api/assinaturas/processar` | todo dia 09:00 UTC (6h de Brasília) | `ortus-assinaturas` |
 | Vigia da operação | `/api/saude/vigia` | a cada 15 minutos e 3 minutos depois do boot | `ortus-vigia` |
+| Rotina rápida (fila do Google Agenda, horários ocupados lidos do Google e aviso do suporte) | `/api/rotinas/rapida` | a cada 2 minutos | `ortus-rapida` |
 
 Instalar e ligar: `docs/ORACLE.md`, seção 10. Conferir:
 
@@ -252,7 +253,7 @@ systemctl list-timers 'ortus-*' --no-pager
 ```
 
 ```
-sudo journalctl -u ortus-lembretes.service -u ortus-assinaturas.service -u ortus-vigia.service --since "2 days ago" --no-pager
+sudo journalctl -u ortus-lembretes.service -u ortus-assinaturas.service -u ortus-vigia.service -u ortus-rapida.service --since "2 days ago" --no-pager
 ```
 
 ### 4.2 Na Vercel (`vercel.json`)
@@ -262,6 +263,7 @@ sudo journalctl -u ortus-lembretes.service -u ortus-assinaturas.service -u ortus
 | Lembretes | `/api/lembretes/processar?enviar=true` | `0 13 * * *` |
 | Assinaturas | `/api/assinaturas/processar` | `0 9 * * *` |
 | Vigia | `/api/saude/vigia` | `0 16 * * *` |
+| Rápida | `/api/rotinas/rapida` | `30 11 * * *` |
 
 Limites por plano, segundo
 https://vercel.com/docs/cron-jobs/usage-and-pricing (página de 15/07/2026,
@@ -283,6 +285,14 @@ batimento dela já passou de 26 h nessa hora, e o alerta sai no mesmo dia.
 O que se perde com o vigia diário: a contagem de falhas olha só a hora
 anterior à execução; o gateway é conferido uma vez por dia; e um agendador
 inteiro parado só aparece no `/api/saude` depois de 26 h.
+
+A rotina rápida diária no Hobby: a consulta salva na web vai para o Google
+na hora (a tela chama `/api/google/empurrar` depois de salvar), e o aviso ao
+suporte sai quando a clínica envia a mensagem. O que fica para o horário da
+rotina: a nova tentativa depois de uma falha do Google, as mudanças feitas
+pelo aplicativo de computador, a leitura dos horários ocupados no Google e o
+aviso de mensagem ao suporte mandada pelo aplicativo. No Pro, use
+`*/2 * * * *`.
 
 No Pro, troque o `schedule` do vigia para `*/15 * * * *`. O `/api/saude`
 continua com 26 h de tolerância na Vercel; para 1 h, mude
@@ -629,7 +639,10 @@ nunca é removido por causa do plano; o limite vale para quem entra.
 ## 10. Homologação (build de produção contra serviços falsos)
 
 Em produção (`NODE_ENV=production`) o site ignora as variáveis
-`ORTUS_TESTE_URL_RESEND`, `ORTUS_TESTE_URL_R2` e `ORTUS_TESTE_URL_PAGAMENTO`:
+`ORTUS_TESTE_URL_RESEND`, `ORTUS_TESTE_URL_R2`, `ORTUS_TESTE_URL_PAGAMENTO` e
+`ORTUS_TESTE_URL_GOOGLE` (com `ORTUS_TESTE_URL_GOOGLE_PUBLICA`, o endereço do
+consentimento que o navegador abre; o Google falso só atende Client ID que
+começa com `teste-`):
 um servidor publicado nunca troca o endereço da Resend, do R2 ou do Mercado
 Pago por descuido. Um servidor de homologação, que roda o build de produção
 contra serviços falsos, liga a exceção com as três juntas:
