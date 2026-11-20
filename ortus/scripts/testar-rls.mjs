@@ -1021,6 +1021,75 @@ try {
     await barrado(adminX, `INSERT INTO public.metas_vendas (clinica_id, mes, valor) VALUES ($1, date_trunc('month', current_date)::date + 3, 100)`, [clinX])
     && await barrado(adminY, `INSERT INTO public.metas_vendas (clinica_id, mes, valor) VALUES ($1, date_trunc('month', current_date)::date, 100)`, [clinY]));
 
+  // ==================================================================
+  // 19. Conversas da equipe e suporte (20261201_conversas)
+  // ==================================================================
+  const G19 = 'Conversas';
+  const geralX = (await um(`SELECT id FROM public.conversa_canais WHERE clinica_id = $1 AND geral`, [clinX]))?.id;
+  const geralY = (await um(`SELECT id FROM public.conversa_canais WHERE clinica_id = $1 AND geral`, [clinY]))?.id;
+  check(G19, 'toda clínica nasce com o canal Geral', Boolean(geralX && geralY));
+  await db.query(`INSERT INTO public.conversa_mensagens (clinica_id, canal_id, autor_id, texto) VALUES ($1, $2, $3, 'RLS recado X')`, [clinX, geralX, adminX.prof]);
+
+  check(G19, 'quem trabalha na clínica lê o canal Geral',
+    (await como(comumX, () => rows(`SELECT id FROM public.conversa_mensagens WHERE canal_id = $1`, [geralX]))).length === 1);
+  check(G19, 'quem é de outra clínica não lê o chat da equipe',
+    (await como(comumY, () => rows(`SELECT id FROM public.conversa_mensagens WHERE canal_id = $1`, [geralX]))).length === 0);
+  check(G19, 'dono da plataforma NÃO lê o chat da equipe das clínicas',
+    (await como(dono, () => rows(`SELECT id FROM public.conversa_mensagens WHERE clinica_id = $1`, [clinX]))).length === 0
+    && (await como(dono, () => rows(`SELECT id FROM public.conversa_canais WHERE clinica_id = $1`, [clinX]))).length === 0);
+  check(G19, 'dono da plataforma não escreve no chat da equipe',
+    await barrado(dono, `INSERT INTO public.conversa_mensagens (clinica_id, canal_id, texto) VALUES ($1, $2, 'x')`, [clinX, geralX]));
+  const autor = await como(comumX, () => rows(
+    `INSERT INTO public.conversa_mensagens (clinica_id, canal_id, autor_id, texto) VALUES ($1, $2, $3, 'oi') RETURNING autor_id`, [clinX, geralX, adminX.prof]));
+  check(G19, 'o autor da mensagem é sempre quem está logado', !autor.erro && Number(autor[0]?.autor_id) === comumX.prof, JSON.stringify(autor));
+  check(G19, 'membro comum não cria canal; administrador cria',
+    await barrado(comumX, `INSERT INTO public.conversa_canais (clinica_id, nome) VALUES ($1, 'comercial')`, [clinX])
+    && (await linhas(adminX, `INSERT INTO public.conversa_canais (clinica_id, nome) VALUES ($1, 'comercial')`, [clinX])) === 1);
+  check(G19, 'dono da plataforma não cria canal em clínica',
+    await barrado(dono, `INSERT INTO public.conversa_canais (clinica_id, nome) VALUES ($1, 'ortus')`, [clinX]));
+  check(G19, 'ninguém apaga a mensagem de outra pessoa',
+    await barrado(comumX, `DELETE FROM public.conversa_mensagens WHERE canal_id = $1 AND autor_id = $2`, [geralX, adminX.prof]));
+  const leituraCanal = await como(comumX, () => rows(
+    `INSERT INTO public.conversa_leituras (canal_id, profissional_id, clinica_id) VALUES ($1, $2, $3) RETURNING profissional_id`, [geralX, adminX.prof, clinX]));
+  check(G19, 'a leitura gravada é sempre de quem está logado', !leituraCanal.erro && Number(leituraCanal[0]?.profissional_id) === comumX.prof, JSON.stringify(leituraCanal));
+
+  const abriu = await como(comumX, () => rows(`SELECT public.suporte_abrir($1) AS id`, [clinX]), { manter: true });
+  const suporteX = abriu?.[0]?.id;
+  check(G19, 'quem trabalha na clínica abre a conversa com o suporte', Boolean(suporteX), JSON.stringify(abriu));
+  check(G19, 'ninguém abre a conversa de suporte de outra clínica',
+    Boolean((await como(comumY, () => db.query(`SELECT public.suporte_abrir($1)`, [clinX]))).erro));
+  const lado = await como(comumX, () => rows(
+    `INSERT INTO public.suporte_mensagens (conversa_id, clinica_id, lado, texto) VALUES ($1, $2, 'ortus', 'socorro') RETURNING lado`, [suporteX, clinY]), { manter: true });
+  check(G19, 'a clínica não se passa pela Ortus: o lado é definido pelo banco', !lado.erro && lado[0]?.lado === 'clinica', JSON.stringify(lado));
+  check(G19, 'dono da plataforma lê a conversa de suporte',
+    (await como(dono, () => rows(`SELECT id FROM public.suporte_mensagens WHERE conversa_id = $1`, [suporteX]))).length === 1);
+  check(G19, 'outra clínica não lê a conversa de suporte',
+    (await como(comumY, () => rows(`SELECT id FROM public.suporte_mensagens WHERE conversa_id = $1`, [suporteX]))).length === 0);
+  const resposta = await como(dono, () => rows(
+    `INSERT INTO public.suporte_mensagens (conversa_id, lado, texto) VALUES ($1, 'clinica', 'olá, aqui é a Ortus') RETURNING lado`, [suporteX]));
+  check(G19, 'resposta do dono sai como Ortus', !resposta.erro && resposta[0]?.lado === 'ortus', JSON.stringify(resposta));
+  check(G19, 'ninguém altera nem apaga mensagem de suporte',
+    await barrado(comumX, `UPDATE public.suporte_mensagens SET texto = 'x' WHERE conversa_id = $1`, [suporteX])
+    && await barrado(dono, `DELETE FROM public.suporte_mensagens WHERE conversa_id = $1`, [suporteX]));
+  check(G19, 'presença e conversa só mudam pelas funções',
+    await barrado(dono, `INSERT INTO public.suporte_presenca (user_id) VALUES ($1)`, [dono.sub])
+    && await barrado(comumX, `UPDATE public.suporte_conversas SET ortus_leu_ate = now() WHERE id = $1`, [suporteX]));
+  check(G19, 'só a Ortus bate presença no painel de suporte',
+    Boolean((await como(comumX, () => db.query(`SELECT public.suporte_presenca_bater()`))).erro)
+    && !(await como(dono, () => db.query(`SELECT public.suporte_presenca_bater()`))).erro);
+
+  // Rede Y em modo de consulta (rede inativa = suspensa, como no grupo de assinaturas).
+  await db.query('SAVEPOINT suspensa');
+  await db.query(`UPDATE public.redes SET ativa = false WHERE id = $1`, [redeY.id]);
+  const statusY = (await um(`SELECT public.clinica_aceita_escrita($1) AS ok`, [clinY]))?.ok === false ? 'bloqueada' : 'ativa';
+  const suporteY = (await como(comumY, () => rows(`SELECT public.suporte_abrir($1) AS id`, [clinY]), { manter: true }))?.[0]?.id;
+  const escreveSuporte = await linhas(comumY, `INSERT INTO public.suporte_mensagens (conversa_id, lado, texto) VALUES ($1, 'clinica', 'estamos bloqueados')`, [suporteY]);
+  const escreveEquipe = await como(comumY, () => db.query(`INSERT INTO public.conversa_mensagens (clinica_id, canal_id, texto) VALUES ($1, $2, 'x')`, [clinY, geralY]));
+  await db.query('ROLLBACK TO SAVEPOINT suspensa');
+  check(G19, 'clínica em modo de consulta ainda escreve ao suporte, mas não no chat da equipe',
+    statusY === 'bloqueada' && escreveSuporte === 1 && escreveEquipe?.codigo === 'PT402',
+    JSON.stringify({ statusY, escreveSuporte, equipe: escreveEquipe?.codigo || escreveEquipe?.rowCount }));
+
 } catch (e) {
   check('Suíte', 'a suíte rodou até o fim', false, e.message);
 } finally {

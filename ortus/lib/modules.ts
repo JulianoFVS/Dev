@@ -11,6 +11,7 @@ export const MODULES: { id: ModuleName; label: string; description: string }[] =
   { id: 'loja', label: 'Loja / Marketplace', description: 'Aquisições e marketplace Ortus' },
   { id: 'marketing', label: 'Marketing', description: 'Campanhas e jornadas automatizadas' },
   { id: 'orcamentos', label: 'Orçamentos', description: 'Orçamentos, funil comercial e oportunidades' },
+  { id: 'conversas', label: 'Conversas', description: 'Chat da equipe da clínica' },
 ];
 
 export function buildModuleAccessMap(defaultValue = false): Record<ModuleName, boolean> {

@@ -550,6 +550,30 @@ const TODOS_OS_TOPICOS: TopicoGuia[] = [
     relacionados: ['agenda', 'financeiro'],
   },
   {
+    id: 'conversas',
+    grupo: 'Comunicação',
+    titulo: 'Conversas da equipe',
+    resumo: 'Chat interno da clínica: canal Geral e outros que a clínica criar, como recepção e comercial.',
+    onde: 'Menu **Conversas**.',
+    palavras: 'chat interno recado mensagem equipe canal grupo recepção comercial colega',
+    secoes: [
+      {
+        titulo: 'Como funciona',
+        blocos: [
+          lista(
+            'Toda clínica tem o canal **Geral**. O administrador cria outros em **Novo** (ex.: recepção, comercial) e pode **Arquivar** os que não usa mais; as mensagens de um canal arquivado ficam guardadas.',
+            'Escreva no campo de baixo e toque no botão de enviar. No computador, Enter envia e Shift+Enter quebra a linha.',
+            'Mensagens novas aparecem sozinhas em poucos segundos. O número ao lado de **Conversas** no menu mostra o que ainda não foi lido.',
+            'Cada pessoa pode apagar as próprias mensagens.',
+          ),
+          aviso('As conversas são só da equipe da clínica: não chegam aos pacientes (isso é a aba **WhatsApp → Conversas**) nem à Ortus. Para falar com a Ortus, use **Ajuda → Contatar o suporte**.'),
+          texto('As conversas precisam de internet. No aplicativo de computador sem conexão, a tela avisa e volta quando a conexão voltar.'),
+        ],
+      },
+    ],
+    relacionados: ['whatsapp'],
+  },
+  {
     id: 'whatsapp',
     grupo: 'Comunicação',
     titulo: 'WhatsApp',

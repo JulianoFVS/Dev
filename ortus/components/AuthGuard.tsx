@@ -12,6 +12,7 @@ import Omnibar from '@/components/Omnibar';
 import BentoShell from '@/components/dashboard/BentoShell';
 import { useImagemSdr } from '@/lib/imagemSdr';
 import { useClinica } from '@/app/context/ClinicaContext';
+import { naoLidasPorCanal } from '@/lib/conversas';
 import type { ModuleName } from '@/lib/types/permissions';
 import { buildModuleAccessMap } from '@/lib/modules';
 import { moduleForPath } from '@/lib/permissionPresets';
@@ -40,6 +41,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   
   const [tarefasPendentes, setTarefasPendentes] = useState(0);
+  const [conversasNovas, setConversasNovas] = useState(0);
   const [moduleAccess, setModuleAccess] = useState<Record<ModuleName, boolean>>(() => readModuleAccessMapFromCookie(false));
   const [permissoesResolvidas, setPermissoesResolvidas] = useState(false);
   const fotoPerfil = useImagemSdr(perfil?.foto_url);
@@ -331,6 +333,22 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
       atualizarBadgeTarefas(ctxClinics.map((c) => c.id));
   }, [perfil?.id, clinicLoading, ctxClinics.length]);
 
+  // Mensagens novas no chat da equipe da clínica ativa, a cada 30 s com a aba visível (só na nuvem).
+  useEffect(() => {
+      const clinica = ctxActiveId && ctxActiveId !== 'all' ? Number(ctxActiveId) : null;
+      if (!perfil?.id || !clinica) { setConversasNovas(0); return; }
+      let vivo = true;
+      const contar = () => {
+          if (document.visibilityState !== 'visible' || navigator.onLine === false) return;
+          void naoLidasPorCanal(clinica)
+              .then((mapa) => { if (vivo) setConversasNovas(Array.from(mapa.values()).reduce((s, n) => s + n, 0)); })
+              .catch(() => undefined);
+      };
+      contar();
+      const timer = window.setInterval(contar, 30_000);
+      return () => { vivo = false; window.clearInterval(timer); };
+  }, [perfil?.id, ctxActiveId]);
+
   useEffect(() => {
     const onPatch = (ev: Event) => {
       const detail = (ev as CustomEvent<ProfileSessionSnapshot>).detail;
@@ -371,6 +389,8 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
             sidebarNav={{
               showTarefas: !permissoesResolvidas || canAccessModule('agenda'),
               showOrcamentos: permissoesResolvidas && canAccessModule('orcamentos'),
+              showConversas: permissoesResolvidas && canAccessModule('conversas') && ctxActiveId !== 'all',
+              conversasBadge: conversasNovas,
               showEquipe: !permissoesResolvidas || canAccessModule('configuracoes'),
               showTratamentosBase: !permissoesResolvidas || canAccessModule('configuracoes'),
               // Só aparece para quem é dono de verdade (veio do banco).

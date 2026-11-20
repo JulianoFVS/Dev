@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { Check, ChevronRight, Copy, Headset, MessageCircle } from 'lucide-react';
+import { Check, ChevronRight, Copy, Headset, MessageCircle, MessagesSquare } from 'lucide-react';
 import { useClinica } from '@/app/context/ClinicaContext';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
 import { linkConversaSuporte, numeroParaCopiar, numerosSuporte, type NumeroSuporte } from '@/lib/suporte';
@@ -12,14 +12,14 @@ import { WHATSAPP_ATIVO, situacaoWhatsapp, type SituacaoWhatsapp } from '@/lib/w
 type Estado = 'desligado' | 'verificando' | 'sem-clinica' | 'conectado' | 'desconectado' | 'sem-servico' | 'fora-do-ar' | 'sem-acesso';
 
 const TEXTO_DO_ESTADO: Record<Estado, string> = {
-  conectado: 'O atendimento é pelo WhatsApp. Toque em um número para abrir a conversa aqui no Ortus.',
-  desconectado: 'O atendimento é pelo WhatsApp. O WhatsApp da clínica não está conectado ao Ortus: copie o número e fale pelo seu, ou conecte para conversar por aqui.',
-  'sem-clinica': 'O atendimento é pelo WhatsApp. Copie o número e fale pelo seu, ou escolha uma clínica no seletor de unidade para conversar por aqui.',
-  desligado: 'O atendimento é pelo WhatsApp. Nesta instalação o WhatsApp do Ortus está desligado: copie o número e fale pelo seu.',
-  verificando: 'O atendimento é pelo WhatsApp. Conferindo a conexão da clínica…',
-  'sem-servico': 'O atendimento é pelo WhatsApp. Este endereço não tem o WhatsApp do Ortus: copie o número e fale pelo seu.',
-  'fora-do-ar': 'O atendimento é pelo WhatsApp. O WhatsApp do Ortus não respondeu agora: copie o número e fale pelo seu.',
-  'sem-acesso': 'O atendimento é pelo WhatsApp. As conversas do WhatsApp do Ortus não estão liberadas para você: copie o número e fale pelo seu.',
+  conectado: 'Também dá para falar pelo WhatsApp. Toque em um número para abrir a conversa aqui no Ortus.',
+  desconectado: 'Também dá para falar pelo WhatsApp. O WhatsApp da clínica não está conectado ao Ortus: copie o número e fale pelo seu, ou conecte para conversar por aqui.',
+  'sem-clinica': 'Também dá para falar pelo WhatsApp. Copie o número e fale pelo seu, ou escolha uma clínica no seletor de unidade para conversar por aqui.',
+  desligado: 'Também dá para falar pelo WhatsApp. Nesta instalação o WhatsApp do Ortus está desligado: copie o número e fale pelo seu.',
+  verificando: 'Também dá para falar pelo WhatsApp. Conferindo a conexão da clínica…',
+  'sem-servico': 'Também dá para falar pelo WhatsApp. Este endereço não tem o WhatsApp do Ortus: copie o número e fale pelo seu.',
+  'fora-do-ar': 'Também dá para falar pelo WhatsApp. O WhatsApp do Ortus não respondeu agora: copie o número e fale pelo seu.',
+  'sem-acesso': 'Também dá para falar pelo WhatsApp. As conversas do WhatsApp do Ortus não estão liberadas para você: copie o número e fale pelo seu.',
 };
 
 export default function CartaoSuporte({ className = '' }: { className?: string }) {
@@ -81,12 +81,18 @@ export default function CartaoSuporte({ className = '' }: { className?: string }
         <div className="min-w-0">
           <h2 id="ajuda-suporte" className="text-sm font-semibold text-neutral-900">Contatar o suporte</h2>
           <p className="mt-0.5 text-xs leading-relaxed text-neutral-500">
-            {numeros.length === 0
-              ? 'Os números do suporte ainda não foram configurados. Enquanto isso, envie um relato em Reportar bugs ou sugerir funcionalidades: ele chega à fila do suporte.'
-              : estado === 'desconectado' && !podeConectar
-                ? 'O atendimento é pelo WhatsApp. O WhatsApp da clínica não está conectado ao Ortus: copie o número e fale pelo seu, ou peça ao administrador da clínica para conectar.'
-                : TEXTO_DO_ESTADO[estado]}
+            Converse com a equipe da Ortus por aqui. Só a sua clínica e o suporte veem a conversa.
           </p>
+          <Link href="/ajuda/suporte" className="mt-2 inline-flex h-10 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 sm:h-9">
+            <MessagesSquare size={14} /> Abrir conversa com o suporte
+          </Link>
+          {numeros.length > 0 && (
+            <p className="mt-3 text-xs leading-relaxed text-neutral-500">
+              {estado === 'desconectado' && !podeConectar
+                ? 'Também dá para falar pelo WhatsApp. O WhatsApp da clínica não está conectado ao Ortus: copie o número e fale pelo seu, ou peça ao administrador da clínica para conectar.'
+                : TEXTO_DO_ESTADO[estado]}
+            </p>
+          )}
         </div>
       </div>
 

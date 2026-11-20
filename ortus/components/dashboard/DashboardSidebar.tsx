@@ -20,6 +20,7 @@ import {
   CreditCard,
   FileText,
   MessageCircle,
+  MessagesSquare,
   Smile,
   User,
   Users,
@@ -33,6 +34,9 @@ export type DashboardSidebarNavOptions = {
   showTarefas?: boolean;
   /** Orçamentos e funil comercial: módulo orcamentos. */
   showOrcamentos?: boolean;
+  /** Chat da equipe: módulo conversas. */
+  showConversas?: boolean;
+  conversasBadge?: number;
   showEquipe?: boolean;
   showTratamentosBase?: boolean;
   showPainelSaas?: boolean;
@@ -157,6 +161,8 @@ function NavItem({
 export default function DashboardSidebar({
   showTarefas = true,
   showOrcamentos = false,
+  showConversas = false,
+  conversasBadge = 0,
   showEquipe = true,
   showTratamentosBase = true,
   showPainelSaas = false,
@@ -250,6 +256,9 @@ export default function DashboardSidebar({
         {LINKS.map((item) => (
           <NavItem key={item.href} href={item.href} label={item.label} Icon={item.icon} collapsed={collapsed} />
         ))}
+        {showConversas && (
+          <NavItem href="/conversas" label="Conversas" Icon={MessagesSquare} collapsed={collapsed} badge={conversasBadge} />
+        )}
         {showTarefas && (
           <NavItem
             href="/tarefas"

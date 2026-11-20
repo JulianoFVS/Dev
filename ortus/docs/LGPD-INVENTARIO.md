@@ -1559,6 +1559,17 @@ listados. Reler os pontos citados quando o código estabilizar.
   registrou. Mesma regra de acesso e de exclusão do orçamento.
 - `metas_vendas` — meta de vendas do mês da clínica e de cada profissional
   (só valores). Lida por quem trabalha na clínica; só o administrador grava.
+- `conversa_canais`, `conversa_mensagens` e `conversa_leituras` — chat da
+  equipe da clínica: texto livre (pode conter dado de paciente), autor e hora.
+  Só quem trabalha na clínica lê; os donos da plataforma NÃO leem (regra
+  `user_e_membro_da_clinica`). Cada um apaga só a própria mensagem. Sem prazo
+  de guarda; apagado com a clínica. Não vai para o desktop.
+- `suporte_conversas`, `suporte_mensagens` e `suporte_presenca` — conversa da
+  clínica com o suporte da Ortus: texto livre (pode conter dado de paciente) e
+  nome de quem escreveu. Lida pela clínica e pelos donos da plataforma. O
+  e-mail de aviso aos donos NÃO leva o texto, só a clínica e o link. A
+  presença guarda só quem da Ortus estava com o painel aberto e quando. Sem
+  prazo de guarda; apagado com a clínica.
 - `falhas_servidor` — erro do servidor com o texto passado por
   `limparTexto` (troca JWT, chave, e-mail, CPF, CNPJ, telefone, UUID e URL de
   banco por marcadores). Limpa sozinha depois de 30 dias (vigia da operação).

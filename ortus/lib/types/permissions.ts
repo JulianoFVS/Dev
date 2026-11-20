@@ -8,7 +8,8 @@ export type ModuleName =
   | 'inteligencia'
   | 'loja'
   | 'marketing'
-  | 'orcamentos';
+  | 'orcamentos'
+  | 'conversas';
 
 export type CommissionTrigger =
   | 'tratamento_finalizado'
