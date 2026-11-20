@@ -370,6 +370,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
           <BentoShell
             sidebarNav={{
               showTarefas: !permissoesResolvidas || canAccessModule('agenda'),
+              showOrcamentos: permissoesResolvidas && canAccessModule('orcamentos'),
               showEquipe: !permissoesResolvidas || canAccessModule('configuracoes'),
               showTratamentosBase: !permissoesResolvidas || canAccessModule('configuracoes'),
               // Só aparece para quem é dono de verdade (veio do banco).

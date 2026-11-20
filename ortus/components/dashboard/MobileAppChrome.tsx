@@ -13,6 +13,7 @@ import {
   Compass,
   CreditCard,
   DollarSign,
+  FileText,
   House,
   LayoutDashboard,
   Mail,
@@ -64,6 +65,7 @@ function Hamburguer({ aberto }: { aberto: boolean }) {
 export default function MobileAppChrome({
   children,
   showTarefas = true,
+  showOrcamentos = false,
   showEquipe = true,
   showTratamentosBase = true,
   showPainelSaas = false,
@@ -99,6 +101,7 @@ export default function MobileAppChrome({
     { href: '/dashboard', label: 'Visão Geral', icon: LayoutDashboard },
     { href: '/agenda', label: 'Agenda', icon: Calendar },
     { href: '/pacientes', label: 'Pacientes', icon: Users },
+    ...(showOrcamentos ? [{ href: '/orcamentos', label: 'Orçamentos', icon: FileText }] : []),
     { href: '/proteses', label: 'Laboratório', icon: Smile },
     { href: '/financeiro', label: 'Financeiro', icon: DollarSign },
     { href: '/relatorios', label: 'Relatórios', icon: BarChart3 },

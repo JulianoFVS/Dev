@@ -113,6 +113,8 @@ const STATUS_OPCOES = [
   { value: 'agendado', label: 'Agendado' },
   { value: 'concluido', label: 'Concluído' },
   { value: 'fiado', label: 'Fiado' },
+  // "Faltou" alimenta o funil de oportunidades (paciente que faltou e não remarcou).
+  { value: 'faltou', label: 'Faltou' },
   { value: 'cancelado', label: 'Cancelado' },
 ];
 
@@ -168,6 +170,7 @@ function corStatus(status?: string) {
   if (status === 'concluido') return 'bg-emerald-500';
   if (status === 'fiado') return 'bg-amber-500';
   if (status === 'cancelado') return 'bg-rose-500';
+  if (status === 'faltou') return 'bg-orange-400';
   return 'bg-neutral-900';
 }
 
@@ -1788,7 +1791,7 @@ export default function Agenda() {
                       </div>
                       {formData.id && (
                         <div className="flex flex-wrap gap-1.5">
-                          {(['agendado', 'concluido', 'cancelado'] as const).map((st) => (
+                          {(['agendado', 'concluido', 'faltou', 'cancelado'] as const).map((st) => (
                             <button
                               key={st}
                               type="button"

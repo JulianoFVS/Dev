@@ -18,6 +18,7 @@ import {
   ShieldAlert,
   ShieldCheck,
   CreditCard,
+  FileText,
   MessageCircle,
   Smile,
   User,
@@ -30,6 +31,8 @@ import BentoSidebarTooltip from '@/components/bento/BentoSidebarTooltip';
 
 export type DashboardSidebarNavOptions = {
   showTarefas?: boolean;
+  /** Orçamentos e funil comercial: módulo orcamentos. */
+  showOrcamentos?: boolean;
   showEquipe?: boolean;
   showTratamentosBase?: boolean;
   showPainelSaas?: boolean;
@@ -84,10 +87,13 @@ function ProfileAvatar({
 
 const STORAGE_KEY = 'ortus-dashboard-sidebar';
 
-const LINKS = [
+const LINKS_TOPO = [
   { href: '/dashboard', label: 'Visão Geral', icon: LayoutDashboard },
   { href: '/agenda', label: 'Agenda', icon: Calendar },
   { href: '/pacientes', label: 'Pacientes', icon: Users },
+];
+
+const LINKS = [
   { href: '/proteses', label: 'Laboratório', icon: Smile },
   { href: '/financeiro', label: 'Financeiro', icon: DollarSign },
   { href: '/relatorios', label: 'Relatórios', icon: BarChart3 },
@@ -150,6 +156,7 @@ function NavItem({
 
 export default function DashboardSidebar({
   showTarefas = true,
+  showOrcamentos = false,
   showEquipe = true,
   showTratamentosBase = true,
   showPainelSaas = false,
@@ -234,6 +241,12 @@ export default function DashboardSidebar({
       <nav
         className={`flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${collapsed ? 'items-center gap-1 px-2' : 'gap-1 px-2.5'}`}
       >
+        {LINKS_TOPO.map((item) => (
+          <NavItem key={item.href} href={item.href} label={item.label} Icon={item.icon} collapsed={collapsed} />
+        ))}
+        {showOrcamentos && (
+          <NavItem href="/orcamentos" label="Orçamentos" Icon={FileText} collapsed={collapsed} />
+        )}
         {LINKS.map((item) => (
           <NavItem key={item.href} href={item.href} label={item.label} Icon={item.icon} collapsed={collapsed} />
         ))}

@@ -45,6 +45,7 @@ import { carregarFichaClinica, salvarFichaClinica } from '@/lib/db/fichaClinica'
 import { listarEvolucoes } from '@/lib/db/evolucoes';
 import ModalNovoAgendamento from '@/components/agenda/ModalNovoAgendamento';
 import { atualizarTratamento, criarTratamento, listarTratamentos, excluirTratamento as excluirTratamentoDb } from '@/lib/db/tratamentos';
+import OrcamentosDoPaciente from '@/components/orcamentos/OrcamentosDoPaciente';
 import { legacyJsonToProntuario, type ProntuarioPaciente, type TratamentoPaciente } from '@/lib/db/types';
 import { atualizar, inserir, listar, modoDados } from '@/lib/local/cliente';
 import { FACE_COLORS, FACE_LABELS, ODONTO_TOOLS } from '@/lib/odontogram/constants';
@@ -3442,6 +3443,14 @@ export default function PacienteDetalhe() {
                                 </div>
                             )}
                         </div>
+
+                        <OrcamentosDoPaciente
+                            pacienteId={id}
+                            pacienteNome={form.nome || 'Paciente'}
+                            clinicaId={form.clinica_id ? Number(form.clinica_id) : null}
+                            clinicaNome={clinicasContexto.find((c) => String(c.id) === String(form.clinica_id))?.nome ?? null}
+                            onMudou={() => { void listarTratamentos(id).then(setTratamentos).catch(() => undefined); }}
+                        />
 
                     </div>
                 )}

@@ -1549,6 +1549,14 @@ listados. Reler os pontos citados quando o código estabilizar.
   pelo autor e pelos donos da plataforma; o e-mail de aviso aos donos leva o
   texto inteiro. Sem prazo de guarda nem limpeza; a exclusão fica na trilha
   sem o texto.
+- `orcamentos` e `orcamento_itens` — orçamento do paciente: procedimentos,
+  dentes, valores, validade, status, motivo da recusa (texto livre) e quem
+  é o profissional e o comercial. Dado de saúde (o procedimento diz o que o
+  paciente vai tratar). Lido por quem trabalha na clínica; vai junto na
+  sincronização do desktop. Apagado com o paciente.
+- `orcamento_contatos` — o que o comercial conversou com o paciente (texto
+  livre, pode conter dado de saúde), canal, data do próximo contato e quem
+  registrou. Mesma regra de acesso e de exclusão do orçamento.
 - `falhas_servidor` — erro do servidor com o texto passado por
   `limparTexto` (troca JWT, chave, e-mail, CPF, CNPJ, telefone, UUID e URL de
   banco por marcadores). Limpa sozinha depois de 30 dias (vigia da operação).

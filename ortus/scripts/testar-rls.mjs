@@ -944,6 +944,64 @@ try {
   check(G16, 'cliente não executa plano_uso_rede direto', Boolean((await como(adminX, () => db.query(`SELECT public.plano_uso_rede($1)`, [redeX.id]))).erro));
 
 
+  // ==================================================================
+  // 17. Orçamentos e funil comercial (20261129_orcamentos)
+  // ==================================================================
+  const G17 = 'Orçamentos';
+  const orcX = (await um(`INSERT INTO public.orcamentos (clinica_id, paciente_id, profissional_id, status, valor_total) VALUES ($1, $2, $3, 'enviado', 500) RETURNING id`, [clinX, pacX, adminX.prof])).id;
+  const orcY = (await um(`INSERT INTO public.orcamentos (clinica_id, paciente_id, profissional_id, status, valor_total) VALUES ($1, $2, $3, 'enviado', 700) RETURNING id`, [clinY, pacY, adminY.prof])).id;
+  await db.query(`INSERT INTO public.orcamento_itens (clinica_id, orcamento_id, procedimento, valor_unitario, valor_total) VALUES ($1, $2, 'RLS item Y', 700, 700)`, [clinY, orcY]);
+  const pacX2 = (await um(`INSERT INTO public.pacientes (nome, telefone, clinica_id) VALUES ('RLS Paciente X2', '11999990002', $1) RETURNING id`, [clinX])).id;
+
+  check(G17, 'membro comum cria orçamento para paciente da própria clínica',
+    (await linhas(comumX, `INSERT INTO public.orcamentos (clinica_id, paciente_id) VALUES ($1, $2)`, [clinX, pacX])) === 1);
+  // adminX é convidado aceito da clínica Y desde os testes de convite (G7): quem testa o isolamento é comumX.
+  check(G17, 'ninguém lê orçamento de outra clínica',
+    (await como(comumX, () => rows(`SELECT id FROM public.orcamentos WHERE id = $1`, [orcY]))).length === 0);
+  check(G17, 'ninguém lê itens de orçamento de outra clínica',
+    (await como(comumX, () => rows(`SELECT id FROM public.orcamento_itens WHERE orcamento_id = $1`, [orcY]))).length === 0);
+  check(G17, 'ninguém cria orçamento em clínica alheia',
+    await barrado(comumX, `INSERT INTO public.orcamentos (clinica_id, paciente_id) VALUES ($1, $2)`, [clinY, pacY]));
+  check(G17, 'orçamento não aceita paciente de outra clínica',
+    await barrado(adminX, `INSERT INTO public.orcamentos (clinica_id, paciente_id) VALUES ($1, $2)`, [clinX, pacY]));
+  check(G17, 'orçamento não aceita profissional nem comercial de outra clínica',
+    await barrado(adminX, `INSERT INTO public.orcamentos (clinica_id, paciente_id, profissional_id) VALUES ($1, $2, $3)`, [clinX, pacX, adminY.prof])
+    && await barrado(adminX, `INSERT INTO public.orcamentos (clinica_id, paciente_id, comercial_id) VALUES ($1, $2, $3)`, [clinX, pacX, adminY.prof]));
+  check(G17, 'item não aponta para orçamento de outra clínica',
+    await barrado(adminX, `INSERT INTO public.orcamento_itens (clinica_id, orcamento_id, procedimento) VALUES ($1, $2, 'x')`, [clinX, orcY]));
+  check(G17, 'contato fica no paciente do próprio orçamento',
+    await barrado(adminX, `INSERT INTO public.orcamento_contatos (clinica_id, paciente_id, orcamento_id, resumo) VALUES ($1, $2, $3, 'x')`, [clinX, pacX2, orcX]));
+  check(G17, 'quem é de outra clínica não registra contato aqui',
+    await barrado(adminY, `INSERT INTO public.orcamento_contatos (clinica_id, paciente_id, resumo) VALUES ($1, $2, 'x')`, [clinX, pacX]));
+  check(G17, 'tratamento não aponta para orçamento de outro paciente',
+    await barrado(adminX, `INSERT INTO public.paciente_tratamentos (paciente_id, clinica_id, procedimento, orcamento_id) VALUES ($1, $2, 'x', $3)`, [pacX2, clinX, orcX]));
+  check(G17, 'débito não aponta para orçamento de outro paciente',
+    await barrado(adminX, `INSERT INTO public.paciente_debitos (paciente_id, clinica_id, descricao, valor, status, orcamento_id) VALUES ($1, $2, 'x', 1, 'pendente', $3)`, [pacX2, clinX, orcX]));
+  check(G17, 'o desktop reenvia o orçamento inteiro sem mudar nada',
+    (await linhas(adminX, `UPDATE public.orcamentos SET paciente_id = paciente_id, profissional_id = profissional_id, status = status WHERE id = $1`, [orcX])) === 1);
+  check(G17, 'outra clínica não muda o status do orçamento',
+    await barrado(adminY, `UPDATE public.orcamentos SET status = 'aprovado' WHERE id = $1`, [orcX]));
+  await db.query('SAVEPOINT modulo');
+  let moduloInvalido = false;
+  try {
+    await db.query(`INSERT INTO public.permissoes_modulos (profissional_id, clinica_id, modulo, pode_acessar) VALUES ($1, $2, 'modulo_inventado', true)`, [comumX.prof, clinX]);
+  } catch {
+    moduloInvalido = true;
+  }
+  await db.query('ROLLBACK TO SAVEPOINT modulo');
+  await db.query('SAVEPOINT modulo');
+  let modulosNovos = false;
+  try {
+    const r = await db.query(
+      `INSERT INTO public.permissoes_modulos (profissional_id, clinica_id, modulo, pode_acessar) VALUES ($1, $2, 'orcamentos', true), ($1, $2, 'conversas', true)
+       ON CONFLICT (profissional_id, clinica_id, modulo) DO UPDATE SET pode_acessar = true`, [comumX.prof, clinX]);
+    modulosNovos = r.rowCount === 2;
+  } catch {
+    modulosNovos = false;
+  }
+  await db.query('ROLLBACK TO SAVEPOINT modulo');
+  check(G17, 'permissão aceita os módulos orcamentos e conversas e recusa nome inventado', moduloInvalido && modulosNovos);
+
 } catch (e) {
   check('Suíte', 'a suíte rodou até o fim', false, e.message);
 } finally {

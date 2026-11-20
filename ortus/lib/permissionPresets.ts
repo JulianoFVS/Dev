@@ -1,8 +1,17 @@
 import type { ModuleName } from '@/lib/types/permissions';
 import { buildModuleAccessMap, MODULES } from '@/lib/modules';
 
-export type PermissionPresetId = 'recepcionista' | 'dentista' | 'financeiro' | 'gestor' | 'completo' | 'restrito';
+export type PermissionPresetId =
+  | 'recepcionista'
+  | 'comercial'
+  | 'dentista'
+  | 'financeiro'
+  | 'gestor'
+  | 'completo'
+  | 'restrito';
 
+// Os mesmos conjuntos valem no aceite de convite, no banco
+// (equipe_responder_convite, migration 20261129_orcamentos).
 export const PERMISSION_PRESETS: {
   id: PermissionPresetId;
   label: string;
@@ -13,25 +22,31 @@ export const PERMISSION_PRESETS: {
     id: 'recepcionista',
     label: 'Recepcionista',
     description: 'Agenda, pacientes e tarefas do dia.',
-    modulos: ['agenda', 'ficha_paciente'],
+    modulos: ['agenda', 'ficha_paciente', 'orcamentos'],
+  },
+  {
+    id: 'comercial',
+    label: 'Comercial',
+    description: 'Orçamentos, funil e contato com pacientes.',
+    modulos: ['agenda', 'ficha_paciente', 'orcamentos'],
   },
   {
     id: 'dentista',
     label: 'Dentista',
     description: 'Atendimento clínico, prontuário e próteses.',
-    modulos: ['agenda', 'ficha_paciente', 'controle_protese'],
+    modulos: ['agenda', 'ficha_paciente', 'controle_protese', 'orcamentos'],
   },
   {
     id: 'financeiro',
     label: 'Financeiro',
     description: 'Fluxo de caixa e relatórios.',
-    modulos: ['financeiro', 'inteligencia', 'ficha_paciente'],
+    modulos: ['financeiro', 'inteligencia', 'ficha_paciente', 'orcamentos'],
   },
   {
     id: 'gestor',
     label: 'Gestor',
     description: 'Visão ampla sem configurações sensíveis.',
-    modulos: ['agenda', 'ficha_paciente', 'controle_protese', 'financeiro', 'inteligencia'],
+    modulos: ['agenda', 'ficha_paciente', 'controle_protese', 'financeiro', 'inteligencia', 'orcamentos'],
   },
   {
     id: 'completo',
@@ -61,6 +76,7 @@ export function buildPresetAccessMap(presetId: PermissionPresetId): Record<Modul
 export function presetIdFromCargo(cargo?: string | null): PermissionPresetId {
   const c = (cargo || '').toLowerCase();
   if (c.includes('recep')) return 'recepcionista';
+  if (c.includes('comerc') || c.includes('vend')) return 'comercial';
   if (c.includes('dent') || c.includes('ortod') || c.includes('implant')) return 'dentista';
   if (c.includes('financ') || c.includes('contab')) return 'financeiro';
   if (c.includes('gestor') || c.includes('admin') || c.includes('sócio') || c.includes('socio')) return 'gestor';
@@ -73,6 +89,7 @@ export const ROUTE_MODULE_MAP: { prefix: string; module: ModuleName }[] = [
   { prefix: '/agenda', module: 'agenda' },
   { prefix: '/pacientes', module: 'ficha_paciente' },
   { prefix: '/proteses', module: 'controle_protese' },
+  { prefix: '/orcamentos', module: 'orcamentos' },
   { prefix: '/tarefas', module: 'agenda' },
   { prefix: '/financeiro', module: 'financeiro' },
   { prefix: '/relatorios', module: 'inteligencia' },

@@ -10,6 +10,7 @@ export const MODULES: { id: ModuleName; label: string; description: string }[] =
   { id: 'inteligencia', label: 'Inteligência', description: 'Painel analítico e indicadores' },
   { id: 'loja', label: 'Loja / Marketplace', description: 'Aquisições e marketplace Ortus' },
   { id: 'marketing', label: 'Marketing', description: 'Campanhas e jornadas automatizadas' },
+  { id: 'orcamentos', label: 'Orçamentos', description: 'Orçamentos, funil comercial e oportunidades' },
 ];
 
 export function buildModuleAccessMap(defaultValue = false): Record<ModuleName, boolean> {

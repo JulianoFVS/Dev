@@ -206,7 +206,7 @@ const TODOS_OS_TOPICOS: TopicoGuia[] = [
           texto('Toque na consulta para abrir **Editar agendamento**.'),
           lista(
             'Mude data, hora, procedimento ou valor e salve.',
-            'Troque o status para agendado, concluído ou cancelado. A consulta cancelada continua na agenda, riscada.',
+            'Troque o status para agendado, concluído, faltou ou cancelado. A consulta cancelada continua na agenda, riscada. Quem faltou ou cancelou e não remarcou aparece nas **Oportunidades** de Orçamentos.',
             '**Excluir** apaga a consulta. O Ortus pede confirmação.',
           ),
           texto('O status **Fiado** marca o atendimento feito com pagamento em aberto. Ele é resolvido na aba Débitos do prontuário ou no Financeiro.'),
@@ -492,6 +492,62 @@ const TODOS_OS_TOPICOS: TopicoGuia[] = [
       },
     ],
     relacionados: ['visao'],
+  },
+  {
+    id: 'orcamentos',
+    grupo: 'Atendimento',
+    titulo: 'Orçamentos e funil comercial',
+    resumo: 'Orçamento de cada paciente, o funil dos que não foram para a frente e as oportunidades para chamar o paciente de volta.',
+    onde: 'Menu **Orçamentos**, e a seção **Orçamentos** na aba de tratamentos da ficha do paciente.',
+    palavras: 'orçamento proposta plano de tratamento funil comercial vendas venda aprovar recusar ligar retorno oportunidade avaliação',
+    secoes: [
+      {
+        titulo: 'Criar um orçamento',
+        blocos: [
+          passos(
+            'Toque em **Novo orçamento** (no menu Orçamentos ou na ficha do paciente).',
+            'Escolha o **Paciente**, o **Profissional** e, se houver, a pessoa do **Comercial**.',
+            'Inclua os procedimentos. O preço vem do catálogo de **Tratamentos** (ou da tabela do convênio do paciente) e pode ser ajustado.',
+            'Confira o **Desconto** e a data em **Válido até** (30 dias por padrão) e toque em **Salvar**.',
+          ),
+          texto('O orçamento nasce como **Rascunho**. Abra-o para **Imprimir** (ou salvar em PDF), **Marcar como enviado** quando mandar ao paciente, ou **Apresentado** quando ele ficou parado depois de apresentado (fica **Em aberto**).'),
+        ],
+      },
+      {
+        titulo: 'Aprovar ou recusar',
+        blocos: [
+          lista(
+            '**Aprovar** cria um tratamento planejado para cada procedimento, na ficha do paciente, e lança o valor final como **a receber** (aparece no Financeiro, em aberto).',
+            '**Recusado** pede o motivo e guarda o histórico. O orçamento recusado pode ser **Reaberto**.',
+            'Quando a validade passa sem aprovação nem recusa, o orçamento fica **Expirado** e sai do funil.',
+          ),
+          aviso('Orçamento aprovado não pode ser editado nem excluído: ele já virou tratamento.'),
+        ],
+      },
+      {
+        titulo: 'Funil e contato com o paciente',
+        blocos: [
+          texto('A aba **Funil** mostra os orçamentos em andamento em três colunas (Rascunho, Enviado, Em aberto), com telefone, valor, há quantos dias está parado e quando ligar de novo. **Só ligar hoje** filtra os que têm contato marcado para hoje ou antes.'),
+          passos(
+            'No cartão, toque no telefone para **Ligar** ou no balão para mandar **WhatsApp** com a mensagem pronta.',
+            'Depois da conversa, registre em **Registrar contato**: como foi, o que foi conversado e quando ligar de novo.',
+          ),
+        ],
+      },
+      {
+        titulo: 'Oportunidades',
+        blocos: [
+          texto('A aba **Oportunidades** junta quem vale a pena chamar de volta:'),
+          lista(
+            '**Avaliação sem orçamento**: consulta ou avaliação atendida nos últimos 60 dias sem orçamento depois dela. O que conta como avaliação é marcado em **Tratamentos** (os nomes com "avaliação" ou "consulta" já vêm marcados).',
+            '**Faltou e não remarcou** e **Cancelou e não remarcou**: o último agendamento do paciente nos últimos 90 dias foi falta ou cancelamento, e não há nada marcado à frente.',
+            '**Orçamento parado**: enviado ou em aberto, sem contato há 7 dias ou com a data de ligar de novo vencida.',
+          ),
+          texto('Dali dá para criar o orçamento ou registrar o contato. Registrar um contato tira o paciente da lista até a data combinada para ligar de novo.'),
+        ],
+      },
+    ],
+    relacionados: ['agenda', 'financeiro'],
   },
   {
     id: 'whatsapp',

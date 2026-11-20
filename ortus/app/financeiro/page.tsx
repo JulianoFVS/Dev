@@ -53,6 +53,8 @@ const ORIGEM_LABEL: Record<string, string> = {
   protese: 'Prótese',
   comissao: 'Comissão',
   taxa: 'Taxa',
+  debito: 'Débito do paciente',
+  orcamento: 'Orçamento aprovado',
 };
 
 const RESUMO_VAZIO = { entrada: 0, saida: 0, saldo: 0, andamento: 0, aReceber: 0, aPagar: 0 };
@@ -269,15 +271,33 @@ export default function Financeiro() {
 
         // A meta (taxa, forma, cancelamento) vem na mesma carga, como em Relatórios: carregada à parte,
         // a lista era montada antes de ela chegar (ou com a da clínica anterior) e saía pelo bruto.
+        // Débitos do paciente sem consulta ligada (o "a receber" do orçamento aprovado, do tratamento
+        // e do débito manual). Os ligados a uma consulta já aparecem pelo "fiado" dela.
+        // Em aberto: pela data em que nasceram. Pagos: pela data do pagamento (entrou no caixa).
+        let qDebAbertos = tabelas.from('paciente_debitos')
+            .select('id, clinica_id, paciente_id, descricao, valor, status, created_at, data_pagamento, forma_pagamento, orcamento_id, agendamento_id, pacientes(nome)')
+            .eq('status', 'pendente').is('agendamento_id', null)
+            .gte('created_at', inicioDoDia(inicio)).lt('created_at', inicioDoDia(fim, 1));
+        qDebAbertos = filtrarClinica ? qDebAbertos.eq('clinica_id', clinicaId) : qDebAbertos.in('clinica_id', idsClinica);
+        let qDebPagos = tabelas.from('paciente_debitos')
+            .select('id, clinica_id, paciente_id, descricao, valor, status, created_at, data_pagamento, forma_pagamento, orcamento_id, agendamento_id, pacientes(nome)')
+            .eq('status', 'pago').is('agendamento_id', null)
+            .gte('data_pagamento', inicioDoDia(inicio)).lt('data_pagamento', inicioDoDia(fim, 1));
+        qDebPagos = filtrarClinica ? qDebPagos.eq('clinica_id', clinicaId) : qDebPagos.in('clinica_id', idsClinica);
+
         const cidMeta = filtrarClinica ? String(clinicaId) : '0';
-        const [resAg, resMan, metaLida] = await Promise.all([
+        const [resAg, resMan, metaLida, resDebAbertos, resDebPagos] = await Promise.all([
             qAg,
             qMan,
             carregarConfig<Record<string, any>>(cidMeta, 'lancamentos_meta', 'ortus_lancamentos_meta', {}).catch(() => ({})),
+            qDebAbertos,
+            qDebPagos,
         ]);
         if (gen !== geracaoCarga.current) return;
         if (resAg.error) throw resAg.error;
         if (resMan.error) throw resMan.error;
+        if (resDebAbertos.error) throw resDebAbertos.error;
+        if (resDebPagos.error) throw resDebPagos.error;
         const agendamentos = resAg.data;
         const manuais = resMan.data;
         const metaAtual: Record<string, any> = metaLida && typeof metaLida === 'object' && !Array.isArray(metaLida) ? metaLida : {};
@@ -338,7 +358,31 @@ export default function Financeiro() {
             };
         });
 
-        const todas = [...listaAg, ...listaMan].sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());
+        const listaDeb = [...(resDebAbertos.data || []), ...(resDebPagos.data || [])].map((d: any) => {
+            const pago = d.status === 'pago';
+            const valor = parseFloat(String(d.valor ?? 0)) || 0;
+            const pacNome = Array.isArray(d.pacientes) ? d.pacientes[0]?.nome : d.pacientes?.nome;
+            return {
+                id: 'deb_' + d.id, refId: d.id, origem: 'debito',
+                clinicaId: d.clinica_id != null ? String(d.clinica_id) : '',
+                origemTipo: d.orcamento_id ? 'orcamento' : 'debito',
+                tipo: 'entrada',
+                descricao: `${pacNome || 'Paciente'} - ${d.descricao || 'Débito'}`,
+                paciente: pacNome || '',
+                pacienteId: d.paciente_id ? String(d.paciente_id) : '',
+                profissional: '',
+                valor,
+                valorBruto: valor,
+                taxaNome: '',
+                forma: d.forma_pagamento || 'Não informada',
+                temTaxa: false,
+                data: pago ? d.data_pagamento : d.created_at,
+                categoria: pago ? 'Débito recebido' : 'Fiado / A Receber',
+                status: pago ? 'concluido' : 'andamento',
+            };
+        });
+
+        const todas = [...listaAg, ...listaMan, ...listaDeb].sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());
         setTransacoes(todas);
 
         const totalEntrada = todas.filter(t => t.tipo === 'entrada' && t.status === 'concluido').reduce((s, c) => s + (c.valor || 0), 0);
@@ -691,6 +735,33 @@ export default function Financeiro() {
       if (!t || recebendo || !activeClinicId || activeClinicId === 'all') return;
       const cid = String(activeClinicId);
       setRecebendo(true);
+      if (t.origem === 'debito') {
+          try {
+              // Débito do paciente: marca como pago com a forma escolhida. Relido antes, como a consulta.
+              const { data: atual, error } = await tabelas.from('paciente_debitos')
+                  .select('id, status').eq('id', t.refId).eq('clinica_id', cid).maybeSingle();
+              if (error) throw error;
+              if (!atual || atual.status !== 'pendente') {
+                  setModalReceber(null);
+                  carregarDados();
+                  await showAlert('Este débito já foi recebido ou não está mais em aberto. A lista foi atualizada.', { type: 'warning' });
+                  return;
+              }
+              const forma = taxasMaquininha.find((tx: any) => String(tx.id) === String(taxaReceber))?.nome || null;
+              const { error: erroPago } = await tabelas.from('paciente_debitos')
+                  .update({ status: 'pago', data_pagamento: new Date().toISOString(), forma_pagamento: forma })
+                  .eq('id', t.refId).eq('status', 'pendente');
+              if (erroPago) throw erroPago;
+              setModalReceber(null);
+              avisar('Recebimento registrado.');
+              carregarDados();
+          } catch (erro) {
+              await showAlert(fraseDaFalha(erro, 'Não foi possível registrar o recebimento. Tente de novo.'), { type: 'error' });
+          } finally {
+              setRecebendo(false);
+          }
+          return;
+      }
       try {
           // Relê a consulta: se já foi recebida (pela ficha, por outra pessoa), receber de novo lançaria a comissão duas vezes.
           const { data: atual, error } = await tabelas.from('agendamentos')
@@ -1221,7 +1292,7 @@ export default function Financeiro() {
                                       {abaStatus === 'andamento' && t.origem === 'manual' && (
                                           <button type="button" onClick={() => concluirAndamento(t)} className="rounded-md p-2 text-emerald-700 hover:bg-emerald-50" title="Marcar como concluído"><CheckCircle size={14}/></button>
                                       )}
-                                      {abaStatus === 'andamento' && t.origem === 'agendamento' && (
+                                      {abaStatus === 'andamento' && (t.origem === 'agendamento' || t.origem === 'debito') && (
                                           <button type="button" onClick={() => receberFiado(t)} className="rounded-md p-2 text-emerald-700 hover:bg-emerald-50" title="Registrar recebimento"><CheckCircle size={14}/></button>
                                       )}
                                       {abaStatus === 'cancelados' ? (

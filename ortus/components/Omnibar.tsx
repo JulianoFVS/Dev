@@ -15,6 +15,7 @@ import {
   CalendarPlus,
   AlertCircle,
   Clock,
+  FileText,
   X,
 } from 'lucide-react';
 import ModalNovoAgendamento from '@/components/agenda/ModalNovoAgendamento';
@@ -153,6 +154,15 @@ export default function Omnibar({ moduleAccess, isAdmin }: OmnibarProps) {
         action: () => openQuickCapture(null),
         category: 'navegacao',
         module: 'ficha_paciente',
+      },
+      {
+        id: 'atalho_orcamentos',
+        label: 'Orçamentos e funil',
+        sublabel: 'Quem ligar hoje e oportunidades',
+        icon: <FileText size={18} strokeWidth={1.75} />,
+        action: () => router.push('/orcamentos'),
+        category: 'navegacao',
+        module: 'orcamentos',
       },
       {
         id: 'atalho_debito',
