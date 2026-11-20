@@ -1090,6 +1090,33 @@ try {
     statusY === 'bloqueada' && escreveSuporte === 1 && escreveEquipe?.codigo === 'PT402',
     JSON.stringify({ statusY, escreveSuporte, equipe: escreveEquipe?.codigo || escreveEquipe?.rowCount }));
 
+  // ==================================================================
+  // 20. Chamada na TV (20261202_chamadas)
+  // ==================================================================
+  const G20 = 'Chamada na TV';
+  const hashTv = 'a'.repeat(64);
+  check(G20, 'só o administrador cria e vê os links da TV',
+    await barrado(comumX, `INSERT INTO public.chamadas_tv (clinica_id, nome, token_hash) VALUES ($1, 'tv', $2)`, [clinX, hashTv])
+    && (await linhas(adminX, `INSERT INTO public.chamadas_tv (clinica_id, nome, token_hash) VALUES ($1, 'tv', $2)`, [clinX, hashTv])) === 1);
+  const tvX = (await um(`INSERT INTO public.chamadas_tv (clinica_id, nome, token_hash) VALUES ($1, 'tv x', $2) RETURNING id`, [clinX, 'b'.repeat(64)])).id;
+  check(G20, 'membro comum não lê os links da TV',
+    (await como(comumX, () => rows(`SELECT id FROM public.chamadas_tv WHERE id = $1`, [tvX]))).length === 0);
+  const curto = await como(comumX, () => rows(
+    `INSERT INTO public.chamadas (clinica_id, paciente_id, nome_exibicao, local) VALUES ($1, $2, 'NOME FORJADO', 'Sala 1') RETURNING nome_exibicao`, [clinX, pacX]));
+  check(G20, 'quem trabalha na clínica chama, e o nome curto é o do banco', !curto.erro && curto[0]?.nome_exibicao === 'Rls X.', JSON.stringify(curto));
+  check(G20, 'outra clínica não chama na TV daqui',
+    await barrado(comumY, `INSERT INTO public.chamadas (clinica_id, senha, local) VALUES ($1, 5, 'x')`, [clinX]));
+  check(G20, 'não chama paciente de outra clínica',
+    await barrado(comumX, `INSERT INTO public.chamadas (clinica_id, paciente_id) VALUES ($1, $2)`, [clinX, pacY]));
+  check(G20, 'ninguém altera nem apaga chamada',
+    await barrado(adminX, `UPDATE public.chamadas SET local = 'x' WHERE clinica_id = $1`, [clinX])
+    && await barrado(adminX, `DELETE FROM public.chamadas WHERE clinica_id = $1`, [clinX]));
+  check(G20, 'outra clínica não gera senha aqui',
+    Boolean((await como(comumY, () => db.query(`SELECT public.chamada_proxima_senha($1)`, [clinX]))).erro));
+  await db.query(`UPDATE public.chamadas_tv SET ativo = false WHERE id = $1`, [tvX]);
+  const volta = await como(adminX, () => rows(`UPDATE public.chamadas_tv SET ativo = true WHERE id = $1 RETURNING ativo, revogado_em`, [tvX]));
+  check(G20, 'link revogado não volta a valer', !volta.erro && volta[0]?.ativo === false && volta[0]?.revogado_em, JSON.stringify(volta));
+
 } catch (e) {
   check('Suíte', 'a suíte rodou até o fim', false, e.message);
 } finally {

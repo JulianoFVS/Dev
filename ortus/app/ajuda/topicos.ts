@@ -550,6 +550,40 @@ const TODOS_OS_TOPICOS: TopicoGuia[] = [
     relacionados: ['agenda', 'financeiro'],
   },
   {
+    id: 'chamada-tv',
+    grupo: 'Atendimento',
+    titulo: 'Chamada na TV',
+    resumo: 'A TV da sala de espera mostra (e fala) quem foi chamado e em qual consultório, pelo nome curto ou por senha.',
+    onde: '**Configurações → Chamada na TV** (administrador), o botão **Chamar** na agenda e na Visão geral, e o botão **Senha** na agenda.',
+    palavras: 'tv televisão painel chamada senha sala de espera recepção chamar paciente consultório guichê',
+    secoes: [
+      {
+        titulo: 'Preparar a TV',
+        blocos: [
+          passos(
+            'Em **Configurações → Chamada na TV**, escolha o que a TV mostra: **Nome curto** (primeiro nome e inicial do sobrenome, como "Maria S.") ou **Só a senha**.',
+            'Liste os **Locais de atendimento** (consultórios, salas, guichês) e toque em **Salvar**.',
+            'Em **TVs**, dê um nome e toque em **Criar link**. Copie o link: ele só aparece nessa hora.',
+            'Abra o link no navegador da TV e toque uma vez em **Toque para ativar o som**.',
+          ),
+          aviso('Quem tiver o link vê as chamadas. Se ele vazar ou a TV for trocada, toque em **Revogar** e crie outro. O nome completo do paciente nunca aparece na TV.'),
+        ],
+      },
+      {
+        titulo: 'Chamar',
+        blocos: [
+          lista(
+            'Na agenda, abra o agendamento de hoje e toque em **Chamar**. Na **Visão geral**, o cartão do atendimento também tem **Chamar**.',
+            'Para quem chegou sem consulta, toque em **Senha** no topo da agenda: o Ortus gera a próxima senha do dia e chama.',
+            'Com mais de um local cadastrado, o Ortus pergunta onde. A TV destaca a chamada, toca um aviso e, se a voz estiver ligada, fala o nome (ou a senha) e o local.',
+          ),
+          texto('A chamada precisa de internet, inclusive no aplicativo de computador. As senhas recomeçam todo dia.'),
+        ],
+      },
+    ],
+    relacionados: ['agenda'],
+  },
+  {
     id: 'conversas',
     grupo: 'Comunicação',
     titulo: 'Conversas da equipe',

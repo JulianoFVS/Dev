@@ -1570,6 +1570,12 @@ listados. Reler os pontos citados quando o código estabilizar.
   e-mail de aviso aos donos NÃO leva o texto, só a clínica e o link. A
   presença guarda só quem da Ortus estava com o painel aberto e quando. Sem
   prazo de guarda; apagado com a clínica.
+- `chamadas` e `chamadas_senhas` — chamada na TV da sala de espera: nome
+  curto do paciente (primeiro nome e inicial, montado pelo banco) ou só a
+  senha, o local e a hora. A TV (sem login, pelo link) recebe só isso, das
+  últimas 12 horas. Sem prazo de guarda ainda: a mudar (limpeza diária).
+- `chamadas_tv` — links das TVs: só o hash do token, o nome da TV e quem
+  criou. Só o administrador da clínica vê. Revogado não volta.
 - `falhas_servidor` — erro do servidor com o texto passado por
   `limparTexto` (troca JWT, chave, e-mail, CPF, CNPJ, telefone, UUID e URL de
   banco por marcadores). Limpa sozinha depois de 30 dias (vigia da operação).

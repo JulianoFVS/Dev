@@ -24,6 +24,7 @@ import {
   Search,
   Settings,
 } from 'lucide-react';
+import { BotaoChamar } from '@/components/chamadas/BotaoChamar';
 import { useInboxCounts } from '@/hooks/useInboxCounts';
 import { useFotoPaciente } from '@/hooks/useFotoPaciente';
 import PillMeter from '@/components/bento/PillMeter';
@@ -66,6 +67,7 @@ function DicaBotao({ texto, children }: { texto: string; children: ReactNode }) 
 
 type AgendaItem = {
   id: string;
+  clinica_id?: number | string | null;
   data_hora: string;
   procedimento?: string | null;
   status?: string | null;
@@ -263,7 +265,7 @@ function FotoPaciente({ pacienteId, nome, url, claro = false, grande = false }: 
   );
 }
 
-const SELECT_AGENDA = 'id, data_hora, procedimento, status, valor_final, observacoes, profissional_id, pacientes(id, nome, telefone, data_nascimento, foto_url, planos(nome, tipo))';
+const SELECT_AGENDA = 'id, clinica_id, data_hora, procedimento, status, valor_final, observacoes, profissional_id, pacientes(id, nome, telefone, data_nascimento, foto_url, planos(nome, tipo))';
 
 function moeda(valor: number) {
   return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -985,11 +987,25 @@ export default function Dashboard() {
                   <FileText size={15} />
                   Ficha
                 </button>
+                <BotaoChamar
+                  clinicaId={emAtendimento.clinica_id ? Number(emAtendimento.clinica_id) : null}
+                  agendamentoId={Number(emAtendimento.id)}
+                  className="inline-flex h-11 items-center gap-1.5 rounded-full border border-neutral-200 px-5 text-sm font-medium text-neutral-900 disabled:opacity-60 lg:h-9 lg:border-white/25 lg:px-4 lg:text-white"
+                />
               </>
             ) : (
-              <Link href="/agenda" className="inline-flex h-11 items-center rounded-full bg-neutral-900 px-5 text-sm font-medium text-white lg:h-9 lg:bg-white lg:px-4 lg:text-neutral-900">
-                Ver agenda
-              </Link>
+              <>
+                <Link href="/agenda" className="inline-flex h-11 items-center rounded-full bg-neutral-900 px-5 text-sm font-medium text-white lg:h-9 lg:bg-white lg:px-4 lg:text-neutral-900">
+                  Ver agenda
+                </Link>
+                {proximoAgendamento && (
+                  <BotaoChamar
+                    clinicaId={proximoAgendamento.clinica_id ? Number(proximoAgendamento.clinica_id) : null}
+                    agendamentoId={Number(proximoAgendamento.id)}
+                    className="inline-flex h-11 items-center gap-1.5 rounded-full border border-neutral-200 px-5 text-sm font-medium text-neutral-900 disabled:opacity-60 lg:h-9 lg:border-white/25 lg:px-4 lg:text-white"
+                  />
+                )}
+              </>
             )}
           </div>
         </section>

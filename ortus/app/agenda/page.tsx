@@ -18,6 +18,8 @@ import {
 } from '@/lib/local/cliente';
 
 import { Plus, X, Loader2, UserPlus, Trash2, Bell, ChevronDown, ChevronLeft, ChevronRight, Search, Calendar, LayoutGrid, Clock, List, Users, SlidersHorizontal } from 'lucide-react';
+import { BotaoChamar, BotaoSenha } from '@/components/chamadas/BotaoChamar';
+import { hojeNoFuso } from '@/lib/fuso';
 import Aviso from '@/components/ui/Aviso';
 import CustomSelect from '@/components/ui/CustomSelect';
 import CampoData from '@/components/ui/CampoData';
@@ -1267,6 +1269,7 @@ export default function Agenda() {
               <SlidersHorizontal size={16} />
               {temFiltroAtivo && <span aria-hidden className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-red-500" />}
             </button>
+            {clinicaFiltro !== 'todas' && <BotaoSenha clinicaId={Number(clinicaFiltro)} />}
             <button
               type="button"
               onClick={abrirNovoNoDiaVisto}
@@ -1789,6 +1792,12 @@ export default function Agenda() {
                               <p className="flex h-10 items-center text-sm font-medium text-neutral-900">R$ {(parseFloat(formData.valor || '0') - parseFloat(formData.desconto || '0')).toFixed(2)}</p>
                           </label>
                       </div>
+                      {formData.id && formData.date === hojeNoFuso() && formData.clinica_id && (
+                        <div className="flex items-center gap-2">
+                          <BotaoChamar clinicaId={Number(formData.clinica_id)} agendamentoId={Number(formData.id)} compacto />
+                          <span className="text-xs text-neutral-500">Chama o paciente na TV da sala de espera.</span>
+                        </div>
+                      )}
                       {formData.id && (
                         <div className="flex flex-wrap gap-1.5">
                           {(['agendado', 'concluido', 'faltou', 'cancelado'] as const).map((st) => (
