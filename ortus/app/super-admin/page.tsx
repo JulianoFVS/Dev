@@ -16,6 +16,9 @@ import ModalNovoCliente from '@/components/saas/ModalNovoCliente';
 import { SkeletonBloco } from '@/components/saas/Feedback';
 import PainelAssinaturas from '@/components/saas/PainelAssinaturas';
 import FilaRelatos from '@/components/saas/FilaRelatos';
+import SuporteConversas from '@/components/saas/SuporteConversas';
+import PainelIntegracoes from '@/components/saas/PainelIntegracoes';
+import { listarConversasSuporte, naoLidaPelaOrtus } from '@/lib/conversas';
 import PainelOperacao from '@/components/saas/PainelOperacao';
 import {
   mensagemDeErro,
@@ -30,12 +33,14 @@ import {
 
 type StatusAcesso = 'verificando' | 'autorizado' | 'negado' | 'erro';
 
-type AbaPainel = 'redes' | 'assinaturas' | 'relatos' | 'operacao';
+type AbaPainel = 'redes' | 'assinaturas' | 'suporte' | 'relatos' | 'operacao' | 'integracoes';
 const ABAS_PAINEL: { id: AbaPainel; label: string }[] = [
   { id: 'redes', label: 'Redes' },
   { id: 'assinaturas', label: 'Assinaturas' },
+  { id: 'suporte', label: 'Suporte' },
   { id: 'relatos', label: 'Relatos' },
   { id: 'operacao', label: 'Operação' },
+  { id: 'integracoes', label: 'Integrações' },
 ];
 
 function compararRedes(a: RedeSaaS, b: RedeSaaS, ordenacao: OrdenacaoSaaS): number {
@@ -90,8 +95,22 @@ export default function SuperAdminPage() {
   const parametros = useSearchParams();
   const abaInicial = parametros.get('aba');
   const [abaPainel, setAbaPainel] = useState<AbaPainel>(
-    abaInicial === 'relatos' || abaInicial === 'assinaturas' || abaInicial === 'operacao' ? abaInicial : 'redes',
+    abaInicial === 'relatos' || abaInicial === 'assinaturas' || abaInicial === 'operacao' || abaInicial === 'suporte' || abaInicial === 'integracoes' ? abaInicial : 'redes',
   );
+  // Conversas de suporte com mensagem da clínica ainda não lida pela Ortus (o número da aba).
+  const [suporteNovas, setSuporteNovas] = useState(0);
+  useEffect(() => {
+    let vivo = true;
+    const contar = () => {
+      if (document.visibilityState !== 'visible') return;
+      void listarConversasSuporte()
+        .then((lista) => { if (vivo) setSuporteNovas(lista.filter(naoLidaPelaOrtus).length); })
+        .catch(() => undefined);
+    };
+    contar();
+    const timer = window.setInterval(contar, 30_000);
+    return () => { vivo = false; window.clearInterval(timer); };
+  }, []);
   const [carregandoVisao, setCarregandoVisao] = useState(true);
   const [erroVisao, setErroVisao] = useState<string | null>(null);
   const requisicaoVisao = useRef(0);
@@ -452,7 +471,9 @@ export default function SuperAdminPage() {
             const contagem =
               item.id === 'assinaturas'
                 ? (assinaturas?.totais.pagamentos_revisar ?? 0) + (assinaturas?.totais.compras_com_erro ?? 0) + (assinaturas?.totais.avisos_com_erro ?? 0)
-                : 0;
+                : item.id === 'suporte'
+                  ? suporteNovas
+                  : 0;
             return (
               <button
                 key={item.id}
@@ -517,6 +538,14 @@ export default function SuperAdminPage() {
       )}
 
       {abaPainel === 'operacao' && <PainelOperacao />}
+
+      {abaPainel === 'integracoes' && <PainelIntegracoes />}
+
+      {abaPainel === 'suporte' && (
+        <div className="flex min-h-0 flex-1 flex-col">
+          <SuporteConversas conversaInicial={parametros.get('conversa')} />
+        </div>
+      )}
 
       {abaPainel === 'relatos' && (
         <div className="flex min-h-0 flex-1 flex-col lg:min-h-0">

@@ -66,7 +66,7 @@ function AvatarEquipe({ nome, foto, tamanho = 'h-9 w-9' }: { nome: string; foto?
 }
 
 const CARGOS = [
-    'Dentista', 'Auxiliar', 'Recepcionista', 'Protético', 'Gestor', 'Outro',
+    'Dentista', 'Auxiliar', 'Recepcionista', 'Comercial', 'Protético', 'Gestor', 'Outro',
 ];
 
 type HorarioAtendimentoLocal = HorarioAtendimento;

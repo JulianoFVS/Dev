@@ -231,3 +231,17 @@ export function emailAlertaOperacao(d: { voltou: boolean; itens: string[]; orige
     nota: 'Você recebe este aviso uma vez quando algo para e outra quando volta.',
   });
 }
+
+/**
+ * Aviso aos donos: a clínica escreveu no chat de suporte e ninguém da Ortus
+ * estava olhando. Sem o texto da mensagem (pode ter dado de paciente):
+ * só a clínica e o link da conversa.
+ */
+export function emailSuporteMensagem(d: { clinica: string; url: string }): EmailPronto {
+  return montar(`[Ortus] Nova mensagem no suporte: ${d.clinica.slice(0, 80)}`, {
+    titulo: `${d.clinica} escreveu no suporte`,
+    paragrafos: ['Uma clínica mandou mensagem no chat de suporte e ninguém da equipe estava com o painel aberto.'],
+    botao: d.url ? { rotulo: 'Abrir a conversa', url: d.url } : null,
+    nota: 'O texto da mensagem fica só no painel. Novas mensagens da mesma clínica geram no máximo um aviso a cada 15 minutos.',
+  });
+}

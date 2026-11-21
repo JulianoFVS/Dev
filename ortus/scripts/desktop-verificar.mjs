@@ -38,6 +38,7 @@ export const NOMES_PROIBIDOS = [
   'SUPABASE_DB_PASSWORD',
   'DATABASE_URL',
   'CRON_SECRET',
+  'ORTUS_CHAVE_CIFRA',
   'RESEND_API_KEY',
   'WHATSAPP_GATEWAY_SECRET',
   // Assinatura do instalador: usadas pelo electron-builder, nunca empacotadas.
