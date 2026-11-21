@@ -1,0 +1,22 @@
+# Ortus (demonstração): as três rotinas do agendador, como na Vercel
+# (vercel.json), pelo mesmo script do kit da Oracle. O "-" deixa uma rotina
+# rodar mesmo se a anterior falhar.
+[Unit]
+Description=Ortus demo - rotinas (assinaturas, lembretes, vigia)
+After=ortus-demo-web.service
+Wants=ortus-demo-web.service
+
+[Service]
+Type=oneshot
+User=ortusdemo
+Group=ortusdemo
+Environment=ORTUS_ENV_FILE=/etc/ortus-demo/web.env
+Environment=ROTINA_REPETICOES=3
+ExecStart=-/bin/bash /opt/ortus-demo/ortus/deploy/oracle/chamar-rotina.sh assinaturas /api/assinaturas/processar
+ExecStart=-/bin/bash /opt/ortus-demo/ortus/deploy/oracle/chamar-rotina.sh lembretes /api/lembretes/processar?enviar=true
+ExecStart=-/bin/bash /opt/ortus-demo/ortus/deploy/oracle/chamar-rotina.sh vigia /api/saude/vigia
+SyslogIdentifier=ortus-demo-rotinas
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes

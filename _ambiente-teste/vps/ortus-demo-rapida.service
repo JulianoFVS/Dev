@@ -1,0 +1,19 @@
+# Ortus (demonstração): rotina rápida a cada 2 minutos — fila do Google
+# Agenda (falso, neste ambiente), compromissos do Google e aviso do suporte.
+[Unit]
+Description=Ortus demo - rotina rapida (Google Agenda e aviso do suporte)
+After=ortus-demo-web.service
+Wants=ortus-demo-web.service
+
+[Service]
+Type=oneshot
+User=ortusdemo
+Group=ortusdemo
+Environment=ORTUS_ENV_FILE=/etc/ortus-demo/web.env
+Environment=ROTINA_REPETICOES=1
+ExecStart=-/bin/bash /opt/ortus-demo/ortus/deploy/oracle/chamar-rotina.sh rapida /api/rotinas/rapida
+SyslogIdentifier=ortus-demo-rapida
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes

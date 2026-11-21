@@ -1,0 +1,163 @@
+# Ortus (demonstração) — /etc/nginx/sites-available/ortus-demo
+#   ortus.trinityforce.duckdns.org       site (Next, 127.0.0.1:3460)
+#   api.ortus.trinityforce.duckdns.org   serviços falsos (127.0.0.1:3461)
+#   tldr.ortus.trinityforce.duckdns.org  página das alterações (estática)
+# Escrito só com a porta 80: o certbot --nginx acrescenta o HTTPS e o
+# redirecionamento. Sem default_server e sem http2: nada aqui muda os outros sites.
+
+upstream ortusdemo_next {
+    server 127.0.0.1:3460;
+    keepalive 8;
+}
+
+upstream ortusdemo_api {
+    server 127.0.0.1:3461;
+    keepalive 8;
+}
+
+server {
+    listen 80;
+    server_name ortus.trinityforce.duckdns.org;
+    server_tokens off;
+    access_log /var/log/nginx/ortus-demo.access.log ortusdemo_sem_query;
+    error_log  /var/log/nginx/ortus-demo.error.log warn;
+    client_max_body_size 5m;
+    add_header X-Robots-Tag "noindex, nofollow" always;
+
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/www/html;
+    }
+
+    # O Node lê "\" como "/": sem isto, "/api\local/db" escaparia dos bloqueios abaixo.
+    location ~ \x5c {
+        return 400;
+    }
+
+    # Rotas do aplicativo desktop: no site não existem (como em deploy/oracle/nginx-ortus.conf).
+    location = /api/local/status {
+        default_type application/json;
+        add_header Cache-Control "no-store" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-Robots-Tag "noindex, nofollow" always;
+        return 200 '{"desktop":false}';
+    }
+    location = /api/local {
+        return 404;
+    }
+    location ^~ /api/local/ {
+        return 404;
+    }
+
+    location / {
+        limit_req zone=ortusdemo burst=200 nodelay;
+        limit_req_status 429;
+        proxy_pass http://ortusdemo_next;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_buffer_size 16k;
+        proxy_buffers 8 16k;
+        proxy_busy_buffers_size 32k;
+        proxy_connect_timeout 5s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 75s;
+    }
+}
+
+server {
+    listen 80;
+    server_name api.ortus.trinityforce.duckdns.org;
+    server_tokens off;
+    access_log /var/log/nginx/ortus-demo-api.access.log ortusdemo_sem_query;
+    error_log  /var/log/nginx/ortus-demo.error.log warn;
+    client_max_body_size 25m;
+    add_header X-Robots-Tag "noindex, nofollow" always;
+
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/www/html;
+    }
+
+    location ~ \x5c {
+        return 400;
+    }
+
+    # Utilitários e controles de teste nunca chegam pela internet
+    # (o servidor também recusa, com DEMO_PUBLICA=1).
+    location ^~ /_teste {
+        return 404;
+    }
+    location ^~ /provedor/_teste {
+        return 404;
+    }
+    # O site fala com o e-mail e com a API do pagamento direto em 127.0.0.1.
+    location ^~ /resend/ {
+        return 404;
+    }
+    location ^~ /provedor/v1/ {
+        return 404;
+    }
+    location ^~ /provedor/checkout/ {
+        return 404;
+    }
+    # Do Google falso, só a tela de consentimento atende o navegador; o site
+    # troca o código, renova o token e mexe na agenda direto em 127.0.0.1.
+    location ^~ /google/_teste {
+        return 404;
+    }
+    location ^~ /google/token {
+        return 404;
+    }
+    location ^~ /google/revoke {
+        return 404;
+    }
+    location ^~ /google/userinfo {
+        return 404;
+    }
+    location ^~ /google/calendar/ {
+        return 404;
+    }
+
+    location / {
+        limit_req zone=ortusdemo burst=300 nodelay;
+        limit_req_status 429;
+        proxy_pass http://ortusdemo_api;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_connect_timeout 5s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+    }
+}
+
+server {
+    listen 80;
+    server_name tldr.ortus.trinityforce.duckdns.org;
+    server_tokens off;
+    root /var/www/ortus-tldr;
+    index index.html;
+    access_log /var/log/nginx/ortus-demo-tldr.access.log ortusdemo_sem_query;
+    error_log  /var/log/nginx/ortus-demo.error.log warn;
+    add_header X-Robots-Tag "noindex, nofollow" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "no-referrer" always;
+    add_header Cache-Control "no-cache" always;
+    add_header Content-Security-Policy "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'" always;
+
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/www/html;
+    }
+
+    location / {
+        limit_req zone=ortusdemo burst=50 nodelay;
+        limit_req_status 429;
+        try_files $uri $uri/ =404;
+    }
+}

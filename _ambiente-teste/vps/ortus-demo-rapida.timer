@@ -1,0 +1,11 @@
+[Unit]
+Description=Ortus demo - rotina rapida (a cada 2 minutos)
+
+[Timer]
+OnCalendar=*:0/2
+OnBootSec=2min
+AccuracySec=15s
+Unit=ortus-demo-rapida.service
+
+[Install]
+WantedBy=timers.target
