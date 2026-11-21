@@ -26,7 +26,7 @@ const dani = await entrar('dani.dentista@bemestar.test');
 const ana = await entrar('ana.admin@maissorriso.test');
 
 const pb = await bia.c.from('pacientes').select('id, nome, clinica_id, clinicas(nome), planos(nome, tipo)').order('nome');
-ok('bia lista pacientes com junções', !pb.error && pb.data.length === 8 && pb.data[0].clinicas?.nome === 'Mais Sorriso', pb.error?.message || `${pb.data?.length} linhas`);
+ok('bia lista pacientes com junções', !pb.error && pb.data.length === 11 && pb.data[0].clinicas?.nome === 'Mais Sorriso', pb.error?.message || `${pb.data?.length} linhas`);
 const pd = await dani.c.from('pacientes').select('id, clinica_id');
 ok('dani só vê a própria clínica', !pd.error && pd.data.length === 5, `${pd.data?.length} linhas`);
 const alvo = pb.data[0].id;
@@ -40,7 +40,7 @@ ok('visitante sem login não lê pacientes', !!anon.error || anon.data.length ==
 const ag = await ana.c.from('agendamentos').select('id, data_hora, procedimento, pacientes(nome), profissionais(nome)').in('status', ['agendado']).order('data_hora').limit(3);
 ok('ana lista agenda com paciente e profissional', !ag.error && ag.data.length === 3 && !!ag.data[0].pacientes?.nome, ag.error?.message || '');
 const cont = await ana.c.from('pacientes').select('*', { count: 'exact', head: true });
-ok('contagem exata', cont.count === 8, String(cont.count));
+ok('contagem exata', cont.count === 11, String(cont.count)); // 8 do começo + 3 das oportunidades (seed de orçamentos)
 const ins = await ana.c.from('tarefas').insert({ clinica_id: pb.data[0].clinica_id, titulo: 'Teste de fumaça', status: 'a_fazer' }).select('id, titulo').single();
 ok('ana insere tarefa e recebe a linha', !ins.error && ins.data.titulo === 'Teste de fumaça', ins.error?.message || '');
 const upd = await ana.c.from('tarefas').update({ status: 'concluido' }).eq('id', ins.data?.id).select('status').single();
