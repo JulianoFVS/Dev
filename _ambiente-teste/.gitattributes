@@ -1,0 +1,3 @@
+# Rodam no bash e no Linux (systemd, nginx): sempre LF, mesmo num checkout no Windows.
+*.sh text eol=lf
+vps/** text eol=lf
