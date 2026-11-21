@@ -18,7 +18,7 @@ computador do dono; na VPS fica em `/etc/ortus-demo/api.env`).
 
 - usuário de sistema `ortusdemo`; código em `/opt/ortus-demo`
 - `/etc/ortus-demo/api.env` e `web.env` (root:ortusdemo, 0640): segredos gerados lá
-- unidades `ortus-demo-api`, `ortus-demo-web`, `ortus-demo-rotinas` (+ `.timer`) e `ortus-demo-rapida` (+ `.timer`, a cada 2 min: Google Agenda e aviso do suporte)
+- unidades `ortus-demo-api`, `ortus-demo-web`, `ortus-demo-rotinas` (+ `.timer`, diário: assinaturas e lembretes), `ortus-demo-rapida` (+ `.timer`, a cada 2 min: Google Agenda e aviso do suporte) e `ortus-demo-vigia` (+ `.timer`, a cada 15 min, para o `/api/saude` não acusar agendador atrasado)
 - Nginx: `sites-available/ortus-demo` e `conf.d/ortus-demo-limites.conf`
 - certificado `ortus.trinityforce.duckdns.org` (três nomes)
 - `/var/www/ortus-tldr/index.html`; logs `/var/log/nginx/ortus-demo*`
@@ -64,13 +64,13 @@ for e in codigo build servicos rotinas tldr; do bash /tmp/ortus-demo-envio/_ambi
 sudo systemctl restart ortus-demo-api      # zera a demonstração
 sudo journalctl -u ortus-demo-web -n 50    # erros do site
 sudo journalctl -u ortus-demo-api -n 50    # erros dos serviços falsos
-systemctl list-timers ortus-demo-rotinas.timer ortus-demo-rapida.timer
+systemctl list-timers ortus-demo-rotinas.timer ortus-demo-rapida.timer ortus-demo-vigia.timer
 ```
 
 ## Remover tudo
 
 ```bash
-sudo systemctl disable --now ortus-demo-rotinas.timer ortus-demo-rapida.timer ortus-demo-web.service ortus-demo-api.service
+sudo systemctl disable --now ortus-demo-rotinas.timer ortus-demo-rapida.timer ortus-demo-vigia.timer ortus-demo-web.service ortus-demo-api.service
 sudo rm -f /etc/systemd/system/ortus-demo-* && sudo systemctl daemon-reload
 sudo rm -f /etc/nginx/sites-enabled/ortus-demo /etc/nginx/sites-available/ortus-demo /etc/nginx/conf.d/ortus-demo-limites.conf
 sudo nginx -t && sudo systemctl reload nginx

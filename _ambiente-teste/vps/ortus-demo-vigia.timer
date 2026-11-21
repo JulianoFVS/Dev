@@ -1,0 +1,10 @@
+[Unit]
+Description=Ortus demo - vigia a cada 15 minutos (e 3 minutos depois do boot)
+
+[Timer]
+OnCalendar=*:0/15
+OnBootSec=3min
+AccuracySec=30s
+
+[Install]
+WantedBy=timers.target

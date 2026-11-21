@@ -140,23 +140,26 @@ fi
 
 if quer servicos; then
   passo "serviços"
-  for u in ortus-demo-api.service ortus-demo-web.service ortus-demo-rotinas.service ortus-demo-rotinas.timer ortus-demo-rapida.service ortus-demo-rapida.timer; do
+  for u in ortus-demo-api.service ortus-demo-web.service ortus-demo-rotinas.service ortus-demo-rotinas.timer ortus-demo-rapida.service ortus-demo-rapida.timer ortus-demo-vigia.service ortus-demo-vigia.timer; do
     sudo install -o root -g root -m 0644 "$VPS/$u" "/etc/systemd/system/$u"
   done
   sudo systemctl daemon-reload
-  sudo systemctl enable ortus-demo-api.service ortus-demo-web.service ortus-demo-rotinas.timer ortus-demo-rapida.timer > /dev/null 2>&1
+  sudo systemctl enable ortus-demo-api.service ortus-demo-web.service ortus-demo-rotinas.timer ortus-demo-rapida.timer ortus-demo-vigia.timer > /dev/null 2>&1
   sudo systemctl restart ortus-demo-api.service
   for _ in $(seq 1 180); do curl -s -o /dev/null http://127.0.0.1:3461/caixa && break; sleep 1; done
   sudo systemctl restart ortus-demo-web.service
   for _ in $(seq 1 90); do curl -s -o /dev/null http://127.0.0.1:3460/login && break; sleep 1; done
-  sudo systemctl restart ortus-demo-rotinas.timer ortus-demo-rapida.timer
-  systemctl is-active ortus-demo-api.service ortus-demo-web.service ortus-demo-rotinas.timer ortus-demo-rapida.timer
+  sudo systemctl restart ortus-demo-rotinas.timer ortus-demo-rapida.timer ortus-demo-vigia.timer
+  systemctl is-active ortus-demo-api.service ortus-demo-web.service ortus-demo-rotinas.timer ortus-demo-rapida.timer ortus-demo-vigia.timer
 fi
 
 if quer rotinas; then
-  passo "rotinas (uma vez agora; depois todo dia às 09:00 UTC)"
+  passo "rotinas (uma vez agora; depois diárias às 09:00 UTC, rápida a cada 2 min e vigia a cada 15 min)"
   sudo systemctl start ortus-demo-rotinas.service
-  sudo journalctl -u ortus-demo-rotinas.service -n 6 --no-pager -o cat | grep -E "^rotina=" || true
+  # A rápida e o vigia também já, nessa ordem: o banco da demo acabou de nascer
+  # e o vigia confere o batimento das outras.
+  sudo systemctl start ortus-demo-rapida.service ortus-demo-vigia.service
+  sudo journalctl -u ortus-demo-rotinas.service -u ortus-demo-rapida.service -u ortus-demo-vigia.service -n 12 --no-pager -o cat | grep -E "^rotina=" || true
 fi
 
 if quer tldr; then

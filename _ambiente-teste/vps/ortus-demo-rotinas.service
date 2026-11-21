@@ -1,8 +1,8 @@
-# Ortus (demonstração): as três rotinas do agendador, como na Vercel
-# (vercel.json), pelo mesmo script do kit da Oracle. O "-" deixa uma rotina
-# rodar mesmo se a anterior falhar.
+# Ortus (demonstração): as rotinas diárias, pelo mesmo script do kit da
+# Oracle. O "-" deixa uma rotina rodar mesmo se a anterior falhar. O vigia tem
+# timer próprio (ortus-demo-vigia, a cada 15 minutos) e a rotina rápida também.
 [Unit]
-Description=Ortus demo - rotinas (assinaturas, lembretes, vigia)
+Description=Ortus demo - rotinas diarias (assinaturas, lembretes)
 After=ortus-demo-web.service
 Wants=ortus-demo-web.service
 
@@ -14,7 +14,6 @@ Environment=ORTUS_ENV_FILE=/etc/ortus-demo/web.env
 Environment=ROTINA_REPETICOES=3
 ExecStart=-/bin/bash /opt/ortus-demo/ortus/deploy/oracle/chamar-rotina.sh assinaturas /api/assinaturas/processar
 ExecStart=-/bin/bash /opt/ortus-demo/ortus/deploy/oracle/chamar-rotina.sh lembretes /api/lembretes/processar?enviar=true
-ExecStart=-/bin/bash /opt/ortus-demo/ortus/deploy/oracle/chamar-rotina.sh vigia /api/saude/vigia
 SyslogIdentifier=ortus-demo-rotinas
 NoNewPrivileges=yes
 ProtectSystem=strict

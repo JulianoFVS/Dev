@@ -1,0 +1,22 @@
+# Ortus (demonstração): vigia da operação, como o ortus-vigia da VM. Fora da
+# Vercel o /api/saude espera notícia do vigia dentro de 1 hora; rodando só uma
+# vez por dia ele aparecia como "agendador atrasado" quase o dia inteiro.
+# Disparado por ortus-demo-vigia.timer.
+[Unit]
+Description=Ortus demo - vigia da operacao (GET /api/saude/vigia)
+After=ortus-demo-web.service
+Wants=ortus-demo-web.service
+
+[Service]
+Type=oneshot
+User=ortusdemo
+Group=ortusdemo
+Environment=ORTUS_ENV_FILE=/etc/ortus-demo/web.env
+Environment=ROTINA_REPETICOES=1
+Environment=ROTINA_TEMPO_MAX=60
+ExecStart=-/bin/bash /opt/ortus-demo/ortus/deploy/oracle/chamar-rotina.sh vigia /api/saude/vigia
+SyslogIdentifier=ortus-demo-vigia
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
