@@ -7,7 +7,9 @@ export type ModuleName =
   | 'financeiro'
   | 'inteligencia'
   | 'loja'
-  | 'marketing';
+  | 'marketing'
+  | 'orcamentos'
+  | 'conversas';
 
 export type CommissionTrigger =
   | 'tratamento_finalizado'

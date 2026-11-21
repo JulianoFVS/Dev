@@ -819,6 +819,7 @@ no 16.1.
 | WhatsApp / Meta | número e nome dos contatos, todo o conteúdo das conversas, mídias | Meta, fora do Brasil | `services/whatsapp/server.mjs`, com `whatsapp-web.js` (automação do WhatsApp Web, não é a API oficial); links `wa.me` (`lib/comunicacao.ts:165`; `app/dashboard/page.tsx:203`) | a conta é da clínica; o Ortus não tem contrato com a Meta — avaliar com advogado |
 | Provedor de pagamento (Mercado Pago) | dados de quem paga a assinatura | conferir | **ainda não existe no código**: só o nome `PAGAMENTO` (`lib/servicosExternos.ts:11`) e rotas já liberadas no `proxy.ts`; os Termos citam "Stripe" (`app/termos/page.tsx:97`); o `/checkout` atual é simulação (18.5) | a definir |
 | E-mails de conta do Supabase Auth | e-mail do usuário, links de confirmação e de senha | conforme o servidor de e-mail configurado no painel | configuração de painel | conferir |
+| Google Agenda (opcional, por profissional) | por consulta do profissional que ligou a própria agenda: primeiro nome do paciente, tipo da consulta, data, hora e duração. Do Google vêm só início e fim dos compromissos dele | Google, fora do Brasil | `lib/googleAgenda.ts` (`montarEvento`); `components/google/SecaoGoogleAgenda.tsx` | a conta Google é do profissional, que autoriza no consentimento; citar na Política e na lista de suboperadores |
 | Google Fonts | IP e navegador de quem **imprime** um documento | Google | fontes do sistema: **servidas pelo próprio site** — `next/font/google` baixa na compilação (`app/layout.tsx:3`; os arquivos aparecem em `.next/dev/static/media/*.woff2`). Impressão: `@import` direto do Google (`lib/printDocument.ts:18`) | — |
 | YouTube (domínio "nocookie") | IP e navegador do profissional que abre um tutorial | Google | `app/ajuda/tutoriais/page.tsx:80` | — |
 | ViaCEP | CEP digitado (de paciente ou de clínica) e IP de quem digita | Brasil | `app/pacientes/[id]/page.tsx:2702`; `components/PatientActionModal.tsx:347`; `app/configuracoes/page.tsx:552`; `components/saas/ModalClinica.tsx:97`; `components/saas/ModalNovoCliente.tsx:148` | — |
@@ -1549,6 +1550,48 @@ listados. Reler os pontos citados quando o código estabilizar.
   pelo autor e pelos donos da plataforma; o e-mail de aviso aos donos leva o
   texto inteiro. Sem prazo de guarda nem limpeza; a exclusão fica na trilha
   sem o texto.
+- `orcamentos` e `orcamento_itens` — orçamento do paciente: procedimentos,
+  dentes, valores, validade, status, motivo da recusa (texto livre) e quem
+  é o profissional e o comercial. Dado de saúde (o procedimento diz o que o
+  paciente vai tratar). Lido por quem trabalha na clínica; vai junto na
+  sincronização do desktop. Apagado com o paciente.
+- `orcamento_contatos` — o que o comercial conversou com o paciente (texto
+  livre, pode conter dado de saúde), canal, data do próximo contato e quem
+  registrou. Mesma regra de acesso e de exclusão do orçamento.
+- `metas_vendas` — meta de vendas do mês da clínica e de cada profissional
+  (só valores). Lida por quem trabalha na clínica; só o administrador grava.
+- `conversa_canais`, `conversa_mensagens` e `conversa_leituras` — chat da
+  equipe da clínica: texto livre (pode conter dado de paciente), autor e hora.
+  Só quem trabalha na clínica lê; os donos da plataforma NÃO leem (regra
+  `user_e_membro_da_clinica`). Cada um apaga só a própria mensagem. Sem prazo
+  de guarda; apagado com a clínica. Não vai para o desktop.
+- `suporte_conversas`, `suporte_mensagens` e `suporte_presenca` — conversa da
+  clínica com o suporte da Ortus: texto livre (pode conter dado de paciente) e
+  nome de quem escreveu. Lida pela clínica e pelos donos da plataforma. O
+  e-mail de aviso aos donos NÃO leva o texto, só a clínica e o link. A
+  presença guarda só quem da Ortus estava com o painel aberto e quando. Sem
+  prazo de guarda; apagado com a clínica.
+- `chamadas` e `chamadas_senhas` — chamada na TV da sala de espera: nome
+  curto do paciente (primeiro nome e inicial, montado pelo banco) ou só a
+  senha, o local e a hora. A TV (sem login, pelo link) recebe só isso, das
+  últimas 12 horas. Sem prazo de guarda ainda: a mudar (limpeza diária).
+- `chamadas_tv` — links das TVs: só o hash do token, o nome da TV e quem
+  criou. Só o administrador da clínica vê. Revogado não volta.
+- `plataforma_integracoes` — credenciais da plataforma (Client ID do Google e
+  o segredo cifrado no servidor com `ORTUS_CHAVE_CIFRA`, AES-256-GCM).
+  Nenhum acesso pela API; a tela de Integrações (só os donos) mostra os 4
+  últimos caracteres do segredo.
+- `google_conexoes` — a agenda do Google de cada profissional: e-mail da conta
+  Google, token de renovação cifrado e preferências. Só o servidor lê; o
+  profissional vê o e-mail e o estado (`google_minha_conexao`). "Desligar"
+  revoga o token no Google e apaga a linha.
+- `google_oauth_estados` — hash do "state" do OAuth, por 10 minutos, usado uma
+  vez.
+- `google_fila` e `google_eventos` — fila e estado do envio (ids, estado e o
+  erro técnico). A clínica lê o estado para o aviso da agenda.
+- `google_bloqueios` — horários ocupados lidos da agenda do profissional: só
+  início e fim, sem título, descrição nem participantes. Somem ao desligar a
+  opção ou a conexão.
 - `falhas_servidor` — erro do servidor com o texto passado por
   `limparTexto` (troca JWT, chave, e-mail, CPF, CNPJ, telefone, UUID e URL de
   banco por marcadores). Limpa sozinha depois de 30 dias (vigia da operação).

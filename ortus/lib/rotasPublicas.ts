@@ -7,8 +7,8 @@
 /** Páginas públicas: landing, login, textos legais, a compra do plano, o link de acesso que chega por e-mail e o "Esqueci a senha". */
 const PAGINAS_PUBLICAS = new Set(['/', '/login', '/termos', '/privacidade', '/checkout', '/cadastro', '/acesso', '/recuperar-senha']);
 
-/** Formulário de anamnese que o paciente abre pelo link, sem conta. */
-const PREFIXOS_PAGINA_PUBLICA = ['/anamnese/', '/checkout/'];
+/** Formulário de anamnese que o paciente abre pelo link, sem conta; a tela da TV da sala de espera (vale o token do link). */
+const PREFIXOS_PAGINA_PUBLICA = ['/anamnese/', '/checkout/', '/tv/'];
 
 /** Telas que exigem sessão, mas aparecem sem a casca (sidebar e barra). A senha nova usa a sessão aberta pelo link do e-mail. */
 const TELAS_SEM_CASCA = new Set(['/selecao', '/primeiro-acesso', '/redefinir-senha']);

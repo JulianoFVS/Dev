@@ -17,7 +17,11 @@ import {
   type FiltroLocal,
 } from '@/lib/local/cliente';
 
-import { Plus, X, Loader2, UserPlus, Trash2, Bell, ChevronDown, ChevronLeft, ChevronRight, Search, Calendar, LayoutGrid, Clock, List, Users, SlidersHorizontal } from 'lucide-react';
+import { Plus, X, Loader2, UserPlus, Trash2, Bell, ChevronDown, ChevronLeft, ChevronRight, Search, Calendar, CalendarDays, LayoutGrid, Clock, List, Users, SlidersHorizontal } from 'lucide-react';
+import { BotaoChamar, BotaoSenha } from '@/components/chamadas/BotaoChamar';
+import { hojeNoFuso } from '@/lib/fuso';
+import { AvisoGoogleAgenda, StatusGoogleConsulta } from '@/components/google/AvisoGoogleAgenda';
+import { bloqueiosNoPeriodo } from '@/lib/googleBloqueios';
 import Aviso from '@/components/ui/Aviso';
 import CustomSelect from '@/components/ui/CustomSelect';
 import CampoData from '@/components/ui/CampoData';
@@ -64,6 +68,9 @@ type AgendamentoLocal = {
   duracao_minutos: number | null;
   tipo_registro?: string | null;
 };
+
+/** Horário ocupado no Google Agenda de um profissional (sem título). */
+type OcupadoGoogle = { chave: string; profissional_id: number; inicio: string; fim: string };
 
 type PerfilSessaoLocal = {
   id?: string | number | null;
@@ -113,6 +120,8 @@ const STATUS_OPCOES = [
   { value: 'agendado', label: 'Agendado' },
   { value: 'concluido', label: 'Concluído' },
   { value: 'fiado', label: 'Fiado' },
+  // "Faltou" alimenta o funil de oportunidades (paciente que faltou e não remarcou).
+  { value: 'faltou', label: 'Faltou' },
   { value: 'cancelado', label: 'Cancelado' },
 ];
 
@@ -168,6 +177,7 @@ function corStatus(status?: string) {
   if (status === 'concluido') return 'bg-emerald-500';
   if (status === 'fiado') return 'bg-amber-500';
   if (status === 'cancelado') return 'bg-rose-500';
+  if (status === 'faltou') return 'bg-orange-400';
   return 'bg-neutral-900';
 }
 
@@ -1010,17 +1020,53 @@ export default function Agenda() {
     return mapa;
   }, [eventosVisiveis]);
 
+  // Compromissos marcados direto no Google Agenda dos profissionais (só início e
+  // fim, lidos da nuvem pela rotina do servidor). Aparecem como "ocupado" na
+  // grade; sem internet, não aparecem. Lidos para o mês do cursor.
+  const [ocupadosGoogle, setOcupadosGoogle] = useState<OcupadoGoogle[]>([]);
+  const idsDaEquipe = useMemo(
+    () => profissionais.map((p: any) => Number(p.id)).filter((n: number) => Number.isFinite(n) && n > 0).sort((a: number, b: number) => a - b).join(','),
+    [profissionais],
+  );
+  useEffect(() => {
+    let vivo = true;
+    const carregar = async () => {
+      const ids = idsDaEquipe ? idsDaEquipe.split(',').map(Number) : [];
+      const [ano, mes] = chaveMes.split('-').map(Number);
+      const janela = janelaDoMes(new Date(ano, mes, 1));
+      const lista = await bloqueiosNoPeriodo(ids, new Date(janela.inicio), new Date(janela.fim)).catch(() => []);
+      if (vivo) setOcupadosGoogle(lista.map((b, indice) => ({ ...b, chave: `${b.profissional_id}-${b.inicio}-${indice}` })));
+    };
+    void carregar();
+    const recarregar = () => void carregar();
+    window.addEventListener('ortus:google-atualizado', recarregar);
+    return () => { vivo = false; window.removeEventListener('ortus:google-atualizado', recarregar); };
+  }, [chaveMes, idsDaEquipe]);
+
+  const ocupadosPorDia = useMemo(() => {
+    const mapa = new Map<string, OcupadoGoogle[]>();
+    ocupadosGoogle.forEach((ocupado) => {
+      if (filtroProfissional !== 'todos' && String(ocupado.profissional_id) !== filtroProfissional) return;
+      const chave = chaveLocal(new Date(ocupado.inicio));
+      mapa.set(chave, [...(mapa.get(chave) || []), ocupado]);
+    });
+    return mapa;
+  }, [ocupadosGoogle, filtroProfissional]);
+  const ocupadosNaHora = (dia: Date, hora: number, profissionalId?: string) =>
+    (ocupadosPorDia.get(chaveLocal(dia)) || []).filter((ocupado) =>
+      new Date(ocupado.inicio).getHours() === hora && (profissionalId === undefined || String(ocupado.profissional_id) === profissionalId));
+
   const horasGrade = useMemo(() => {
     let min = 7;
     let max = 20;
-    eventosVisiveis.forEach((evento) => {
-      const hora = new Date(evento.start).getHours();
+    [...eventosVisiveis.map((evento) => evento.start), ...ocupadosGoogle.map((ocupado) => ocupado.inicio)].forEach((inicio) => {
+      const hora = new Date(inicio).getHours();
       if (Number.isNaN(hora)) return;
       if (hora < min) min = hora;
       if (hora > max) max = hora;
     });
     return Array.from({ length: max - min + 1 }, (_, indice) => min + indice);
-  }, [eventosVisiveis]);
+  }, [eventosVisiveis, ocupadosGoogle]);
 
   const planoDoPaciente = useMemo(() => {
     const pac = pacientes.find((p: any) => String(p.id) === String(formData.paciente_id));
@@ -1088,6 +1134,24 @@ export default function Agenda() {
           {props.procedimento ? <span className="text-neutral-500 md:hidden"> · {props.procedimento}</span> : null}
         </span>
       </button>
+    );
+  }
+
+  /** Horário ocupado no Google: só aparece, não abre nada (nem o "novo agendamento" da célula). */
+  function ChipOcupadoGoogle({ ocupado, comNome }: { ocupado: OcupadoGoogle; comNome: boolean }) {
+    const hora = (iso: string) => new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    const nome = comNome ? String(profissionais.find((p: any) => Number(p.id) === ocupado.profissional_id)?.nome || '').trim().split(/\s+/)[0] : '';
+    return (
+      <div
+        onClick={(event) => event.stopPropagation()}
+        title="Compromisso marcado direto no Google Agenda do profissional"
+        className="flex w-full min-w-0 cursor-default items-center gap-1 rounded border border-dashed border-neutral-300 bg-neutral-50 px-1 py-0.5 text-[11px] text-neutral-500 max-md:min-h-10 max-md:gap-2 max-md:px-2 max-md:py-1.5 max-md:text-sm"
+      >
+        <CalendarDays size={11} className="shrink-0" aria-hidden />
+        <span className="truncate max-md:whitespace-normal">
+          {hora(ocupado.inicio)}–{hora(ocupado.fim)} {nome ? `${nome}: ` : ''}ocupado no Google
+        </span>
+      </div>
     );
   }
 
@@ -1264,6 +1328,7 @@ export default function Agenda() {
               <SlidersHorizontal size={16} />
               {temFiltroAtivo && <span aria-hidden className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-red-500" />}
             </button>
+            {clinicaFiltro !== 'todas' && <BotaoSenha clinicaId={Number(clinicaFiltro)} />}
             <button
               type="button"
               onClick={abrirNovoNoDiaVisto}
@@ -1443,6 +1508,8 @@ export default function Agenda() {
           </section>
         )}
 
+        <AvisoGoogleAgenda clinicaIds={escopoClinicas} />
+
         {/* Sem bloquear a tela: só avisa que os agendamentos do período ainda estão chegando. */}
         {carregandoJanela && (
           <span role="status" aria-label="Carregando agendamentos" className="pointer-events-none absolute inset-x-0 -bottom-1.5 h-0.5 animate-pulse rounded-full bg-neutral-400 md:-bottom-2" />
@@ -1539,6 +1606,7 @@ export default function Agenda() {
                             <span className="absolute left-0 right-0 h-0.5 -translate-y-1/2 bg-red-500" />
                           </div>
                         )}
+                        {ocupadosNaHora(dia, hora).map((ocupado) => <ChipOcupadoGoogle key={ocupado.chave} ocupado={ocupado} comNome={filtroProfissional === 'todos'} />)}
                         {lista.map((evento) => <ChipEvento key={evento.id} evento={evento} />)}
                       </div>
                     );
@@ -1588,6 +1656,13 @@ export default function Agenda() {
                     {lista.length === 0
                       ? <p className="border-t border-neutral-100 px-3 py-3 text-sm text-neutral-400">Sem agendamentos.</p>
                       : lista.map((evento) => renderLinhaCelular(evento))}
+                    {profissional.id && (ocupadosPorDia.get(chaveLocal(dia)) || [])
+                      .filter((ocupado) => String(ocupado.profissional_id) === String(profissional.id))
+                      .map((ocupado) => (
+                        <div key={ocupado.chave} className="border-t border-neutral-100 px-3 py-1.5">
+                          <ChipOcupadoGoogle ocupado={ocupado} comNome={false} />
+                        </div>
+                      ))}
                   </section>
                 );
               })}
@@ -1637,6 +1712,7 @@ export default function Agenda() {
                               onClick={() => profissional && abrirNoDia(dia, rotulo, profissional.id ? String(profissional.id) : undefined)}
                               className="relative min-h-12 min-w-[8.5rem] cursor-pointer border-l border-neutral-100 p-0.5 hover:bg-neutral-50"
                             >
+                              {profissional?.id ? ocupadosNaHora(dia, hora, String(profissional.id)).map((ocupado) => <ChipOcupadoGoogle key={ocupado.chave} ocupado={ocupado} comNome={false} />) : null}
                               {lista.map((evento) => <ChipEvento key={evento.id} evento={evento} />)}
                             </div>
                           );
@@ -1786,9 +1862,16 @@ export default function Agenda() {
                               <p className="flex h-10 items-center text-sm font-medium text-neutral-900">R$ {(parseFloat(formData.valor || '0') - parseFloat(formData.desconto || '0')).toFixed(2)}</p>
                           </label>
                       </div>
+                      {formData.id && formData.date === hojeNoFuso() && formData.clinica_id && (
+                        <div className="flex items-center gap-2">
+                          <BotaoChamar clinicaId={Number(formData.clinica_id)} agendamentoId={Number(formData.id)} compacto />
+                          <span className="text-xs text-neutral-500">Chama o paciente na TV da sala de espera.</span>
+                        </div>
+                      )}
+                      {formData.id && <StatusGoogleConsulta agendamentoId={Number(formData.id)} />}
                       {formData.id && (
                         <div className="flex flex-wrap gap-1.5">
-                          {(['agendado', 'concluido', 'cancelado'] as const).map((st) => (
+                          {(['agendado', 'concluido', 'faltou', 'cancelado'] as const).map((st) => (
                             <button
                               key={st}
                               type="button"

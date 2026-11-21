@@ -30,7 +30,7 @@ Marcadores como `<IP_PUBLICO_DA_VM>` são para você preencher.
 | Site (Next, `next start`) | `/opt/ortus` | `127.0.0.1:3500` | `ortus.service` |
 | Gateway do WhatsApp (opcional) | código em `/opt/ortus/services/whatsapp`, dados em `/var/lib/ortus/whatsapp` | `127.0.0.1:3920` | `ortus-whatsapp.service` |
 | Nginx | `/etc/nginx/sites-available/ortus` | `80` e `443`, públicas | `nginx.service` |
-| Rotinas agendadas | `/usr/local/bin/ortus-chamar-rotina` | não escuta | `ortus-lembretes`, `ortus-assinaturas`, `ortus-vigia` (`.timer` + `.service`) |
+| Rotinas agendadas | `/usr/local/bin/ortus-chamar-rotina` | não escuta | `ortus-lembretes`, `ortus-assinaturas`, `ortus-vigia`, `ortus-rapida` (`.timer` + `.service`) |
 | Variáveis e segredos | `/etc/ortus/ortus.env` (root, grupo `ortus`, `0640`) | | |
 | Usuário dos processos | `ortus`, sem shell de login, pasta em `/var/lib/ortus` | | |
 
@@ -518,6 +518,7 @@ variável por linha, sem aspas, sem comentário na mesma linha do valor.
 | `SUPABASE_SERVICE_ROLE_KEY` | só servidor. Ignora a RLS |
 | `DATABASE_URL` | só os scripts de banco usam. Deixe vazia se não for rodar script da VM |
 | `CRON_SECRET` | protege as rotinas agendadas |
+| `ORTUS_CHAVE_CIFRA` | cifra o segredo do Google (tela de Integrações) e os tokens dos profissionais. Gere com `openssl rand -hex 32` e guarde uma cópia fora da VM: sem ela, o Google precisa ser configurado e conectado de novo |
 | `RESEND_API_KEY`, `RESEND_FROM_EMAIL` | e-mail (lembrete, convite, alerta) |
 | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM` | só se usar SMS |
 | `WHATSAPP_GATEWAY_URL=http://127.0.0.1:3920`, `WHATSAPP_GATEWAY_SECRET` | gateway do WhatsApp nesta VM |
@@ -860,6 +861,7 @@ O cron da Vercel vira timer do systemd. Cada timer chama o próprio site em
 | Lembretes de consulta | `GET /api/lembretes/processar?enviar=true` | todo dia 13:00 UTC (10h de Brasília), igual ao `vercel.json` | `ortus-lembretes` |
 | Assinaturas (gera competência, marca atraso, bloqueia e reabre) | `GET /api/assinaturas/processar` | todo dia 09:00 UTC | `ortus-assinaturas` |
 | Vigia (confere rotinas, falhas do servidor, gateway do WhatsApp e Resend; avisa os donos por e-mail — `docs/OPERACAO.md`, seção 3) | `GET /api/saude/vigia` | a cada 15 minutos | `ortus-vigia` |
+| Rápida (fila do Google Agenda, horários ocupados lidos do Google e aviso de mensagem ao suporte) | `GET /api/rotinas/rapida` | a cada 2 minutos | `ortus-rapida` |
 
 `GET /api/saude` é pública, não tem timer e serve ao monitor externo (seção 13).
 
@@ -882,7 +884,7 @@ sudo install -o root -g root -m 0755 /opt/ortus/deploy/oracle/chamar-rotina.sh /
 As unidades:
 
 ```
-sudo install -o root -g root -m 0644 /opt/ortus/deploy/oracle/ortus-lembretes.service /opt/ortus/deploy/oracle/ortus-lembretes.timer /opt/ortus/deploy/oracle/ortus-assinaturas.service /opt/ortus/deploy/oracle/ortus-assinaturas.timer /opt/ortus/deploy/oracle/ortus-vigia.service /opt/ortus/deploy/oracle/ortus-vigia.timer /etc/systemd/system/
+sudo install -o root -g root -m 0644 /opt/ortus/deploy/oracle/ortus-lembretes.service /opt/ortus/deploy/oracle/ortus-lembretes.timer /opt/ortus/deploy/oracle/ortus-assinaturas.service /opt/ortus/deploy/oracle/ortus-assinaturas.timer /opt/ortus/deploy/oracle/ortus-vigia.service /opt/ortus/deploy/oracle/ortus-vigia.timer /opt/ortus/deploy/oracle/ortus-rapida.service /opt/ortus/deploy/oracle/ortus-rapida.timer /etc/systemd/system/
 ```
 
 ```
@@ -959,7 +961,7 @@ Se o site ainda roda na Vercel, **não ligue agora**: ligue na virada
 (seção 14), para não ter dois agendadores.
 
 ```
-sudo systemctl enable --now ortus-lembretes.timer ortus-assinaturas.timer ortus-vigia.timer
+sudo systemctl enable --now ortus-lembretes.timer ortus-assinaturas.timer ortus-vigia.timer ortus-rapida.timer
 ```
 
 Veja a próxima execução de cada um:
@@ -1578,7 +1580,7 @@ sudo journalctl -u ortus-whatsapp.service -n 100 --no-pager
 Rotinas (uma linha por chamada):
 
 ```
-sudo journalctl -u ortus-lembretes.service -u ortus-assinaturas.service -u ortus-vigia.service --since "2 days ago" --no-pager
+sudo journalctl -u ortus-lembretes.service -u ortus-assinaturas.service -u ortus-vigia.service -u ortus-rapida.service --since "2 days ago" --no-pager
 ```
 
 Quando cada timer rodou e quando roda de novo:

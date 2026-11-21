@@ -944,6 +944,252 @@ try {
   check(G16, 'cliente não executa plano_uso_rede direto', Boolean((await como(adminX, () => db.query(`SELECT public.plano_uso_rede($1)`, [redeX.id]))).erro));
 
 
+  // ==================================================================
+  // 17. Orçamentos e funil comercial (20261129_orcamentos)
+  // ==================================================================
+  const G17 = 'Orçamentos';
+  const orcX = (await um(`INSERT INTO public.orcamentos (clinica_id, paciente_id, profissional_id, status, valor_total) VALUES ($1, $2, $3, 'enviado', 500) RETURNING id`, [clinX, pacX, adminX.prof])).id;
+  const orcY = (await um(`INSERT INTO public.orcamentos (clinica_id, paciente_id, profissional_id, status, valor_total) VALUES ($1, $2, $3, 'enviado', 700) RETURNING id`, [clinY, pacY, adminY.prof])).id;
+  await db.query(`INSERT INTO public.orcamento_itens (clinica_id, orcamento_id, procedimento, valor_unitario, valor_total) VALUES ($1, $2, 'RLS item Y', 700, 700)`, [clinY, orcY]);
+  const pacX2 = (await um(`INSERT INTO public.pacientes (nome, telefone, clinica_id) VALUES ('RLS Paciente X2', '11999990002', $1) RETURNING id`, [clinX])).id;
+
+  check(G17, 'membro comum cria orçamento para paciente da própria clínica',
+    (await linhas(comumX, `INSERT INTO public.orcamentos (clinica_id, paciente_id) VALUES ($1, $2)`, [clinX, pacX])) === 1);
+  // adminX é convidado aceito da clínica Y desde os testes de convite (G7): quem testa o isolamento é comumX.
+  check(G17, 'ninguém lê orçamento de outra clínica',
+    (await como(comumX, () => rows(`SELECT id FROM public.orcamentos WHERE id = $1`, [orcY]))).length === 0);
+  check(G17, 'ninguém lê itens de orçamento de outra clínica',
+    (await como(comumX, () => rows(`SELECT id FROM public.orcamento_itens WHERE orcamento_id = $1`, [orcY]))).length === 0);
+  check(G17, 'ninguém cria orçamento em clínica alheia',
+    await barrado(comumX, `INSERT INTO public.orcamentos (clinica_id, paciente_id) VALUES ($1, $2)`, [clinY, pacY]));
+  check(G17, 'orçamento não aceita paciente de outra clínica',
+    await barrado(adminX, `INSERT INTO public.orcamentos (clinica_id, paciente_id) VALUES ($1, $2)`, [clinX, pacY]));
+  check(G17, 'orçamento não aceita profissional nem comercial de outra clínica',
+    await barrado(adminX, `INSERT INTO public.orcamentos (clinica_id, paciente_id, profissional_id) VALUES ($1, $2, $3)`, [clinX, pacX, adminY.prof])
+    && await barrado(adminX, `INSERT INTO public.orcamentos (clinica_id, paciente_id, comercial_id) VALUES ($1, $2, $3)`, [clinX, pacX, adminY.prof]));
+  check(G17, 'item não aponta para orçamento de outra clínica',
+    await barrado(adminX, `INSERT INTO public.orcamento_itens (clinica_id, orcamento_id, procedimento) VALUES ($1, $2, 'x')`, [clinX, orcY]));
+  check(G17, 'contato fica no paciente do próprio orçamento',
+    await barrado(adminX, `INSERT INTO public.orcamento_contatos (clinica_id, paciente_id, orcamento_id, resumo) VALUES ($1, $2, $3, 'x')`, [clinX, pacX2, orcX]));
+  check(G17, 'quem é de outra clínica não registra contato aqui',
+    await barrado(adminY, `INSERT INTO public.orcamento_contatos (clinica_id, paciente_id, resumo) VALUES ($1, $2, 'x')`, [clinX, pacX]));
+  check(G17, 'tratamento não aponta para orçamento de outro paciente',
+    await barrado(adminX, `INSERT INTO public.paciente_tratamentos (paciente_id, clinica_id, procedimento, orcamento_id) VALUES ($1, $2, 'x', $3)`, [pacX2, clinX, orcX]));
+  check(G17, 'débito não aponta para orçamento de outro paciente',
+    await barrado(adminX, `INSERT INTO public.paciente_debitos (paciente_id, clinica_id, descricao, valor, status, orcamento_id) VALUES ($1, $2, 'x', 1, 'pendente', $3)`, [pacX2, clinX, orcX]));
+  check(G17, 'o desktop reenvia o orçamento inteiro sem mudar nada',
+    (await linhas(adminX, `UPDATE public.orcamentos SET paciente_id = paciente_id, profissional_id = profissional_id, status = status WHERE id = $1`, [orcX])) === 1);
+  check(G17, 'outra clínica não muda o status do orçamento',
+    await barrado(adminY, `UPDATE public.orcamentos SET status = 'aprovado' WHERE id = $1`, [orcX]));
+  await db.query('SAVEPOINT modulo');
+  let moduloInvalido = false;
+  try {
+    await db.query(`INSERT INTO public.permissoes_modulos (profissional_id, clinica_id, modulo, pode_acessar) VALUES ($1, $2, 'modulo_inventado', true)`, [comumX.prof, clinX]);
+  } catch {
+    moduloInvalido = true;
+  }
+  await db.query('ROLLBACK TO SAVEPOINT modulo');
+  await db.query('SAVEPOINT modulo');
+  let modulosNovos = false;
+  try {
+    const r = await db.query(
+      `INSERT INTO public.permissoes_modulos (profissional_id, clinica_id, modulo, pode_acessar) VALUES ($1, $2, 'orcamentos', true), ($1, $2, 'conversas', true)
+       ON CONFLICT (profissional_id, clinica_id, modulo) DO UPDATE SET pode_acessar = true`, [comumX.prof, clinX]);
+    modulosNovos = r.rowCount === 2;
+  } catch {
+    modulosNovos = false;
+  }
+  await db.query('ROLLBACK TO SAVEPOINT modulo');
+  check(G17, 'permissão aceita os módulos orcamentos e conversas e recusa nome inventado', moduloInvalido && modulosNovos);
+
+  // ==================================================================
+  // 18. Meta de vendas (20261130_metas_vendas)
+  // ==================================================================
+  const G18 = 'Meta de vendas';
+  const metaY = (await um(`INSERT INTO public.metas_vendas (clinica_id, mes, valor) VALUES ($1, date_trunc('month', current_date)::date, 9000) RETURNING id`, [clinY])).id;
+  check(G18, 'administrador define a meta da própria clínica',
+    (await linhas(adminX, `INSERT INTO public.metas_vendas (clinica_id, mes, valor) VALUES ($1, date_trunc('month', current_date)::date, 5000)`, [clinX])) === 1);
+  check(G18, 'membro comum não define meta',
+    await barrado(comumX, `INSERT INTO public.metas_vendas (clinica_id, mes, valor) VALUES ($1, date_trunc('month', current_date)::date, 5000)`, [clinX]));
+  check(G18, 'membro comum lê a meta da clínica',
+    !(await como(comumX, () => rows(`SELECT id FROM public.metas_vendas WHERE clinica_id = $1`, [clinX]))).erro);
+  check(G18, 'ninguém lê a meta de outra clínica',
+    (await como(comumX, () => rows(`SELECT id FROM public.metas_vendas WHERE id = $1`, [metaY]))).length === 0);
+  check(G18, 'meta não aceita profissional de outra clínica',
+    await barrado(adminX, `INSERT INTO public.metas_vendas (clinica_id, mes, profissional_id, valor) VALUES ($1, date_trunc('month', current_date)::date, $2, 100)`, [clinX, adminY.prof]));
+  check(G18, 'meta só no primeiro dia do mês e uma total por mês',
+    await barrado(adminX, `INSERT INTO public.metas_vendas (clinica_id, mes, valor) VALUES ($1, date_trunc('month', current_date)::date + 3, 100)`, [clinX])
+    && await barrado(adminY, `INSERT INTO public.metas_vendas (clinica_id, mes, valor) VALUES ($1, date_trunc('month', current_date)::date, 100)`, [clinY]));
+
+  // ==================================================================
+  // 19. Conversas da equipe e suporte (20261201_conversas)
+  // ==================================================================
+  const G19 = 'Conversas';
+  const geralX = (await um(`SELECT id FROM public.conversa_canais WHERE clinica_id = $1 AND geral`, [clinX]))?.id;
+  const geralY = (await um(`SELECT id FROM public.conversa_canais WHERE clinica_id = $1 AND geral`, [clinY]))?.id;
+  check(G19, 'toda clínica nasce com o canal Geral', Boolean(geralX && geralY));
+  await db.query(`INSERT INTO public.conversa_mensagens (clinica_id, canal_id, autor_id, texto) VALUES ($1, $2, $3, 'RLS recado X')`, [clinX, geralX, adminX.prof]);
+
+  check(G19, 'quem trabalha na clínica lê o canal Geral',
+    (await como(comumX, () => rows(`SELECT id FROM public.conversa_mensagens WHERE canal_id = $1`, [geralX]))).length === 1);
+  check(G19, 'quem é de outra clínica não lê o chat da equipe',
+    (await como(comumY, () => rows(`SELECT id FROM public.conversa_mensagens WHERE canal_id = $1`, [geralX]))).length === 0);
+  check(G19, 'dono da plataforma NÃO lê o chat da equipe das clínicas',
+    (await como(dono, () => rows(`SELECT id FROM public.conversa_mensagens WHERE clinica_id = $1`, [clinX]))).length === 0
+    && (await como(dono, () => rows(`SELECT id FROM public.conversa_canais WHERE clinica_id = $1`, [clinX]))).length === 0);
+  check(G19, 'dono da plataforma não escreve no chat da equipe',
+    await barrado(dono, `INSERT INTO public.conversa_mensagens (clinica_id, canal_id, texto) VALUES ($1, $2, 'x')`, [clinX, geralX]));
+  const autor = await como(comumX, () => rows(
+    `INSERT INTO public.conversa_mensagens (clinica_id, canal_id, autor_id, texto) VALUES ($1, $2, $3, 'oi') RETURNING autor_id`, [clinX, geralX, adminX.prof]));
+  check(G19, 'o autor da mensagem é sempre quem está logado', !autor.erro && Number(autor[0]?.autor_id) === comumX.prof, JSON.stringify(autor));
+  check(G19, 'membro comum não cria canal; administrador cria',
+    await barrado(comumX, `INSERT INTO public.conversa_canais (clinica_id, nome) VALUES ($1, 'comercial')`, [clinX])
+    && (await linhas(adminX, `INSERT INTO public.conversa_canais (clinica_id, nome) VALUES ($1, 'comercial')`, [clinX])) === 1);
+  check(G19, 'dono da plataforma não cria canal em clínica',
+    await barrado(dono, `INSERT INTO public.conversa_canais (clinica_id, nome) VALUES ($1, 'ortus')`, [clinX]));
+  check(G19, 'ninguém apaga a mensagem de outra pessoa',
+    await barrado(comumX, `DELETE FROM public.conversa_mensagens WHERE canal_id = $1 AND autor_id = $2`, [geralX, adminX.prof]));
+  const leituraCanal = await como(comumX, () => rows(
+    `INSERT INTO public.conversa_leituras (canal_id, profissional_id, clinica_id) VALUES ($1, $2, $3) RETURNING profissional_id`, [geralX, adminX.prof, clinX]));
+  check(G19, 'a leitura gravada é sempre de quem está logado', !leituraCanal.erro && Number(leituraCanal[0]?.profissional_id) === comumX.prof, JSON.stringify(leituraCanal));
+
+  const abriu = await como(comumX, () => rows(`SELECT public.suporte_abrir($1) AS id`, [clinX]), { manter: true });
+  const suporteX = abriu?.[0]?.id;
+  check(G19, 'quem trabalha na clínica abre a conversa com o suporte', Boolean(suporteX), JSON.stringify(abriu));
+  check(G19, 'ninguém abre a conversa de suporte de outra clínica',
+    Boolean((await como(comumY, () => db.query(`SELECT public.suporte_abrir($1)`, [clinX]))).erro));
+  const lado = await como(comumX, () => rows(
+    `INSERT INTO public.suporte_mensagens (conversa_id, clinica_id, lado, texto) VALUES ($1, $2, 'ortus', 'socorro') RETURNING lado`, [suporteX, clinY]), { manter: true });
+  check(G19, 'a clínica não se passa pela Ortus: o lado é definido pelo banco', !lado.erro && lado[0]?.lado === 'clinica', JSON.stringify(lado));
+  check(G19, 'dono da plataforma lê a conversa de suporte',
+    (await como(dono, () => rows(`SELECT id FROM public.suporte_mensagens WHERE conversa_id = $1`, [suporteX]))).length === 1);
+  check(G19, 'outra clínica não lê a conversa de suporte',
+    (await como(comumY, () => rows(`SELECT id FROM public.suporte_mensagens WHERE conversa_id = $1`, [suporteX]))).length === 0);
+  const resposta = await como(dono, () => rows(
+    `INSERT INTO public.suporte_mensagens (conversa_id, lado, texto) VALUES ($1, 'clinica', 'olá, aqui é a Ortus') RETURNING lado`, [suporteX]));
+  check(G19, 'resposta do dono sai como Ortus', !resposta.erro && resposta[0]?.lado === 'ortus', JSON.stringify(resposta));
+  check(G19, 'ninguém altera nem apaga mensagem de suporte',
+    await barrado(comumX, `UPDATE public.suporte_mensagens SET texto = 'x' WHERE conversa_id = $1`, [suporteX])
+    && await barrado(dono, `DELETE FROM public.suporte_mensagens WHERE conversa_id = $1`, [suporteX]));
+  check(G19, 'presença e conversa só mudam pelas funções',
+    await barrado(dono, `INSERT INTO public.suporte_presenca (user_id) VALUES ($1)`, [dono.sub])
+    && await barrado(comumX, `UPDATE public.suporte_conversas SET ortus_leu_ate = now() WHERE id = $1`, [suporteX]));
+  check(G19, 'só a Ortus bate presença no painel de suporte',
+    Boolean((await como(comumX, () => db.query(`SELECT public.suporte_presenca_bater()`))).erro)
+    && !(await como(dono, () => db.query(`SELECT public.suporte_presenca_bater()`))).erro);
+
+  // Rede Y em modo de consulta (rede inativa = suspensa, como no grupo de assinaturas).
+  await db.query('SAVEPOINT suspensa');
+  await db.query(`UPDATE public.redes SET ativa = false WHERE id = $1`, [redeY.id]);
+  const statusY = (await um(`SELECT public.clinica_aceita_escrita($1) AS ok`, [clinY]))?.ok === false ? 'bloqueada' : 'ativa';
+  const suporteY = (await como(comumY, () => rows(`SELECT public.suporte_abrir($1) AS id`, [clinY]), { manter: true }))?.[0]?.id;
+  const escreveSuporte = await linhas(comumY, `INSERT INTO public.suporte_mensagens (conversa_id, lado, texto) VALUES ($1, 'clinica', 'estamos bloqueados')`, [suporteY]);
+  const escreveEquipe = await como(comumY, () => db.query(`INSERT INTO public.conversa_mensagens (clinica_id, canal_id, texto) VALUES ($1, $2, 'x')`, [clinY, geralY]));
+  await db.query('ROLLBACK TO SAVEPOINT suspensa');
+  check(G19, 'clínica em modo de consulta ainda escreve ao suporte, mas não no chat da equipe',
+    statusY === 'bloqueada' && escreveSuporte === 1 && escreveEquipe?.codigo === 'PT402',
+    JSON.stringify({ statusY, escreveSuporte, equipe: escreveEquipe?.codigo || escreveEquipe?.rowCount }));
+
+  // ==================================================================
+  // 20. Chamada na TV (20261202_chamadas)
+  // ==================================================================
+  const G20 = 'Chamada na TV';
+  const hashTv = 'a'.repeat(64);
+  check(G20, 'só o administrador cria e vê os links da TV',
+    await barrado(comumX, `INSERT INTO public.chamadas_tv (clinica_id, nome, token_hash) VALUES ($1, 'tv', $2)`, [clinX, hashTv])
+    && (await linhas(adminX, `INSERT INTO public.chamadas_tv (clinica_id, nome, token_hash) VALUES ($1, 'tv', $2)`, [clinX, hashTv])) === 1);
+  const tvX = (await um(`INSERT INTO public.chamadas_tv (clinica_id, nome, token_hash) VALUES ($1, 'tv x', $2) RETURNING id`, [clinX, 'b'.repeat(64)])).id;
+  check(G20, 'membro comum não lê os links da TV',
+    (await como(comumX, () => rows(`SELECT id FROM public.chamadas_tv WHERE id = $1`, [tvX]))).length === 0);
+  const curto = await como(comumX, () => rows(
+    `INSERT INTO public.chamadas (clinica_id, paciente_id, nome_exibicao, local) VALUES ($1, $2, 'NOME FORJADO', 'Sala 1') RETURNING nome_exibicao`, [clinX, pacX]));
+  check(G20, 'quem trabalha na clínica chama, e o nome curto é o do banco', !curto.erro && curto[0]?.nome_exibicao === 'Rls X.', JSON.stringify(curto));
+  check(G20, 'outra clínica não chama na TV daqui',
+    await barrado(comumY, `INSERT INTO public.chamadas (clinica_id, senha, local) VALUES ($1, 5, 'x')`, [clinX]));
+  check(G20, 'não chama paciente de outra clínica',
+    await barrado(comumX, `INSERT INTO public.chamadas (clinica_id, paciente_id) VALUES ($1, $2)`, [clinX, pacY]));
+  check(G20, 'ninguém altera nem apaga chamada',
+    await barrado(adminX, `UPDATE public.chamadas SET local = 'x' WHERE clinica_id = $1`, [clinX])
+    && await barrado(adminX, `DELETE FROM public.chamadas WHERE clinica_id = $1`, [clinX]));
+  check(G20, 'outra clínica não gera senha aqui',
+    Boolean((await como(comumY, () => db.query(`SELECT public.chamada_proxima_senha($1)`, [clinX]))).erro));
+  await db.query(`UPDATE public.chamadas_tv SET ativo = false WHERE id = $1`, [tvX]);
+  const volta = await como(adminX, () => rows(`UPDATE public.chamadas_tv SET ativo = true WHERE id = $1 RETURNING ativo, revogado_em`, [tvX]));
+  check(G20, 'link revogado não volta a valer', !volta.erro && volta[0]?.ativo === false && volta[0]?.revogado_em, JSON.stringify(volta));
+
+
+  // ==================================================================
+  // 21. Google Agenda (20261203_google_agenda)
+  // ==================================================================
+  const G21 = 'Google Agenda';
+  // comumX liga o Google (só trabalha na clínica X); adminX não liga.
+  await db.query(`INSERT INTO public.plataforma_integracoes (chave, ativo, config, segredo_cifrado) VALUES ('rls_teste', true, '{}'::jsonb, 'v1:segredo') ON CONFLICT (chave) DO NOTHING`);
+  await db.query(`INSERT INTO public.google_conexoes (profissional_id, refresh_token_cifrado, email_google) VALUES ($1, 'v1:token-cifrado', 'comum-x@google.test')`, [comumX.prof]);
+  check(G21, 'ninguém lê as credenciais da plataforma pela API, nem o dono',
+    Boolean((await como(dono, () => rows(`SELECT segredo_cifrado FROM public.plataforma_integracoes`))).erro)
+    && Boolean((await como(adminX, () => rows(`SELECT chave FROM public.plataforma_integracoes`))).erro));
+  check(G21, 'nem o próprio profissional lê o token guardado da conexão',
+    Boolean((await como(comumX, () => rows(`SELECT refresh_token_cifrado FROM public.google_conexoes`))).erro));
+  check(G21, 'conexão, estado do OAuth e fila não se escrevem pela API',
+    await barrado(comumX, `INSERT INTO public.google_conexoes (profissional_id, refresh_token_cifrado) VALUES ($1, 'x')`, [adminX.prof])
+    && await barrado(comumX, `UPDATE public.google_conexoes SET ativo = false WHERE profissional_id = $1`, [comumX.prof])
+    && await barrado(comumX, `INSERT INTO public.google_oauth_estados (estado_hash, profissional_id, usuario_id) VALUES ($1, $2, $3)`, ['c'.repeat(64), comumX.prof, comumX.sub])
+    && await barrado(adminX, `INSERT INTO public.google_fila (agendamento_id, clinica_id) VALUES ($1, $2)`, [agX, clinX])
+    && await barrado(dono, `DELETE FROM public.google_fila`));
+  const minha = await como(comumX, () => rows(`SELECT * FROM public.google_minha_conexao()`));
+  check(G21, 'o profissional vê a própria conexão, sem o token',
+    !minha.erro && minha.length === 1 && minha[0].email_google === 'comum-x@google.test' && !('refresh_token_cifrado' in minha[0]), JSON.stringify(minha));
+  const alheia = await como(adminX, () => rows(`SELECT * FROM public.google_minha_conexao()`));
+  check(G21, 'quem não ligou não vê a conexão de outro', !alheia.erro && alheia.length === 0, JSON.stringify(alheia));
+  check(G21, 'visitante sem login não chega a nada do Google',
+    Boolean((await (async () => {
+      await db.query('SAVEPOINT anon');
+      try { await db.query('SET LOCAL ROLE anon'); await db.query('SELECT 1 FROM public.google_eventos LIMIT 1'); return {}; }
+      catch (e) { return { erro: e.message }; }
+      finally { await db.query('ROLLBACK TO SAVEPOINT anon'); await limparClaims(); }
+    })()).erro));
+
+  // Gatilho: só a consulta do profissional conectado, e só o que importa ao Google, entra na fila.
+  const naFila = async (id) => Number((await um(`SELECT count(*)::int AS n FROM public.google_fila WHERE agendamento_id = $1`, [id])).n);
+  const agG = Number((await um(
+    `INSERT INTO public.agendamentos (paciente_id, clinica_id, profissional_id, data_hora, procedimento, status)
+     VALUES ($1, $2, $3, now() + interval '3 days', 'RLS Google', 'agendado') RETURNING id`, [pacX, clinX, comumX.prof])).id);
+  const aoCriar = await naFila(agG);
+  await db.query(`UPDATE public.agendamentos SET observacoes = 'só uma nota' WHERE id = $1`, [agG]);
+  const soNota = await naFila(agG);
+  await db.query(`UPDATE public.agendamentos SET data_hora = data_hora + interval '1 hour' WHERE id = $1`, [agG]);
+  const novaHora = await naFila(agG);
+  await db.query(`UPDATE public.agendamentos SET status = 'cancelado' WHERE id = $1`, [agG]);
+  const aoCancelar = await naFila(agG);
+  check(G21, 'a fila recebe a consulta nova, a mudança de horário e o cancelamento, e ignora a nota',
+    aoCriar === 1 && soNota === 1 && novaHora === 2 && aoCancelar === 3, JSON.stringify({ aoCriar, soNota, novaHora, aoCancelar }));
+  const agSem = Number((await um(
+    `INSERT INTO public.agendamentos (paciente_id, clinica_id, profissional_id, data_hora, procedimento, status)
+     VALUES ($1, $2, $3, now() + interval '3 days', 'RLS sem Google', 'agendado') RETURNING id`, [pacX, clinX, adminX.prof])).id);
+  await db.query(`UPDATE public.agendamentos SET data_hora = data_hora + interval '1 hour' WHERE id = $1`, [agSem]);
+  check(G21, 'consulta de quem não ligou o Google não entra na fila', (await naFila(agSem)) === 0);
+
+  // Estado do envio e horários ocupados.
+  await db.query(`INSERT INTO public.google_eventos (agendamento_id, profissional_id, clinica_id, estado, ultimo_erro) VALUES ($1, $2, $3, 'falha', 'Google fora do ar')`, [agG, comumX.prof, clinX]);
+  const veFalha = await como(adminX, () => rows(`SELECT estado FROM public.google_eventos WHERE agendamento_id = $1`, [agG]));
+  const outraVe = await como(comumY, () => rows(`SELECT estado FROM public.google_eventos WHERE agendamento_id = $1`, [agG]));
+  check(G21, 'a clínica vê que a consulta não foi ao Google; outra clínica não',
+    !veFalha.erro && veFalha[0]?.estado === 'falha' && !outraVe.erro && outraVe.length === 0, JSON.stringify({ veFalha, outraVe }));
+  check(G21, 'ninguém muda o estado do envio pela API',
+    await barrado(adminX, `UPDATE public.google_eventos SET estado = 'enviado' WHERE agendamento_id = $1`, [agG])
+    && await barrado(adminX, `DELETE FROM public.google_eventos WHERE agendamento_id = $1`, [agG]));
+  check(G21, '"tentar de novo" só na clínica da consulta e só para o que falhou',
+    Boolean((await como(comumY, () => rows(`SELECT public.google_tentar_de_novo($1) AS r`, [agG]))).erro)
+    && (await como(adminX, () => rows(`SELECT public.google_tentar_de_novo($1) AS r`, [agG])))[0]?.r === true
+    && (await como(adminX, () => rows(`SELECT public.google_tentar_de_novo($1) AS r`, [agSem])))[0]?.r === false);
+  await db.query(
+    `INSERT INTO public.google_bloqueios (profissional_id, google_event_id, inicio, fim) VALUES ($1, 'externo-rls', now() + interval '4 days', now() + interval '4 days 1 hour')`, [comumX.prof]);
+  const bloqX = await como(adminX, () => rows(`SELECT inicio FROM public.google_bloqueios WHERE profissional_id = $1`, [comumX.prof]));
+  const bloqY = await como(comumY, () => rows(`SELECT inicio FROM public.google_bloqueios WHERE profissional_id = $1`, [comumX.prof]));
+  check(G21, 'o horário ocupado no Google aparece na clínica do profissional; em outra, não',
+    !bloqX.erro && bloqX.length === 1 && !bloqY.erro && bloqY.length === 0, JSON.stringify({ bloqX, bloqY }));
+  check(G21, 'ninguém cria horário ocupado pela API',
+    await barrado(comumX, `INSERT INTO public.google_bloqueios (profissional_id, google_event_id, inicio, fim) VALUES ($1, 'forjado', now(), now() + interval '1 hour')`, [adminX.prof]));
 } catch (e) {
   check('Suíte', 'a suíte rodou até o fim', false, e.message);
 } finally {

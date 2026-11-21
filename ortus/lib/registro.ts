@@ -18,6 +18,9 @@ import { createSupabaseAdmin } from '@/lib/supabaseAdmin';
 const TROCAS: Array<[RegExp, string]> = [
   // JWT e chaves longas vêm antes: contêm pontos e dígitos que os outros padrões pegariam em pedaços.
   [/\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/g, '[token]'],
+  // Tokens do Google (acesso ya29.… e refresh 1//…).
+  [/\bya29\.[A-Za-z0-9_.-]{10,}/g, '[token]'],
+  [/(?:^|[^A-Za-z0-9])1\/\/[A-Za-z0-9_-]{10,}/g, ' [token]'],
   [/\b(?:re|sk|pk|rk|whsec|APP_USR|TEST)[-_][A-Za-z0-9_-]{12,}\b/g, '[chave]'],
   [/\b(?:Bearer|Basic)\s+[A-Za-z0-9._~+/=-]{8,}/gi, '[credencial]'],
   [/([?&](?:token|access_token|refresh_token|apikey|key|secret|signature|sig|senha|password)=)[^&\s"']+/gi, '$1[oculto]'],

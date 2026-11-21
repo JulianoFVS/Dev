@@ -17,6 +17,10 @@ const PUBLIC_PREFIXES = [
   // `Authorization: Bearer $CRON_SECRET` e falha fechada (401) sem a variável.
   '/api/lembretes/processar',
   '/api/assinaturas/processar',
+  '/api/rotinas/rapida',
+  // Volta do consentimento do Google Agenda: quem vale é o "state" de uso
+  // único conferido na rota (no desktop o navegador do sistema não tem sessão).
+  '/api/google/retorno',
   // Saúde do servidor para o monitor externo. Não devolve dado de clínica.
   '/api/saude',
   // Webhook do provedor de pagamento: quem autentica é a assinatura HMAC da

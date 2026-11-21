@@ -9,6 +9,9 @@ import CampoData from '@/components/ui/CampoData';
 import { useClinica, getClinicLabel } from '@/app/context/ClinicaContext';
 import { printDocument, printTable, escapePrintHtml } from '@/lib/printDocument';
 import { AlertCircle, ArrowLeft, ChevronRight, Printer } from 'lucide-react';
+import { ROTULO_STATUS_ORCAMENTO, statusEfetivo, type StatusOrcamento } from '@/lib/orcamentos';
+import { hojeNoFuso } from '@/lib/fuso';
+import { calcularAprovado, calcularCaixa, inicioDoMes, proximoMes, rotuloDoMes } from '@/lib/metas';
 
 const cardShell = 'rounded-xl border border-neutral-200 bg-white';
 const REL_CACHE_KEY = 'ortus:relatorios:v2';
@@ -17,7 +20,24 @@ const DIA = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'] as const;
 type ReportId =
     | 'painel' | 'comparecimento' | 'ocupacao' | 'producao' | 'procedimentos'
     | 'novos' | 'resultado' | 'fluxo' | 'inadimplencia' | 'pagamentos'
-    | 'convenio' | 'inativos' | 'planos' | 'proteses' | 'comissoes' | 'carga';
+    | 'convenio' | 'inativos' | 'planos' | 'proteses' | 'comissoes' | 'carga'
+    | 'funil' | 'metas';
+
+type MetaRel = { clinica_id: number; mes: string; profissional_id?: number | null; valor: number | string };
+type DebRel = { status: string | null; data_pagamento: string | null; valor: number | string | null; agendamento_id?: number | null };
+
+type OrcRel = {
+    id: string;
+    status: StatusOrcamento;
+    validade?: string | null;
+    valor_total?: number | string | null;
+    profissional_id?: number | null;
+    comercial_id?: number | null;
+    created_at: string;
+    aprovado_em?: string | null;
+    recusado_em?: string | null;
+    motivo_recusa?: string | null;
+};
 
 type Ag = {
     id: string | number;
@@ -29,6 +49,10 @@ type Ag = {
     valor_final?: number | null;
     paciente_id?: string | null;
     profissional_id?: number | null;
+    valor_liquido?: number | null;
+    data_pagamento?: string | null;
+    tipo_registro?: string | null;
+    observacoes?: string | null;
     pacientes?: { nome?: string } | { nome?: string }[] | null;
     profissionais?: { nome?: string } | { nome?: string }[] | null;
 };
@@ -86,11 +110,15 @@ type Snap = {
     horarios: Horario[];
     profissionais: Prof[];
     meta: Record<string, unknown>;
+    orcamentos: OrcRel[];
+    metasVendas: MetaRel[];
+    debitosPagos: DebRel[];
 };
 
 const VAZIO: Snap = {
     agendamentos: [], despesas: [], pacientes: [], planos: [], fiados: [], visitas: [],
     cards: [], colunas: [], comissoes: [], horarios: [], profissionais: [], meta: {},
+    orcamentos: [], metasVendas: [], debitosPagos: [],
 };
 
 type Atalho = 'hoje' | '7d' | 'mes' | 'trimestre' | 'ano';
@@ -118,6 +146,8 @@ const NOMES: Record<Exclude<ReportId, 'painel'>, string> = {
     proteses: 'Próteses',
     comissoes: 'Comissões',
     carga: 'Carga da agenda',
+    funil: 'Funil de orçamentos',
+    metas: 'Metas de vendas',
 };
 
 const GRUPOS: { titulo: string; itens: Exclude<ReportId, 'painel'>[] }[] = [
@@ -125,6 +155,7 @@ const GRUPOS: { titulo: string; itens: Exclude<ReportId, 'painel'>[] }[] = [
     { titulo: 'Agenda', itens: ['comparecimento', 'ocupacao', 'producao', 'procedimentos', 'carga'] },
     { titulo: 'Pacientes', itens: ['novos', 'inativos', 'convenio', 'planos'] },
     { titulo: 'Laboratório', itens: ['proteses', 'comissoes'] },
+    { titulo: 'Comercial', itens: ['funil', 'metas'] },
 ];
 
 const USA_PROF = new Set<ReportId>(['comparecimento', 'ocupacao', 'producao', 'procedimentos', 'carga', 'novos']);
@@ -394,7 +425,7 @@ export default function Relatorios() {
         const cidMeta = activeClinicId !== 'all' ? String(activeClinicId) : String(ids[0]);
 
         const [agendamentos, despesas, pacientes, fiados, horarios, meta, vinculos] = await Promise.all([
-            ler<Ag[]>(tabelas.from('agendamentos').select('id, data_hora, procedimento, status, valor, desconto, valor_final, paciente_id, profissional_id, pacientes(nome), profissionais(nome)').gte('data_hora', fetchInicio.toISOString()).lte('data_hora', range.fim.toISOString()).in('clinica_id', ids)),
+            ler<Ag[]>(tabelas.from('agendamentos').select('id, data_hora, procedimento, status, valor, desconto, valor_final, valor_liquido, data_pagamento, tipo_registro, observacoes, paciente_id, profissional_id, pacientes(nome), profissionais(nome)').gte('data_hora', fetchInicio.toISOString()).lte('data_hora', range.fim.toISOString()).in('clinica_id', ids)),
             ler<Despesa[]>(tabelas.from('despesas').select('id, descricao, valor, data, categoria, tipo, status').gte('data', isoDia(fetchInicio)).lte('data', isoDia(range.fim)).in('clinica_id', ids)),
             ler<Pac[]>(tabelas.from('pacientes').select('id, nome, created_at, plano_id').in('clinica_id', ids)),
             ler<Ag[]>(tabelas.from('agendamentos').select('id, data_hora, procedimento, status, valor, desconto, valor_final, paciente_id, profissional_id, pacientes(nome), profissionais(nome)').eq('status', 'fiado').in('clinica_id', ids)),
@@ -416,17 +447,20 @@ export default function Relatorios() {
         jaCarregou.current = true;
         setLoading(false);
 
-        const [planos, visitas, cards, colunas, comissoes] = await Promise.all([
+        const [planos, visitas, cards, colunas, comissoes, orcamentos, metasVendas, debitosPagos] = await Promise.all([
             ler<Plano[]>(tabelas.from('planos').select('id, nome, tipo').in('clinica_id', ids)),
             ler<Visita[]>(tabelas.from('agendamentos').select('paciente_id, data_hora').eq('status', 'concluido').in('clinica_id', ids).order('data_hora', { ascending: false }).limit(5000)),
             ler<CardLab[]>(tabelas.from('kanban_cartoes').select('id, paciente_nome, descricao, tipo_protese, data_entrega, valor, coluna_id').in('clinica_id', ids).limit(2000)),
             ler<Coluna[]>(tabelas.from('kanban_colunas').select('id, titulo').in('clinica_id', ids)),
             ler<Comissao[]>(tabelas.from('comissoes_lancamentos').select('id, profissional_id, descricao, valor_comissao, status').in('clinica_id', ids).limit(2000)),
+            ler<OrcRel[]>(tabelas.from('orcamentos').select('id, status, validade, valor_total, profissional_id, comercial_id, created_at, aprovado_em, recusado_em, motivo_recusa').in('clinica_id', ids).gte('created_at', fetchInicio.toISOString()).order('created_at', { ascending: false }).limit(5000)),
+            ler<MetaRel[]>(tabelas.from('metas_vendas').select('clinica_id, mes, profissional_id, valor').in('clinica_id', ids).gte('mes', `${isoDia(fetchInicio).slice(0, 7)}-01`).lte('mes', isoDia(range.fim))),
+            ler<DebRel[]>(tabelas.from('paciente_debitos').select('status, data_pagamento, valor, agendamento_id').in('clinica_id', ids).eq('status', 'pago').is('agendamento_id', null).gte('data_pagamento', fetchInicio.toISOString()).limit(5000)),
         ]);
 
         if (gen !== fetchGen.current) return;
 
-        const snapshot: Snap = { ...VAZIO, ...base, planos, visitas, cards, colunas, comissoes };
+        const snapshot: Snap = { ...VAZIO, ...base, planos, visitas, cards, colunas, comissoes, orcamentos, metasVendas, debitosPagos };
         writeRouteCache(REL_CACHE_KEY, relScope(activeClinicId, cacheKey), snapshot);
         setDados(snapshot);
     }
@@ -514,7 +548,9 @@ export default function Relatorios() {
         const secoes = montarSecoes(tipo, {
             ag, agPrev, desp, meta, pacientes: dados.pacientes, planos: dados.planos, fiados: dados.fiados,
             visitas: dados.visitas, cards: dados.cards, colunas: dados.colunas, comissoes: dados.comissoes,
-            horarios: dados.horarios, profNome, inicio: periodo.inicio, fim: periodo.fim,
+            horarios: dados.horarios, orcamentos: dados.orcamentos || [], metasVendas: dados.metasVendas || [],
+            caixa: { agendamentos: dados.agendamentos, debitos: dados.debitosPagos || [], entradas: dados.despesas },
+            profNome, inicio: periodo.inicio, fim: periodo.fim,
             prevInicio: anterior.inicio, prevFim: anterior.fim, aplicaProf, kpis, ocAtual,
         });
 
@@ -695,7 +731,8 @@ export default function Relatorios() {
 function montarSecoes(tipo: ReportId, ctx: {
     ag: Ag[]; agPrev: Ag[]; desp: Despesa[]; meta: Record<string, unknown>;
     pacientes: Pac[]; planos: Plano[]; fiados: Ag[]; visitas: Visita[];
-    cards: CardLab[]; colunas: Coluna[]; comissoes: Comissao[]; horarios: Horario[];
+    cards: CardLab[]; colunas: Coluna[]; comissoes: Comissao[]; horarios: Horario[]; orcamentos: OrcRel[];
+    metasVendas: MetaRel[]; caixa: { agendamentos: Ag[]; debitos: DebRel[]; entradas: Despesa[] };
     profNome: Map<string, string>; inicio: Date; fim: Date; prevInicio: Date; prevFim: Date;
     aplicaProf: string; kpis: Kpi[]; ocAtual: { ocupado: number; cap: number; taxa: number; estimada: boolean };
 }): Secao[] {
@@ -1011,6 +1048,89 @@ function montarSecoes(tipo: ReportId, ctx: {
         return [
             { titulo: 'Por etapa', nota: 'O custo da prótese não fica neste cartão. Aqui entra o valor cobrado e o atraso da entrega.', colunas: ['Etapa', 'Peças', 'Atrasadas', 'Valor cobrado'], linhas: [...mapa.entries()].map(([n, r]) => [n, String(r.qtd), String(r.atraso), brl(r.valor)]) },
             { titulo: 'Atrasadas', colunas: ['Paciente', 'Peça', 'Entrega', 'Valor'], linhas: atrasados.slice(0, 60).map((c) => [c.paciente_nome || '—', c.tipo_protese || c.descricao || '—', dataBR(c.data_entrega), brl(Number(c.valor) || 0)]) },
+        ];
+    }
+
+    if (tipo === 'funil') {
+        const hojeIso = hojeNoFuso();
+        const doPeriodo = ctx.orcamentos.filter((o) => {
+            const t = new Date(o.created_at).getTime();
+            return t >= ctx.inicio.getTime() && t <= ctx.fim.getTime();
+        });
+        const valorDe = (o: OrcRel) => Number(o.valor_total) || 0;
+        const situacao = (o: OrcRel) => statusEfetivo({ status: o.status, validade: o.validade ?? null }, hojeIso);
+        const ordem: StatusOrcamento[] = ['rascunho', 'enviado', 'em_aberto', 'aprovado', 'recusado', 'expirado'];
+        const porStatus = ordem.map((s) => {
+            const lista = doPeriodo.filter((o) => situacao(o) === s);
+            return [ROTULO_STATUS_ORCAMENTO[s], String(lista.length), brl(lista.reduce((t, o) => t + valorDe(o), 0))];
+        });
+        const conversao = (lista: OrcRel[]) => {
+            const aprov = lista.filter((o) => situacao(o) === 'aprovado').length;
+            const decid = lista.filter((o) => ['aprovado', 'recusado', 'expirado'].includes(situacao(o))).length;
+            return decid > 0 ? pct((aprov / decid) * 100) : '—';
+        };
+        const porPessoa = (chave: 'profissional_id' | 'comercial_id') => {
+            const mapa = new Map<string, OrcRel[]>();
+            doPeriodo.forEach((o) => {
+                const id = String(o[chave] ?? 0);
+                mapa.set(id, [...(mapa.get(id) || []), o]);
+            });
+            return [...mapa.entries()]
+                .map(([id, lista]) => {
+                    const aprovados = lista.filter((o) => situacao(o) === 'aprovado');
+                    const nome = Number(id) ? nomeProf(Number(id)) : chave === 'comercial_id' ? 'Sem comercial' : 'Sem profissional';
+                    return { nome, valor: aprovados.reduce((t, o) => t + valorDe(o), 0), linha: [nome, String(lista.length), String(aprovados.length), brl(aprovados.reduce((t, o) => t + valorDe(o), 0)), conversao(lista)] };
+                })
+                .sort((a, b) => b.valor - a.valor)
+                .map((r) => r.linha);
+        };
+        const motivos = new Map<string, number>();
+        doPeriodo.filter((o) => situacao(o) === 'recusado').forEach((o) => {
+            const m = (o.motivo_recusa || 'Sem motivo informado').trim();
+            motivos.set(m, (motivos.get(m) || 0) + 1);
+        });
+        return [
+            { titulo: 'Resumo', nota: `Orçamentos criados no período. Conversão: aprovados ÷ (aprovados + recusados + vencidos) = ${conversao(doPeriodo)}.`, colunas: ['Situação', 'Orçamentos', 'Valor'], linhas: porStatus },
+            { titulo: 'Por profissional', colunas: ['Profissional', 'Criados', 'Aprovados', 'Valor aprovado', 'Conversão'], destaque: 3, linhas: porPessoa('profissional_id') },
+            { titulo: 'Por comercial', colunas: ['Comercial', 'Criados', 'Aprovados', 'Valor aprovado', 'Conversão'], destaque: 3, linhas: porPessoa('comercial_id') },
+            { titulo: 'Motivos de recusa', colunas: ['Motivo', 'Vezes'], linhas: [...motivos.entries()].sort((a, b) => b[1] - a[1]).slice(0, 15).map(([m, n]) => [m, String(n)]) },
+        ];
+    }
+
+    if (tipo === 'metas') {
+        const meses: string[] = [];
+        let mes = isoDia(ctx.inicio).slice(0, 7);
+        const ultimo = isoDia(ctx.fim).slice(0, 7);
+        while (mes <= ultimo && meses.length < 24) { meses.push(mes); mes = proximoMes(mes); }
+        const orcs = ctx.orcamentos.map((o) => ({ valor_total: o.valor_total ?? 0, profissional_id: o.profissional_id ?? null, aprovado_em: o.aprovado_em ?? null, status: o.status }));
+        const metaDoMes = (m: string, prof: number | null) => ctx.metasVendas
+            .filter((x) => String(x.mes).slice(0, 7) === m && (prof == null ? x.profissional_id == null : Number(x.profissional_id) === prof))
+            .reduce((s, x) => s + (Number(x.valor) || 0), 0);
+        const temMeta = (m: string) => ctx.metasVendas.some((x) => String(x.mes).slice(0, 7) === m && x.profissional_id == null);
+        const porMes = meses.map((m) => {
+            const ini = inicioDoMes(m);
+            const fim = inicioDoMes(proximoMes(m));
+            const aprovado = calcularAprovado(orcs, ini, fim).total;
+            const caixa = calcularCaixa({
+                agendamentos: ctx.caixa.agendamentos.map((a) => ({ ...a, status: a.status ?? null })),
+                debitos: ctx.caixa.debitos,
+                entradas: ctx.caixa.entradas.map((e) => ({ tipo: e.tipo ?? null, status: e.status ?? null, data: e.data ?? null, valor: e.valor ?? 0 })),
+            }, ini, fim);
+            const meta = temMeta(m) ? metaDoMes(m, null) : null;
+            return [rotuloDoMes(m), meta == null ? '—' : brl(meta), brl(aprovado), meta ? pct((aprovado / meta) * 100) : '—', brl(caixa)];
+        });
+        const iniPeriodo = inicioDoMes(meses[0]);
+        const fimPeriodo = inicioDoMes(proximoMes(meses[meses.length - 1]));
+        const aprovadoProf = calcularAprovado(orcs, iniPeriodo, fimPeriodo).porProfissional;
+        const idsProf = new Set<number>([...aprovadoProf.keys(), ...ctx.metasVendas.filter((x) => x.profissional_id != null).map((x) => Number(x.profissional_id))]);
+        const porProf = Array.from(idsProf).map((id) => {
+            const meta = meses.reduce((s, m) => s + metaDoMes(m, id), 0);
+            const aprovado = aprovadoProf.get(id) || 0;
+            return { aprovado, linha: [nomeProf(id), meta ? brl(meta) : '—', brl(aprovado), meta ? pct((aprovado / meta) * 100) : '—'] };
+        }).sort((a, b) => b.aprovado - a.aprovado).map((r) => r.linha);
+        return [
+            { titulo: 'Por mês', nota: 'Aprovado: valor final dos orçamentos aprovados no mês. Entrou no caixa: consultas pagas, débitos recebidos e entradas manuais, pela data em que o dinheiro entrou.', colunas: ['Mês', 'Meta', 'Aprovado', 'Atingido', 'Entrou no caixa'], destaque: 2, linhas: porMes },
+            { titulo: 'Por profissional', colunas: ['Profissional', 'Meta', 'Aprovado', 'Atingido'], destaque: 2, linhas: porProf },
         ];
     }
 

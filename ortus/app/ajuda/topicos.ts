@@ -206,7 +206,7 @@ const TODOS_OS_TOPICOS: TopicoGuia[] = [
           texto('Toque na consulta para abrir **Editar agendamento**.'),
           lista(
             'Mude data, hora, procedimento ou valor e salve.',
-            'Troque o status para agendado, concluído ou cancelado. A consulta cancelada continua na agenda, riscada.',
+            'Troque o status para agendado, concluído, faltou ou cancelado. A consulta cancelada continua na agenda, riscada. Quem faltou ou cancelou e não remarcou aparece nas **Oportunidades** de Orçamentos.',
             '**Excluir** apaga a consulta. O Ortus pede confirmação.',
           ),
           texto('O status **Fiado** marca o atendimento feito com pagamento em aberto. Ele é resolvido na aba Débitos do prontuário ou no Financeiro.'),
@@ -494,6 +494,159 @@ const TODOS_OS_TOPICOS: TopicoGuia[] = [
     relacionados: ['visao'],
   },
   {
+    id: 'orcamentos',
+    grupo: 'Atendimento',
+    titulo: 'Orçamentos e funil comercial',
+    resumo: 'Orçamento de cada paciente, o funil dos que não foram para a frente e as oportunidades para chamar o paciente de volta.',
+    onde: 'Menu **Orçamentos**, e a seção **Orçamentos** na aba de tratamentos da ficha do paciente.',
+    palavras: 'orçamento proposta plano de tratamento funil comercial vendas venda aprovar recusar ligar retorno oportunidade avaliação',
+    secoes: [
+      {
+        titulo: 'Criar um orçamento',
+        blocos: [
+          passos(
+            'Toque em **Novo orçamento** (no menu Orçamentos ou na ficha do paciente).',
+            'Escolha o **Paciente**, o **Profissional** e, se houver, a pessoa do **Comercial**.',
+            'Inclua os procedimentos. O preço vem do catálogo de **Tratamentos** (ou da tabela do convênio do paciente) e pode ser ajustado.',
+            'Confira o **Desconto** e a data em **Válido até** (30 dias por padrão) e toque em **Salvar**.',
+          ),
+          texto('O orçamento nasce como **Rascunho**. Abra-o para **Imprimir** (ou salvar em PDF), **Marcar como enviado** quando mandar ao paciente, ou **Apresentado** quando ele ficou parado depois de apresentado (fica **Em aberto**).'),
+        ],
+      },
+      {
+        titulo: 'Aprovar ou recusar',
+        blocos: [
+          lista(
+            '**Aprovar** cria um tratamento planejado para cada procedimento, na ficha do paciente, e lança o valor final como **a receber** (aparece no Financeiro, em aberto).',
+            '**Recusado** pede o motivo e guarda o histórico. O orçamento recusado pode ser **Reaberto**.',
+            'Quando a validade passa sem aprovação nem recusa, o orçamento fica **Expirado** e sai do funil.',
+          ),
+          aviso('Orçamento aprovado não pode ser editado nem excluído: ele já virou tratamento.'),
+        ],
+      },
+      {
+        titulo: 'Funil e contato com o paciente',
+        blocos: [
+          texto('A aba **Funil** mostra os orçamentos em andamento em três colunas (Rascunho, Enviado, Em aberto), com telefone, valor, há quantos dias está parado e quando ligar de novo. **Só ligar hoje** filtra os que têm contato marcado para hoje ou antes.'),
+          passos(
+            'No cartão, toque no telefone para **Ligar** ou no balão para mandar **WhatsApp** com a mensagem pronta.',
+            'Depois da conversa, registre em **Registrar contato**: como foi, o que foi conversado e quando ligar de novo.',
+          ),
+        ],
+      },
+      {
+        titulo: 'Oportunidades',
+        blocos: [
+          texto('A aba **Oportunidades** junta quem vale a pena chamar de volta:'),
+          lista(
+            '**Avaliação sem orçamento**: consulta ou avaliação atendida nos últimos 60 dias sem orçamento depois dela. O que conta como avaliação é marcado em **Tratamentos** (os nomes com "avaliação" ou "consulta" já vêm marcados).',
+            '**Faltou e não remarcou** e **Cancelou e não remarcou**: o último agendamento do paciente nos últimos 90 dias foi falta ou cancelamento, e não há nada marcado à frente.',
+            '**Orçamento parado**: enviado ou em aberto, sem contato há 7 dias ou com a data de ligar de novo vencida.',
+          ),
+          texto('Dali dá para criar o orçamento ou registrar o contato. Registrar um contato tira o paciente da lista até a data combinada para ligar de novo.'),
+        ],
+      },
+    ],
+    relacionados: ['agenda', 'financeiro'],
+  },
+  {
+    id: 'chamada-tv',
+    grupo: 'Atendimento',
+    titulo: 'Chamada na TV',
+    resumo: 'A TV da sala de espera mostra (e fala) quem foi chamado e em qual consultório, pelo nome curto ou por senha.',
+    onde: '**Configurações → Chamada na TV** (administrador), o botão **Chamar** na agenda e na Visão geral, e o botão **Senha** na agenda.',
+    palavras: 'tv televisão painel chamada senha sala de espera recepção chamar paciente consultório guichê',
+    secoes: [
+      {
+        titulo: 'Preparar a TV',
+        blocos: [
+          passos(
+            'Em **Configurações → Chamada na TV**, escolha o que a TV mostra: **Nome curto** (primeiro nome e inicial do sobrenome, como "Maria S.") ou **Só a senha**.',
+            'Liste os **Locais de atendimento** (consultórios, salas, guichês) e toque em **Salvar**.',
+            'Em **TVs**, dê um nome e toque em **Criar link**. Copie o link: ele só aparece nessa hora.',
+            'Abra o link no navegador da TV e toque uma vez em **Toque para ativar o som**.',
+          ),
+          aviso('Quem tiver o link vê as chamadas. Se ele vazar ou a TV for trocada, toque em **Revogar** e crie outro. O nome completo do paciente nunca aparece na TV.'),
+        ],
+      },
+      {
+        titulo: 'Chamar',
+        blocos: [
+          lista(
+            'Na agenda, abra o agendamento de hoje e toque em **Chamar**. Na **Visão geral**, o cartão do atendimento também tem **Chamar**.',
+            'Para quem chegou sem consulta, toque em **Senha** no topo da agenda: o Ortus gera a próxima senha do dia e chama.',
+            'Com mais de um local cadastrado, o Ortus pergunta onde. A TV destaca a chamada, toca um aviso e, se a voz estiver ligada, fala o nome (ou a senha) e o local.',
+          ),
+          texto('A chamada precisa de internet, inclusive no aplicativo de computador. As senhas recomeçam todo dia.'),
+        ],
+      },
+    ],
+    relacionados: ['agenda'],
+  },
+  {
+    id: 'google-agenda',
+    grupo: 'Atendimento',
+    titulo: 'Google Agenda',
+    resumo: 'Cada profissional liga a própria agenda do Google: as consultas dele aparecem lá, e o que ele marcar direto no Google ocupa o horário no Ortus.',
+    onde: '**Perfil → Google Agenda** (cada profissional, com a própria conta). A agenda do Ortus avisa quando uma consulta não chegou ao Google.',
+    palavras: 'google agenda calendar calendário sincronizar integração celular compromisso bloqueio horário ocupado',
+    secoes: [
+      {
+        titulo: 'Ligar',
+        blocos: [
+          passos(
+            'Abra o seu **Perfil** e, em **Google Agenda**, toque em **Conectar Google Agenda**.',
+            'Escolha a conta do Google e permita o acesso à agenda. Você volta ao Perfil com a conta conectada.',
+            'Pronto: as consultas em que você é o profissional vão para essa agenda, e as mudanças (remarcar, trocar de profissional, cancelar) seguem sozinhas.',
+          ),
+          texto('No Google o evento leva só o **primeiro nome do paciente e o tipo da consulta**, como "Maria · Limpeza". Sobrenome, telefone, valores e observações não saem do Ortus.'),
+        ],
+      },
+      {
+        titulo: 'Horários ocupados',
+        blocos: [
+          texto('Com **"Compromissos marcados direto no Google ocupam o meu horário no Ortus"** ligado, o que você marcar no Google (fora do Ortus) aparece como ocupado e o Ortus avisa quando alguém tentar marcar por cima. O título do compromisso não vem para o Ortus. Desligue a opção para a agenda do Ortus voltar a ficar livre na hora.'),
+        ],
+      },
+      {
+        titulo: 'Se o Google falhar',
+        blocos: [
+          lista(
+            'A consulta fica **salva no Ortus** do mesmo jeito. A agenda mostra a faixa "não foi enviada ao Google Agenda" e o popup da consulta, o aviso com **Tentar de novo**.',
+            'O Ortus também tenta de novo sozinho, com espera cada vez maior.',
+            'Se o acesso for retirado no Google, o Perfil avisa: toque em **Conectar de novo**.',
+          ),
+          texto('Para parar, toque em **Desligar** no Perfil. As consultas seguintes deixam de ir para o Google, e os eventos que já estão lá ficam.'),
+        ],
+      },
+    ],
+    relacionados: ['agenda', 'perfil'],
+  },
+  {
+    id: 'conversas',
+    grupo: 'Comunicação',
+    titulo: 'Conversas da equipe',
+    resumo: 'Chat interno da clínica: canal Geral e outros que a clínica criar, como recepção e comercial.',
+    onde: 'Menu **Conversas**.',
+    palavras: 'chat interno recado mensagem equipe canal grupo recepção comercial colega',
+    secoes: [
+      {
+        titulo: 'Como funciona',
+        blocos: [
+          lista(
+            'Toda clínica tem o canal **Geral**. O administrador cria outros em **Novo** (ex.: recepção, comercial) e pode **Arquivar** os que não usa mais; as mensagens de um canal arquivado ficam guardadas.',
+            'Escreva no campo de baixo e toque no botão de enviar. No computador, Enter envia e Shift+Enter quebra a linha.',
+            'Mensagens novas aparecem sozinhas em poucos segundos. O número ao lado de **Conversas** no menu mostra o que ainda não foi lido.',
+            'Cada pessoa pode apagar as próprias mensagens.',
+          ),
+          aviso('As conversas são só da equipe da clínica: não chegam aos pacientes (isso é a aba **WhatsApp → Conversas**) nem à Ortus. Para falar com a Ortus, use **Ajuda → Contatar o suporte**.'),
+          texto('As conversas precisam de internet. No aplicativo de computador sem conexão, a tela avisa e volta quando a conexão voltar.'),
+        ],
+      },
+    ],
+    relacionados: ['whatsapp'],
+  },
+  {
     id: 'whatsapp',
     grupo: 'Comunicação',
     titulo: 'WhatsApp',
@@ -663,12 +816,25 @@ const TODOS_OS_TOPICOS: TopicoGuia[] = [
             '**Cancelar lançamento** pede o motivo. O lançamento vai para **Cancelados**, de onde pode ser restaurado ou excluído de vez.',
             'Nos lançamentos em andamento, você conclui um lançamento manual ou registra o recebimento de um fiado. No computador, as ações são os ícones no fim da linha; no celular, o botão do cartão e o menu de três pontos.',
             '**CSV** baixa o extrato com os filtros aplicados.',
+            'Os débitos do paciente que não vêm de uma consulta (o valor de um orçamento aprovado, um débito lançado na ficha) também aparecem em aberto. Receber um deles guarda a forma de pagamento escolhida e a data.',
           ),
           aviso('Receber um fiado por aqui só registra a entrada: a forma de pagamento e a taxa da maquininha não são guardadas, e a comissão não é lançada. Para isso, receba pela aba Débitos do prontuário.'),
         ],
       },
+      {
+        titulo: 'Meta de vendas',
+        blocos: [
+          texto('No modo **Mês**, o cartão **Meta de vendas** mostra quanto já foi aprovado em orçamentos no mês, quanto falta para a meta e o ritmo: quanto era esperado até hoje e quanto o mês fecha se o ritmo continuar. À parte, mostra quanto **entrou no caixa** (consultas pagas, débitos recebidos e entradas manuais, pela data em que o dinheiro entrou).'),
+          passos(
+            'Com uma clínica escolhida no menu, o administrador toca em **Definir meta** (ou **Editar meta**).',
+            'Preencha a meta da clínica e, se quiser, a de cada profissional. Campo vazio tira a meta.',
+            'Toque em **Salvar**.',
+          ),
+          texto('**Por profissional** abre o aprovado de cada um contra a própria meta. O relatório **Metas de vendas**, em Relatórios, mostra os meses anteriores.'),
+        ],
+      },
     ],
-    relacionados: ['prontuario', 'relatorios', 'configuracoes', 'equipe'],
+    relacionados: ['prontuario', 'relatorios', 'configuracoes', 'equipe', 'orcamentos'],
   },
   {
     id: 'relatorios',

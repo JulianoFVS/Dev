@@ -4,7 +4,8 @@ import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { dados as tabelas, usuarioDaSessao } from '@/lib/local/consulta';
 import { enviarArquivoClinica } from '@/lib/armazenamento';
-import { Building2, Plus, Trash2, Check, X, Loader2, Edit, Save, ClipboardList, HelpCircle, FileSignature, Tag, SlidersHorizontal, Database, Download, RotateCcw, AlertTriangle, MessageCircle, CreditCard, Search, LayoutGrid, List, ChevronDown, ChevronRight, Camera, Copy } from 'lucide-react';
+import { Building2, Plus, Trash2, Check, X, Loader2, Edit, Save, ClipboardList, HelpCircle, FileSignature, Tag, SlidersHorizontal, Database, Download, RotateCcw, AlertTriangle, MessageCircle, CreditCard, Search, LayoutGrid, List, ChevronDown, ChevronRight, Camera, Copy, Tv } from 'lucide-react';
+import PainelChamadaTv from '@/components/chamadas/PainelChamadaTv';
 import { salvarModelosAsync, novoIdModelo, novoIdPergunta, MODELOS_PADRAO, type ModeloAnamnese, type PerguntaAnamnese, type TipoPergunta } from '@/lib/anamnese';
 import { listarBackups, criarBackupAgora, baixarBackupComoJson, excluirBackup as deletarBackupServer, restaurarBackup } from '@/lib/backup';
 import { fetchUserClinicas } from '@/lib/clinicScoped';
@@ -44,6 +45,7 @@ const CONFIG_NAVS = [
   { key: 'categorias', label: 'Categorias', icon: Tag },
   { key: 'taxas', label: 'Taxas', icon: CreditCard },
   { key: 'comunicacao', label: 'Comunicação', icon: MessageCircle },
+  { key: 'tv', label: 'Chamada na TV', icon: Tv },
   { key: 'backup', label: 'Backup', icon: Database },
 ];
 // Abaixo de lg a página rola inteira; a seção só ganha altura fixa e rolagem interna no computador.
@@ -1858,6 +1860,13 @@ export default function Configuracoes() {
                 </div>
                 );
             })())}
+
+            {/* ABA CHAMADA NA TV */}
+            {abaAtiva === 'tv' && (
+                <section className={sectionPad}>
+                    <PainelChamadaTv />
+                </section>
+            )}
 
             {/* ABA BACKUP */}
             {abaAtiva === 'backup' && (
