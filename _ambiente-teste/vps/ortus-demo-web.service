@@ -1,0 +1,54 @@
+# Ortus (demonstração): o site, com o build de produção (`next start`) em
+# 127.0.0.1:3460. É a mesma unidade de deploy/oracle/ortus.service, com outro
+# usuário, outra pasta, outro arquivo de ambiente e um teto de recursos.
+[Unit]
+Description=Ortus demo - site (Next.js em 127.0.0.1:3460)
+After=network-online.target ortus-demo-api.service
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=ortusdemo
+Group=ortusdemo
+WorkingDirectory=/opt/ortus-demo/ortus
+EnvironmentFile=/etc/ortus-demo/web.env
+Environment=NEXT_TELEMETRY_DISABLED=1
+UnsetEnvironment=DATABASE_URL WHATSAPP_GATEWAY_AUTOSTART
+ExecStart=/usr/bin/node /opt/ortus-demo/ortus/node_modules/next/dist/bin/next start --hostname 127.0.0.1
+Restart=always
+RestartSec=5
+TimeoutStopSec=20
+SyslogIdentifier=ortus-demo-web
+
+MemoryHigh=900M
+MemoryMax=1200M
+CPUQuota=100%
+Nice=5
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=-/opt/ortus-demo/ortus/.next/cache
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectProc=invisible
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+SystemCallArchitectures=native
+CapabilityBoundingSet=
+AmbientCapabilities=
+UMask=0027
+InaccessiblePaths=-/opt/ortus-demo/ortus/services/whatsapp
+
+[Install]
+WantedBy=multi-user.target

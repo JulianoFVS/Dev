@@ -1,0 +1,50 @@
+# Ortus (demonstração): serviços falsos em 127.0.0.1:3461. Imita o Supabase
+# (login, dados, storage), o R2, a Resend e o Mercado Pago. O banco é PGlite
+# em memória, e reiniciar esta unidade volta a demonstração ao estado inicial.
+[Unit]
+Description=Ortus demo - servicos falsos (127.0.0.1:3461)
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=ortusdemo
+Group=ortusdemo
+WorkingDirectory=/opt/ortus-demo/_ambiente-teste
+EnvironmentFile=/etc/ortus-demo/api.env
+ExecStart=/usr/bin/node /opt/ortus-demo/_ambiente-teste/servidor.mjs
+Restart=always
+RestartSec=5
+TimeoutStopSec=15
+SyslogIdentifier=ortus-demo-api
+
+# A VPS é dividida com outros sistemas: teto de memória e de CPU.
+MemoryHigh=900M
+MemoryMax=1200M
+CPUQuota=80%
+Nice=5
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+SystemCallArchitectures=native
+CapabilityBoundingSet=
+AmbientCapabilities=
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,11 @@
+# Gerados ao subir o ambiente ou ao rodar
+node_modules/
+*.gerado
+*.log
+
+# Senha da demonstração pública: só no computador de quem publica
+vps/acesso-demo.txt
+vps/senha-demo.txt
+
+# Scripts avulsos de edição, de sessões antigas
+edicoes/
