@@ -35,6 +35,7 @@ import {
     type MeuConvite,
     avisarConvitePorEmail,
 } from '@/lib/convites';
+import { CONVITES_EVENTO } from '@/lib/useConvitesRecebidos';
 import type { ComissaoRegra, ModuleName } from '@/lib/types/permissions';
 import { MODULES, buildModuleAccessMap } from '@/lib/modules';
 import { PERMISSION_PRESETS, buildPresetAccessMap, type PermissionPresetId } from '@/lib/permissionPresets';
@@ -133,7 +134,7 @@ function readEquipeBoot(): Profissional[] | null {
 
 export default function EquipePage() {
     const searchParams = useSearchParams();
-    const { clinics, loading: clinicLoading, activeClinicId, activeClinic, convidadoAqui } = useClinica();
+    const { clinics, loading: clinicLoading, activeClinicId, activeClinic, convidadoAqui, refreshClinics } = useClinica();
     // Limite de profissionais do plano da rede (só o administrador da matriz recebe).
     const [usoPlano, setUsoPlano] = useState<UsoDoPlano | null>(null);
     useEffect(() => {
@@ -176,6 +177,16 @@ export default function EquipePage() {
     const [convitesLoading, setConvitesLoading] = useState(() => !readRouteCache<ConviteEquipe[]>(CONVITES_CACHE_KEY, 'equipe'));
     const [convitesErro, setConvitesErro] = useState<string | null>(null);
     const [conviteCancelandoId, setConviteCancelandoId] = useState<number | null>(null);
+    const [saidaPreparando, setSaidaPreparando] = useState<string | null>(null);
+    const [saindo, setSaindo] = useState(false);
+    const [nomeSaida, setNomeSaida] = useState('');
+    const [saida, setSaida] = useState<{
+        conviteId: number;
+        clinicaId: string;
+        nomeClinica: string;
+        profissionalId: string;
+        consultas: number;
+    } | null>(null);
     const [meusConvites, setMeusConvites] = useState<MeuConvite[]>([]);
 
     // Modal edição avançada
@@ -462,7 +473,7 @@ export default function EquipePage() {
                     : item
             )));
             await showAlert(
-                'Convite cancelado. A pessoa não verá mais o convite em Mensagens.',
+                'Convite cancelado. A pessoa não verá mais o convite no perfil.',
                 { title: 'Convite cancelado', type: 'success' },
             );
         } catch (error) {
@@ -472,6 +483,141 @@ export default function EquipePage() {
             );
         } finally {
             setConviteCancelandoId(null);
+        }
+    }
+
+    function chaveSaida(conviteId: number, clinicaId: string | number) {
+        return `${conviteId}:${clinicaId}`;
+    }
+
+    function pessoaNaClinica(profissionalId: number | string | null, clinicaId: string | number) {
+        if (profissionalId == null) return false;
+        const pessoa = profissionais.find((item) => String(item.id) === String(profissionalId));
+        if (!pessoa) return true;
+        return (pessoa.clinicas || []).some((clinica) => String(clinica.id) === String(clinicaId));
+    }
+
+    async function prepararSaida(convite: ConviteEquipe, clinicaId: string | number, nomeClinica: string) {
+        const profissionalId = convite.convidado_profissional_id;
+        const chave = chaveSaida(convite.id, clinicaId);
+        if (saidaPreparando || saindo) return;
+        if (profissionalId == null) {
+            await showAlert('Esta pessoa ainda não tem vínculo com a clínica.', { title: 'Saída da clínica', type: 'warning' });
+            return;
+        }
+        setSaidaPreparando(chave);
+        try {
+            const { data: vinculos, error } = await tabelas
+                .from('profissionais_clinicas')
+                .select('clinica_id, convidado')
+                .eq('profissional_id', profissionalId);
+            if (error) throw error;
+            const daPessoa = (vinculos || []) as Array<{ clinica_id: number | string; convidado?: boolean | null }>;
+            if (!daPessoa.some((vinculo) => String(vinculo.clinica_id) === String(clinicaId))) {
+                await showAlert('Esta pessoa já não faz parte desta clínica.', { title: 'Saída da clínica', type: 'warning' });
+                return;
+            }
+            if (daPessoa.length <= 1) {
+                await showAlert(
+                    'Esta pessoa só faz parte desta clínica. A saída a deixaria sem nenhuma unidade.',
+                    { title: 'Saída da clínica', type: 'warning' },
+                );
+                return;
+            }
+
+            const { data: daClinica, error: erroClinica } = await tabelas
+                .from('profissionais_clinicas')
+                .select('profissional_id, convidado')
+                .eq('clinica_id', clinicaId);
+            if (erroClinica) throw erroClinica;
+            const equipeDaClinica = (daClinica || []) as Array<{ profissional_id: number | string; convidado?: boolean | null }>;
+            const ids = equipeDaClinica.map((vinculo) => vinculo.profissional_id).filter((id) => id != null);
+            const { data: contas, error: erroContas } = ids.length
+                ? await tabelas.from('profissionais').select('id, nivel_acesso').in('id', ids)
+                : { data: [] as Array<{ id: number | string; nivel_acesso?: string | null }>, error: null };
+            if (erroContas) throw erroContas;
+            const contasDaClinica = (contas || []) as Array<{ id: number | string; nivel_acesso?: string | null }>;
+            const admins = contasDaClinica.filter((conta) => {
+                const vinculo = equipeDaClinica.find((item) => String(item.profissional_id) === String(conta.id));
+                return conta.nivel_acesso === 'admin' && vinculo?.convidado !== true;
+            });
+            const alvo = contasDaClinica.find((conta) => String(conta.id) === String(profissionalId));
+            const vinculoAlvo = equipeDaClinica.find((item) => String(item.profissional_id) === String(profissionalId));
+            if (alvo?.nivel_acesso === 'admin' && vinculoAlvo?.convidado !== true && admins.length <= 1) {
+                await showAlert(
+                    'Esta clínica ficaria sem administrador. Passe a gestão para outra pessoa antes da saída.',
+                    { title: 'Saída da clínica', type: 'warning' },
+                );
+                return;
+            }
+
+            const { count } = await tabelas
+                .from('agendamentos')
+                .select('id', { count: 'exact', head: true })
+                .eq('clinica_id', clinicaId)
+                .eq('profissional_id', profissionalId)
+                .eq('status', 'agendado')
+                .gte('data_hora', new Date().toISOString());
+
+            setNomeSaida('');
+            setSaida({
+                conviteId: convite.id,
+                clinicaId: String(clinicaId),
+                nomeClinica,
+                profissionalId: String(profissionalId),
+                consultas: count || 0,
+            });
+        } catch (error) {
+            await showAlert(
+                mensagemErroConvite(error, 'Não foi possível conferir a saída desta clínica.'),
+                { title: 'Saída da clínica', type: 'error' },
+            );
+        } finally {
+            setSaidaPreparando(null);
+        }
+    }
+
+    async function confirmarSaida() {
+        if (!saida || saindo) return;
+        const digitado = nomeSaida.trim().toLocaleLowerCase('pt-BR');
+        const esperado = saida.nomeClinica.trim().toLocaleLowerCase('pt-BR');
+        if (digitado !== esperado) {
+            await showAlert('O nome digitado não é o desta clínica.', { title: 'Saída da clínica', type: 'warning' });
+            return;
+        }
+        setSaindo(true);
+        const alvo = saida;
+        setProfissionais((prev) => prev.map((pessoa) => (
+            String(pessoa.id) === alvo.profissionalId
+                ? { ...pessoa, clinicas: (pessoa.clinicas || []).filter((clinica) => String(clinica.id) !== alvo.clinicaId) }
+                : pessoa
+        )));
+        setSaida(null);
+        setNomeSaida('');
+        try {
+            const { data, error } = await tabelas
+                .from('profissionais_clinicas')
+                .delete()
+                .eq('profissional_id', alvo.profissionalId)
+                .eq('clinica_id', alvo.clinicaId)
+                .select('profissional_id');
+            if (error || !data?.length) {
+                setProfissionais((prev) => prev.map((pessoa) => {
+                    if (String(pessoa.id) !== alvo.profissionalId) return pessoa;
+                    const jaTem = (pessoa.clinicas || []).some((clinica) => String(clinica.id) === alvo.clinicaId);
+                    return jaTem ? pessoa : { ...pessoa, clinicas: [...(pessoa.clinicas || []), { id: alvo.clinicaId, nome: alvo.nomeClinica }] };
+                }));
+                await showAlert(
+                    mensagemErroConvite(error, 'Não foi possível registrar a saída. Confira se você administra esta clínica.'),
+                    { title: 'Saída da clínica', type: 'error' },
+                );
+                return;
+            }
+            avisar(`Saída de ${alvo.nomeClinica} registrada.`);
+            void refreshClinics().catch(() => {});
+            void carregar({ silent: true });
+        } finally {
+            setSaindo(false);
         }
     }
 
@@ -1072,6 +1218,14 @@ export default function EquipePage() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isAdmin, clinicasPermitidasChave]);
 
+    useEffect(() => {
+        if (!isAdmin) return;
+        const atualizar = () => { void carregarMeusConvites(); };
+        window.addEventListener(CONVITES_EVENTO, atualizar);
+        return () => window.removeEventListener(CONVITES_EVENTO, atualizar);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isAdmin]);
+
     const convitesOrdenados = [...convites].sort((a, b) => {
         const aPendente = obterStatusConvite(a) === 'pendente' ? 0 : 1;
         const bPendente = obterStatusConvite(b) === 'pendente' ? 0 : 1;
@@ -1237,7 +1391,7 @@ export default function EquipePage() {
 
             {meusConvites.length > 0 && (
                 <Link
-                    href="/mensagens"
+                    href="/perfil"
                     className="flex shrink-0 items-center justify-between gap-3 rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-800 shadow-sm hover:bg-neutral-50"
                 >
                     <span className="min-w-0 truncate">
@@ -1245,7 +1399,7 @@ export default function EquipePage() {
                             ? 'Você tem 1 convite de equipe aguardando resposta.'
                             : `Você tem ${meusConvites.length} convites de equipe aguardando resposta.`}
                     </span>
-                    <span className="shrink-0 text-xs font-medium text-neutral-500">Ver convites</span>
+                    <span className="shrink-0 text-xs font-medium text-neutral-500">Meu perfil</span>
                 </Link>
             )}
 
@@ -1423,29 +1577,91 @@ export default function EquipePage() {
                         <ul className="divide-y divide-black/5">
                             {convitesOrdenados.map((convite) => {
                                 const status = obterStatusConvite(convite);
+                                const clinicasDaLinha = status === 'aceito'
+                                    ? convite.clinica_ids
+                                        .map((id) => ({ id: String(id), nome: clinicasPorId.get(String(id))?.nome || `Unidade #${id}` }))
+                                        .filter((clinica) => pessoaNaClinica(convite.convidado_profissional_id, clinica.id))
+                                    : [];
+                                const confirmando = saida?.conviteId === convite.id;
                                 return (
-                                    <li key={convite.id} className="flex flex-col gap-2 py-2.5 sm:flex-row sm:items-center sm:justify-between">
-                                        <div className="min-w-0">
-                                            <div className="flex flex-wrap items-center gap-1.5">
-                                                <p className="truncate text-sm font-medium text-neutral-900">{convite.convidado_email}</p>
-                                                <ConviteStatusBadge status={status} />
+                                    <li key={convite.id} className="flex flex-col gap-2 py-2.5">
+                                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                            <div className="min-w-0">
+                                                <div className="flex flex-wrap items-center gap-1.5">
+                                                    <p className="truncate text-sm font-medium text-neutral-900">{convite.convidado_email}</p>
+                                                    <ConviteStatusBadge status={status} />
+                                                </div>
+                                                <p className="mt-0.5 break-words text-xs text-neutral-500">
+                                                    {nomeClinicasDoConvite(convite.clinica_ids)}
+                                                    {convite.cargo ? ` · ${convite.cargo}` : ''}
+                                                    {` · ${formatarDataConvite(convite.criado_em)}`}
+                                                </p>
                                             </div>
-                                            <p className="mt-0.5 break-words text-xs text-neutral-500">
-                                                {nomeClinicasDoConvite(convite.clinica_ids)}
-                                                {convite.cargo ? ` · ${convite.cargo}` : ''}
-                                                {` · ${formatarDataConvite(convite.criado_em)}`}
-                                            </p>
+                                            {status === 'pendente' && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => void cancelarConvite(convite)}
+                                                    disabled={conviteCancelandoId !== null}
+                                                    className="inline-flex h-8 shrink-0 items-center gap-1 rounded-md px-2 text-xs font-medium text-neutral-400 hover:text-rose-600 disabled:opacity-50"
+                                                >
+                                                    {conviteCancelandoId === convite.id ? <Loader2 size={13} className="animate-spin"/> : <X size={13}/>}
+                                                    Cancelar
+                                                </button>
+                                            )}
+                                            {clinicasDaLinha.length > 0 && (
+                                                <div className="flex flex-wrap gap-1.5">
+                                                    {clinicasDaLinha.map((clinica) => {
+                                                        const chave = chaveSaida(convite.id, clinica.id);
+                                                        return (
+                                                            <button
+                                                                key={clinica.id}
+                                                                type="button"
+                                                                onClick={() => void prepararSaida(convite, clinica.id, clinica.nome)}
+                                                                disabled={saidaPreparando !== null || saindo}
+                                                                className="inline-flex h-8 shrink-0 items-center gap-1 rounded-md px-2 text-xs font-medium text-rose-600 hover:bg-rose-50 disabled:opacity-50"
+                                                            >
+                                                                {saidaPreparando === chave ? <Loader2 size={13} className="animate-spin" /> : null}
+                                                                Sair de {clinica.nome}
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+                                            )}
                                         </div>
-                                        {status === 'pendente' && (
-                                            <button
-                                                type="button"
-                                                onClick={() => void cancelarConvite(convite)}
-                                                disabled={conviteCancelandoId !== null}
-                                                className="inline-flex h-8 shrink-0 items-center gap-1 rounded-md px-2 text-xs font-medium text-neutral-400 hover:text-rose-600 disabled:opacity-50"
-                                            >
-                                                {conviteCancelandoId === convite.id ? <Loader2 size={13} className="animate-spin"/> : <X size={13}/>}
-                                                Cancelar
-                                            </button>
+                                        {confirmando && saida && (
+                                            <div className="rounded-md border border-neutral-200 bg-neutral-50 p-2.5">
+                                                <p className="text-sm text-neutral-800">
+                                                    A pessoa deixa de atender em {saida.nomeClinica}. As consultas já marcadas continuam na agenda.
+                                                    {saida.consultas > 0 ? ` Há ${saida.consultas} ${saida.consultas === 1 ? 'consulta futura' : 'consultas futuras'} com ela nesta clínica.` : ''}
+                                                </p>
+                                                <label className="mb-1.5 mt-2 block text-xs font-medium text-neutral-500">
+                                                    Nome da clínica <span className="text-red-500">*</span>
+                                                </label>
+                                                <input
+                                                    value={nomeSaida}
+                                                    onChange={(evento) => setNomeSaida(evento.target.value)}
+                                                    autoFocus
+                                                    className="h-10 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm text-neutral-900 outline-none focus:border-neutral-900"
+                                                />
+                                                <div className="mt-2 flex flex-wrap gap-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => void confirmarSaida()}
+                                                        disabled={saindo || nomeSaida.trim().toLocaleLowerCase('pt-BR') !== saida.nomeClinica.trim().toLocaleLowerCase('pt-BR')}
+                                                        className="inline-flex h-10 items-center rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-40"
+                                                    >
+                                                        {saindo ? <Loader2 size={14} className="animate-spin" /> : 'Confirmar saída'}
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => { setSaida(null); setNomeSaida(''); }}
+                                                        disabled={saindo}
+                                                        className="inline-flex h-10 items-center rounded-md border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-40"
+                                                    >
+                                                        Cancelar
+                                                    </button>
+                                                </div>
+                                            </div>
                                         )}
                                     </li>
                                 );

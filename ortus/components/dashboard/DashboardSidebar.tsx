@@ -29,6 +29,7 @@ import BentoClinicSwitcher from '@/components/dashboard/BentoClinicSwitcher';
 import { useImagemSdr } from '@/lib/imagemSdr';
 import { WHATSAPP_ATIVO } from '@/lib/whatsappCliente';
 import BentoSidebarTooltip from '@/components/bento/BentoSidebarTooltip';
+import { useConvitesRecebidos } from '@/lib/useConvitesRecebidos';
 
 export type DashboardSidebarNavOptions = {
   showTarefas?: boolean;
@@ -173,6 +174,8 @@ export default function DashboardSidebar({
 }: DashboardSidebarNavOptions = {}) {
   const [profilePhotoUrl, setProfilePhotoUrl] = useState<string | null>(profilePhotoUrlProp);
   const [profileName, setProfileName] = useState<string | null>(profileNameProp);
+  const { pendentes: convitesAbertos } = useConvitesRecebidos();
+  const temConvite = convitesAbertos.length > 0;
 
   useEffect(() => {
     setProfilePhotoUrl(profilePhotoUrlProp);
@@ -325,10 +328,13 @@ export default function DashboardSidebar({
         <BentoSidebarTooltip label="Meu perfil" show={collapsed}>
           <Link
             href="/perfil"
-            className={`flex items-center transition-all duration-200 ease-out ${collapsed ? 'h-11 w-11 justify-center overflow-hidden rounded-full ring-2 ring-neutral-800' : 'gap-3 rounded-2xl px-3 py-1 hover:bg-white/10'}`}
+            className={`flex items-center transition-all duration-200 ease-out ${collapsed ? `h-11 w-11 justify-center overflow-hidden rounded-full ring-2 ${temConvite ? 'ring-red-500' : 'ring-neutral-800'}` : 'gap-3 rounded-2xl px-3 py-1 hover:bg-white/10'}`}
           >
             <ProfileAvatar photoUrl={profilePhotoUrl} profileName={profileName} collapsed={collapsed} />
-            {!collapsed && <span className="truncate text-sm font-medium text-white/90">Meu perfil</span>}
+            {!collapsed && <span className="min-w-0 flex-1 truncate text-sm font-medium text-white/90">Meu perfil</span>}
+            {!collapsed && temConvite && (
+              <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-red-500" aria-label="Convite em aberto" />
+            )}
           </Link>
         </BentoSidebarTooltip>
       </div>

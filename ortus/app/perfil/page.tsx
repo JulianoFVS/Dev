@@ -1,6 +1,7 @@
 'use client';
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { dados as tabelas, usuarioDaSessao } from '@/lib/local/consulta';
 import { gravarVerificadorSenha } from '@/lib/local/cliente';
@@ -13,6 +14,8 @@ import {
   Mail,
   Upload,
   HardDrive,
+  Check,
+  X,
 } from 'lucide-react';
 import { bentoInput } from '@/lib/bentoUi';
 import { prepararFotoPaciente } from '@/lib/prepararFotoPaciente';
@@ -29,6 +32,14 @@ import {
 import { encerrarSessao } from '@/lib/sessao';
 import { fraseDeErro } from '@/lib/fraseDeErro';
 import SecaoGoogleAgenda from '@/components/google/SecaoGoogleAgenda';
+import {
+  avisarConvitePorEmail,
+  mensagemErroConvite,
+  nomesClinicasConvite,
+  responderConviteEquipe,
+  type MeuConvite,
+} from '@/lib/convites';
+import { avisarConvitesMudaram, useConvitesRecebidos } from '@/lib/useConvitesRecebidos';
 
 const cardShell = 'rounded-xl border border-neutral-200 bg-white';
 const sectionPad = 'p-4 sm:p-5 md:p-6';
@@ -69,7 +80,7 @@ function bootProf(): ProfRow | null {
 export default function Perfil() {
   const boot = bootProf();
   const jaCarregou = useRef(!!boot);
-  const { activeClinic, activeClinicId } = useClinica();
+  const { activeClinic, activeClinicId, refreshClinics } = useClinica();
   const [loading, setLoading] = useState(() => !boot);
   const [salvando, setSalvando] = useState(false);
   const [form, setForm] = useState(() => ({
@@ -396,6 +407,8 @@ export default function Perfil() {
 
           <SecaoGoogleAgenda className={sectionPad} />
 
+          <ConvitesDoPerfil aoMudar={() => { void refreshClinics().catch(() => {}); }} />
+
           {/* Celular: Sair fecha o cartão, numa linha própria e fácil de achar, longe do título e do Salvar. */}
           <section className="p-2 sm:hidden">
             <button
@@ -409,6 +422,118 @@ export default function Perfil() {
         </div>
       </div>
     </div>
+  );
+}
+
+function ConvitesDoPerfil({ aoMudar }: { aoMudar: () => void }) {
+  const { pendentes, pronto } = useConvitesRecebidos();
+  const { showAlert, showConfirm } = useCustomAlert();
+  const [respondendo, setRespondendo] = useState<{ id: number; acao: 'aceitar' | 'recusar' } | null>(null);
+  const [retirados, setRetirados] = useState<number[]>([]);
+  const lista = pendentes.filter((convite) => !retirados.includes(convite.id));
+
+  async function responder(convite: MeuConvite, aceitar: boolean) {
+    if (respondendo) return;
+    if (!aceitar) {
+      const confirmou = await showConfirm(
+        `Recusar o convite de ${convite.convidante_nome || 'equipe'} para ${nomesClinicasConvite(convite.clinicas)}? Seus vínculos atuais continuam iguais.`,
+        { title: 'Recusar convite', type: 'warning', confirmLabel: 'Recusar convite', cancelLabel: 'Voltar' },
+      );
+      if (!confirmou) return;
+    }
+    setRetirados((prev) => (prev.includes(convite.id) ? prev : [...prev, convite.id]));
+    setRespondendo({ id: convite.id, acao: aceitar ? 'aceitar' : 'recusar' });
+    try {
+      await responderConviteEquipe(convite.id, aceitar);
+      if (aceitar) {
+        void avisarConvitePorEmail(convite.id, 'aceito');
+        window.dispatchEvent(new CustomEvent('ortus:clinica-changed'));
+        aoMudar();
+      }
+      avisarConvitesMudaram();
+      await showAlert(
+        aceitar
+          ? `Convite aceito. Você agora também faz parte da equipe de ${nomesClinicasConvite(convite.clinicas)}.`
+          : 'Convite recusado. Seus vínculos atuais continuam iguais.',
+        { title: aceitar ? 'Convite aceito' : 'Convite recusado', type: 'success' },
+      );
+    } catch (error) {
+      setRetirados((prev) => prev.filter((id) => id !== convite.id));
+      await showAlert(
+        mensagemErroConvite(error, 'Não foi possível responder ao convite.'),
+        { title: 'Erro ao responder convite', type: 'error' },
+      );
+    } finally {
+      setRespondendo(null);
+    }
+  }
+
+  return (
+    <section className={sectionPad}>
+      <h2 className="text-base font-semibold text-neutral-900">Convites</h2>
+      {!pronto ? (
+        <div className="mt-3 h-10 animate-pulse rounded-md bg-neutral-50" />
+      ) : lista.length === 0 ? (
+        <p className="mt-2 text-sm text-neutral-500">
+          Não há convites em aberto.{' '}
+          <Link href="/ajustes/equipe" className="font-medium text-neutral-900 underline decoration-neutral-300 underline-offset-2 hover:decoration-neutral-900">
+            Equipe
+          </Link>
+          {' '}para gerenciar as atuais.
+        </p>
+      ) : (
+        <ul className="mt-3 space-y-3">
+          {lista.map((convite) => {
+            const ocupado = respondendo?.id === convite.id;
+            return (
+              <li key={convite.id} className="rounded-md border border-neutral-200 p-3">
+                <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  <div className="min-w-0">
+                    <dt className="text-xs font-medium text-neutral-500">Clínica</dt>
+                    <dd className="break-words text-sm text-neutral-900">{nomesClinicasConvite(convite.clinicas)}</dd>
+                  </div>
+                  <div className="min-w-0">
+                    <dt className="text-xs font-medium text-neutral-500">Quem convidou</dt>
+                    <dd className="break-words text-sm text-neutral-900">{convite.convidante_nome || 'A equipe'}</dd>
+                  </div>
+                  <div className="min-w-0">
+                    <dt className="text-xs font-medium text-neutral-500">Cargo</dt>
+                    <dd className="break-words text-sm text-neutral-900">{convite.cargo || 'Não informado'}</dd>
+                  </div>
+                  <div className="min-w-0">
+                    <dt className="text-xs font-medium text-neutral-500">Rede</dt>
+                    <dd className="break-words text-sm text-neutral-900">{convite.rede_nome || 'Não informada'}</dd>
+                  </div>
+                </dl>
+                {convite.mensagem ? (
+                  <p className="mt-2 break-words text-sm text-neutral-600">{convite.mensagem}</p>
+                ) : null}
+                <div className="mt-3 grid grid-cols-2 gap-2 sm:flex">
+                  <button
+                    type="button"
+                    onClick={() => { void responder(convite, true); }}
+                    disabled={respondendo !== null}
+                    className="inline-flex h-10 items-center justify-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-40"
+                  >
+                    {ocupado && respondendo?.acao === 'aceitar' ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+                    Aceitar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { void responder(convite, false); }}
+                    disabled={respondendo !== null}
+                    className="inline-flex h-10 items-center justify-center gap-1.5 rounded-md border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-40"
+                  >
+                    {ocupado && respondendo?.acao === 'recusar' ? <Loader2 size={16} className="animate-spin" /> : <X size={16} />}
+                    Recusar
+                  </button>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
   );
 }
 

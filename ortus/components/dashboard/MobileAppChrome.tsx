@@ -30,6 +30,7 @@ import FaixaAssinatura from '@/components/assinatura/FaixaAssinatura';
 import BentoClinicSwitcher from '@/components/dashboard/BentoClinicSwitcher';
 import type { DashboardSidebarNavOptions } from '@/components/dashboard/DashboardSidebar';
 import { WHATSAPP_ATIVO } from '@/lib/whatsappCliente';
+import { useConvitesRecebidos } from '@/lib/useConvitesRecebidos';
 
 type Item = {
   href: string;
@@ -78,6 +79,8 @@ export default function MobileAppChrome({
   profileName = null,
 }: DashboardSidebarNavOptions & { children: ReactNode }) {
   const pathname = usePathname();
+  const { pendentes: convitesAbertos } = useConvitesRecebidos();
+  const temConvite = convitesAbertos.length > 0;
   const [aberto, setAberto] = useState(false);
   const [painel, setPainel] = useState(false);
   const fecharTimer = useRef<number | null>(null);
@@ -170,7 +173,7 @@ export default function MobileAppChrome({
         <Link
           href="/perfil"
           aria-label={profileName ? `Perfil de ${profileName}` : 'Meu perfil'}
-          className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#c8f053] text-neutral-900"
+          className={`flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#c8f053] text-neutral-900 ${temConvite ? 'ring-2 ring-red-500' : ''}`}
         >
           {profilePhotoUrl ? (
             <img src={profilePhotoUrl} alt="" className="h-full w-full object-cover" />
@@ -255,6 +258,7 @@ export default function MobileAppChrome({
                   {profilePhotoUrl ? <img src={profilePhotoUrl} alt="" className="h-full w-full object-cover" /> : <User size={16} strokeWidth={1.75} />}
                 </span>
                 <span className="min-w-0 flex-1 truncate">{profileName || 'Meu perfil'}</span>
+                {temConvite && <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-red-500" aria-label="Convite em aberto" />}
                 <span className="text-xs text-neutral-400">Meu perfil</span>
               </Link>
             </div>

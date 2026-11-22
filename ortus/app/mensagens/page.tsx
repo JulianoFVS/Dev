@@ -1,22 +1,13 @@
 'use client';
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import Link from 'next/link';
 import { dados as tabelas, usuarioDaSessao } from '@/lib/local/consulta';
 import { AlertTriangle, Bell, Calendar, History, Info, Mail } from 'lucide-react';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
 import MenuPontos from '@/components/ui/MenuPontos';
-import ConviteEquipeCard, { ConviteStatusBadge } from '@/components/forms/ConviteEquipeCard';
-import { useClinica } from '@/app/context/ClinicaContext';
-import {
-  formatarDataConvite,
-  listarMeusConvites,
-  mensagemErroConvite,
-  nomesClinicasConvite,
-  obterStatusConvite,
-  responderConviteEquipe,
-  avisarConvitePorEmail,
-  type MeuConvite,
-} from '@/lib/convites';
+import { nomesClinicasConvite, type MeuConvite } from '@/lib/convites';
+import { useConvitesRecebidos } from '@/lib/useConvitesRecebidos';
 
 const TIPOS_ALERTA = new Set(['agenda', 'alerta', 'sistema', 'aviso']);
 
@@ -34,6 +25,7 @@ function Painel({
   iconeVazio,
   modo,
   iconeItem,
+  topo,
 }: {
   titulo: string;
   subtitulo: string;
@@ -41,6 +33,7 @@ function Painel({
   iconeVazio: ReactNode;
   modo: 'mensagem' | 'alerta';
   iconeItem: (tipo: string) => ReactNode;
+  topo?: ReactNode;
 }) {
   const [todos, setTodos] = useState<any[]>([]);
   const [escopo, setEscopo] = useState<'ativas' | 'historico'>('ativas');
@@ -119,6 +112,7 @@ function Painel({
         </div>
       </div>
       <div className="lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
+        {topo}
         {loading ? (
           <div className="space-y-3 p-4">
             {Array.from({ length: 5 }).map((_, i) => (
@@ -132,7 +126,7 @@ function Painel({
             <h3 className="font-semibold text-neutral-900">Não foi possível carregar</h3>
             <p className="mt-1 text-sm text-neutral-500">Confira a internet e recarregue a página.</p>
           </div>
-        ) : visiveis.length === 0 ? (
+        ) : visiveis.length === 0 && !topo ? (
           <div className="flex flex-col items-center justify-center px-6 py-8 text-center lg:py-20">
             <div className="mb-3 text-neutral-300">{iconeVazio}</div>
             <h3 className="font-semibold text-neutral-900">{vazio}</h3>
@@ -170,161 +164,41 @@ function Painel({
   );
 }
 
-type RespostaConviteEmAndamento = { id: number; acao: 'aceitar' | 'recusar' };
-
-function ConvitesPainel() {
-  const { showAlert, showConfirm } = useCustomAlert();
-  const { refreshClinics } = useClinica();
-  const [convites, setConvites] = useState<MeuConvite[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [respondendo, setRespondendo] = useState<RespostaConviteEmAndamento | null>(null);
-
-  useEffect(() => {
-    let ativo = true;
-    async function carregar() {
-      try {
-        const lista = await listarMeusConvites();
-        if (ativo) setConvites(lista);
-      } catch (error) {
-        if (ativo) {
-          await showAlert(
-            mensagemErroConvite(error, 'Não foi possível carregar seus convites.'),
-            { title: 'Convites', type: 'error' },
-          );
-        }
-      } finally {
-        if (ativo) setLoading(false);
-      }
-    }
-    void carregar();
-    return () => { ativo = false; };
-  }, [showAlert]);
-
-  const pendentes = useMemo(
-    () => convites.filter((convite) => obterStatusConvite(convite) === 'pendente'),
-    [convites],
-  );
-  const respondidos = useMemo(
-    () => convites.filter((convite) => obterStatusConvite(convite) !== 'pendente'),
-    [convites],
-  );
-
-  async function responder(convite: MeuConvite, aceitar: boolean) {
-    if (respondendo) return;
-
-    if (!aceitar) {
-      const confirmou = await showConfirm(
-        `Recusar o convite de ${convite.convidante_nome || 'equipe'} para ${nomesClinicasConvite(convite.clinicas)}? Seus vínculos atuais continuam iguais.`,
-        { title: 'Recusar convite', type: 'warning', confirmLabel: 'Recusar convite', cancelLabel: 'Voltar' },
-      );
-      if (!confirmou) return;
-    }
-
-    setRespondendo({ id: convite.id, acao: aceitar ? 'aceitar' : 'recusar' });
-    try {
-      const resultado = await responderConviteEquipe(convite.id, aceitar);
-      setConvites((prev) => prev.map((item) => (
-        item.id === convite.id ? { ...item, status: resultado.status } : item
-      )));
-
-      if (aceitar) {
-        // Avisa por e-mail quem convidou. Não segura a tela: o aceite já está gravado.
-        void avisarConvitePorEmail(convite.id, 'aceito');
-        window.dispatchEvent(new CustomEvent('ortus:clinica-changed'));
-        void refreshClinics().catch(() => {});
-        await showAlert(
-          `Convite aceito! Você agora também faz parte da equipe de ${nomesClinicasConvite(convite.clinicas)}.`,
-          { title: 'Convite aceito', type: 'success' },
-        );
-      } else {
-        await showAlert(
-          'Convite recusado. Seus vínculos atuais continuam iguais.',
-          { title: 'Convite recusado', type: 'success' },
-        );
-      }
-    } catch (error) {
-      await showAlert(
-        mensagemErroConvite(error, 'Não foi possível responder ao convite.'),
-        { title: 'Erro ao responder convite', type: 'error' },
-      );
-    } finally {
-      setRespondendo(null);
-    }
-  }
-
-  if (loading) return null;
-  if (convites.length === 0) return null;
+function AvisoConvite({ pendentes }: { pendentes: MeuConvite[] }) {
+  if (pendentes.length === 0) return null;
+  const unico = pendentes.length === 1 ? pendentes[0] : null;
+  const texto = unico
+    ? `${unico.convidante_nome || 'A equipe'} convidou você para ${nomesClinicasConvite(unico.clinicas)}.`
+    : `Você tem ${pendentes.length} convites de equipe em aberto.`;
 
   return (
-    <section className="mb-3 flex shrink-0 flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white lg:max-h-[42vh]">
-      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-black/5 px-3 py-2.5">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-base font-semibold text-neutral-900">Convites</h2>
-            {pendentes.length > 0 && (
-              <span className="text-xs font-medium text-neutral-500">
-                {pendentes.length} {pendentes.length === 1 ? 'pendente' : 'pendentes'}
-              </span>
-            )}
-          </div>
-          <p className="text-xs text-neutral-500 sm:truncate">
-            {pendentes.length > 0
-              ? 'Responda para participar de outra rede sem perder seus vínculos atuais.'
-              : 'Seus convites já respondidos.'}
-          </p>
-        </div>
+    <div className="flex gap-3 border-b border-amber-100 bg-amber-50 p-3 sm:gap-4 sm:p-5">
+      <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-amber-200 bg-white">
+        <Mail size={18} className="text-amber-700" />
       </div>
-
-      <div className="p-3 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
-        {pendentes.length > 0 && (
-          <div className="space-y-2">
-            {pendentes.map((convite) => (
-              <ConviteEquipeCard
-                key={convite.id}
-                convite={convite}
-                respondendo={respondendo?.id === convite.id ? respondendo.acao : null}
-                onAceitar={(item) => { void responder(item, true); }}
-                onRecusar={(item) => { void responder(item, false); }}
-              />
-            ))}
-          </div>
-        )}
-
-        {respondidos.length > 0 && (
-          <div className={pendentes.length > 0 ? 'mt-3 border-t border-black/5 pt-2.5' : ''}>
-            <h3 className="text-xs font-medium text-neutral-400">Histórico</h3>
-            <ul className="mt-1.5 divide-y divide-black/5">
-              {respondidos.map((convite) => (
-                <li key={convite.id} className="flex flex-col gap-1.5 py-2 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="min-w-0">
-                    <p className="break-words text-sm font-medium text-neutral-800 sm:truncate">{nomesClinicasConvite(convite.clinicas)}</p>
-                    <p className="break-words text-xs text-neutral-500 sm:truncate">
-                      {convite.convidante_nome || 'Equipe'}
-                      {convite.rede_nome ? ` · ${convite.rede_nome}` : ''}
-                      {convite.cargo ? ` · ${convite.cargo}` : ''}
-                      {` · ${formatarDataConvite(convite.criado_em)}`}
-                    </p>
-                  </div>
-                  <ConviteStatusBadge status={obterStatusConvite(convite)} />
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
+      <div className="min-w-0 flex-1">
+        <h4 className="break-words font-semibold text-neutral-900">Convite de equipe</h4>
+        <p className="mt-0.5 break-words text-sm text-neutral-600">{texto}</p>
+        <Link
+          href="/perfil"
+          className="mt-2 inline-flex h-8 items-center rounded-md border border-neutral-200 bg-white px-3 text-xs font-medium text-neutral-900 hover:bg-neutral-50"
+        >
+          Meu perfil
+        </Link>
       </div>
-    </section>
+    </div>
   );
 }
 
 export default function Mensagens() {
+  const { pendentes } = useConvitesRecebidos();
+
   return (
     // Abaixo de lg a página rola inteira (quem rola é a casca); a altura fixa com rolagem por dentro fica só no computador.
     <div className="flex shrink-0 flex-col px-2.5 py-2.5 sm:px-3 sm:py-3 md:px-4 md:py-3.5 lg:h-full lg:min-h-0 lg:shrink lg:overflow-hidden">
       <header className="mb-3 shrink-0">
         <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 md:text-[2rem]">Mensagens e notificações</h1>
-        <p className="mt-1 text-xs text-neutral-400">Equipe e avisos da clínica.</p>
       </header>
-      <ConvitesPainel />
       <div className="grid grid-cols-1 gap-3 lg:min-h-0 lg:flex-1 lg:grid-cols-2 lg:overflow-hidden">
         <Painel
           titulo="Mensagens"
@@ -340,6 +214,7 @@ export default function Mensagens() {
           vazio="Nenhuma notificação"
           iconeVazio={<Bell size={32} />}
           modo="alerta"
+          topo={<AvisoConvite pendentes={pendentes} />}
           iconeItem={(tipo) => tipo === 'agenda'
             ? <Calendar size={18} className="text-neutral-700" />
             : tipo === 'alerta'
