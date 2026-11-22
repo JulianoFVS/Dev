@@ -181,7 +181,7 @@ export default function TratamentosPage() {
   const [espId, setEspId] = useState<string | null>(() => boot?.espId ?? null);
   // Clínica de onde vieram as listas em tela: o cache só recebe dados da própria clínica ativa.
   const [dadosDe, setDadosDe] = useState<number | null>(() => boot?.clinicaId ?? null);
-  const [carregando, setCarregando] = useState(() => !boot);
+  const [carregando, setCarregando] = useState(true);
 
   const [espModal, setEspModal] = useState<Especialidade | 'nova' | null>(null);
   const [espNome, setEspNome] = useState('');
@@ -252,7 +252,6 @@ export default function TratamentosPage() {
       setSelecionadoId(snap.selecionadoId);
       setEspId(snap.espId);
       setDadosDe(clinicaId);
-      setCarregando(false);
     } else if (dadosDe !== clinicaId) {
       // Clínica nova sem cache: o catálogo da anterior sai da tela e entra o esqueleto até carregar.
       setPlanos([]);
@@ -835,6 +834,22 @@ export default function TratamentosPage() {
           {!clinicLoading && (
             <p className="text-center text-sm text-neutral-500">Selecione uma clínica para ver o catálogo e os planos.</p>
           )}
+        </div>
+      ) : carregando ? (
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white lg:flex-row" aria-hidden>
+          <div className="flex shrink-0 gap-2 border-b border-neutral-200 p-2 lg:w-56 lg:flex-col lg:border-b-0 lg:border-r">
+            {Array.from({ length: 5 }, (_, i) => (
+              <div key={i} className="h-10 w-32 shrink-0 animate-pulse rounded-xl bg-neutral-50 lg:w-full" />
+            ))}
+          </div>
+          <div className="min-h-0 flex-1 space-y-2 p-3">
+            <div className="h-5 w-40 animate-pulse rounded bg-neutral-50" />
+            <div className="h-3 w-56 max-w-full animate-pulse rounded bg-neutral-50" />
+            <div className="h-10 animate-pulse rounded-md bg-neutral-50" />
+            {Array.from({ length: 6 }, (_, i) => (
+              <div key={i} className="h-12 animate-pulse rounded-md bg-neutral-50" />
+            ))}
+          </div>
         </div>
       ) : (
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white lg:flex-row">

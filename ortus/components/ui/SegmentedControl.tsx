@@ -44,12 +44,12 @@ export default function SegmentedControl<T extends string>({
   return (
     <div
       ref={trilho}
-      className={`relative ${fit ? 'inline-flex' : 'grid'} ${altura} rounded-md border border-neutral-200 p-0.5 ${className}`}
+      className={`relative box-border ${fit ? 'inline-flex overflow-hidden p-0' : 'grid p-0.5'} ${altura} rounded-md border border-neutral-200 ${className}`}
       style={fit ? undefined : { gridTemplateColumns: `repeat(${n}, minmax(0, 1fr))` }}
     >
       <span
         aria-hidden
-        className={`pointer-events-none absolute bottom-0.5 top-0.5 rounded-[5px] bg-neutral-900 duration-200 ease-out ${fit ? 'left-0 transition-[transform,width]' : 'left-0.5 transition-transform'}`}
+        className={`pointer-events-none absolute rounded-[5px] bg-neutral-900 duration-200 ease-out ${fit ? 'inset-y-0 left-0 transition-[transform,width]' : 'bottom-0.5 top-0.5 left-0.5 transition-transform'}`}
         style={fit
           ? { width: pill.w, transform: `translateX(${pill.x}px)` }
           : { width: `calc((100% - 0.25rem) / ${n})`, transform: `translateX(${i * 100}%)` }}
@@ -63,7 +63,7 @@ export default function SegmentedControl<T extends string>({
           aria-label={option.ariaLabel}
           aria-pressed={value === option.value}
           onClick={() => onChange(option.value)}
-          className={`alvo-toque relative z-10 flex items-center justify-center gap-1.5 rounded-[5px] transition-colors duration-200 ${fit ? 'px-2.5' : 'px-2 font-medium'} ${texto} ${
+          className={`alvo-toque relative z-10 flex h-full items-center justify-center gap-1.5 rounded-[5px] transition-colors duration-200 ${fit ? 'px-2.5' : 'px-2 font-medium'} ${texto} ${
             value === option.value ? 'text-white' : 'text-neutral-600'
           }`}
         >

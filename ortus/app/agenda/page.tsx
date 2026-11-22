@@ -1293,7 +1293,7 @@ export default function Agenda() {
   );
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden px-2.5 py-2.5 font-poppins sm:px-3 sm:py-3 md:px-4 md:py-3.5 max-md:overflow-y-auto">
+    <div className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-x-hidden overflow-y-hidden px-2.5 py-2.5 font-poppins sm:px-3 sm:py-3 md:px-4 md:py-3.5 max-md:overflow-y-auto">
       <Aviso mensagem={aviso} />
       <header className="relative mb-2 shrink-0 space-y-2 md:mb-3 md:space-y-3">
         <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 md:text-[2rem]">
@@ -1441,7 +1441,7 @@ export default function Agenda() {
             <button
               type="button"
               onClick={abrirNovoAgendamento}
-              className="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md bg-neutral-900 px-3 py-0 text-sm font-medium leading-none text-white hover:bg-neutral-800"
+                className="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md border border-neutral-900 bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800"
             >
               <Plus size={14} />
               Novo agendamento
@@ -1523,7 +1523,7 @@ export default function Agenda() {
               <div key={dia} className="py-2 text-center text-xs font-medium text-neutral-500">{dia}</div>
             ))}
           </div>
-          <div className="grid min-h-[280px] flex-1 grid-cols-7 grid-rows-6">
+          <div className="grid min-h-[280px] w-full min-w-0 flex-1 grid-cols-7 grid-rows-6">
             {diasMes.map((dia, indice) => {
               const lista = eventosPorDia.get(chaveLocal(dia)) || [];
               const fora = dia.getMonth() !== cursor.getMonth();
@@ -1539,7 +1539,7 @@ export default function Agenda() {
                     }
                     abrirNoDia(dia);
                   }}
-                  className={`flex min-h-0 cursor-pointer flex-col p-1 text-left hover:bg-neutral-50 max-md:items-center md:p-1.5 ${indice % 7 !== 6 ? 'border-r border-neutral-200' : ''} ${indice < 35 ? 'border-b border-neutral-200' : ''}`}
+                  className={`flex min-h-0 min-w-0 cursor-pointer flex-col overflow-hidden p-1 text-left hover:bg-neutral-50 max-md:items-center md:p-1.5 ${indice % 7 !== 6 ? 'border-r border-neutral-200' : ''} ${indice < 35 ? 'border-b border-neutral-200' : ''}`}
                 >
                   <span className={`inline-flex h-6 min-w-6 items-center justify-center rounded-full px-1 text-xs md:text-sm ${mesmoDia(dia, hoje) ? 'bg-amber-500 font-semibold text-white' : fora ? 'text-neutral-300' : 'text-neutral-700'}`}>{dia.getDate()}</span>
                   <div className="mt-0.5 min-h-0 space-y-0.5 overflow-hidden max-md:hidden">
@@ -1569,23 +1569,23 @@ export default function Agenda() {
       )}
 
       {(visao === 'semana' || visao === 'dia') && (
-        <div className={`flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white ${visao === 'semana' ? 'max-md:hidden' : 'max-md:min-h-[15rem]'}`}>
+        <div className={`flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white ${visao === 'semana' ? 'max-md:hidden' : 'max-md:min-h-[15rem]'}`}>
           {visao === 'dia' && faixaSemana}
-          <div className={`grid shrink-0 border-b border-neutral-200 ${visao === 'dia' ? 'grid-cols-[3.25rem_minmax(0,1fr)] max-md:hidden' : 'grid-cols-[3.25rem_repeat(7,minmax(0,1fr))]'}`}>
-            <div />
-            {(visao === 'dia' ? [inicioDoDia(cursor)] : diasSemana).map((dia) => (
-              <div key={chaveLocal(dia)} className="py-2 text-center">
-                <div className="text-[11px] text-neutral-400">{DIAS_CURTOS[dia.getDay()]}</div>
-                <div className={`mx-auto flex h-6 w-6 items-center justify-center rounded-full text-sm ${mesmoDia(dia, hoje) ? 'bg-amber-500 font-semibold text-white' : 'text-neutral-800'}`}>{dia.getDate()}</div>
-              </div>
-            ))}
-          </div>
-          <div ref={gradeHorasRef} className="relative min-h-0 flex-1 overflow-y-auto">
+          <div ref={gradeHorasRef} className="relative min-h-0 w-full min-w-0 flex-1 overflow-x-clip overflow-y-auto [scrollbar-gutter:stable]">
+            <div className={`sticky top-0 z-10 grid w-full min-w-0 border-b border-neutral-200 bg-white ${visao === 'dia' ? 'grid-cols-[3.25rem_minmax(0,1fr)] max-md:hidden' : 'grid-cols-[3.25rem_repeat(7,minmax(0,1fr))]'}`}>
+              <div />
+              {(visao === 'dia' ? [inicioDoDia(cursor)] : diasSemana).map((dia) => (
+                <div key={chaveLocal(dia)} className="min-w-0 py-2 text-center">
+                  <div className="text-[11px] text-neutral-400">{DIAS_CURTOS[dia.getDay()]}</div>
+                  <div className={`mx-auto flex h-6 w-6 items-center justify-center rounded-full text-sm ${mesmoDia(dia, hoje) ? 'bg-amber-500 font-semibold text-white' : 'text-neutral-800'}`}>{dia.getDate()}</div>
+                </div>
+              ))}
+            </div>
             {horasGrade.map((hora) => {
               const dias = visao === 'dia' ? [inicioDoDia(cursor)] : diasSemana;
               const rotulo = `${String(hora).padStart(2, '0')}:00`;
               return (
-                <div key={hora} className={`grid min-h-12 border-b border-neutral-100 last:border-b-0 ${visao === 'dia' ? 'grid-cols-[3.25rem_minmax(0,1fr)]' : 'grid-cols-[3.25rem_repeat(7,minmax(0,1fr))]'}`}>
+                <div key={hora} className={`grid min-h-12 w-full min-w-0 border-b border-neutral-100 last:border-b-0 ${visao === 'dia' ? 'grid-cols-[3.25rem_minmax(0,1fr)]' : 'grid-cols-[3.25rem_repeat(7,minmax(0,1fr))]'}`}>
                   <div className="px-1 pt-1 text-right text-[11px] text-neutral-400">{rotulo}</div>
                   {dias.map((dia) => {
                     const lista = (eventosPorDia.get(chaveLocal(dia)) || []).filter((evento) => new Date(evento.start).getHours() === hora);
@@ -1594,7 +1594,7 @@ export default function Agenda() {
                       <div
                         key={`${chaveLocal(dia)}-${hora}`}
                         onClick={() => abrirNoDia(dia, rotulo)}
-                        className="relative min-h-12 cursor-pointer border-l border-neutral-100 p-0.5 hover:bg-neutral-50"
+                        className="relative min-h-12 min-w-0 cursor-pointer overflow-hidden border-l border-neutral-100 p-0.5 hover:bg-neutral-50"
                       >
                         {mostraAgora && (
                           <div

@@ -5,6 +5,8 @@ alwaysApply: true
 
 # Responsivo em toda mudança de tela
 
+Tudo que for pedido — tela, modal, formulário, lista, tabela, botão, menu — tem que ser pensado para desktop e para celular antes de existir. Se o desenho não couber, adapte o layout (coluna vira lista, barra vira menu, grade perde coluna, texto trunca). Não entregue um controle que só funciona largo.
+
 Sempre que criar, alterar ou corrigir algo visível (layout, UI, espaçamento, tipografia, botão, imagem, modal, tabela, hero, navbar), trate **desktop e mobile no mesmo trabalho**. Não entregue só um breakpoint.
 
 ## O que fazer

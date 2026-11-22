@@ -245,7 +245,7 @@ export default function DashboardSidebar({
       </div>
 
       <nav
-        className={`flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${collapsed ? 'items-center gap-1 px-2' : 'gap-1 px-2.5'}`}
+        className={`flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${collapsed ? 'items-center gap-1 px-2' : 'gap-0.5 px-2.5'}`}
       >
         {LINKS_TOPO.map((item) => (
           <NavItem key={item.href} href={item.href} label={item.label} Icon={item.icon} collapsed={collapsed} />
@@ -274,17 +274,17 @@ export default function DashboardSidebar({
         {showTratamentosBase && (
           <NavItem href="/ajustes/tratamentos" label="Tratamentos" Icon={ClipboardList} collapsed={collapsed} />
         )}
-      </nav>
-
-      <div className={`mt-auto flex shrink-0 flex-col gap-1.5 pt-4 ${collapsed ? 'items-center px-2' : 'px-2.5'}`}>
-        {showPainelSaas && (
-          <NavItem href="/super-admin" label="Painel SaaS" Icon={ShieldAlert} collapsed={collapsed} />
-        )}
         {showAssinatura && (
           <NavItem href="/assinatura" label="Assinatura" Icon={CreditCard} collapsed={collapsed} />
         )}
+      </nav>
+
+      <div className={`mt-auto flex shrink-0 flex-col gap-1 ${collapsed ? 'items-center px-2' : 'px-2.5'}`}>
         {showPainelSaas && (
           <div className={`h-px bg-white/10 ${collapsed ? 'my-0.5 w-7' : 'mx-1 my-0.5'}`} role="presentation" />
+        )}
+        {showPainelSaas && (
+          <NavItem href="/super-admin" label="Painel SaaS" Icon={ShieldAlert} collapsed={collapsed} />
         )}
         <BentoSidebarTooltip label="Configurações" show={collapsed}>
           <Link
@@ -325,7 +325,7 @@ export default function DashboardSidebar({
         <BentoSidebarTooltip label="Meu perfil" show={collapsed}>
           <Link
             href="/perfil"
-            className={`flex items-center transition-all duration-200 ease-out ${collapsed ? 'h-11 w-11 justify-center overflow-hidden rounded-full ring-2 ring-neutral-800' : 'gap-3 rounded-2xl px-3 py-2 hover:bg-white/10'}`}
+            className={`flex items-center transition-all duration-200 ease-out ${collapsed ? 'h-11 w-11 justify-center overflow-hidden rounded-full ring-2 ring-neutral-800' : 'gap-3 rounded-2xl px-3 py-1 hover:bg-white/10'}`}
           >
             <ProfileAvatar photoUrl={profilePhotoUrl} profileName={profileName} collapsed={collapsed} />
             {!collapsed && <span className="truncate text-sm font-medium text-white/90">Meu perfil</span>}

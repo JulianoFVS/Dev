@@ -112,10 +112,10 @@ export default function MobileAppChrome({
     ...(showTarefas ? [{ href: '/tarefas', label: 'Tarefas', icon: CheckSquare, badge: tarefasBadge }] : []),
     ...(showEquipe ? [{ href: '/ajustes/equipe', label: 'Equipe', icon: ShieldCheck }] : []),
     ...(showTratamentosBase ? [{ href: '/ajustes/tratamentos', label: 'Tratamentos', icon: ClipboardList }] : []),
+    ...(showAssinatura ? [{ href: '/assinatura', label: 'Assinatura', icon: CreditCard }] : []),
     ...(WHATSAPP_ATIVO ? [{ href: '/whatsapp', label: 'WhatsApp', icon: MessageCircle }] : []),
     { href: '/mensagens', label: 'Mensagens', icon: Mail },
     ...(showPainelSaas ? [{ href: '/super-admin', label: 'Painel SaaS', icon: ShieldAlert }] : []),
-    ...(showAssinatura ? [{ href: '/assinatura', label: 'Assinatura', icon: CreditCard }] : []),
     { href: '/configuracoes', label: 'Configurações', icon: Settings },
     { href: '/ajuda', label: 'Ajuda', icon: CircleHelp },
   ];
@@ -184,7 +184,7 @@ export default function MobileAppChrome({
       <FaixaAssinatura />
 
       {/* O respiro no fim é a altura da barra flutuante: o último botão de qualquer tela para acima dela. */}
-      <div className="flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto overscroll-contain pb-[calc(4.5rem+env(safe-area-inset-bottom))] lg:overflow-y-hidden lg:pb-0">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto overscroll-contain pb-[calc(4.5rem+env(safe-area-inset-bottom))] lg:overflow-hidden lg:pb-0">
         {children}
       </div>
 

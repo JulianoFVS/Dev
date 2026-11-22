@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { dados as tabelas } from '@/lib/local/consulta';
 import { modoDados, listar, inserir, atualizar, remover } from '@/lib/local/cliente';
 import { clinicScope, readRouteCache, writeRouteCache } from '@/lib/routeListCache';
@@ -259,7 +259,12 @@ export default function Tarefas() {
     const [filtroBusca, setFiltroBusca] = useState('');
     // Modal
     const [modalOpen, setModalOpen] = useState(false);
-    const [coresQuadro, setCoresQuadro] = useState<Record<string, string>>(readCoresQuadro);
+    const [coresQuadro, setCoresQuadro] = useState<Record<string, string>>({});
+    // O estado inicial nasce no servidor, sem localStorage. Sem esta leitura, a cor
+    // gravada some na hidratação e a coluna volta sem tinta depois de recarregar.
+    useLayoutEffect(() => {
+        setCoresQuadro(readCoresQuadro());
+    }, []);
     const [pintando, setPintando] = useState<string | null>(null);
     // Celular: uma coluna por vez, escolhida por abas no topo.
     const [abaCelular, setAbaCelular] = useState<Tarefa['status']>('a_fazer');

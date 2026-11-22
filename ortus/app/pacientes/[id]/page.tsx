@@ -865,7 +865,7 @@ export default function PacienteDetalhe() {
                   previewsDocumento.current.push(url);
                   porId.set(String(d.id), { url, vista });
               } catch {
-                  /* preview opcional */
+                  porId.set(String(d.id), { vista: 'baixar' });
               }
           }));
           if (!vivo || porId.size === 0) return;
@@ -3783,10 +3783,12 @@ export default function PacienteDetalhe() {
                                                         <img src={d.previewUrl} alt="" className="h-full w-full object-cover" />
                                                     ) : d.previewUrl && d.previewVista === 'pdf' ? (
                                                         <iframe src={`${d.previewUrl}#toolbar=0&navpanes=0&scrollbar=0&page=1&view=FitH`} title="" scrolling="no" className="pointer-events-none absolute left-0 top-0 h-48 w-[calc(100%+20px)] border-0 bg-white" />
+                                                    ) : !semConexao() && (documentoEhImagem(d) || documentoEhPdf(d)) && !d.previewVista ? (
+                                                        <span className="absolute inset-0 animate-pulse bg-neutral-100" />
                                                     ) : (
                                                         <>
                                                             <FileText size={28} />
-                                                            <span className="text-xs font-medium">{documentoEhImagem(d) ? 'Imagem' : documentoEhPdf(d) ? 'PDF' : 'Arquivo'}</span>
+                                                            <span className="text-xs font-medium">Arquivo</span>
                                                         </>
                                                     )}
                                                 </button>

@@ -1,5 +1,5 @@
 'use client';
-import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { FormEvent, Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { clinicScope, readRouteCache, writeRouteCache } from '@/lib/routeListCache';
 import { readProfileSession } from '@/lib/profileSession';
@@ -20,7 +20,7 @@ import { ConviteStatusBadge } from '@/components/forms/ConviteEquipeCard';
 import {
     Loader2, X, ShieldCheck, Copy, Check,
     AlertTriangle,
-    Trash2, ArrowUpDown, Pencil, Plus, ChevronRight,
+    Trash2, ArrowUpDown, Pencil, Plus, ChevronRight, ChevronDown,
 } from 'lucide-react';
 import {
     cancelarConviteEquipe,
@@ -158,7 +158,6 @@ export default function EquipePage() {
     });
     const [perfilResolvido, setPerfilResolvido] = useState(false);
     const [ordenacao, setOrdenacao] = useState<{ campo: 'nome' | 'cargo' | 'unidades' | 'status'; dir: 'asc' | 'desc' }>({ campo: 'nome', dir: 'asc' });
-    const [ordenacaoComissao, setOrdenacaoComissao] = useState<{ campo: 'profissional' | 'gatilho' | 'tipo' | 'valor'; dir: 'asc' | 'desc' }>({ campo: 'profissional', dir: 'asc' });
 
     // Modal de criação
     const [modalOpen, setModalOpen] = useState(false);
@@ -209,7 +208,10 @@ export default function EquipePage() {
         : null;
     const [comissoesConsolidadas, setComissoesConsolidadas] = useState<(ComissaoRegra & { profissionais?: { nome: string; foto_url?: string | null } | null })[]>(() => bootComissoes ?? []);
     const [comissoesConsolidadasLoading, setComissoesConsolidadasLoading] = useState(() => !bootComissoes);
-    const [comissaoLancamentos, setComissaoLancamentos] = useState<any[]>([]);
+    const [comissaoAbertaId, setComissaoAbertaId] = useState<string | null>(null);
+    const [linhaEditandoId, setLinhaEditandoId] = useState<string | null>(null);
+    const [linhaForm, setLinhaForm] = useState({ gatilho: GATILHOS_COMISSAO[0].value, tipo: TIPOS_COMISSAO[0].value, valor: '' });
+    const [linhaSalvando, setLinhaSalvando] = useState(false);
     const [nivelAcessoEdit, setNivelAcessoEdit] = useState<'comum' | 'admin'>('comum');
     const [aviso, setAviso] = useState<string | null>(null);
     const avisoTimer = useRef<number | null>(null);
@@ -557,14 +559,6 @@ export default function EquipePage() {
                     setComissoesConsolidadas(rows);
                 }
                 setComissoesConsolidadasLoading(false);
-            });
-        tabelas.from('comissoes_lancamentos')
-            .select('*, profissionais(nome, foto_url)')
-            .eq('clinica_id', clinicaIdNumerica)
-            .order('created_at', { ascending: false })
-            .limit(20)
-            .then(({ data }) => {
-                if (ativo) setComissaoLancamentos(data || []);
             });
         return () => { ativo = false; };
     }, [clinicaIdNumerica]);
@@ -1094,8 +1088,40 @@ export default function EquipePage() {
         setOrdenacao((prev) => prev.campo === campo ? { campo, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { campo, dir: 'asc' });
     }
 
-    function alternarOrdemComissao(campo: 'profissional' | 'gatilho' | 'tipo' | 'valor') {
-        setOrdenacaoComissao((prev) => prev.campo === campo ? { campo, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { campo, dir: 'asc' });
+    async function salvarLinha(regra: ComissaoRegra) {
+        const valorNumber = Number(linhaForm.valor);
+        if (Number.isNaN(valorNumber) || valorNumber < 0) {
+            showAlert('Informe um valor válido para a comissão.', { type: 'warning' });
+            return;
+        }
+        setLinhaSalvando(true);
+        try {
+            const { data, error } = await tabelas.from('comissoes_regras')
+                .update({
+                    gatilho: linhaForm.gatilho,
+                    tipo: linhaForm.tipo,
+                    valor: valorNumber,
+                    ativo: regra.ativo !== false,
+                })
+                .eq('id', regra.id)
+                .select()
+                .single();
+            if (error) throw error;
+            const row = data as ComissaoRegra;
+            setComissoes((prev) => prev.map((item) => (item.id === regra.id ? row : item)));
+            setComissoesConsolidadas((prev) => {
+                const next = prev.map((item) => item.id === regra.id ? { ...row, profissionais: item.profissionais } : item);
+                if (clinicaIdNumerica) writeRouteCache(COMISSOES_CACHE_KEY, String(clinicaIdNumerica), next);
+                return next;
+            });
+            setLinhaEditandoId(null);
+            avisar('Regra atualizada.');
+        } catch (err) {
+            console.error(err);
+            await showAlert('Erro ao salvar regra de comissão.', { type: 'error' });
+        } finally {
+            setLinhaSalvando(false);
+        }
     }
 
     const profissionaisOrdenados = [...profissionais].sort((a, b) => {
@@ -1110,6 +1136,60 @@ export default function EquipePage() {
     });
 
     const kpiLoading = loading && !jaCarregou.current;
+
+    function abrirLinha(regra: ComissaoRegra) {
+        setLinhaEditandoId(regra.id);
+        setLinhaForm({ gatilho: regra.gatilho, tipo: regra.tipo, valor: String(regra.valor) });
+    }
+
+    function renderRegras(profissionalId: string | number) {
+        if (!clinicaIdNumerica) {
+            return <p className="px-1 py-2 text-sm text-neutral-400">Selecione uma clínica para ver as comissões.</p>;
+        }
+        const regras = comissoesConsolidadas.filter((regra) => String(regra.profissional_id) === String(profissionalId));
+        if (comissoesConsolidadasLoading && regras.length === 0) {
+            return <div className="h-10 animate-pulse rounded-md bg-neutral-50" />;
+        }
+        if (regras.length === 0) {
+            return <p className="px-1 py-2 text-sm text-neutral-400">Nenhuma regra de comissão.</p>;
+        }
+        const opcoesGatilho = GATILHOS_COMISSAO.map((item) => ({ value: item.value, label: item.label }));
+        const opcoesTipo = TIPOS_COMISSAO.map((item) => ({ value: item.value, label: item.label }));
+        return (
+            <div className="space-y-1.5">
+                <div className="hidden grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_6.5rem_4.5rem] gap-2 px-1 text-xs font-medium text-neutral-500 sm:grid">
+                    <span>Gatilho</span>
+                    <span>Tipo</span>
+                    <span className="text-right">Valor</span>
+                    <span className="sr-only">Editar</span>
+                </div>
+                {regras.map((regra) => linhaEditandoId === regra.id ? (
+                    <div key={regra.id} className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_6.5rem_4.5rem] sm:items-center">
+                        <CustomSelect size="sm" value={linhaForm.gatilho} onChange={(valor) => setLinhaForm((atual) => ({ ...atual, gatilho: valor }))} options={[...opcoesGatilho, ...(GATILHOS_SEM_EFEITO[linhaForm.gatilho] ? [{ value: linhaForm.gatilho, label: GATILHOS_SEM_EFEITO[linhaForm.gatilho] }] : [])]} />
+                        <CustomSelect size="sm" value={linhaForm.tipo} onChange={(valor) => setLinhaForm((atual) => ({ ...atual, tipo: valor }))} options={opcoesTipo} />
+                        <input type="number" step="1" min={0} value={linhaForm.valor} onChange={(event) => setLinhaForm((atual) => ({ ...atual, valor: event.target.value }))} className={campoClasse} aria-label="Valor" />
+                        <div className="flex justify-end gap-1">
+                            <button type="button" aria-label="Salvar" onClick={() => void salvarLinha(regra)} disabled={linhaSalvando} className="inline-flex h-10 w-10 items-center justify-center rounded-md bg-neutral-900 text-white hover:bg-neutral-800 disabled:opacity-40">
+                                {linhaSalvando ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                            </button>
+                            <button type="button" aria-label="Cancelar" onClick={() => setLinhaEditandoId(null)} className="inline-flex h-10 w-10 items-center justify-center rounded-md text-neutral-500 hover:bg-white hover:text-neutral-900">
+                                <X size={14} />
+                            </button>
+                        </div>
+                    </div>
+                ) : (
+                    <div key={regra.id} className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_auto_2.5rem] items-center gap-2 px-1 py-1 text-sm">
+                        <span className="truncate text-neutral-800">{getGatilhoLabel(regra.gatilho)}</span>
+                        <span className="truncate capitalize text-neutral-500">{regra.tipo?.replace('_', ' ')}</span>
+                        <span className="text-right font-medium tabular-nums text-neutral-900">{formatValorComissao(regra.tipo, Number(regra.valor))}</span>
+                        <button type="button" aria-label="Editar comissão" onClick={() => abrirLinha(regra)} className="inline-flex h-8 w-8 items-center justify-center justify-self-end rounded-md text-neutral-500 hover:bg-white hover:text-neutral-900">
+                            <Pencil size={14} />
+                        </button>
+                    </div>
+                ))}
+            </div>
+        );
+    }
 
     if (perfilResolvido && !isAdmin && !clinicLoading) {
         return (
@@ -1185,22 +1265,37 @@ export default function EquipePage() {
                 <>
                 {/* Celular: cada pessoa é uma linha inteira tocável. A tabela de quatro colunas não cabia sem rolar para o lado. */}
                 <ul className="divide-y divide-black/5 md:hidden">
-                    {profissionaisOrdenados.map((p) => (
+                    {profissionaisOrdenados.map((p) => {
+                        const aberta = comissaoAbertaId === String(p.id);
+                        return (
                         <li key={p.id}>
-                            <button type="button" onClick={() => abrirEditorAvancado(p)} className="flex min-h-[64px] w-full items-center gap-3 px-3 py-2.5 text-left active:bg-neutral-50">
-                                <AvatarEquipe nome={p.nome} foto={p.foto_url} />
-                                <span className="min-w-0 flex-1">
-                                    <span className="block truncate text-sm font-medium text-neutral-900">{p.nome}</span>
-                                    <span className="block truncate text-xs text-neutral-500">{[p.cargo, p.nivel_acesso === 'admin' ? 'Administrador' : null].filter(Boolean).join(' · ') || 'Sem cargo'}</span>
-                                    <span className="mt-0.5 inline-flex items-center gap-1.5 text-xs text-neutral-600">
-                                        <span className={`h-1.5 w-1.5 rounded-full ${p.precisa_trocar_senha ? 'bg-amber-500' : 'bg-emerald-500'}`} />
-                                        {p.precisa_trocar_senha ? 'Senha provisória' : 'Ativo'}
+                            <div className="flex items-center">
+                                <button type="button" onClick={() => abrirEditorAvancado(p)} className="flex min-h-[64px] min-w-0 flex-1 items-center gap-3 px-3 py-2.5 text-left active:bg-neutral-50">
+                                    <AvatarEquipe nome={p.nome} foto={p.foto_url} />
+                                    <span className="min-w-0 flex-1">
+                                        <span className="block truncate text-sm font-medium text-neutral-900">{p.nome}</span>
+                                        <span className="block truncate text-xs text-neutral-500">{[p.cargo, p.nivel_acesso === 'admin' ? 'Administrador' : null].filter(Boolean).join(' · ') || 'Sem cargo'}</span>
+                                        <span className="mt-0.5 inline-flex items-center gap-1.5 text-xs text-neutral-600">
+                                            <span className={`h-1.5 w-1.5 rounded-full ${p.precisa_trocar_senha ? 'bg-amber-500' : 'bg-emerald-500'}`} />
+                                            {p.precisa_trocar_senha ? 'Senha provisória' : 'Ativo'}
+                                        </span>
                                     </span>
-                                </span>
-                                <ChevronRight size={18} className="shrink-0 text-neutral-300" aria-hidden />
-                            </button>
+                                    <ChevronRight size={18} className="shrink-0 text-neutral-300" aria-hidden />
+                                </button>
+                                <button
+                                    type="button"
+                                    aria-expanded={aberta}
+                                    aria-label={aberta ? `Recolher comissões de ${p.nome}` : `Ver comissões de ${p.nome}`}
+                                    onClick={() => setComissaoAbertaId(aberta ? null : String(p.id))}
+                                    className="inline-flex h-11 w-11 shrink-0 items-center justify-center text-neutral-500"
+                                >
+                                    <ChevronDown size={18} className={`transition-transform ${aberta ? 'rotate-180' : ''}`} />
+                                </button>
+                            </div>
+                            {aberta && <div className="border-t border-black/5 bg-neutral-50 px-3 py-2">{renderRegras(p.id)}</div>}
                         </li>
-                    ))}
+                        );
+                    })}
                     {profissionais.length === 0 && (
                         <li className="px-4 py-10 text-center text-sm text-neutral-400">Nenhum profissional cadastrado.</li>
                     )}
@@ -1227,10 +1322,21 @@ export default function EquipePage() {
                     </thead>
                     <tbody className="divide-y divide-black/5">
                         {profissionaisOrdenados.map((p) => {
+                            const aberta = comissaoAbertaId === String(p.id);
                             return (
-                            <tr key={p.id} className="hover:bg-neutral-50/60">
+                            <Fragment key={p.id}>
+                            <tr className="hover:bg-neutral-50/60">
                                 <td className="px-4 py-2.5 sm:px-5">
-                                    <div className="flex items-center gap-3">
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            type="button"
+                                            aria-expanded={aberta}
+                                            aria-label={aberta ? `Recolher comissões de ${p.nome}` : `Ver comissões de ${p.nome}`}
+                                            onClick={() => setComissaoAbertaId(aberta ? null : String(p.id))}
+                                            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900"
+                                        >
+                                            <ChevronDown size={16} className={`transition-transform ${aberta ? 'rotate-180' : ''}`} />
+                                        </button>
                                         <AvatarEquipe nome={p.nome} foto={p.foto_url} />
                                         <div className="min-w-0">
                                             <p className="truncate text-sm font-medium text-neutral-900">{p.nome}</p>
@@ -1263,6 +1369,14 @@ export default function EquipePage() {
                                     </button>
                                 </td>
                             </tr>
+                            {aberta && (
+                                <tr className="bg-neutral-50">
+                                    <td colSpan={5} className="px-4 py-2 sm:px-5">
+                                        {renderRegras(p.id)}
+                                    </td>
+                                </tr>
+                            )}
+                            </Fragment>
                             );
                         })}
                         {profissionais.length === 0 && (
@@ -1275,9 +1389,8 @@ export default function EquipePage() {
                 )}
             </section>
 
-            <div className="grid shrink-0 grid-cols-1 gap-3 lg:min-h-0 lg:flex-1 lg:shrink lg:grid-cols-2">
             {isAdmin && (
-            <section className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white">
+            <section className="flex max-h-64 min-h-0 shrink-0 flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white lg:max-h-72">
                 <div className="flex shrink-0 items-center justify-between gap-3 px-3 pt-3">
                     <h2 className="text-base font-semibold text-neutral-900">Convites de equipe</h2>
                     {convitesPendentesEnviados > 0 && (
@@ -1342,117 +1455,6 @@ export default function EquipePage() {
                 </div>
             </section>
             )}
-
-            <section className={`flex min-h-0 flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white ${isAdmin ? '' : 'lg:col-span-2'}`}>
-                <div className="flex shrink-0 items-center justify-between gap-3 px-3 pt-3">
-                    <h2 className="text-base font-semibold text-neutral-900">Comissões</h2>
-                    {comissoesConsolidadasLoading && <Loader2 size={16} className="animate-spin text-neutral-400" />}
-                </div>
-                <div className="min-h-0 flex-1 overflow-auto">
-                {!clinicaIdNumerica ? (
-                    <p className="px-3 py-6 text-center text-sm text-neutral-400">Selecione uma clínica para ver as comissões.</p>
-                ) : comissoesConsolidadasLoading && comissoesConsolidadas.length === 0 ? (
-                    <div className="space-y-2 p-3">
-                        {Array.from({ length: 3 }).map((_, i) => (
-                            <div key={i} className="h-10 animate-pulse rounded-md bg-neutral-50" />
-                        ))}
-                    </div>
-                ) : comissoesConsolidadas.length === 0 ? (
-                    <p className="px-3 py-6 text-center text-sm text-neutral-400">Nenhuma regra de comissão ativa nesta clínica.</p>
-                ) : (
-                                <table className="w-full min-w-[540px] text-sm">
-                                    <thead className="sticky top-0 z-10 bg-white">
-                                        <tr className="border-b border-black/5">
-                                            {([
-                                                ['profissional', 'Profissional', 'text-left'],
-                                                ['gatilho', 'Gatilho', 'text-left'],
-                                                ['tipo', 'Tipo', 'text-left'],
-                                                ['valor', 'Valor', 'text-right'],
-                                            ] as const).map(([campo, label, align]) => (
-                                                <th key={campo} className={`px-4 py-2 ${align}`}>
-                                                    <button type="button" onClick={() => alternarOrdemComissao(campo)} className={`inline-flex items-center gap-1 text-xs font-medium text-neutral-400 hover:text-neutral-900 ${align === 'text-right' ? 'ml-auto' : ''}`}>
-                                                        {label}
-                                                        <ArrowUpDown size={12} className={ordenacaoComissao.campo === campo ? 'text-neutral-900' : 'text-neutral-300'} />
-                                                    </button>
-                                                </th>
-                                            ))}
-                                            <th className="px-4 py-2 text-right text-xs font-medium text-neutral-400 sm:px-5">Ações</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-black/5">
-                                        {[...comissoesConsolidadas].sort((a, b) => {
-                                            const valor = (r: typeof a) => {
-                                                if (ordenacaoComissao.campo === 'profissional') return r.profissionais?.nome || '';
-                                                if (ordenacaoComissao.campo === 'gatilho') return getGatilhoLabel(r.gatilho);
-                                                if (ordenacaoComissao.campo === 'tipo') return r.tipo || '';
-                                                return String(r.valor ?? '');
-                                            };
-                                            const cmp = ordenacaoComissao.campo === 'valor'
-                                                ? Number(a.valor) - Number(b.valor)
-                                                : valor(a).localeCompare(valor(b), 'pt-BR', { sensitivity: 'base' });
-                                            return ordenacaoComissao.dir === 'asc' ? cmp : -cmp;
-                                        }).map((r) => (
-                                            <tr key={r.id} className="hover:bg-neutral-50/50">
-                                                <td className="px-4 py-2.5 font-medium text-neutral-800">
-                                                    <div className="flex items-center gap-2">
-                                                        <AvatarEquipe nome={r.profissionais?.nome || 'Profissional'} foto={r.profissionais?.foto_url || profissionais.find((p) => String(p.id) === String(r.profissional_id))?.foto_url} tamanho="h-8 w-8" />
-                                                        <span className="truncate">{r.profissionais?.nome || `#${r.profissional_id}`}</span>
-                                                    </div>
-                                                </td>
-                                                <td className="px-4 py-2.5 text-neutral-600">{getGatilhoLabel(r.gatilho)}</td>
-                                                <td className="px-4 py-2.5 capitalize text-neutral-500">{r.tipo?.replace('_', ' ')}</td>
-                                                <td className="px-4 py-2.5 text-right text-sm font-medium text-neutral-900">{formatValorComissao(r.tipo, Number(r.valor))}</td>
-                                                <td className="px-4 py-2.5 text-right sm:px-5">
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => {
-                                                            const prof = profissionais.find((p) => String(p.id) === String(r.profissional_id));
-                                                            if (!prof) {
-                                                                avisar('Profissional não encontrado nesta equipe.');
-                                                                return;
-                                                            }
-                                                            abrirEditorAvancado(prof, 'comissao');
-                                                        }}
-                                                        className="inline-flex h-8 items-center text-sm font-medium text-neutral-600 hover:text-neutral-900"
-                                                    >
-                                                        Editar
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                )}
-                {clinicaIdNumerica && comissaoLancamentos.length > 0 && (
-                    <div className="border-t border-black/5 px-3 py-3">
-                        <h3 className="mb-2 text-base font-semibold text-neutral-900">Lançamentos recentes</h3>
-                        <table className="w-full min-w-[520px] text-sm">
-                            <thead>
-                                <tr className="border-b border-black/5 text-xs font-medium text-neutral-400">
-                                    <th className="px-4 py-2.5 text-left">Profissional</th>
-                                    <th className="px-4 py-2.5 text-left">Descrição</th>
-                                    <th className="px-4 py-2.5 text-right">Base</th>
-                                    <th className="px-4 py-2.5 text-right">Comissão</th>
-                                    <th className="px-4 py-2.5 text-left">Status</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-black/5">
-                                {comissaoLancamentos.map((l) => (
-                                    <tr key={l.id} className="hover:bg-neutral-50/50">
-                                        <td className="px-4 py-2.5 font-medium text-neutral-800">{l.profissionais?.nome || `#${l.profissional_id}`}</td>
-                                        <td className="max-w-[200px] truncate px-4 py-2.5 text-xs text-neutral-600">{l.descricao}</td>
-                                        <td className="px-4 py-2.5 text-right text-neutral-600">R$ {Number(l.valor_base).toFixed(2)}</td>
-                                        <td className="px-4 py-2.5 text-right font-semibold text-neutral-900">R$ {Number(l.valor_comissao).toFixed(2)}</td>
-                                        <td className="px-4 py-2.5 text-sm capitalize text-neutral-600">{l.status}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
-                </div>
-            </section>
-            </div>
             </div>
 
             {/* Editor avançado */}
