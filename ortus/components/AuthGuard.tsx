@@ -65,7 +65,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!sessaoPronta.current || !session || !perfil) return;
-    if (perfil.precisa_trocar_senha && pathname !== '/primeiro-acesso') {
+    if (perfilRef.current?.precisa_trocar_senha && pathname !== '/primeiro-acesso') {
       router.replace('/primeiro-acesso');
     } else if (pathname.startsWith('/super-admin') && !perfil.is_super_admin) {
       router.replace('/dashboard');
@@ -217,7 +217,9 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     if (prof) {
       const saas = prof.is_super_admin === true;
       const foto = prof.foto_url || readProfileSession()?.foto_url || null;
-      const proximo = { ...prof, is_super_admin: saas, foto_url: foto };
+      // Uma leitura que saiu antes da troca de senha não pode repor o aviso e devolver a pessoa para a tela.
+      const precisaTrocar = perfilRef.current?.precisa_trocar_senha === false ? false : prof.precisa_trocar_senha;
+      const proximo = { ...prof, is_super_admin: saas, foto_url: foto, precisa_trocar_senha: precisaTrocar };
       writeProfileSession({
         foto_url: foto,
         nome: prof.nome,
@@ -229,7 +231,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
       setPerfil(proximo);
       sessaoPronta.current = true;
 
-      if (prof.precisa_trocar_senha && path !== '/primeiro-acesso') {
+      if (precisaTrocar && path !== '/primeiro-acesso') {
         router.replace('/primeiro-acesso');
         setLoading(false);
         return;
@@ -353,11 +355,15 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const onPatch = (ev: Event) => {
       const detail = (ev as CustomEvent<ProfileSessionSnapshot>).detail;
-      setPerfil((p: any) => ({
-        ...(p || {}),
-        ...detail,
-        is_super_admin: detail.is_super_admin ?? p?.is_super_admin,
-      }));
+      setPerfil((p: any) => {
+        const next = {
+          ...(p || {}),
+          ...detail,
+          is_super_admin: detail.is_super_admin ?? p?.is_super_admin,
+        };
+        perfilRef.current = next;
+        return next;
+      });
     };
     window.addEventListener(PROFILE_PATCH_EVENT, onPatch);
     return () => window.removeEventListener(PROFILE_PATCH_EVENT, onPatch);

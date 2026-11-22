@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { dados as tabelas } from '@/lib/local/consulta';
 import { useClinica, getClinicLabel } from '@/app/context/ClinicaContext';
 import { carregarConfig, salvarConfig } from '@/lib/configClinica';
 import { fraseDeErro } from '@/lib/fraseDeErro';
-import { Check, ChevronDown, ChevronRight, CircleDot, ClipboardList, Eye, Filter, FlaskConical, Gem, Heart, Package, Paintbrush, Pipette, Plus, Scissors, Search, Shield, Smile, Sparkles, Star, Truck, Wrench, X, Zap } from 'lucide-react';
+import { Check, ChevronDown, ChevronLeft, ChevronRight, CircleDot, ClipboardList, Eye, Filter, FlaskConical, Gem, Heart, Package, Paintbrush, Pipette, Plus, Scissors, Search, Shield, Smile, Sparkles, Star, Truck, Wrench, X, Zap } from 'lucide-react';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
 import CustomSelect from '@/components/ui/CustomSelect';
 import Modal from '@/components/ui/Modal';
@@ -14,6 +14,45 @@ import Aviso from '@/components/ui/Aviso';
 import Switch from '@/components/ui/Switch';
 import MenuPontos from '@/components/ui/MenuPontos';
 import ModalPedidoProtese from '@/components/proteses/ModalPedidoProtese';
+
+function SetaEtapa({
+  texto,
+  label,
+  disabled,
+  onClick,
+  children,
+}: {
+  texto: string;
+  label: string;
+  disabled: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  const [visivel, setVisivel] = useState(false);
+  return (
+    <span
+      className="relative inline-flex"
+      onMouseEnter={() => setVisivel(true)}
+      onMouseLeave={() => setVisivel(false)}
+      onPointerDown={() => setVisivel(false)}
+    >
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={onClick}
+        aria-label={label}
+        className="inline-flex h-7 w-7 items-center justify-center rounded-md text-neutral-500 hover:bg-neutral-50 disabled:opacity-30"
+      >
+        {children}
+      </button>
+      {visivel && !disabled && (
+        <span className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-1.5 -translate-x-1/2 whitespace-nowrap rounded-md bg-neutral-900 px-2 py-1 text-[11px] font-medium text-white">
+          {texto}
+        </span>
+      )}
+    </span>
+  );
+}
 
 type ColumnTitle = 'Solicitado' | 'No Laboratório' | 'Em Prova Clínica' | 'Aguardando Ajuste' | 'Finalizado / Entregue';
 type ChecklistItem = { tarefa: string; feito: boolean };
@@ -677,7 +716,6 @@ export default function KanbanProtesesInteligente() {
           </h1>
           <p className="mt-1 text-sm text-neutral-500 sm:text-base">
             {semClinica ? 'Fluxo de próteses' : `${filteredCards.length} pedido(s) · fluxo de próteses`}
-            {!semClinica && <span className="hidden md:inline"> · arraste entre colunas</span>}
           </p>
         </div>
         {/* Sem clínica escolhida não há onde gravar etapa nem pedido (a RLS recusa sem clínica). */}
@@ -951,6 +989,7 @@ export default function KanbanProtesesInteligente() {
                 const columnCards = cardsByColumn(column.id);
                 const hasChecklist = isChecklistColumn(column);
                 const proximaColuna = columns[columnIndex + 1];
+                const colunaAnterior = columns[columnIndex - 1];
                 const corAtiva = columnModalOpen && editingColumn && String(editingColumn.id) === String(column.id)
                   ? columnCor
                   : coresQuadro[String(column.id)];
@@ -1047,6 +1086,25 @@ export default function KanbanProtesesInteligente() {
                             <p className="line-clamp-2 break-words text-xs text-neutral-500 md:line-clamp-1">{card.descricao}</p>
                           ) : null}
 
+                          <div className="mt-2 hidden items-center justify-end gap-0.5 md:flex" onPointerDown={(e) => e.stopPropagation()}>
+                            <SetaEtapa
+                              texto="Voltar etapa"
+                              label="Voltar etapa"
+                              disabled={!colunaAnterior}
+                              onClick={() => colunaAnterior && avancar(card, colunaAnterior)}
+                            >
+                              <ChevronLeft size={16} />
+                            </SetaEtapa>
+                            <SetaEtapa
+                              texto="Avançar etapa"
+                              label="Avançar etapa"
+                              disabled={!proximaColuna}
+                              onClick={() => proximaColuna && avancar(card, proximaColuna)}
+                            >
+                              <ChevronRight size={16} />
+                            </SetaEtapa>
+                          </div>
+
                           {/* Celular: arrastar com o dedo não funciona bem, então o cartão traz o status e o passo seguinte como botões. */}
                           <div className="mt-2.5 flex flex-wrap items-center gap-2 md:hidden">
                             <button
@@ -1058,6 +1116,16 @@ export default function KanbanProtesesInteligente() {
                               <span className="truncate">{tokens.label}</span>
                               <ChevronDown size={14} className="shrink-0 text-neutral-400" />
                             </button>
+                            {colunaAnterior && (
+                              <button
+                                type="button"
+                                onClick={() => avancar(card, colunaAnterior)}
+                                aria-label={`Voltar para ${colunaAnterior.titulo}`}
+                                className="inline-flex h-10 items-center justify-center gap-1 rounded-lg px-3 text-sm font-medium text-neutral-500 active:bg-neutral-100"
+                              >
+                                <ChevronLeft size={16} /> Voltar
+                              </button>
+                            )}
                             {proximaColuna && (
                               <button
                                 type="button"

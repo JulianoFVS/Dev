@@ -2,7 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 
 const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
 const SEMANA = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
@@ -22,7 +22,28 @@ function paraIso(data: Date) {
 function rotulo(iso: string) {
   const data = isoParaData(iso);
   if (!data) return '';
-  return data.toLocaleDateString('pt-BR');
+  const dia = String(data.getDate()).padStart(2, '0');
+  const mes = String(data.getMonth() + 1).padStart(2, '0');
+  return `${dia}/${mes}/${data.getFullYear()}`;
+}
+
+/** dd/mm/aaaa com as barras entrando sozinhas a cada par de números. */
+function mascararData(valor: string) {
+  const digitos = valor.replace(/\D/g, '').slice(0, 8);
+  if (digitos.length <= 2) return digitos;
+  if (digitos.length <= 4) return `${digitos.slice(0, 2)}/${digitos.slice(2)}`;
+  return `${digitos.slice(0, 2)}/${digitos.slice(2, 4)}/${digitos.slice(4)}`;
+}
+
+function mascaraParaIso(mascara: string) {
+  const partes = mascara.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!partes) return null;
+  const dia = Number(partes[1]);
+  const mes = Number(partes[2]);
+  const ano = Number(partes[3]);
+  const data = new Date(ano, mes - 1, dia);
+  if (data.getFullYear() !== ano || data.getMonth() !== mes - 1 || data.getDate() !== dia) return null;
+  return paraIso(data);
 }
 
 type Props = {
@@ -34,21 +55,23 @@ type Props = {
 
 export default function CampoData({ value, onChange, disabled, className = '' }: Props) {
   const [aberto, setAberto] = useState(false);
+  const [texto, setTexto] = useState(() => rotulo(value));
   const selecionada = isoParaData(value);
   const [cursor, setCursor] = useState(() => selecionada || new Date());
-  const botaoRef = useRef<HTMLButtonElement>(null);
+  const campoRef = useRef<HTMLDivElement>(null);
   const painelRef = useRef<HTMLDivElement>(null);
   const [posicao, setPosicao] = useState<{ top?: number; bottom?: number; left: number; width: number; maxHeight?: number }>({ left: 0, width: 220 });
 
   useEffect(() => {
     const data = isoParaData(value);
     if (data) setCursor(data);
+    setTexto(rotulo(value));
   }, [value]);
 
   useLayoutEffect(() => {
-    if (!aberto || !botaoRef.current) return;
+    if (!aberto || !campoRef.current) return;
     const atualizar = () => {
-      const rect = botaoRef.current!.getBoundingClientRect();
+      const rect = campoRef.current!.getBoundingClientRect();
       const celular = window.innerWidth < 640;
       // Mês de seis semanas: moldura 26 + cabeçalho + dias da semana 23 + 6 linhas + rodapé, mais os 6px até o campo.
       // Celular (tudo com 40px): 26 + 48 + 23 + 6 × 42 + 57 = 406. Computador: 26 + 36 + 23 + 6 × 34 + 33 = 322.
@@ -79,7 +102,7 @@ export default function CampoData({ value, onChange, disabled, className = '' }:
     if (!aberto) return;
     function fechar(evento: MouseEvent) {
       const alvo = evento.target as Node;
-      if (botaoRef.current?.contains(alvo) || painelRef.current?.contains(alvo)) return;
+      if (campoRef.current?.contains(alvo) || painelRef.current?.contains(alvo)) return;
       setAberto(false);
     }
     document.addEventListener('mousedown', fechar);
@@ -136,17 +159,51 @@ export default function CampoData({ value, onChange, disabled, className = '' }:
     </div>
   );
 
+  function aoDigitar(bruto: string) {
+    const mascara = mascararData(bruto);
+    setTexto(mascara);
+    if (mascara === '') {
+      onChange('');
+      return;
+    }
+    const iso = mascaraParaIso(mascara);
+    if (iso) onChange(iso);
+  }
+
+  function aoSair() {
+    if (texto.trim() === '') {
+      onChange('');
+      return;
+    }
+    if (!mascaraParaIso(texto)) setTexto(rotulo(value));
+  }
+
   return (
     <>
-      <button
-        ref={botaoRef}
-        type="button"
-        disabled={disabled}
-        onClick={() => !disabled && setAberto((v) => !v)}
-        className={`box-border flex h-10 w-full items-center rounded-md border border-neutral-200 bg-white px-3 text-left text-sm text-neutral-900 outline-none disabled:cursor-default ${className}`}
-      >
-        <span className={value ? '' : 'text-neutral-400'}>{rotulo(value) || 'dd/mm/aaaa'}</span>
-      </button>
+      <div ref={campoRef} className={`relative ${className}`}>
+        <input
+          type="text"
+          inputMode="numeric"
+          autoComplete="off"
+          disabled={disabled}
+          value={texto}
+          placeholder="dd/mm/aaaa"
+          aria-label="Data"
+          onChange={(evento) => aoDigitar(evento.target.value)}
+          onBlur={aoSair}
+          className="box-border h-10 w-full rounded-md border border-neutral-200 bg-white px-3 pr-10 text-sm text-neutral-900 outline-none placeholder:text-neutral-400 focus:border-neutral-900 disabled:cursor-default disabled:bg-neutral-100 disabled:text-neutral-500"
+        />
+        <button
+          type="button"
+          disabled={disabled}
+          onMouseDown={(evento) => evento.preventDefault()}
+          onClick={() => !disabled && setAberto((v) => !v)}
+          className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-neutral-400 hover:text-neutral-900 disabled:cursor-default"
+          aria-label="Abrir calendário"
+        >
+          <Calendar size={16} />
+        </button>
+      </div>
       {aberto && typeof document !== 'undefined' && createPortal(painel, document.body)}
     </>
   );

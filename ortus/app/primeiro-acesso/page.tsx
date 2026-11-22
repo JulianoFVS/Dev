@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase';
 import { dados as tabelas } from '@/lib/local/consulta';
 import { gravarVerificadorSenha } from '@/lib/local/cliente';
 import { fraseDoErroDeSenha, sessaoDaSenhaPerdida, validarSenhaNova, type ErroDeSenha } from '@/lib/senhaNova';
+import { patchProfileSession } from '@/lib/profileSession';
 
 /**
  * Tela obrigatória de primeiro acesso.
@@ -89,15 +90,19 @@ export default function PrimeiroAcesso() {
         setSalvando(false);
         return;
       }
-      const { error: flagErr } = await tabelas.from('profissionais')
+      const { data: alteradas, error: flagErr } = await tabelas.from('profissionais')
         .update({ precisa_trocar_senha: false })
-        .eq('user_id', user.id);
-      if (flagErr) {
+        .eq('user_id', user.id)
+        .select('id');
+      if (flagErr || !alteradas?.length) {
         // Sem isso a casca traria a pessoa de volta para cá: avisa e deixa tentar de novo.
         setErro('A senha foi salva, mas não deu para concluir o primeiro acesso. Toque em Salvar de novo.');
         setSalvando(false);
         return;
       }
+      // A casca ainda tem o perfil antigo (precisa trocar senha) e não busca de novo.
+      // Sem este aviso ela manda a pessoa de volta para cá, e esta tela manda para o painel: um loop.
+      patchProfileSession({ precisa_trocar_senha: false });
 
       // Uma clínica: direto para o painel. Várias: escolher a unidade.
       let destino = '/selecao';

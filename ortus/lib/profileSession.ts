@@ -9,6 +9,8 @@ export type ProfileSessionSnapshot = {
   cargo?: string;
   nivel_acesso?: string;
   is_super_admin?: boolean;
+  /** false depois que a pessoa definiu a senha no primeiro acesso. */
+  precisa_trocar_senha?: boolean;
 };
 
 function readRaw(): ProfileSessionSnapshot | null {

@@ -1,5 +1,5 @@
 'use client';
-import { FormEvent, Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import { FormEvent, Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { clinicScope, readRouteCache, writeRouteCache } from '@/lib/routeListCache';
 import { readProfileSession } from '@/lib/profileSession';
@@ -56,6 +56,40 @@ type Profissional = {
 function iniciaisDe(nome: string) {
     const partes = nome.trim().split(/\s+/);
     return ((partes[0]?.[0] || '') + (partes[1]?.[0] || '')).toUpperCase() || '?';
+}
+
+function Revelar({ aberto, children, comoLinha = false }: { aberto: boolean; children: ReactNode; comoLinha?: boolean }) {
+    const [vivo, setVivo] = useState(aberto);
+    const [abertoVisual, setAbertoVisual] = useState(false);
+
+    useEffect(() => {
+        if (aberto) {
+            setVivo(true);
+            const quadro = requestAnimationFrame(() => setAbertoVisual(true));
+            return () => cancelAnimationFrame(quadro);
+        }
+        setAbertoVisual(false);
+        const timer = window.setTimeout(() => setVivo(false), 220);
+        return () => window.clearTimeout(timer);
+    }, [aberto]);
+
+    if (!vivo && !aberto) return null;
+
+    const miolo = (
+        <div className={`grid transition-[grid-template-rows] duration-200 ease-out ${abertoVisual ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+            <div className="overflow-hidden">
+                {children}
+            </div>
+        </div>
+    );
+
+    if (!comoLinha) return miolo;
+
+    return (
+        <tr>
+            <td colSpan={5} className="p-0">{miolo}</td>
+        </tr>
+    );
 }
 
 function AvatarEquipe({ nome, foto, tamanho = 'h-9 w-9' }: { nome: string; foto?: string | null; tamanho?: string }) {
@@ -1311,7 +1345,7 @@ export default function EquipePage() {
         const opcoesTipo = TIPOS_COMISSAO.map((item) => ({ value: item.value, label: item.label }));
         return (
             <div className="space-y-1.5">
-                <div className="hidden grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_6.5rem_4.5rem] gap-2 px-1 text-xs font-medium text-neutral-500 sm:grid">
+                <div className="hidden grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_6.5rem_4.5rem] gap-2 px-1 text-[11px] font-medium text-neutral-400 sm:grid">
                     <span>Gatilho</span>
                     <span>Tipo</span>
                     <span className="text-right">Valor</span>
@@ -1332,10 +1366,10 @@ export default function EquipePage() {
                         </div>
                     </div>
                 ) : (
-                    <div key={regra.id} className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_auto_2.5rem] items-center gap-2 px-1 py-1 text-sm">
-                        <span className="truncate text-neutral-800">{getGatilhoLabel(regra.gatilho)}</span>
+                    <div key={regra.id} className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_auto_2.5rem] items-center gap-2 px-1 py-1 text-xs">
+                        <span className="truncate text-neutral-700">{getGatilhoLabel(regra.gatilho)}</span>
                         <span className="truncate capitalize text-neutral-500">{regra.tipo?.replace('_', ' ')}</span>
-                        <span className="text-right font-medium tabular-nums text-neutral-900">{formatValorComissao(regra.tipo, Number(regra.valor))}</span>
+                        <span className="text-right tabular-nums text-neutral-800">{formatValorComissao(regra.tipo, Number(regra.valor))}</span>
                         <button type="button" aria-label="Editar comissão" onClick={() => abrirLinha(regra)} className="inline-flex h-8 w-8 items-center justify-center justify-self-end rounded-md text-neutral-500 hover:bg-white hover:text-neutral-900">
                             <Pencil size={14} />
                         </button>
@@ -1446,7 +1480,9 @@ export default function EquipePage() {
                                     <ChevronDown size={18} className={`transition-transform ${aberta ? 'rotate-180' : ''}`} />
                                 </button>
                             </div>
-                            {aberta && <div className="border-t border-black/5 bg-neutral-50 px-3 py-2">{renderRegras(p.id)}</div>}
+                            <Revelar aberto={aberta}>
+                                <div className="pb-2 pl-[3.75rem] pr-3">{renderRegras(p.id)}</div>
+                            </Revelar>
                         </li>
                         );
                     })}
@@ -1523,13 +1559,13 @@ export default function EquipePage() {
                                     </button>
                                 </td>
                             </tr>
-                            {aberta && (
-                                <tr className="bg-neutral-50">
-                                    <td colSpan={5} className="px-4 py-2 sm:px-5">
+                            <Revelar aberto={aberta} comoLinha>
+                                <div className="px-4 pb-2 sm:px-5">
+                                    <div className="pl-[5.25rem]">
                                         {renderRegras(p.id)}
-                                    </td>
-                                </tr>
-                            )}
+                                    </div>
+                                </div>
+                            </Revelar>
                             </Fragment>
                             );
                         })}

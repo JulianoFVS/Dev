@@ -5,7 +5,7 @@ import { Search, Plus, LayoutGrid, List as ListIcon, Phone, ChevronRight, Filter
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { usePatientActionModal } from '@/components/PatientActionModal';
-import { useClinica } from '@/app/context/ClinicaContext';
+import { useClinica, getClinicLabel } from '@/app/context/ClinicaContext';
 import { fetchUserClinicas } from '@/lib/clinicScoped';
 import { listar, modoDados } from '@/lib/local/cliente';
 import CustomSelect from '@/components/ui/CustomSelect';
@@ -80,7 +80,7 @@ function DicaAcao({ label, children }: { label: string; children: ReactElement<{
 }
 
 export default function Pacientes() {
-  const { activeClinicId, loading: clinicLoading, clinics } = useClinica();
+  const { activeClinicId, activeClinic, loading: clinicLoading, clinics } = useClinica();
 
   // Inicializa com cache instantâneo — sem esperar useEffect
   const cachedRef = useRef(readPacientesCache(activeClinicId));
@@ -481,7 +481,10 @@ export default function Pacientes() {
       />
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 md:text-[2rem]">Pacientes</h1>
+            <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 md:text-[2rem]">
+              Pacientes
+              <span className="hidden text-neutral-400 md:inline"> · {activeClinic ? getClinicLabel(activeClinic) : 'Todas as clínicas'}</span>
+            </h1>
             <p className="mt-1 text-sm text-neutral-500 sm:text-base">{filtrados.length} {filtrados.length === 1 ? 'paciente' : 'pacientes'}</p>
           </div>
           <div className="flex w-full gap-2 sm:w-auto">

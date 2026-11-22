@@ -138,7 +138,7 @@ async function principal() {
         arquivos.r2[bucket] = { erro: e.message };
       }
     }
-    for (const bucket of ['arquivos_ortus', 'avatars']) {
+    for (const bucket of ['arquivos', 'arquivos_ortus', 'avatars']) {
       try {
         arquivos.storage[bucket] = await listarStorage(bucket);
       } catch (e) {
@@ -212,7 +212,18 @@ async function principal() {
 
   // ---------------------------------------------------------------- arquivos
   if (!SEM_ARQUIVOS) {
+    const fotosMantidas = await todas(
+      `SELECT foto_url FROM public.profissionais WHERE user_id = ANY($1::uuid[]) AND foto_url IS NOT NULL`,
+      [[...manterUsers]],
+    );
     const fotoDeDono = new Set([...manterUsers].flatMap((id) => [`avatares/${id}/avatar.jpg`, `${id}/avatar.jpg`]));
+    for (const f of fotosMantidas) {
+      const texto = String(f.foto_url);
+      const midia = texto.match(/\/api\/public\/midia\/([^?#]+)/);
+      if (midia) fotoDeDono.add(decodeURIComponent(midia[1]));
+      const avatares = texto.match(/avatares\/[^?#]+/);
+      if (avatares) fotoDeDono.add(avatares[0]);
+    }
     for (const [bucket, lista] of Object.entries(arquivos.r2)) {
       if (!Array.isArray(lista) || !s3) continue;
       const alvo = lista.filter((o) => !fotoDeDono.has(o.chave));
