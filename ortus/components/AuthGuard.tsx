@@ -396,7 +396,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
             sidebarNav={{
               showTarefas: !permissoesResolvidas || canAccessModule('agenda'),
               showOrcamentos: permissoesResolvidas && canAccessModule('orcamentos'),
-              showConversas: permissoesResolvidas && canAccessModule('conversas') && ctxActiveId !== 'all',
+              showConversas: permissoesResolvidas && canAccessModule('conversas'),
               conversasBadge: conversasNovas,
               showEquipe: !permissoesResolvidas || canAccessModule('configuracoes'),
               showTratamentosBase: !permissoesResolvidas || canAccessModule('configuracoes'),

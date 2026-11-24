@@ -88,7 +88,7 @@ export default function OrcamentosPage() {
     if (clinicaFixa) return [clinicaFixa];
     return clinics.map((c) => Number(c.id)).filter(Number.isFinite);
   }, [clinicaFixa, clinics]);
-  const clinicasOpcoes = useMemo(() => clinics.map((c) => ({ id: Number(c.id), nome: c.nome })), [clinics]);
+  const clinicasOpcoes = useMemo(() => clinics.map((c) => ({ id: Number(c.id), nome: getClinicLabel(c) })), [clinics]);
   const clinicaNome = activeClinic && activeClinic.id !== 'all' ? activeClinic.nome : null;
   const hoje = hojeNoFuso();
 

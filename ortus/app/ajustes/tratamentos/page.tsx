@@ -7,6 +7,7 @@ import { dados as tabelas } from '@/lib/local/consulta';
 import { useClinica, getClinicLabel } from '@/app/context/ClinicaContext';
 import { clinicScope, readRouteCache, writeRouteCache } from '@/lib/routeListCache';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
+import Aviso from '@/components/ui/Aviso';
 import CustomSelect from '@/components/ui/CustomSelect';
 import Modal from '@/components/ui/Modal';
 import Switch from '@/components/ui/Switch';
@@ -203,6 +204,9 @@ export default function TratamentosPage() {
   const ignorarEspId = useRef('');
   const ignorarPlanoId = useRef<string | undefined>(undefined);
   const ignorarTratId = useRef(-1);
+  const tratamentoEmGravacao = useRef<number | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
+  const avisoTimer = useRef<number | null>(null);
   if (espModal === 'nova') {
     tituloEspModal.current = 'Nova especialidade';
     ignorarEspId.current = '';
@@ -219,7 +223,7 @@ export default function TratamentosPage() {
     criandoPlano.current = false;
     ignorarPlanoId.current = planoModal.id;
   }
-  if (tratModal === 'novo') ignorarTratId.current = -1;
+  if (tratModal === 'novo') ignorarTratId.current = tratamentoEmGravacao.current ?? -1;
   else if (tratModal) ignorarTratId.current = tratModal.id;
 
   const ordenados = useMemo(() => ordenarPlanos(planos), [planos]);
@@ -357,6 +361,16 @@ export default function TratamentosPage() {
       });
   }, [tratamentos, ehParticular, espId, ordenacao, buscaLista, precos, planoAtual?.id]);
 
+  function avisar(mensagem: string) {
+    setAviso(mensagem);
+    if (avisoTimer.current) window.clearTimeout(avisoTimer.current);
+    avisoTimer.current = window.setTimeout(() => setAviso(null), 2800);
+  }
+
+  useEffect(() => () => {
+    if (avisoTimer.current) window.clearTimeout(avisoTimer.current);
+  }, []);
+
   function abrirEspecialidade(esp: Especialidade | 'nova') {
     setEspModal(esp);
     setEspNome(esp === 'nova' ? '' : esp.nome);
@@ -394,7 +408,7 @@ export default function TratamentosPage() {
         setEspId((data as Especialidade).id);
       }
       setEspModal(null);
-      showAlert(editando ? 'Especialidade atualizada.' : 'Especialidade criada.', { type: 'success' });
+      avisar(editando ? 'Especialidade atualizada.' : 'Especialidade criada.');
     } catch (err) {
       setEspecialidades(anterior);
       showAlert(mensagemErro(err, 'Não foi possível salvar a especialidade.'), { type: 'error' });
@@ -437,7 +451,6 @@ export default function TratamentosPage() {
   function abrirTratamento(item: Tratamento | 'novo') {
     if (item === 'novo' && especialidadesAtivas.length === 0) {
       showAlert('Crie uma especialidade antes de cadastrar o tratamento.', { type: 'warning' });
-      abrirEspecialidade('nova');
       return;
     }
     setTratModal(item);
@@ -482,6 +495,7 @@ export default function TratamentosPage() {
     const tuss = form.tuss.trim() || null;
     const editando = tratModal === 'novo' ? null : tratModal;
     const tempId = editando?.id ?? -Date.now();
+    if (!editando) tratamentoEmGravacao.current = tempId;
     const anteriorTr = tratamentos;
     const anteriorPr = precos;
     const comercial = { valor, custo, codigo_tuss: tuss, aceita_faces: form.faces, ativo: form.ativo };
@@ -576,6 +590,7 @@ export default function TratamentosPage() {
       setPrecos(anteriorPr);
       showAlert(mensagemErro(err, 'Não foi possível salvar o tratamento.'), { type: 'error' });
     } finally {
+      tratamentoEmGravacao.current = null;
       setSalvando(false);
     }
   }
@@ -814,7 +829,7 @@ export default function TratamentosPage() {
   const clinicLabel = activeClinic && activeClinic.id !== 'all' ? getClinicLabel(activeClinic) : 'Selecione uma clínica';
   const espDuplicado = espNome.trim().length > 0 && especialidades.some((item) => item.id !== ignorarEspId.current && nomeIgual(item.nome, espNome));
   const planoDuplicado = planoNome.trim().length > 0 && nomePlanoOcupado(planoNome, ignorarPlanoId.current);
-  const tratDuplicado = ehParticular && form.nome.trim().length > 0 && tratamentos.some((item) => item.id !== ignorarTratId.current && nomeIgual(item.nome, form.nome));
+  const tratDuplicado = !salvando && ehParticular && form.nome.trim().length > 0 && tratamentos.some((item) => item.id !== ignorarTratId.current && nomeIgual(item.nome, form.nome));
   function alternarOrdem(campo: 'nome' | 'valor' | 'status') {
     setOrdenacao((atual) => atual.campo === campo ? { campo, dir: atual.dir === 'asc' ? 'desc' : 'asc' } : { campo, dir: 'asc' });
   }
@@ -822,6 +837,7 @@ export default function TratamentosPage() {
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden px-2.5 py-2.5 font-poppins sm:px-3 sm:py-3 md:px-4 md:py-3.5">
+      <Aviso mensagem={aviso} />
       <div className="mb-3 shrink-0">
         <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 md:text-[2rem]">
           Tratamentos
@@ -1005,19 +1021,21 @@ export default function TratamentosPage() {
               </div>
 
               <div className="min-h-0 flex-1 overflow-y-auto">
-                <div className="sticky top-0 z-10 flex items-center gap-5 border-b border-black/5 bg-white px-1 py-1 sm:grid sm:grid-cols-[minmax(0,1fr)_6rem_4.5rem_2rem] sm:gap-2 sm:py-2">
+                <div className="sticky top-0 z-10 grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-3 border-b border-black/5 bg-white px-1 py-1 sm:grid-cols-[minmax(0,1fr)_6rem_4.5rem_6rem_4.5rem_2rem] sm:gap-2 sm:py-2">
                   <button
                     type="button"
                     onClick={() => alternarOrdem('nome')}
-                    className={`inline-flex min-h-[40px] items-center sm:min-h-0 gap-1 justify-self-start text-xs font-medium hover:text-neutral-900 ${ordenacao.campo === 'nome' ? 'text-neutral-900' : 'text-neutral-400'}`}
+                    className={`inline-flex min-h-[40px] items-center gap-1 justify-self-start text-xs font-medium hover:text-neutral-900 sm:min-h-0 ${ordenacao.campo === 'nome' ? 'text-neutral-900' : 'text-neutral-400'}`}
                   >
                     Nome
                     <ArrowUpDown size={12} />
                   </button>
+                  <span className="hidden text-xs font-medium text-neutral-400 sm:block">TUSS</span>
+                  <span className="hidden text-xs font-medium text-neutral-400 sm:block">Aceita</span>
                   <button
                     type="button"
                     onClick={() => alternarOrdem('valor')}
-                    className={`inline-flex min-h-[40px] items-center sm:min-h-0 justify-end gap-1 justify-self-end text-xs font-medium hover:text-neutral-900 ${ordenacao.campo === 'valor' ? 'text-neutral-900' : 'text-neutral-400'}`}
+                    className={`inline-flex min-h-[40px] items-center justify-end gap-1 justify-self-end text-xs font-medium hover:text-neutral-900 sm:min-h-0 ${ordenacao.campo === 'valor' ? 'text-neutral-900' : 'text-neutral-400'}`}
                   >
                     Valor
                     <ArrowUpDown size={12} />
@@ -1025,7 +1043,7 @@ export default function TratamentosPage() {
                   <button
                     type="button"
                     onClick={() => alternarOrdem('status')}
-                    className={`inline-flex min-h-[40px] items-center sm:min-h-0 justify-center gap-1 justify-self-center text-xs font-medium hover:text-neutral-900 ${ordenacao.campo === 'status' ? 'text-neutral-900' : 'text-neutral-400'}`}
+                    className={`inline-flex min-h-[40px] items-center justify-center gap-1 justify-self-center text-xs font-medium hover:text-neutral-900 sm:min-h-0 ${ordenacao.campo === 'status' ? 'text-neutral-900' : 'text-neutral-400'}`}
                   >
                     Status
                     <ArrowUpDown size={12} />
@@ -1044,15 +1062,21 @@ export default function TratamentosPage() {
                     const valor = ehParticular ? item.valor_sugerido : linha?.valor;
                     const coberto = ehParticular ? item.ativo : !!linha?.ativo;
                     const especialidade = especialidades.find((esp) => esp.id === item.especialidade_id)?.nome;
+                    const tuss = (ehParticular ? item.codigo_tuss_padrao : linha?.codigo_tuss) || '';
+                    const aceita = ehParticular ? item.aceita_faces : (linha?.aceita_faces ?? item.aceita_faces);
                     return (
-                      <div key={item.id} className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-3 gap-y-1 border-b border-neutral-100 px-1 py-2.5 sm:grid-cols-[minmax(0,1fr)_6rem_4.5rem_2rem] sm:gap-2 sm:py-2">
+                      <div key={item.id} className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-3 gap-y-1 border-b border-neutral-100 px-1 py-2.5 sm:grid-cols-[minmax(0,1fr)_6rem_4.5rem_6rem_4.5rem_2rem] sm:gap-2 sm:py-2">
                         <span className="col-span-3 min-w-0 sm:col-span-1">
                           <span className={`block break-words text-sm font-medium sm:truncate ${coberto ? 'text-neutral-900' : 'text-neutral-400'}`}>{item.nome}</span>
-                          <span className="block break-words text-xs text-neutral-500 sm:truncate">
-                            {espId === null && especialidade ? `${especialidade} · ` : ''}
-                            {(ehParticular ? item.codigo_tuss_padrao : linha?.codigo_tuss) || 'Sem TUSS'}
+                          {espId === null && especialidade && (
+                            <span className="block break-words text-xs text-neutral-500 sm:truncate">{especialidade}</span>
+                          )}
+                          <span className="block break-words text-xs text-neutral-500 sm:hidden">
+                            {tuss || '—'} · {aceita ? 'Aceita' : 'Não aceita'}
                           </span>
                         </span>
+                        <span className="hidden text-sm tabular-nums text-neutral-700 sm:block">{tuss || '—'}</span>
+                        <span className={`hidden text-sm sm:block ${aceita ? 'text-neutral-900' : 'text-neutral-400'}`}>{aceita ? 'Sim' : 'Não'}</span>
                         <span className="justify-self-start text-sm font-medium tabular-nums text-neutral-900 sm:justify-self-end sm:text-right sm:font-normal">{moeda(valor)}</span>
                         <span className="justify-self-center">
                           <Switch checked={coberto} onChange={(ligado) => void alternarCobertura(item, ligado)}>

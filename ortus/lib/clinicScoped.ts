@@ -16,7 +16,24 @@ export type ClinicaSlim = {
     nome: string;
     endereco?: string | null;
     rede_id?: string | number | null;
+    rede_nome?: string | null;
 };
+
+function nomeDaRede(redes: { nome?: string | null } | { nome?: string | null }[] | null | undefined) {
+    if (!redes) return null;
+    const rede = Array.isArray(redes) ? redes[0] : redes;
+    return rede?.nome ?? null;
+}
+
+function clinicaEnxuta(row: { id: string | number; nome: string; endereco?: string | null; rede_id?: string | number | null; redes?: { nome?: string | null } | { nome?: string | null }[] | null }): ClinicaSlim {
+    return {
+        id: row.id,
+        nome: row.nome,
+        endereco: row.endereco ?? null,
+        rede_id: row.rede_id ?? null,
+        rede_nome: nomeDaRede(row.redes),
+    };
+}
 
 /**
  * Cache curtíssimo por usuário.
@@ -146,10 +163,10 @@ async function buscarClinicasDoUsuario(
     // Super admin → visão global por padrão (a menos que opte por vínculos)
     if (prof?.is_super_admin && !opts?.restrictSuperAdminToVinculos) {
         const { data, error } = await tabelas.from('clinicas')
-            .select('id, nome, endereco, rede_id')
+            .select('id, nome, endereco, rede_id, redes(nome)')
             .order('nome');
         logErro('clinicas.select (super admin)', error);
-        return (data || []) as ClinicaSlim[];
+        return ((data || []) as Parameters<typeof clinicaEnxuta>[0][]).map(clinicaEnxuta);
     }
 
     if (!prof?.id) return [];
@@ -163,11 +180,11 @@ async function buscarClinicasDoUsuario(
     if (ids.length === 0) return [];
 
     const { data, error } = await tabelas.from('clinicas')
-        .select('id, nome, endereco, rede_id')
+        .select('id, nome, endereco, rede_id, redes(nome)')
         .in('id', ids as any)
         .order('nome');
     logErro('clinicas.select (in ids)', error);
-    return (data || []) as ClinicaSlim[];
+    return ((data || []) as Parameters<typeof clinicaEnxuta>[0][]).map(clinicaEnxuta);
 }
 
 /**
@@ -191,6 +208,7 @@ export type ProfissionalEquipe = {
     foto_url?: string | null;
     conselho?: string | null;
     cro?: string | null;
+    is_super_admin?: boolean | null;
     clinicas: Array<{ id: any; nome: string }>;
 };
 
@@ -212,7 +230,7 @@ export async function fetchUserEquipe(): Promise<ProfissionalEquipe[]> {
     // Super admin: visão global.
     if (prof.is_super_admin) {
         const { data: todos } = await tabelas.from('profissionais')
-            .select('id, nome, cargo, nivel_acesso, user_id, precisa_trocar_senha, telefone, foto_url, conselho, cro')
+            .select('id, nome, cargo, nivel_acesso, user_id, precisa_trocar_senha, telefone, foto_url, conselho, cro, is_super_admin')
             .order('nome');
         const { data: todosVinc } = await tabelas.from('profissionais_clinicas')
             .select('profissional_id, clinicas(id, nome)');
@@ -236,7 +254,7 @@ export async function fetchUserEquipe(): Promise<ProfissionalEquipe[]> {
 
     // 3) dados dos profissionais
     const { data: profs } = await tabelas.from('profissionais')
-        .select('id, nome, cargo, nivel_acesso, user_id, precisa_trocar_senha, telefone, foto_url, conselho, cro')
+        .select('id, nome, cargo, nivel_acesso, user_id, precisa_trocar_senha, telefone, foto_url, conselho, cro, is_super_admin')
         .in('id', idsProf as any)
         .order('nome');
 

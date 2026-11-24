@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { dados as tabelas } from '@/lib/local/consulta';
 import { AlertCircle, Camera, Loader2, User, X } from 'lucide-react';
-import { useClinica } from '@/app/context/ClinicaContext';
+import { getClinicLabel, useClinica } from '@/app/context/ClinicaContext';
 import { validarPaciente, isMenorDeIdade } from '@/lib/pacienteValidation';
 import Modal from '@/components/ui/Modal';
 import Aviso from '@/components/ui/Aviso';
@@ -474,7 +474,7 @@ export function PatientActionModalProvider({ children }: { children: React.React
                         setQcPlanoId('');
                         void carregarPlanosClinica(v);
                       }}
-                      options={[{ value: '', label: 'Selecione a clínica' }, ...(clinics.length > 0 ? clinics.map((c: any) => ({ value: c.id, label: c.nome })) : clinicasFallback.map((c) => ({ value: c.id, label: c.nome })))]}
+                      options={[{ value: '', label: 'Selecione a clínica' }, ...(clinics.length > 0 ? clinics.map((c) => ({ value: c.id, label: getClinicLabel(c) })) : clinicasFallback.map((c) => ({ value: c.id, label: c.nome })))]}
                       size="md"
                     />
                   </label>

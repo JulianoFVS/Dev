@@ -26,6 +26,7 @@ const ROTULO = 'mb-1.5 block text-xs font-medium text-neutral-500';
 
 export default function ModalNovoCliente({ open, onClose, onCriado }: Props) {
   const [nome, setNome] = useState('');
+  const [filial, setFilial] = useState('');
   const [dentista, setDentista] = useState('');
   const [email, setEmail] = useState('');
   const [telefone, setTelefone] = useState('');
@@ -37,6 +38,7 @@ export default function ModalNovoCliente({ open, onClose, onCriado }: Props) {
   useEffect(() => {
     if (!open) return;
     setNome('');
+    setFilial('');
     setDentista('');
     setEmail('');
     setTelefone('');
@@ -71,7 +73,7 @@ export default function ModalNovoCliente({ open, onClose, onCriado }: Props) {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           nomeRede: nomeClinica,
-          nomeMatriz: nomeClinica,
+          nomeMatriz: filial.trim() || nomeClinica,
           nomeDono: nomeDentista,
           emailDono: emailDentista,
           telefone,
@@ -164,9 +166,13 @@ export default function ModalNovoCliente({ open, onClose, onCriado }: Props) {
         <form onSubmit={(event) => void criar(event)} className="px-4 py-3 sm:px-5">
           <ErroInline mensagem={erro} className="mb-3" />
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            <label className="block sm:col-span-2">
+            <label className="block">
               <span className={ROTULO}>Nome da clínica <span className="text-red-500">*</span></span>
-              <input value={nome} onChange={(event) => setNome(event.target.value)} className={CAMPO} placeholder="Clínica Sorrir" required />
+              <input value={nome} onChange={(event) => setNome(event.target.value)} className={CAMPO} placeholder="Dente Top" required />
+            </label>
+            <label className="block">
+              <span className={ROTULO}>Filial</span>
+              <input value={filial} onChange={(event) => setFilial(event.target.value)} className={CAMPO} placeholder="Deixe vazio para só a clínica" />
             </label>
             <label className="block">
               <span className={ROTULO}>Nome do dentista <span className="text-red-500">*</span></span>
@@ -181,11 +187,11 @@ export default function ModalNovoCliente({ open, onClose, onCriado }: Props) {
               <input value={telefone} onChange={(event) => setTelefone(mascaraTelefone(event.target.value))} className={CAMPO} placeholder="(11) 99999-0000" inputMode="tel" />
             </label>
           </div>
-          <div className="mt-3 flex justify-end gap-2">
-            <button type="button" onClick={fechar} className="inline-flex h-10 items-center justify-center rounded-md px-3 text-sm text-neutral-600 hover:bg-neutral-50">
+          <div className="mt-3 flex flex-wrap justify-end gap-2">
+            <button type="button" onClick={fechar} className="inline-flex h-10 shrink-0 items-center justify-center rounded-md px-3 text-sm text-neutral-600 hover:bg-neutral-50">
               Cancelar
             </button>
-            <button type="submit" disabled={salvando} className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-neutral-900 px-4 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50">
+            <button type="submit" disabled={salvando} className="inline-flex h-10 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md bg-neutral-900 px-4 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50">
               {salvando && <Loader2 size={15} className="animate-spin" />}
               {salvando ? 'Criando...' : 'Criar clínica'}
             </button>

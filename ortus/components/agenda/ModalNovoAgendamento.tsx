@@ -5,7 +5,7 @@ import { Loader2, X } from 'lucide-react';
 import { dados as tabelas, usuarioDaSessao } from '@/lib/local/consulta';
 import { fetchUserClinicas, fetchUserEquipe, type ProfissionalEquipe } from '@/lib/clinicScoped';
 import { inserir, lerSessaoCacheUI, listar, modoDados } from '@/lib/local/cliente';
-import { useClinica } from '@/app/context/ClinicaContext';
+import { getClinicLabel, useClinica } from '@/app/context/ClinicaContext';
 import { fraseDeErro } from '@/lib/fraseDeErro';
 import { useCustomAlert } from '@/components/ui/CustomAlert';
 import { validarAgendamentoCompleto } from '@/lib/horarioProfissional';
@@ -149,7 +149,7 @@ export default function ModalNovoAgendamento({
           nivelAtual = nivelEfetivo(typeof perfil?.nivel_acesso === 'string' ? perfil.nivel_acesso : 'admin', perfil?.is_super_admin, convidadoAqui);
           profAtual = nivelAtual !== 'admin' && perfil?.id != null ? String(perfil.id) : '';
           listaClinicas = clinicasContexto.length > 0
-            ? clinicasContexto.map((c) => ({ id: c.id, nome: c.nome }))
+            ? clinicasContexto.map((c) => ({ id: c.id, nome: getClinicLabel(c) }))
             : (cache?.clinicas || []);
           equipe = await fetchUserEquipe();
         } catch (erro) {
@@ -164,7 +164,7 @@ export default function ModalNovoAgendamento({
           fetchUserClinicas(),
           fetchUserEquipe(),
         ]);
-        listaClinicas = clinicasNuvem;
+        listaClinicas = clinicasNuvem.map((c) => ({ ...c, nome: getClinicLabel({ id: String(c.id), nome: c.nome, rede_nome: c.rede_nome }) }));
         equipe = equipeNuvem;
         if (user) {
           const { data: prof } = await tabelas.from('profissionais').select('id, nivel_acesso, is_super_admin').eq('user_id', user.id).maybeSingle();
@@ -179,7 +179,7 @@ export default function ModalNovoAgendamento({
       setNivel(nivelAtual);
       setMeuProfissionalId(profAtual);
       setClinicas(listaClinicas);
-      setProfissionais(equipe);
+      setProfissionais(equipe.filter((p) => p.is_super_admin !== true));
       setForm({
         clinica_id: clinicaInicial || (listaClinicas[0] ? String(listaClinicas[0].id) : ''),
         profissional_id: profAtual,
@@ -416,7 +416,7 @@ export default function ModalNovoAgendamento({
           </div>
           <div>
             <label className="mb-1.5 block text-xs font-medium text-neutral-500">Hora <span className="text-red-500">*</span></label>
-            <CampoHora value={form.time} onChange={(v) => setForm((p) => ({ ...p, time: v }))} passo={30} />
+            <CampoHora value={form.time} onChange={(v) => setForm((p) => ({ ...p, time: v }))} passo={1} />
           </div>
         </div>
         <div>

@@ -9,6 +9,8 @@ export type ClinicRecord = {
   endereco?: string | null;
   rede_id?: string | null;
   redes?: { id: string; nome: string } | { id: string; nome: string }[] | null;
+  /** Nome da rede quando o objeto não traz o embed `redes`. */
+  rede_nome?: string | null;
   /** true = entrou nesta clínica por convite de outra rede; nunca é administrador aqui. */
   convidado?: boolean;
 };
@@ -245,9 +247,22 @@ export function useClinica() {
   return ctx;
 }
 
-export function getClinicLabel(clinic?: ClinicRecord | ActiveClinic | null) {
+function mesmoNome(a: string, b: string) {
+  return a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }) === 0;
+}
+
+/** Nome da clínica. Se a unidade tem outro nome (filial), os dois aparecem. Nomes iguais não se repetem. */
+export function rotuloUnidade(nome?: string | null, nomeRede?: string | null) {
+  const unidade = (nome || '').trim();
+  const rede = (nomeRede || '').trim();
+  if (!rede || !unidade || mesmoNome(rede, unidade)) return unidade || rede || 'Sem unidade';
+  return `${rede} · ${unidade}`;
+}
+
+export function getClinicLabel(clinic?: (ClinicRecord & { rede_nome?: string | null }) | ActiveClinic | null) {
   if (!clinic) return 'Sem unidade';
   if ((clinic as ActiveClinic).id === 'all') return 'Todas as Clínicas';
-  const rede = pickRede(clinic as ClinicRecord);
-  return rede ? `${rede.nome} · ${clinic.nome}` : clinic.nome;
+  const unidade = clinic as ClinicRecord;
+  const rede = pickRede(unidade);
+  return rotuloUnidade(unidade.nome, rede?.nome || unidade.rede_nome);
 }

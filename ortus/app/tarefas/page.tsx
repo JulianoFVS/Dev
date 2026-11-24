@@ -950,7 +950,7 @@ export default function Tarefas() {
                             {!clinicaFixa && (
                                 <label>
                                     <span className="mb-1.5 block text-xs font-medium text-neutral-500">Clínica <span className="text-red-500">*</span></span>
-                                    <CustomSelect value={form.clinica_id} onChange={escolherClinica} options={clinicas.map((c) => ({ value: String(c.id), label: c.nome }))} placeholder="Selecione..." size="md" />
+                                    <CustomSelect value={form.clinica_id} onChange={escolherClinica} options={clinicas.map((c) => ({ value: String(c.id), label: getClinicLabel(c) }))} placeholder="Selecione..." size="md" />
                                 </label>
                             )}
 

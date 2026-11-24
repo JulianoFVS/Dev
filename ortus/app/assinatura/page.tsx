@@ -296,9 +296,7 @@ function Assinatura() {
                 <p role="status" className="flex min-w-0 items-center gap-1.5 text-xs text-neutral-700">
                   <Loader2 size={14} className="shrink-0 animate-spin" aria-hidden /> Conferindo o pagamento…
                 </p>
-              ) : (
-                <p className="hidden text-xs text-neutral-500 sm:block">Pix ou cartão, na página do Mercado Pago. O Ortus não guarda dados de cartão.</p>
-              )}
+              ) : null}
             </div>
             {faturas.length === 0 ? (
               <p className="px-4 py-10 text-center text-sm text-neutral-500">Nenhuma fatura ainda.</p>

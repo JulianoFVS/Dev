@@ -81,11 +81,11 @@ export default function CartaoSuporte({ className = '' }: { className?: string }
         <div className="min-w-0">
           <h2 id="ajuda-suporte" className="text-sm font-semibold text-neutral-900">Contatar o suporte</h2>
           <p className="mt-0.5 text-xs leading-relaxed text-neutral-500">
-            Converse com a equipe da Ortus por aqui. Só a sua clínica e o suporte veem a conversa.
+            Fale com a equipe da Ortus pelo WhatsApp.
           </p>
-          <Link href="/ajuda/suporte" className="mt-2 inline-flex h-10 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 sm:h-9">
+          <button type="button" className="mt-2 inline-flex h-10 items-center gap-1.5 rounded-md bg-neutral-900 px-3 text-sm font-medium text-white hover:bg-neutral-800 sm:h-9">
             <MessagesSquare size={14} /> Abrir conversa com o suporte
-          </Link>
+          </button>
           {numeros.length > 0 && (
             <p className="mt-3 text-xs leading-relaxed text-neutral-500">
               {estado === 'desconectado' && !podeConectar

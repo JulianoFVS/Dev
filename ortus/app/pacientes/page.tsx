@@ -392,7 +392,7 @@ export default function Pacientes() {
       <>
         <div className="min-w-0">
           <label className={classeRotulo}>Clínica</label>
-          <CustomSelect value={filtroClinica} onChange={setFiltroClinica} options={[{ value: 'todas', label: 'Todas as clínicas' }, ...clinicas.map((c) => ({ value: String(c.id), label: c.nome }))]} size="sm" />
+          <CustomSelect value={filtroClinica} onChange={setFiltroClinica} options={[{ value: 'todas', label: 'Todas as clínicas' }, ...clinicas.map((c) => ({ value: String(c.id), label: getClinicLabel(c) }))]} size="sm" />
         </div>
         <div className="min-w-0">
           <label className={classeRotulo}>Status</label>

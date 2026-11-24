@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { dados as tabelas, usuarioDaSessao } from '@/lib/local/consulta';
 import { usePatientActionModal } from '@/components/PatientActionModal';
-import { useClinica } from '@/app/context/ClinicaContext';
+import { getClinicLabel, useClinica } from '@/app/context/ClinicaContext';
 import { fetchUserClinicas, fetchUserEquipe } from '@/lib/clinicScoped';
 import {
   atualizar,
@@ -143,6 +143,16 @@ function somarDias(data: Date, dias: number) {
 
 function mesmoDia(a: Date, b: Date) {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
+/** Traço da hora atual, contínuo por todas as colunas da linha. */
+function LinhaAgora({ minutos }: { minutos: number }) {
+  return (
+    <div data-agora="" className="pointer-events-none absolute inset-x-0 z-20" style={{ top: `${(minutos / 60) * 100}%` }}>
+      <span className="absolute left-[3.25rem] h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-red-500" />
+      <span className="absolute left-[3.25rem] right-0 h-0.5 -translate-y-1/2 bg-red-500" />
+    </div>
+  );
 }
 
 function chaveLocal(data: Date) {
@@ -600,7 +610,7 @@ export default function Agenda() {
               }
 
               const equipe = await fetchUserEquipe();
-              const equipeNormalizada = equipe.map((p) => ({
+              const equipeNormalizada = equipe.filter((p) => p.is_super_admin !== true).map((p) => ({
                   ...p,
                   profissionais_clinicas: (p.clinicas || []).map((c) => ({ clinica_id: c.id })),
               }));
@@ -613,16 +623,16 @@ export default function Agenda() {
 
       // Clínicas restritas ao usuário (multi-tenant)
       const cl = await fetchUserClinicas();
-      setClinicas(cl);
+      setClinicas(cl.map((c) => ({ ...c, nome: getClinicLabel({ id: String(c.id), nome: c.nome, rede_nome: c.rede_nome }) })));
       const idsPermitidos = cl.map((c) => c.id);
 
       // Equipe visível ao usuário (filtrada por rede; super admin vê tudo).
       // Mantém a forma `{ profissionais_clinicas: [{ clinica_id }] }` esperada
       // pela UI a partir das `clinicas` retornadas pelo helper.
       const equipe = await fetchUserEquipe();
-      const equipeNormalizada = equipe.map((p: any) => ({
+      const equipeNormalizada = equipe.filter((p) => p.is_super_admin !== true).map((p) => ({
           ...p,
-          profissionais_clinicas: (p.clinicas || []).map((c: any) => ({ clinica_id: c.id })),
+          profissionais_clinicas: (p.clinicas || []).map((c) => ({ clinica_id: c.id })),
       }));
       setProfissionais(equipeNormalizada as any);
 
@@ -738,7 +748,7 @@ export default function Agenda() {
 
   async function resolverClinicasLocal(): Promise<{ id: string | number; nome: string }[]> {
       if (clinicasContexto.length > 0) {
-          return clinicasContexto.map((c) => ({ id: c.id, nome: c.nome }));
+          return clinicasContexto.map((c) => ({ id: c.id, nome: getClinicLabel(c) }));
       }
       const cache = await lerSessaoCacheUI();
       return (cache?.clinicas || []).map((c) => ({ id: c.id, nome: c.nome }));
@@ -1056,6 +1066,10 @@ export default function Agenda() {
     (ocupadosPorDia.get(chaveLocal(dia)) || []).filter((ocupado) =>
       new Date(ocupado.inicio).getHours() === hora && (profissionalId === undefined || String(ocupado.profissional_id) === profissionalId));
 
+  const gradeMostraAgora = visao === 'semana'
+    ? agora >= inicioSemana(cursor) && agora < somarDias(inicioSemana(cursor), 7)
+    : (visao === 'dia' || visao === 'profissionais') && mesmoDia(cursor, agora);
+
   const horasGrade = useMemo(() => {
     let min = 7;
     let max = 20;
@@ -1065,8 +1079,14 @@ export default function Agenda() {
       if (hora < min) min = hora;
       if (hora > max) max = hora;
     });
-    return Array.from({ length: max - min + 1 }, (_, indice) => min + indice);
-  }, [eventosVisiveis, ocupadosGoogle]);
+    // A hora atual entra na grade mesmo de madrugada ou depois das 20h, senão o traço some.
+    if (gradeMostraAgora) {
+      const horaAgora = agora.getHours();
+      if (horaAgora < min) min = horaAgora;
+      if (horaAgora > max) max = horaAgora;
+    }
+    return Array.from({ length: Math.max(max - min + 1, 1) }, (_, indice) => min + indice);
+  }, [eventosVisiveis, ocupadosGoogle, gradeMostraAgora, agora]);
 
   const planoDoPaciente = useMemo(() => {
     const pac = pacientes.find((p: any) => String(p.id) === String(formData.paciente_id));
@@ -1584,33 +1604,26 @@ export default function Agenda() {
             {horasGrade.map((hora) => {
               const dias = visao === 'dia' ? [inicioDoDia(cursor)] : diasSemana;
               const rotulo = `${String(hora).padStart(2, '0')}:00`;
+              const mostraAgora = gradeMostraAgora && agora.getHours() === hora;
               return (
-                <div key={hora} className={`grid min-h-12 w-full min-w-0 border-b border-neutral-100 last:border-b-0 ${visao === 'dia' ? 'grid-cols-[3.25rem_minmax(0,1fr)]' : 'grid-cols-[3.25rem_repeat(7,minmax(0,1fr))]'}`}>
+                <div key={hora} className="relative min-h-12 w-full min-w-0 border-b border-neutral-100 last:border-b-0">
+                  <div className={`grid min-h-12 w-full min-w-0 ${visao === 'dia' ? 'grid-cols-[3.25rem_minmax(0,1fr)]' : 'grid-cols-[3.25rem_repeat(7,minmax(0,1fr))]'}`}>
                   <div className="px-1 pt-1 text-right text-[11px] text-neutral-400">{rotulo}</div>
                   {dias.map((dia) => {
                     const lista = (eventosPorDia.get(chaveLocal(dia)) || []).filter((evento) => new Date(evento.start).getHours() === hora);
-                    const mostraAgora = mesmoDia(dia, agora) && agora.getHours() === hora;
                     return (
                       <div
                         key={`${chaveLocal(dia)}-${hora}`}
                         onClick={() => abrirNoDia(dia, rotulo)}
                         className="relative min-h-12 min-w-0 cursor-pointer overflow-hidden border-l border-neutral-100 p-0.5 hover:bg-neutral-50"
                       >
-                        {mostraAgora && (
-                          <div
-                            data-agora=""
-                            className="pointer-events-none absolute inset-x-0 z-10"
-                            style={{ top: `${(agora.getMinutes() / 60) * 100}%` }}
-                          >
-                            <span className="absolute left-0 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-red-500" />
-                            <span className="absolute left-0 right-0 h-0.5 -translate-y-1/2 bg-red-500" />
-                          </div>
-                        )}
                         {ocupadosNaHora(dia, hora).map((ocupado) => <ChipOcupadoGoogle key={ocupado.chave} ocupado={ocupado} comNome={filtroProfissional === 'todos'} />)}
                         {lista.map((evento) => <ChipEvento key={evento.id} evento={evento} />)}
                       </div>
                     );
                   })}
+                  </div>
+                  {mostraAgora && <LinhaAgora minutos={agora.getMinutes()} />}
                 </div>
               );
             })}
@@ -1692,15 +1705,10 @@ export default function Agenda() {
                 <div ref={gradeHorasRef}>
                   {horasGrade.map((hora) => {
                     const rotulo = `${String(hora).padStart(2, '0')}:00`;
-                    const mostraAgora = mesmoDia(dia, agora) && agora.getHours() === hora;
+                    const mostraAgora = gradeMostraAgora && agora.getHours() === hora;
                     return (
-                      <div key={hora} className="relative grid min-h-12 border-b border-neutral-100 last:border-b-0" style={{ gridTemplateColumns: grade }}>
-                        {mostraAgora && (
-                          <div data-agora="" className="pointer-events-none absolute inset-x-0 z-10" style={{ top: `${(agora.getMinutes() / 60) * 100}%` }}>
-                            <span className="absolute left-[3.25rem] h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-red-500" />
-                            <span className="absolute left-[3.25rem] right-0 h-0.5 -translate-y-1/2 bg-red-500" />
-                          </div>
-                        )}
+                      <div key={hora} className="relative min-h-12 border-b border-neutral-100 last:border-b-0">
+                        <div className="grid min-h-12" style={{ gridTemplateColumns: grade }}>
                         <div className="sticky left-0 z-[5] bg-white px-1 pt-1 text-right text-[11px] text-neutral-400">{rotulo}</div>
                         {(colunas.length ? colunas : [null]).map((profissional: any, indice: number) => {
                           const lista = profissional
@@ -1717,6 +1725,8 @@ export default function Agenda() {
                             </div>
                           );
                         })}
+                        </div>
+                        {mostraAgora && <LinhaAgora minutos={agora.getMinutes()} />}
                       </div>
                     );
                   })}
@@ -1819,7 +1829,7 @@ export default function Agenda() {
                           </label>
                           <label>
                               <span className="mb-1.5 block text-xs font-medium text-neutral-500">Hora <span className="text-red-500">*</span></span>
-                              <CampoHora value={formData.time} onChange={(v) => setFormData({ ...formData, time: v })} passo={30} />
+                              <CampoHora value={formData.time} onChange={(v) => setFormData({ ...formData, time: v })} passo={1} />
                           </label>
                           <label className="sm:col-span-2">
                               <span className="mb-1.5 block text-xs font-medium text-neutral-500">Procedimento <span className="text-red-500">*</span></span>

@@ -37,6 +37,7 @@ export default function ConversasPage() {
   const admin = useAdminDaClinica(clinicaId);
 
   const [canais, setCanais] = useState<Canal[]>([]);
+  const [canaisProntos, setCanaisProntos] = useState(false);
   const [naoLidas, setNaoLidas] = useState<Map<string, number>>(new Map());
   const [canalId, setCanalId] = useState<string | null>(null);
   const [mostrarLista, setMostrarLista] = useState(true);
@@ -52,28 +53,43 @@ export default function ConversasPage() {
 
   const canal = canais.find((c) => c.id === canalId) || null;
 
+  const pedidoCanais = useRef(0);
   const carregarCanais = useCallback(async () => {
     if (!clinicaId) return;
+    const meu = ++pedidoCanais.current;
+    const id = clinicaId;
     try {
-      const [lista, contagem] = await Promise.all([listarCanais(clinicaId), naoLidasPorCanal(clinicaId)]);
+      const [lista, contagem] = await Promise.all([listarCanais(id), naoLidasPorCanal(id)]);
+      if (meu !== pedidoCanais.current) return;
       setCanais(lista);
       setNaoLidas(contagem);
       setCanalId((atual) => (atual && lista.some((c) => c.id === atual) ? atual : lista[0]?.id ?? null));
       setOffline(false);
+      setCanaisProntos(true);
     } catch {
+      if (meu !== pedidoCanais.current) return;
       setOffline(semInternet());
+      setCanaisProntos(true);
     }
   }, [clinicaId]);
 
+  const clinicaCarregada = useRef<number | null>(null);
   useEffect(() => {
-    if (clinicLoading) return;
-    setCanais([]);
-    setCanalId(null);
-    setMensagens([]);
+    if (!clinicaId) return;
+    if (clinicaCarregada.current !== clinicaId) {
+      clinicaCarregada.current = clinicaId;
+      setCanais([]);
+      setCanalId(null);
+      setMensagens([]);
+      setCanaisProntos(false);
+    }
     void carregarCanais();
-  }, [clinicLoading, carregarCanais]);
+  }, [clinicaId, carregarCanais]);
 
   useEffect(() => { void fetchUserEquipe().then(setEquipe).catch(() => setEquipe([])); }, []);
+
+  const meuIdRef = useRef(meuId);
+  meuIdRef.current = meuId;
 
   // Mensagens do canal aberto: carga inteira ao trocar de canal e, depois, só as novas a cada 3 s com a aba visível.
   useEffect(() => {
@@ -96,7 +112,8 @@ export default function ConversasPage() {
             return [...base, ...novas.filter((m) => !ids.has(m.id))];
           });
           if (novas.length > 0) ultima = novas[novas.length - 1].created_at;
-          if (meuId) void marcarCanalLido(clinicaId!, canalId!, meuId).then(() => setNaoLidas((n) => new Map(n).set(canalId!, 0)));
+          const autor = meuIdRef.current;
+          if (autor) void marcarCanalLido(clinicaId!, canalId!, autor).then(() => setNaoLidas((n) => new Map(n).set(canalId!, 0)));
         }
       } catch {
         if (minha === versao.current) setOffline(semInternet());
@@ -108,7 +125,7 @@ export default function ConversasPage() {
     void ciclo(true);
     const timer = window.setInterval(() => void ciclo(false), INTERVALO_MS);
     return () => window.clearInterval(timer);
-  }, [canalId, clinicaId, meuId]);
+  }, [canalId, clinicaId]);
 
   // Contagem de não lidas dos outros canais.
   useEffect(() => {
@@ -188,7 +205,7 @@ export default function ConversasPage() {
     }
   }
 
-  if (!clinicLoading && !clinicaId) {
+  if (activeClinicId === 'all' || (!clinicLoading && !clinicaId)) {
     return (
       <div className="flex h-full flex-col px-3 py-3 font-poppins md:px-4">
         <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 md:text-[2rem]">Conversas</h1>
@@ -204,7 +221,7 @@ export default function ConversasPage() {
           Conversas
           <span className="hidden text-neutral-400 md:inline"> · {activeClinic ? getClinicLabel(activeClinic) : ''}</span>
         </h1>
-        <p className="mt-1 text-sm text-neutral-500 sm:text-base">Recados da equipe da clínica. Para falar com a Ortus, use Ajuda → Contatar o suporte.</p>
+        <p className="mt-1 text-sm text-neutral-500 sm:text-base">Recados da equipe da clínica.</p>
       </div>
 
       <div className="grid min-h-0 flex-1 overflow-hidden rounded-xl border border-neutral-200 bg-white lg:grid-cols-[17rem_1fr]">
@@ -234,7 +251,13 @@ export default function ConversasPage() {
                 </li>
               );
             })}
-            {canais.length === 0 && !offline && <li className="px-2.5 py-6 text-center text-xs text-neutral-400"><Loader2 size={14} className="mx-auto animate-spin" /></li>}
+            {!canaisProntos && canais.length === 0 && !offline && (
+              <li className="space-y-2 px-1 py-2" aria-busy="true" aria-label="Carregando canais">
+                <span className="block h-10 animate-pulse rounded-md bg-neutral-100" />
+                <span className="block h-10 animate-pulse rounded-md bg-neutral-100" />
+              </li>
+            )}
+            {canaisProntos && canais.length === 0 && !offline && <li className="px-2.5 py-6 text-center text-xs text-neutral-500">Nenhum canal ainda.</li>}
             {offline && <li className="px-2.5 py-6 text-center text-xs text-neutral-500">Sem internet: as conversas voltam quando a conexão voltar.</li>}
           </ul>
         </aside>
